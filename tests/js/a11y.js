@@ -630,7 +630,7 @@ function tagOf(id) {
         const tag = id => { const m = new RegExp('<[a-z]+[^>]*\\bid="' + id + '"[^>]*>').exec(body); return m ? m[0] : ''; };
         const view = tag('profiles-crop-view');
         ok('the crop view has a role', /\brole="[a-z]+"/.test(view), view);
-        ok('and a name', /\baria-label="\$\{t\('[^']+'\)\}"/.test(view), view);
+        ok('and a name', /\baria-label="\$\{(?:escapeHtml\()?t\('[^']+'\)\)?\}"/.test(view), view);
         const hint = /aria-describedby="([^"]+)"/.exec(view);
         ok('and is described by the line that says what the arrow keys do',
             !!hint && body.indexOf('id="' + hint[1] + '"') !== -1 && /dragOrArrows/.test(tag(hint[1]) + body.slice(body.indexOf('id="' + hint[1] + '"'), body.indexOf('id="' + hint[1] + '"') + 300)), view);

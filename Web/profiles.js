@@ -2728,9 +2728,9 @@
                                 <input type="checkbox" id="viewing-day-${d}" ${w ? 'checked' : ''} />
                                 <span>${escapeHtml(dayName(d))}</span>
                             </label>
-                            <select id="viewing-from-${d}" aria-label="${t('viewing.fromAria', { day: escapeHtml(dayName(d)) })}">${timeOptions(start, false)}</select>
+                            <select id="viewing-from-${d}" aria-label="${escapeHtml(t('viewing.fromAria', { day: dayName(d) }))}">${timeOptions(start, false)}</select>
                             <span class="jpf-viewing-dash" aria-hidden="true">–</span>
-                            <select id="viewing-to-${d}" aria-label="${t('viewing.toAria', { day: escapeHtml(dayName(d)) })}">${timeOptions(end, true)}</select>
+                            <select id="viewing-to-${d}" aria-label="${escapeHtml(t('viewing.toAria', { day: dayName(d) }))}">${timeOptions(end, true)}</select>
                         </div>`;
                 }).join('');
                 const now = !v ? '' : v.allowed
@@ -2964,12 +2964,12 @@
             // every swatch stays a tab stop: the remote's arrows and the focus trap skip
             // tabindex="-1", so rolling it to one swatch would hide the rest from a TV.
             return `
-                <div class="avatar-color-picker" role="radiogroup" aria-label="${t('profileForm.colorGroup')}">
+                <div class="avatar-color-picker" role="radiogroup" aria-label="${escapeHtml(t('profileForm.colorGroup'))}">
                     ${palette.map((c, i) => `
                         <div class="color-dot${c.toLowerCase() === active ? ' active' : ''}"
                              style="background-color: ${c}" data-color="${c}"
                              role="radio" aria-checked="${c.toLowerCase() === active ? 'true' : 'false'}"
-                             aria-label="${t('profileForm.colorN', { n: i + 1, total: palette.length })}" tabindex="0"></div>
+                             aria-label="${escapeHtml(t('profileForm.colorN', { n: i + 1, total: palette.length }))}" tabindex="0"></div>
                     `).join('')}
                 </div>
             `;
@@ -3096,7 +3096,7 @@
 
         renderTagChip: function (tag) {
             const safe = escapeHtml(tag);
-            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="${t('profileForm.removeTagAria', { tag: safe })}">×</button></span>`;
+            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="${escapeHtml(t('profileForm.removeTagAria', { tag: tag }))}">×</button></span>`;
         },
 
         renderTagEditor: function (id, tags, placeholder, suggestionsId, labelId) {
@@ -4669,7 +4669,7 @@
                     <p style="color:var(--jpf-text-2); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
                         ${t('panic.dialogBody')}
                     </p>
-                    <input type="password" id="profiles-panic-input" autocomplete="off" aria-label="${t('panic.emergencyCodePlaceholder')}" placeholder="${t('panic.emergencyCodePlaceholder')}"
+                    <input type="password" id="profiles-panic-input" autocomplete="off" aria-label="${escapeHtml(t('panic.emergencyCodePlaceholder'))}" placeholder="${escapeHtml(t('panic.emergencyCodePlaceholder'))}"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
                     <div id="profiles-panic-error" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
                     <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
@@ -5725,7 +5725,7 @@
                     ' padding:22px; max-height:86vh; overflow:auto;">' +
                     '<h2 style="margin:0 0 14px 0; color:var(--jpf-text-1); font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
                     '<div id="profiles-libart-host"></div>' +
-                    '<div id="profiles-libart-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
+                    '<div id="profiles-libart-error" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
                     '<div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
                     '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
@@ -7429,7 +7429,7 @@
                 <h1 class="profiles-title">${t('pin.enterProfilePin')}</h1>
                 <div class="pin-entry-container">
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
-                    <input type="text" id="profile-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterProfilePin')}" aria-describedby="pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
+                    <input type="text" id="profile-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('pin.enterProfilePin'))}" aria-describedby="pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions jpf-actions">
                         <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
@@ -7587,7 +7587,7 @@
                     ${setup ? this._onboardingStepLine() : ''}
                     <p class="profiles-pin-note">${noteKey ? t(noteKey) : required && !setup ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
-                    <input type="text" id="main-pin-new" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${t('mainPin.setTitle')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <input type="text" id="main-pin-new" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('mainPin.setTitle'))}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="pin-actions jpf-actions">
                         ${setup && !setup.onSkip ? '' : `<button id="main-pin-skip" class="profiles-btn btn-secondary">${required && !setup ? t('common.cancel') : t('mainPin.notNow')}</button>`}
@@ -7647,7 +7647,7 @@
                 <h1 class="profiles-title">${t('pin.enterMasterPin')}</h1>
                 <div class="pin-entry-container">
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
-                    <input type="text" id="master-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${t('pin.enterMasterPin')}" aria-describedby="master-pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
+                    <input type="text" id="master-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('pin.enterMasterPin'))}" aria-describedby="master-pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="master-pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions jpf-actions">
                         <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
@@ -7825,8 +7825,8 @@
                 <h1 class="profiles-title">${t('pinReset.title')}</h1>
                 <div class="pin-entry-container">
                     <p class="profiles-pin-note" id="pin-reset-note"></p>
-                    <input type="text" id="pin-reset-code" maxlength="7" inputmode="numeric" placeholder="${t('accountEmail.code')}" aria-label="${t('accountEmail.code')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
-                    <input type="text" id="pin-reset-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder=" " aria-label="${t('pinReset.newPin')}" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <input type="text" id="pin-reset-code" maxlength="7" inputmode="numeric" placeholder="${escapeHtml(t('accountEmail.code'))}" aria-label="${escapeHtml(t('accountEmail.code'))}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <input type="text" id="pin-reset-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder=" " aria-label="${escapeHtml(t('pinReset.newPin'))}" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="pin-reset-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="pin-actions jpf-actions">
                         <button id="pin-reset-back" class="profiles-btn btn-secondary">${t('common.back')}</button>
@@ -8530,7 +8530,7 @@
                     <!-- Named and described, since it is a tab stop that takes the arrow keys;
                          the canvas inside is a picture of nothing a screen reader can read. -->
                     <div id="profiles-crop-view" tabindex="0" data-profiles-own-keys="1" role="application"
-                         aria-label="${t('avatar.positionYourPicture')}" aria-describedby="profiles-crop-hint" style="
+                         aria-label="${escapeHtml(t('avatar.positionYourPicture'))}" aria-describedby="profiles-crop-hint" style="
                         width:${VIEW}px; height:${VIEW}px; margin:0 auto; border-radius:50%;
                         overflow:hidden; position:relative; cursor:grab; touch-action:none;
                         background:#0d0d12; outline-offset:3px;">
@@ -8538,7 +8538,7 @@
                                 style="display:block; width:${VIEW}px; height:${VIEW}px;"></canvas>
                     </div>
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
-                           style="width:100%; margin:16px 0 4px 0;" aria-label="${t('avatar.zoom')}" />
+                           style="width:100%; margin:16px 0 4px 0;" aria-label="${escapeHtml(t('avatar.zoom'))}" />
                     <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
                         <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                         <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">${t('avatar.usePicture')}</button>
@@ -8782,7 +8782,7 @@
             const uploadHtml = library.allowCustomUploads ? `
                 <div class="picture-source-block">
                     <div class="picture-source-title">${t('avatar.fromThisDevice')}</div>
-                    <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
+                    <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0" role="button">
                         <span class="material-icons" aria-hidden="true" style="font-size: 1.25rem;">photo_camera</span>
                         <span>${t('avatar.uploadPicture')}</span>
                     </label>
@@ -9219,7 +9219,7 @@
                 const createAppearance = `
                     <div class="form-group">
                         <label for="create-name-input">${t('profileForm.profileName')}</label>
-                        <input type="text" id="create-name-input" maxlength="32" placeholder="${t('profileForm.namePlaceholder')}" required />
+                        <input type="text" id="create-name-input" maxlength="32" placeholder="${escapeHtml(t('profileForm.namePlaceholder'))}" required />
                     </div>
                     ${this.renderAvatarPicker('create', avatarLibrary, null, startColor, { enabled: false })}
                     <div class="form-group avatar-color-group" id="create-color-group">
@@ -9233,7 +9233,7 @@
                 const createSecurity = `
                     <div class="form-group">
                         <label for="create-pin-input">${t('profileForm.pin')}</label>
-                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${t('profileForm.pinPlaceholderEmpty')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${escapeHtml(t('profileForm.pinPlaceholderEmpty'))}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     </div>
                 `;
 
@@ -9311,7 +9311,7 @@
                             this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), '',createRestrictions)
                         ])}
 
-                        <div id="create-error-msg" class="form-error" style="display:none;"></div>
+                        <div id="create-error-msg" class="form-error" role="alert" style="display:none;"></div>
                         <div class="profile-dialog-actions jpf-actions">
                             <button id="create-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                             <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
@@ -9626,7 +9626,7 @@
                             <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? t('profileForm.pinPlaceholderNew') : t('profileForm.pinPlaceholderNone')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
                             ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">${t('profileForm.clearPin')}</button>` : ''}
                         </div>
-                        <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
+                        <div id="edit-pin-error" class="form-error" role="alert" style="display:none; margin-top:8px;"></div>
                         <div class="form-hint">
                             ${profile.hasPin
                                 ? t('profileForm.pinIsSetHint')
@@ -9690,7 +9690,7 @@
                                             <span class="libart-thumb" aria-hidden="true"></span>
                                             <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
                                         </label>
-                                        <select class="libart-mode" aria-label="${t('profileForm.artworkForAria', { name: escapeHtml(lib.name) })}">
+                                        <select class="libart-mode" aria-label="${escapeHtml(t('profileForm.artworkForAria', { name: lib.name }))}">
                                             <option value="inherit">${t('profileForm.artworkDefault')}</option>
                                             <option value="custom">${t('profileForm.artworkPicture')}</option>
                                             <option value="none">${t('profileForm.artworkHidden')}</option>
@@ -10144,8 +10144,14 @@
                 hasPin: this._field(x, 'hasPin') === true
             }));
 
-            const draw = () => {
+            // The whole section is redrawn from each reply, which destroys the button that
+            // had focus and the status line a screen reader was watching. The status node
+            // is carried across the redraw so the next message is a change to a region
+            // that already existed (one inserted with its text is often not announced),
+            // and focus is put somewhere stated rather than dropped to the page (R-1219).
+            const draw = (focusSel) => {
                 if (!document.body.contains(slot)) return;
+                const keptStatus = status();
                 const added = list('added');
                 const shown = list('shownIn');
                 const row = (x, cls, label, aria) => `
@@ -10178,6 +10184,18 @@
                     <div id="links-status" class="form-hint" role="status" aria-live="polite"></div>
                 `);
 
+                if (keptStatus) {
+                    const fresh = status();
+                    if (fresh && fresh.parentNode && typeof fresh.parentNode.replaceChild === 'function') {
+                        keptStatus.textContent = '';
+                        fresh.parentNode.replaceChild(keptStatus, fresh);
+                    }
+                }
+                if (focusSel) {
+                    const target = slot.querySelector(focusSel) || slot.querySelector('#links-username');
+                    if (target && typeof target.focus === 'function') target.focus();
+                }
+
                 const user = slot.querySelector('#links-username');
                 const pass = slot.querySelector('#links-password');
                 let busy = false;
@@ -10187,7 +10205,7 @@
                     if (busy) return;
                     busy = true;
                     this._emailCall('accounts/links/add', { username: name, password: pass.value })
-                        .then(reply => { data = reply; draw(); say(t('links.added', { name: name })); })
+                        .then(reply => { data = reply; draw('#links-username'); say(t('links.added', { name: name })); })
                         .catch(err => { busy = false; pass.value = ''; say(err.message, true); });
                 };
                 slot.querySelector('#links-add').addEventListener('click', add);
@@ -10202,7 +10220,7 @@
                             this.showActionsDialog(title(name), message, [
                                 { label: cls === 'links-remove' ? t('links.remove') : t('links.leave'), primary: true, run: () => {
                                     this._emailCall('accounts/links/remove', body(id))
-                                        .then(reply => { data = reply; draw(); say(t('links.removed')); })
+                                        .then(reply => { data = reply; draw(cls === 'links-remove' ? '.links-remove' : '.links-leave'); say(t('links.removed')); })
                                         .catch(err => say(err.message, true));
                                 } },
                                 { label: t('common.cancel') }
@@ -10364,9 +10382,9 @@
                             <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(name)}</span>
                             <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: seenStr })}</span>
                         </span>
-                        <button type="button" class="device-rename-btn" data-id="${escapeHtml(id)}" data-name="${escapeHtml(name)}" title="${t('profileForm.renameDevice')}" aria-label="${t('profileForm.renameDeviceAria', { name: escapeHtml(name) })}"><span class="material-icons" aria-hidden="true">edit</span></button>
-                        <button type="button" class="device-merge-btn" data-id="${escapeHtml(id)}" title="${t('profileForm.mergeDevice')}" aria-label="${t('profileForm.mergeDeviceAria', { name: escapeHtml(name) })}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
-                        <button type="button" class="device-delete-btn" data-id="${escapeHtml(id)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(name) })}"><span class="material-icons" aria-hidden="true">delete</span></button>
+                        <button type="button" class="device-rename-btn" data-id="${escapeHtml(id)}" data-name="${escapeHtml(name)}" title="${escapeHtml(t('profileForm.renameDevice'))}" aria-label="${escapeHtml(t('profileForm.renameDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">edit</span></button>
+                        <button type="button" class="device-merge-btn" data-id="${escapeHtml(id)}" title="${escapeHtml(t('profileForm.mergeDevice'))}" aria-label="${escapeHtml(t('profileForm.mergeDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
+                        <button type="button" class="device-delete-btn" data-id="${escapeHtml(id)}" title="${escapeHtml(t('profileForm.forgetDevice'))}" aria-label="${escapeHtml(t('profileForm.forgetDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">delete</span></button>
                     </div>`;
             };
             const deviceBody = devices === null
@@ -10906,7 +10924,7 @@
                 <p class="jpf-onboarding-text">${t('onboarding.profileBody')}</p>
                 <div class="bonfire-form-group">
                     <label for="onboarding-profile-name">${t('profileForm.profileName')}</label>
-                    <input type="text" id="onboarding-profile-name" maxlength="32" placeholder="${t('profileForm.namePlaceholder')}" />
+                    <input type="text" id="onboarding-profile-name" maxlength="32" placeholder="${escapeHtml(t('profileForm.namePlaceholder'))}" />
                 </div>
             `, t('common.create'), skip);
             if (!content) return;
@@ -11249,7 +11267,7 @@
                 <h1 class="profiles-title">${t('settings.themeTitle')}</h1>
                 <div class="create-profile-container jpf-theme-page">
                     ${people.length > 1 ? `
-                    <div class="jpf-theme-people" role="radiogroup" aria-label="${t('settings.themeTitle')}">
+                    <div class="jpf-theme-people" role="radiogroup" aria-label="${escapeHtml(t('settings.themeTitle'))}">
                         ${people.map(p => `
                             <button type="button" class="jpf-theme-person focusable" role="radio"
                                     data-id="${escapeHtml(p.profileUserId)}"
@@ -11405,7 +11423,7 @@
                             t('switcher.menuBody'))}
                     </div>
 
-                    <div id="switcher-mode-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
+                    <div id="switcher-mode-error" role="alert" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
                     <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
                         <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
@@ -11612,10 +11630,10 @@
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.joinBody')}</span>
                         <div class="bonfire-join-row" style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
-                            <input type="text" id="bonfire-join-input" placeholder="${t('bonfire.joinCodePlaceholder')}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; padding: 10px !important;" />
+                            <input type="text" id="bonfire-join-input" placeholder="${escapeHtml(t('bonfire.joinCodePlaceholder'))}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; padding: 10px !important;" />
                             <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; box-sizing: border-box !important;">${t('common.join')}</button>
                         </div>
-                        <div id="bonfire-join-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
+                        <div id="bonfire-join-error" role="alert" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
                     </div>
                 `;
             }

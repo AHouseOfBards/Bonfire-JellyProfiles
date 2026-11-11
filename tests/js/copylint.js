@@ -339,7 +339,7 @@ function tooltipRepeats(src, dict, fname) {
     const T = "t\\('([^']+)'";
     // (a) in markup written as a template or a concatenation:
     //     title="${t('k')}"   or   title="' + escapeHtml(t('k')) + '"   next to the text.
-    const attrRe = new RegExp('\\b(title|aria-label)="(?:\\$\\{|\' \\+ (?:escapeHtml\\()?)' + T + '[^)]*\\)', 'g');
+    const attrRe = new RegExp('\\b(title|aria-label)="(?:\\$\\{(?:escapeHtml\\()?|\' \\+ (?:escapeHtml\\()?)' + T + '[^)]*\\)', 'g');
     let m;
     while ((m = attrRe.exec(src)) !== null) {
         const label = dict[m[2]];

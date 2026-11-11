@@ -178,6 +178,36 @@ const last = url => sent(url).pop();
     ok('and redraws from the reply', slot.querySelectorAll('.links-remove').length === 3
        && slot.querySelector('#links-status').textContent === 'grandpa added.');
 
+    // R-1219. The redraw destroys the focused button and the status line. Focus has to be
+    // put back on purpose, and the status node carried over so its next message is a
+    // change to a live region that already existed, not a new one inserted with its text.
+    {
+        const raw = slot.querySelector;
+        const focused = [];
+        const swapped = [];
+        let seq = 0;
+        slot.querySelector = sel => {
+            const n = raw(sel);
+            if (!n) return n;
+            n.focus = () => focused.push(sel);
+            if (sel === '#links-status' && !n.tag) {
+                n.tag = 'status' + (++seq);
+                n.parentNode = { replaceChild: (keep, gone) => swapped.push([keep.tag, gone.tag]) };
+            }
+            return n;
+        };
+        // The node in place before the redraw is the one that must survive it.
+        const beforeStatus = slot.querySelector('#links-status');
+        slot.querySelector('#links-username').value = 'cousin';
+        slot.querySelector('#links-password').value = 'pw';
+        slot.querySelector('#links-add').click();
+        await settle();
+        ok('after adding, focus goes to the username box', focused.indexOf('#links-username') !== -1, focused.join(','));
+        ok('and the status line is carried across the redraw', swapped.length === 1 && swapped[0][0] === beforeStatus.tag,
+            JSON.stringify(swapped) + ' vs ' + beforeStatus.tag);
+        slot.querySelector = raw;
+    }
+
     server.refuse['plugins/profiles/accounts/links/add'] = [400, "That username or password isn't right.", 'credentials_wrong'];
     slot.querySelector('#links-username').value = 'grandpa';
     slot.querySelector('#links-password').value = 'wrong';
