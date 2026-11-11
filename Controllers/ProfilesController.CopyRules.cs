@@ -45,7 +45,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid currentUserId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            var currentMapping = FindMapping(currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
             if (currentUserId != masterUserId)
             {

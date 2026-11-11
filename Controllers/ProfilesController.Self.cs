@@ -39,7 +39,7 @@ namespace Jellyfin.Profiles.Controllers
             if (request == null) return BadRequest("Missing request body.");
 
             // Exactly a sub-profile: a row of its own, under a main account that is not itself.
-            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);
+            var mapping = FindMapping(callerId.Value);
             if (mapping == null || mapping.MasterUserId == Guid.Empty || mapping.MasterUserId == callerId.Value)
                 return Unauthorized("Only a profile can change its own name and picture.");
 

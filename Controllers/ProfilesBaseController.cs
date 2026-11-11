@@ -96,6 +96,31 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
+        /// The mapping row for <paramref name="userId"/>, found with the lock held, or null.
+        /// Walking <c>config.Mappings</c> outside <see cref="ConfigLock"/> while another
+        /// request adds or removes a row throws "Collection was modified". The row itself is
+        /// the live one, as before; only the walk is protected. <c>tests/js/mappingslock.js</c>
+        /// fails any list walk outside the lock.
+        /// </summary>
+        internal static ProfileMapping? FindMapping(Guid userId)
+        {
+            lock (ConfigLock)
+            {
+                return Plugin.Instance?.Configuration?.Mappings?.FirstOrDefault(m => m.ProfileUserId == userId);
+            }
+        }
+
+        /// <summary>The library picture with this id, found with the lock held, or null.</summary>
+        internal static AvatarLibraryItem? FindLibraryAvatar(string? id)
+        {
+            lock (ConfigLock)
+            {
+                return Plugin.Instance?.Configuration?.AvatarLibrary?.FirstOrDefault(a =>
+                    string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        /// <summary>
         /// True when <paramref name="mapping"/> is a sub-profile whose main account is turned
         /// off in Dashboard -> Users.
         /// </summary>
@@ -573,8 +598,8 @@ namespace Jellyfin.Profiles.Controllers
         protected string? TrustedAccountProblem(Guid id)
         {
             if (_userManager.GetUserById(id) == null) return "That account does not exist.";
-            var mappings = Plugin.Instance?.Configuration?.Mappings;
-            if (mappings != null && mappings.Any(m => m.ProfileUserId == id && m.MasterUserId != id))
+            var own = FindMapping(id);
+            if (own != null && own.MasterUserId != id)
                 return "A profile can not be listed. Use its main account.";
             if (Auth.TrustedAddresses.IsAdministrator(_userManager, id))
                 return "An administrator always asks for a PIN.";
@@ -2657,8 +2682,7 @@ namespace Jellyfin.Profiles.Controllers
                     : "No such avatar.";
             }
 
-            var item = config?.AvatarLibrary.FirstOrDefault(a =>
-                string.Equals(a.Id, libraryAvatarId, StringComparison.OrdinalIgnoreCase));
+            var item = FindLibraryAvatar(libraryAvatarId);
             if (item == null) return "No such avatar.";
             return FindImageFile(AvatarLibraryFolder, item.Id, false) == null ? "That picture is no longer available." : null;
         }
@@ -2769,8 +2793,7 @@ namespace Jellyfin.Profiles.Controllers
                 return true;
             }
 
-            var item = config?.AvatarLibrary.FirstOrDefault(a =>
-                string.Equals(a.Id, libraryAvatarId, StringComparison.OrdinalIgnoreCase));
+            var item = FindLibraryAvatar(libraryAvatarId);
             if (item == null)
             {
                 _logger.LogWarning(

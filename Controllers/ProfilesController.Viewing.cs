@@ -141,7 +141,7 @@ namespace Jellyfin.Profiles.Controllers
             if (config == null) return BadRequest("Plugin configuration missing.");
             if (request == null) return BadRequest("Missing request body.");
 
-            var profile = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            var profile = FindMapping(profileId);
             if (profile == null) return NotFound("Profile not found.");
             if (profile.MasterUserId == Guid.Empty || profile.MasterUserId == profile.ProfileUserId)
                 return BadRequest(LimitsForProfilesMessage);

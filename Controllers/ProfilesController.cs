@@ -365,7 +365,7 @@ namespace Jellyfin.Profiles.Controllers
             }
             Guid currentUserId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            var currentMapping = FindMapping(currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
             if (currentUserId != masterUserId)
@@ -624,7 +624,7 @@ namespace Jellyfin.Profiles.Controllers
             }
             Guid currentUserId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            var currentMapping = FindMapping(currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
             if (currentUserId != masterUserId)
@@ -639,7 +639,7 @@ namespace Jellyfin.Profiles.Controllers
 
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
-            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+            var mapping = FindMapping(request.ProfileId);
             if (mapping == null) return NotFound("Profile not found.");
 
             // Verify mapping ownership
@@ -1150,10 +1150,14 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            var subProfileIds = config.Mappings
-                .Where(m => m.ProfileUserId != m.MasterUserId)
-                .Select(m => m.ProfileUserId)
-                .ToHashSet();
+            HashSet<Guid> subProfileIds;
+            lock (ConfigLock)
+            {
+                subProfileIds = config.Mappings
+                    .Where(m => m.ProfileUserId != m.MasterUserId)
+                    .Select(m => m.ProfileUserId)
+                    .ToHashSet();
+            }
 
             var masterUsersList = new List<object>();
             var subProfilesList = new List<object>();
@@ -1163,7 +1167,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 if (subProfileIds.Contains(user.Id))
                 {
-                    var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == user.Id);
+                    var mapping = FindMapping(user.Id);
                     var masterUser = mapping != null ? _userManager.GetUserById(mapping.MasterUserId) : null;
                     subProfilesList.Add(new
                     {
@@ -1182,7 +1186,7 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 else
                 {
-                    var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == user.Id);
+                    var mapping = FindMapping(user.Id);
                     var limitOverride = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == user.Id)?.MaxProfiles;
                     List<Guid> added;
                     bool inBonfire;
@@ -1948,7 +1952,7 @@ namespace Jellyfin.Profiles.Controllers
             }
             Guid currentUserId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            var currentMapping = FindMapping(currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
             if (currentUserId != masterUserId)
@@ -1970,7 +1974,7 @@ namespace Jellyfin.Profiles.Controllers
                 var nameError = ValidateProfileName(request.ProfileName);
                 if (nameError != null) return BadRequest(nameError);
 
-                var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+                var mapping = FindMapping(request.ProfileId);
                 if (mapping == null || mapping.MasterUserId != masterUserId)
                 {
                     return Unauthorized("Unauthorized profile update attempt.");
@@ -2029,7 +2033,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Tag filters: a null list means "leave unchanged", so fall back to what's stored.
-            var existingMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
+            var existingMapping = FindMapping(request.ProfileId);
             List<string>? profileBlockedTags = request.BlockedTags != null
                 ? NormalizeTags(request.BlockedTags)
                 : existingMapping?.BlockedTags;
@@ -2755,7 +2759,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterUserId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            var currentMapping = FindMapping(masterUserId);
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
 
@@ -2809,7 +2813,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterUserId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            var currentMapping = FindMapping(masterUserId);
             Guid masterId = currentMapping != null ? currentMapping.MasterUserId : masterUserId;
 
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
@@ -2886,7 +2890,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            var callerMapping = FindMapping(masterId);
             if (callerMapping != null && callerMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
 
@@ -2938,7 +2942,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            var callerMapping = FindMapping(masterId);
             if (callerMapping != null && callerMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can manage Bonfire groups.");
 
@@ -3049,7 +3053,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterUserId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            var currentMapping = FindMapping(masterUserId);
             if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
                 return Unauthorized("Only the master profile can update Bonfire settings.");
 
@@ -3117,10 +3121,10 @@ namespace Jellyfin.Profiles.Controllers
 
             // A sub-profile reads its master's preference: the switcher behaves the same way
             // everywhere in the household rather than changing as you move between profiles.
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            var currentMapping = FindMapping(currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
-            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            var masterMapping = FindMapping(masterUserId);
             var (askOnStartup, location) = SwitcherLocations.Resolve(masterMapping, config.DefaultAskOnStartup, config.DefaultSwitcherLocation);
 
             return Ok(new
@@ -3290,7 +3294,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid currentUserId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            var currentMapping = FindMapping(currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
             if (currentUserId != masterUserId)
             {
@@ -3345,7 +3349,7 @@ namespace Jellyfin.Profiles.Controllers
 
             // Unlike reads, only the account holder may write — a sub-profile changing this
             // would silently rewrite the whole household's experience.
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            var currentMapping = FindMapping(currentUserId);
             if (currentMapping != null && currentMapping.MasterUserId != currentUserId)
                 return Unauthorized("Only the master profile can change switcher preferences.");
 
@@ -3421,7 +3425,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             var mainId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
+            var currentMapping = FindMapping(mainId);
             if (currentMapping != null && currentMapping.MasterUserId != mainId)
                 return Unauthorized("Only the master profile can manage profiles.");
 
@@ -3451,7 +3455,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             var mainId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
+            var currentMapping = FindMapping(mainId);
             if (currentMapping != null && currentMapping.MasterUserId != mainId)
                 return Unauthorized("Only the master profile can manage profiles.");
 
@@ -3706,7 +3710,7 @@ namespace Jellyfin.Profiles.Controllers
             if (denied != null) return denied;
 
             // The master PIN guards profile edits, and artwork is one of them.
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
+            var currentMapping = FindMapping(currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
@@ -3813,7 +3817,7 @@ namespace Jellyfin.Profiles.Controllers
             // Serve only what the configuration says is in use. The ids are parsed as GUIDs,
             // so they cannot carry a path, but a file left behind by an old choice should not
             // stay reachable either.
-            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            var mapping = FindMapping(profileId);
             var entry = mapping?.LibraryArtwork?.FirstOrDefault(a => a.LibraryId == libraryId);
             if (entry == null || LibraryArtworkModes.Normalize(entry.Mode) != LibraryArtworkModes.Custom)
             {
@@ -4008,7 +4012,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            var currentMapping = FindMapping(masterId);
             if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can delete devices.");
 
@@ -4099,7 +4103,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            var currentMapping = FindMapping(masterId);
             if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can merge devices.");
 
@@ -4156,7 +4160,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            var currentMapping = FindMapping(masterId);
             if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can merge devices.");
 
@@ -4214,7 +4218,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterId);
+            var currentMapping = FindMapping(masterId);
             if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can rename devices.");
 
@@ -4258,7 +4262,7 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return NotFound();
 
-            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            var mapping = FindMapping(profileId);
             if (mapping == null || string.IsNullOrEmpty(mapping.ProfileImage)) return NotFound();
 
             if (Plugin.Instance == null) return NotFound();
@@ -5129,8 +5133,7 @@ namespace Jellyfin.Profiles.Controllers
 
             // Look the id up rather than trusting it as a filename — it arrives from the
             // URL, and joining unvalidated input to a path is how directory traversal works.
-            var item = config.AvatarLibrary.FirstOrDefault(a =>
-                string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
+            var item = FindLibraryAvatar(id);
             if (item == null) return NotFound();
 
             bool wantThumb = string.Equals(size, "thumb", StringComparison.OrdinalIgnoreCase);
