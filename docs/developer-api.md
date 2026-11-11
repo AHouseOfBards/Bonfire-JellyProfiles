@@ -451,7 +451,7 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `allowedTags` | string[] | The profile's own allowed tags. Empty means no allow-list. |
 | `bypassPinOnLocalNetwork` | boolean | Skip the PIN on the home network. |
 | `seenOnLocalNetwork` | boolean | The caller's own household has made a request from the server's network. Set once, never cleared. Screens offer `bypassPinOnLocalNetwork` only where this or that is true. False on another household's entries. |
-| `allowedDeviceIds` | string[] | Devices it may be opened on. Empty means any. |
+| `allowedDeviceIds` | string[] | Devices it may be opened on. Empty means any. The device id is the one the app sends, as Jellyfin trusts it everywhere. This is a household setting, not a lock against someone who sets their own device id. |
 | `isBonfire` | boolean | Belongs to another household in the caller's Bonfire, or is an [added account](#other-accounts). |
 | `isLinked` | boolean | Another main account added to the caller's switcher. Opening it signs into that account. |
 | `profileImage` | string | `/plugins/profiles/image/{id}?v=…`, an `http(s)` URL, or null. |
