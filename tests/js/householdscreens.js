@@ -169,7 +169,8 @@ PP.handleSessionExpired = () => {};
     ok('an email field is styled like the text fields (no white bar)',
         /\.bonfire-form-group input\[type="email"\]/.test(css));
     PP.isManageMode = true;
-    ok('the manage grid says tiles are tapped and labels are status', /'gate\.manageHint': 'Tap a profile/.test(EN) && /jpf-manage-hint/.test(SRC));
+    // "Choose", not "Tap": the grid is also driven by a remote.
+    ok('the manage grid says a tile is chosen to edit it and labels are status', /'gate\.manageHint': 'Choose a profile to edit it\. The labels show its status\./.test(EN) && /jpf-manage-hint/.test(SRC));
 
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);

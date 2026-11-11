@@ -62,7 +62,7 @@ async function confirmFor(profile) {
     console.log('\n── Delete confirmation ─────────────────────────────────────────');
 
     const normal = await confirmFor(Object.assign({}, BASE));
-    ok('a normal profile still says its account is deleted', !!normal && /underlying user account/.test(normal), normal);
+    ok('a normal profile still says its account is deleted', !!normal && /and its account\?/.test(normal), normal);
 
     const kept = await confirmFor(Object.assign({}, BASE, { keepAccountOnDelete: true }));
     ok('a kept account says it is kept', !!kept && /kept/i.test(kept), kept);
