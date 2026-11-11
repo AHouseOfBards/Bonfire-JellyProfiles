@@ -443,6 +443,29 @@ groupType.GetProperty("OwnerUserId").SetValue(fire, OTHER);
 ((IList)groupType.GetProperty("MemberUserIds").GetValue(fire)).Add(HOME);
 var fires = (IList)cfgType.GetProperty("BonfireGroups").GetValue(config);
 fires.Add(fire);
+
+// /list shows another household its tiles and nothing of how they are set up (R-1304):
+// not the profile cap, whether the account is an administrator, or a home-network skip.
+// Its own household's tiles keep all of it, for the edit form.
+((IList)groupType.GetProperty("MemberUserIds").GetValue(fire)).Add(ADMIN2);
+foreach (var on in new[] { OKID, OTHER, KID, HOME }) mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(Row(on), true);
+r = Call("GetProfiles", HOME);
+var fireTiles = (r.value as IEnumerable)?.Cast<object>().ToList() ?? new List<object>();
+object FireTile(Guid id) => fireTiles.FirstOrDefault(t => (Guid)P(t, "ProfileUserId") == id);
+Ok("a Bonfire member is listed the other household's tiles", FireTile(OTHER) != null && FireTile(OKID) != null && FireTile(ADMIN2) != null, Text(r));
+Ok("but not whether its account is an administrator", FireTile(ADMIN2) != null && P(FireTile(ADMIN2), "IsAdministrator") is bool adminSeen && !adminSeen, Text(r));
+Ok("nor its profile cap", FireTile(OTHER) != null && P(FireTile(OTHER), "MaxSubProfiles") == null, Text(r));
+Ok("nor its home-network skip, on the account or a profile",
+   FireTile(OTHER) != null && FireTile(OKID) != null
+   && P(FireTile(OTHER), "BypassPinOnLocalNetwork") is bool b1 && !b1
+   && P(FireTile(OKID), "BypassPinOnLocalNetwork") is bool b2 && !b2, Text(r));
+Ok("the household's own tiles still carry them",
+   FireTile(HOME) != null && P(FireTile(HOME), "MaxSubProfiles") is int cap && cap > 0
+   && P(FireTile(HOME), "BypassPinOnLocalNetwork") is bool b3 && b3
+   && FireTile(KID) != null && P(FireTile(KID), "BypassPinOnLocalNetwork") is bool b4 && b4, Text(r));
+((IList)groupType.GetProperty("MemberUserIds").GetValue(fire)).Remove(ADMIN2);
+foreach (var off in new[] { OKID, OTHER, KID, HOME }) mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(Row(off), false);
+
 r = Call("SwitchProfile", HOME, B(("ProfileId", OKID), ("Pin", "2468")), deviceId: "living-room");
 Ok("a Bonfire member opens the neighbour's kid with its PIN", r.status == 200, Text(r));
 r = Call("KickBonfireMember", OTHER, B(("MemberId", HOME)));

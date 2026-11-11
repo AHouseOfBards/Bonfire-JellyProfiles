@@ -130,10 +130,15 @@ namespace Jellyfin.Profiles.Controllers
                     // Only so the PIN field can warn that this PIN opens an account which
                     // can reach server settings. Sent for masters only; a sub-profile is
                     // never created with administrator rights.
-                    IsAdministrator = IsAdministratorAccount(linkedUser),
+                    //
+                    // Own household only (R-1304): another household's tile does not say
+                    // whether its owner is an administrator, how many profiles it may have,
+                    // or that it skips the PIN at home. LockoutMinutes stays, because the
+                    // client auto-locks a profile it entered on that value.
+                    IsAdministrator = linkedId == masterUserId && IsAdministratorAccount(linkedUser),
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
-                    MaxSubProfiles = GetMaxProfilesForUser(linkedId, config),
-                    BypassPinOnLocalNetwork = linkedMapping?.BypassPinOnLocalNetwork ?? false,
+                    MaxSubProfiles = linkedId == masterUserId ? GetMaxProfilesForUser(linkedId, config) : (int?)null,
+                    BypassPinOnLocalNetwork = linkedId == masterUserId && (linkedMapping?.BypassPinOnLocalNetwork ?? false),
                     SeenOnLocalNetwork = linkedId == masterUserId && seenLocally,
                     // Owner only. Another household is always asked for the PIN regardless.
                     AskPinToOpen = currentUserId == linkedId ? (linkedMapping?.AskPinToOpen ?? true) : (bool?)null,
@@ -204,7 +209,7 @@ namespace Jellyfin.Profiles.Controllers
                                 AllLibraries = ownerView && m.AllLibraries,
                                 BlockedTags = ownerView ? (m.BlockedTags ?? new List<string>()) : new List<string>(),
                                 AllowedTags = ownerView ? (m.AllowedTags ?? new List<string>()) : new List<string>(),
-                                BypassPinOnLocalNetwork = m.BypassPinOnLocalNetwork,
+                                BypassPinOnLocalNetwork = linkedId == masterUserId && m.BypassPinOnLocalNetwork,
                                 SeenOnLocalNetwork = linkedId == masterUserId && seenLocally,
                                 // Only so the delete confirmation can say the account stays.
                                 KeepAccountOnDelete = ownerView && m.KeepAccountOnDelete,
