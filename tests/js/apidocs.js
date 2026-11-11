@@ -89,7 +89,10 @@ function routes() {
                 else if (cs[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
             }
             const body = cs.slice(open, end + 1);
-            const attrs = cs.slice(Math.max(0, m.index - 400), m.index);
+            let attrs = cs.slice(Math.max(0, m.index - 400), m.index);
+            // Only this route's own attributes: stop at the previous method's closing brace, so
+            // a RequireAdministrator on the route above cannot count for this one (R-1282).
+            attrs = attrs.slice(attrs.lastIndexOf('\n        }') + 1);
             // `.IsAdministrator`, a member access — not the bare word.
             //
             // This was /IsAdministrator/, which is the same substring trap that made
@@ -110,7 +113,10 @@ function routes() {
             // tell data from a check will one day call a public route gated.
             if (/!\s*\w+\.Policy\.IsAdministrator\b/.test(body) || /RequireAdministrator\(/.test(attrs + body)) {
                 level = 'admin';
-            } else if (/GetCurrentUserId\(\)/.test(body)) {
+            } else if (/GetCurrentUserId\(\)/.test(body) && /\bUnauthorized(Object)?\(|StatusCode\(401|Status401|\bRequireMainAccount\(/.test(body)) {
+                // Reading the id is not a check: the route must also be able to answer 401.
+                // RequireMainAccount is the one helper that does it for the caller (it returns
+                // Unauthorized for a missing id and for a sub-profile).
                 level = 'user';
             }
         }
