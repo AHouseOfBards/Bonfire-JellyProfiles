@@ -3052,7 +3052,7 @@
                 // The PIN header too: a profile is handed the household's devices only when
                 // it could manage the household (R-1299).
                 fetch(apiClient.getUrl('plugins/profiles/devices'), { headers: this.manageHeaders(masterState.token, false) })
-                    .then(res => res.ok ? res.json() : null)
+                    .then(res => this.checked(res).ok ? res.json() : null)
                     .then(list => Array.isArray(list) ? list : null)
                     .catch(() => null),
                 this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId),
@@ -3060,7 +3060,7 @@
                 // The server country's own rating system. Never fails the form: null falls
                 // back to the US list in renderRatingSelect.
                 fetch(apiClient.getUrl('plugins/profiles/ratings'), { headers })
-                    .then(res => res.ok ? res.json() : null)
+                    .then(res => this.checked(res).ok ? res.json() : null)
                     .catch(() => null)
             ]).then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => ({
                 libraries, devices, libraryTags, avatarLibrary, ratings
@@ -3088,7 +3088,7 @@
                 return Promise.resolve([]);
             }
             return fetch(url, { headers: this.getAuthHeaders(token) })
-                .then(res => res.ok ? res.json() : null)
+                .then(res => this.checked(res).ok ? res.json() : null)
                 .then(data => {
                     const tags = (data && (data.Tags || data.tags)) || [];
                     return Array.from(new Set(tags.filter(tag => tag)))
@@ -5649,7 +5649,7 @@
                     cache: "no-store",
                     headers: this.getAuthHeaders(masterState.token)
                 })
-                .then(res => res.ok ? res.json() : Promise.reject(new Error("unavailable")))
+                .then(res => this.checked(res).ok ? res.json() : Promise.reject(new Error("unavailable")))
                 .then(entries => {
                     (entries || []).forEach(entry => {
                         const wanted = this.normalizeGuid(entry.libraryId || entry.LibraryId);
@@ -5700,6 +5700,7 @@
                                 masterPin: this.masterPin
                             })
                         }).then(res => {
+                            this.checked(res);
                             if (!res.ok) throw refusalError(res, t('errors.couldNotSaveArtwork'));
                             entry.dirty = false;
                         });
@@ -6748,7 +6749,7 @@
                 headers: this.getAuthHeaders(masterState.token),
                 cache: 'no-store'
             })
-                .then(res => res.ok ? res.json() : null)
+                .then(res => this.checked(res).ok ? res.json() : null)
                 .then(data => {
                     const list = data && (data.requests || data.Requests);
                     draw(Array.isArray(list) ? list : []);
@@ -7489,7 +7490,7 @@
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({ profileId: profileId, pin: pin })
-                    });
+                    }).then(res => this.checked(res));
                 },
                 busy: () => switchInProgress || this._switchLock,
                 onRight: (pin) => {
@@ -7703,7 +7704,7 @@
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({ pin: pin })
-                    });
+                    }).then(res => this.checked(res));
                 },
                 busy: () => verified || verifyInProgress,
                 onRight: (pin) => {
@@ -8711,7 +8712,7 @@
                 cache: 'no-store',
                 headers: this.getAuthHeaders(token)
             })
-            .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
+            .then(res => this.checked(res).ok ? res.json() : Promise.reject(new Error('unavailable')))
             .then(data => {
                 // The administrator's picture quality rides along with the avatar list,
                 // because every picker that could save a picture has already asked for it.
@@ -10538,7 +10539,7 @@
             const masterState = this.readMasterState();
             if (!masterState) return;
             fetch(ApiClient.getUrl('plugins/profiles/timezones'), { headers: this.getAuthHeaders(masterState.token) })
-                .then(res => (res.ok ? res.json() : null))
+                .then(res => (this.checked(res).ok ? res.json() : null))
                 .then(data => {
                     if (!data || !document.body.contains(slot)) return;
                     const zones = this._field(data, 'zones') || [];

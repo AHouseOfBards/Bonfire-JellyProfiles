@@ -35,28 +35,50 @@ ok('savePanicCode is found', fnBody.length > 0);
 ok('an empty code (a clear) goes through askFirst', /if \(!code\) \{[^}]*askFirst\(/.test(fnBody));
 ok('a code over 128 characters is refused with its own reason', /code\.length > 128/.test(fnBody) && /admin\.panic\.tooLong/.test(fnBody));
 
-console.log('\n-- R-1228: every request the person makes on purpose sends a 401 to checked() --');
-// Pairwise, one assertion per fetch: each POST must reach checked() or handleSessionExpired
-// before the next fetch begins. A count would let one site cover for another.
-const POST_EXEMPT = [
-    'Sessions/Logout',                    // signing out; the session is ending anyway
-    'plugins/profiles/panic',             // the emergency code, entered with no session
-    'plugins/profiles/onboarding/done',   // a marker whose loss only shows setup again
-    'plugins/profiles/library-artwork'    // the picture sync after a save, already handled by its caller
+console.log('\n-- R-1228: every fetch sends a 401 to checked() or handleSessionExpired, or says why not --');
+// Pairwise, one assertion per fetch (GET included): each must reach checked() or
+// handleSessionExpired before the next fetch begins. A count would let one site cover for
+// another. An exemption is matched against the start of the call, carries its reason, and
+// fails if no fetch uses it, so a stale one cannot linger.
+const EXEMPT = [
+    ['/i18n/',                              'the language file is served to anyone; no session is involved'],
+    ['plugins/profiles/themes?part=custom', 'the theme list is served to anyone; no session is involved'],
+    ['plugins/profiles/panic-state',        'asked before sign-in, to decide whether to show the emergency screen'],
+    ["plugins/profiles/panic'",             'the emergency code, entered with no session'],
+    ['Sessions/Logout',                     'signing out; the session is ending anyway'],
+    ['plugins/profiles/info',               'a public status read that works before sign-in'],
+    ['plugins/profiles/onboarding/done',    'a marker whose loss only shows setup again'],
+    ['plugins/profiles/admin/mappings',     'a Dashboard poll that hides profiles; a failure is retried and a reload on it would loop'],
+    ["plugins/profiles/preferences'), { cache", 'the startup read; before sign-in a 401 is normal and falls back to a guess'],
+    ["plugins/profiles/library-artwork'), { cache", 'the page-load read of the artwork cache; a failure keeps what is cached'],
+    ['plugins/profiles/announcements',      'a notice banner; no banner is the safe reading, and nobody is waiting on it'],
+    ["plugins/profiles/me'), { cache",      'decides whether a Forgot PIN link shows; none is the safe reading'],
+    ["plugins/profiles/onboarding'), {",    'the page-load check for first-run setup; none is the safe reading'],
+    ["fetch(url, { headers: this.getAuthHeaders(masterState.token) })", 'arming the lock timer; a failure falls back to the cached list and retries'],
+    ["plugins/profiles/list'), Object.assign", 'the _requestList wrapper; each of its callers is checked below'],
+    ['fetch(url, init).then(',              'the _fetchTimed wrapper; each of its callers is checked below']
 ];
+const usedEx = {};
 (function () {
-    const re = /fetch\(/g; let m; const at = [];
-    while ((m = re.exec(SRC))) at.push(m.index);
+    // The two wrappers count as fetches at their call sites, so a caller cannot hide behind them.
+    const re = /(?:\bfetch|\._fetchTimed|\._requestList)\(/g; let m; const at = [];
+    while ((m = re.exec(SRC))) {
+        // Skip the word in a comment.
+        const ls = SRC.lastIndexOf('\n', m.index) + 1;
+        if (/\/\//.test(SRC.slice(ls, m.index))) continue;
+        at.push(m.index);
+    }
     at.forEach(function (p, i) {
         const head = SRC.slice(p, p + 400);
-        // The device actions build their method in an init object ('devices/' + path).
-        if (!/method:\s*['"]POST['"]/.test(head) && head.indexOf("plugins/profiles/devices/' + path") === -1) return;
         const line = SRC.slice(0, p).split('\n').length;
         const label = head.replace(/\s+/g, ' ').slice(0, 70);
-        if (POST_EXEMPT.some(function (x) { return head.indexOf(x) !== -1; })) return;
+        const flat = head.replace(/\s+/g, ' ');
+        const hit = EXEMPT.filter(function (x) { return flat.indexOf(x[0]) !== -1; })[0];
+        if (hit) { usedEx[hit[0]] = true; return; }
         const win = SRC.slice(p, Math.min(at[i + 1] || SRC.length, p + 2500));
         ok('line ' + line + ' ' + label + ' reaches checked()', /\.checked\(|handleSessionExpired/.test(win));
     });
+    EXEMPT.forEach(function (x) { ok('exemption "' + x[0] + '" is used by a fetch', usedEx[x[0]] === true, x[1]); });
 }());
 
 console.log('\n-- R-1230: the merge picker shows client and last seen, not the name alone --');
