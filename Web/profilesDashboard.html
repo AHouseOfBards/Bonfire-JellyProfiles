@@ -442,6 +442,21 @@
         background: #1d1d1f; color: #f2f2f2; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
     }
     #profilesConfigurationPage .jpf-te-pop.jpf-hidden { display: none; }
+    #profilesConfigurationPage .jpf-te-expand { display: block; margin: 8px auto 0; }
+    /* The expanded preview: the profile picker's own classes under the theme being edited
+       (data-jpf-theme), so Bonfire's stylesheet draws it. It sits inside the page and is
+       sized by script (positionThemeExpanded) to the part of the page that is on screen,
+       below Jellyfin's header. The gate rules below are the real overlay's, under another id:
+       the real id is the client's, and its route poll would take a copy of it down. */
+    #profilesConfigurationPage .jpf-te-xwrap { position: absolute; left: 0; width: 100%; z-index: 40; overflow: hidden; }
+    #profilesConfigurationPage #teExpandGate {
+        position: relative; width: 100%; height: 100%; box-sizing: border-box;
+        display: flex; align-items: center; justify-content: center; overflow-y: auto;
+        background: var(--jpf-gate-bg); color: var(--jpf-text-1); font-family: var(--jpf-font);
+        padding: 2rem 0;
+    }
+    #profilesConfigurationPage #teExpandGate button { font-family: inherit; }
+    #profilesConfigurationPage .jpf-te-xclose { position: absolute; top: 10px; right: 10px; margin: 0; z-index: 2; }
     #profilesConfigurationPage .jpf-te-pop-presets { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 10px; }
     #profilesConfigurationPage .jpf-te-pre {
         -webkit-appearance: none; appearance: none; box-sizing: border-box; min-width: 0; width: 100%; height: 0; padding: 0 0 100%;
@@ -1110,6 +1125,7 @@
                     <div class="jpf-te-body">
                         <div class="jpf-te-side">
                             <div id="tePreview"></div>
+                            <button is="emby-button" type="button" class="raised jpf-te-expand" id="teExpand" data-i18n="admin.themes.expand">Expand</button>
                         </div>
                         <div class="jpf-te-fields">
                             <div class="selectContainer" id="teBaseBox">
@@ -1938,6 +1954,14 @@
                 'admin.themes.previewPrimary': 'Continue',
                 'admin.themes.previewSecondary': 'Cancel',
                 'admin.themes.noPreview': 'No preview. Bonfire\'s script isn\'t loaded here; see Troubleshoot.',
+                'admin.themes.expandClose': 'Close',
+                'admin.themes.expandLabel': 'Profile picker preview',
+                'admin.themes.xTitle': 'Who\'s watching?',
+                'admin.themes.xAdd': 'Add profile',
+                'admin.themes.xManage': 'Manage profiles',
+                'admin.themes.sample1': 'Alex',
+                'admin.themes.sample2': 'Sam',
+                'admin.themes.sample3': 'Kids',
                 'admin.themes.pickDialog': 'Pick a color',
                 'admin.themes.pickFor': 'Pick a color for {name}',
                 'admin.themes.pickPresets': 'Preset colors',
@@ -4840,6 +4864,7 @@
                 const ed = page._themeEditor;
                 if (ed) clearTimeout(ed.timer);
                 closeColorPopup(page, false);
+                closeThemeExpanded(page, false);
                 page._themeEditor = null;
                 page.querySelector('#themeEditor').classList.add('jpf-hidden');
                 const style = document.getElementById('jpfThemeEditorCss');
@@ -5143,6 +5168,108 @@
                 rove(Math.max(0, current));
             }
 
+            // ── The expanded preview ──────────────────────────────────────────────
+            // The profile picker itself, full size, in the theme being edited. It is the
+            // client's own markup and classes under a wrapper that wears the preview theme,
+            // so Bonfire's stylesheet draws it; the sheet the editor already writes for the
+            // card is written again for it with the real overlay's id swapped for ours, so a
+            // layout or background the generator draws shows here with no code of its own.
+
+            /// The sample profiles: name key, avatar colour, initial.
+            const EXPAND_SAMPLES = [['admin.themes.sample1', '#d9534f', 'A'], ['admin.themes.sample2', '#3fb37f', 'S'], ['admin.themes.sample3', '#5b8def', 'K']];
+
+            function themeExpandedHtml() {
+                const card = function (s, i) {
+                    return '<div class="profile-card' + (i === 0 ? ' is-current' : '') + '"><div class="profile-avatar-container">' +
+                        '<div class="profile-avatar" style="background-color: ' + s[1] + '; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">' + s[2] + '</div>' +
+                        '</div><div class="profile-name"><span>' + escapeHtml(t(s[0])) + '</span></div></div>';
+                };
+                return '<div id="teExpandGate" role="dialog" aria-modal="true" aria-label="' + escapeHtml(t('admin.themes.expandLabel')) + '">' +
+                    '<div class="profiles-modal-content jpf-one-home">' +
+                    '<h1 class="profiles-title">' + escapeHtml(t('admin.themes.xTitle')) + '</h1>' +
+                    '<div class="profiles-home-section"><div class="profiles-grid">' + EXPAND_SAMPLES.map(card).join('') +
+                    '<div class="profile-card action-add-profile"><div class="profile-avatar-container"><div class="profile-avatar add-avatar">+</div></div>' +
+                    '<div class="profile-name">' + escapeHtml(t('admin.themes.xAdd')) + '</div></div>' +
+                    '</div></div>' +
+                    '<div class="profiles-footer"><span class="profiles-btn btn-secondary">' + escapeHtml(t('admin.themes.xManage')) + '</span></div>' +
+                    '</div>' +
+                    '<button is="emby-button" type="button" class="raised jpf-te-xclose">' + escapeHtml(t('admin.themes.expandClose')) + '</button>' +
+                    '</div>';
+            }
+
+            /// Sizes the view to the part of the page on screen: from the page's own top or the
+            /// bottom of Jellyfin's header, whichever is lower, to the foot of the window.
+            function positionThemeExpanded(page) {
+                const x = page._themeExpand;
+                if (!x) return;
+                const pr = page.getBoundingClientRect();
+                const header = document.querySelector('.skinHeader');
+                const top = Math.max(pr.top, header ? header.getBoundingClientRect().bottom : 0);
+                const bottom = Math.min(pr.bottom, window.innerHeight);
+                x.wrap.style.top = Math.round(top - pr.top) + 'px';
+                x.wrap.style.height = Math.max(0, Math.round(bottom - top)) + 'px';
+            }
+
+            /// Writes the editor's sheet for the view. Called with the text renderThemeDraftPreview
+            /// just made, so the card and the view cannot disagree.
+            function paintThemeExpanded(page, css) {
+                if (!page._themeExpand) return;
+                page._themeExpand.style.textContent = String(css || '').replace(/#profiles-gate-overlay/g, '#teExpandGate');
+            }
+
+            function closeThemeExpanded(page, restoreFocus) {
+                const x = page._themeExpand;
+                if (!x) return;
+                page._themeExpand = null;
+                document.removeEventListener('keydown', x.onKey, true);
+                window.removeEventListener('scroll', x.onMove, true);
+                window.removeEventListener('resize', x.onMove);
+                if (x.wrap.parentNode) x.wrap.parentNode.removeChild(x.wrap);
+                if (x.style.parentNode) x.style.parentNode.removeChild(x.style);
+                if (x.madeRelative) page.style.position = '';
+                if (restoreFocus) { const b = page.querySelector('#teExpand'); if (b) b.focus(); }
+            }
+
+            function openThemeExpanded(page) {
+                if (page._themeExpand || !page._themeEditor) return;
+                closeColorPopup(page, false);
+                const wrap = document.createElement('div');
+                wrap.id = 'teExpanded';
+                wrap.className = 'jpf-te-xwrap';
+                wrap.setAttribute('data-jpf-theme', THEME_PREVIEW_ID);
+                wrap.innerHTML = themeExpandedHtml();
+                const style = document.createElement('style');
+                style.id = 'jpfThemeExpandCss';
+                document.head.appendChild(style);
+                // Positioned against the page, which Jellyfin may or may not have positioned.
+                const x = { wrap: wrap, style: style, madeRelative: getComputedStyle(page).position === 'static' };
+                if (x.madeRelative) page.style.position = 'relative';
+                page.appendChild(wrap);
+                page._themeExpand = x;
+                x.onKey = function (e) {
+                    if (e.keyCode === 9) { // Tab: the Close button is the only control, so it stays there
+                        e.preventDefault();
+                        wrap.querySelector('.jpf-te-xclose').focus();
+                    } else if (e.keyCode === 27) { // Escape
+                        e.preventDefault();
+                        e.stopPropagation();
+                        closeThemeExpanded(page, true);
+                    }
+                };
+                x.onMove = function () {
+                    if (x.queued) return;
+                    x.queued = true;
+                    (window.requestAnimationFrame || window.setTimeout)(function () { x.queued = false; positionThemeExpanded(page); });
+                };
+                document.addEventListener('keydown', x.onKey, true);
+                window.addEventListener('scroll', x.onMove, true);
+                window.addEventListener('resize', x.onMove);
+                wrap.querySelector('.jpf-te-xclose').addEventListener('click', function () { closeThemeExpanded(page, true); });
+                positionThemeExpanded(page);
+                renderThemeDraftPreview(page);
+                wrap.querySelector('.jpf-te-xclose').focus();
+            }
+
             /// Advanced's fields, built once: they are the same for every theme.
             function buildThemeAdvanced(page) {
                 const simplePhoto = page.querySelector('#teSimplePhoto');
@@ -5414,6 +5541,7 @@
                 style.textContent = css;
                 const photo = getThemePath(ed.draft, 'background.image.file');
                 if (typeof photo === 'string' && typeof api.photo === 'function') api.photo(photo);
+                paintThemeExpanded(page, css);
                 const name = getThemePath(ed.draft, 'name.text');
                 card.querySelector('.jpf-theme-preview-name').textContent = typeof name === 'string' && name ? name : t('admin.themes.newTitle');
             }
@@ -5967,6 +6095,7 @@
                 page.querySelectorAll('#themeEditor .jpf-te-mode').forEach(function (b) {
                     b.addEventListener('click', function () { setThemeEditorView(page, b.getAttribute('data-view')); });
                 });
+                page.querySelector('#teExpand').addEventListener('click', function () { openThemeExpanded(page); });
                 page.querySelector('#teSave').addEventListener('click', function () { saveThemeDraft(page); });
                 page.querySelector('#teCancel').addEventListener('click', function () { closeThemeEditor(page); });
 

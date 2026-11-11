@@ -100,6 +100,7 @@ async function main() {
         const phone = await c.evaluate(PREVIEW_WITH('#tePattern'));
         ok('on a phone the preview is on screen at the last control', phone.inView, JSON.stringify(phone));
         await pickerChecks(c, s);
+        await expandChecks(c, s);
     } finally {
         await c.close();
         await s.close();
@@ -248,6 +249,55 @@ async function pickerChecks(c, s) {
     await wait(100);
     const top = rgbOf(await sw());
     ok('the mouse sets the shade: top right is the pure hue', top && Math.max.apply(null, top) >= 250 && Math.min.apply(null, top) <= 6, JSON.stringify(top));
+}
+// ── The expanded preview (2.0) ───────────────────────────────────────────────────
+// An Expand button on the preview card shows the profile picker itself in the theme being
+// edited, over the Bonfire settings page and nothing outside it (not Jellyfin's header),
+// and it keeps up with the draft while it is open.
+const X = "document.getElementById('teExpanded')";
+async function expandChecks(c, s) {
+    console.log('\n  expanded preview');
+    for (const device of ['desktop', 'phone']) {
+        const tag = ' (' + device + ')';
+        await openEditor(c, s, device);
+        // Jellyfin's own header: fixed along the top, outside the plugin's page.
+        await c.evaluate("(function(){ var h = document.createElement('div'); h.className = 'skinHeader'; h.style.cssText = 'position:fixed;top:0;left:0;right:0;height:56px;z-index:50;background:#333'; document.body.appendChild(h); })()");
+        ok('the preview card has an Expand button' + tag, await c.evaluate("!!document.getElementById('teExpand') && !" + X));
+        await c.evaluate("document.getElementById('teExpand').scrollIntoView({block:'center'})");
+        await c.evaluate("document.getElementById('teExpand').click()");
+        await wait(300);
+        const x = await c.evaluate("(function () { var g = " + X + "; if (!g) return null; var r = g.getBoundingClientRect(), p = document.getElementById('profilesConfigurationPage').getBoundingClientRect(), h = document.querySelector('.skinHeader').getBoundingClientRect();" +
+            "var mid = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2), top = document.elementFromPoint(window.innerWidth / 2, 20);" +
+            "return { l: r.left, t: r.top, r: r.right, b: r.bottom, pl: p.left, pr: p.right, hb: h.bottom, vh: window.innerHeight, midIn: !!(mid && g.contains(mid)), headerIsHeader: !!(top && top.closest('.skinHeader')) }; })()");
+        ok('Expand shows the expanded view' + tag, !!x, 'no #teExpanded');
+        if (!x) continue;
+        ok('it covers the settings page and nothing outside it' + tag,
+            x.l >= x.pl - 1 && x.r <= x.pr + 1 && x.r - x.l >= x.pr - x.pl - 2 && x.t >= x.hb - 1 && x.b >= Math.min(x.vh, 100000) - 1 && x.midIn, JSON.stringify(x));
+        ok('and leaves Jellyfin\'s header uncovered' + tag, x.headerIsHeader, JSON.stringify(x));
+        const parts = await c.evaluate("({ cards: document.querySelectorAll('#teExpanded .profile-card').length, add: document.querySelectorAll('#teExpanded .action-add-profile').length," +
+            "title: !!document.querySelector('#teExpanded .profiles-title'), buttons: document.querySelectorAll('#teExpanded .profiles-btn').length })");
+        ok('it shows sample profiles, the add tile, the title and the buttons' + tag, parts.cards >= 4 && parts.add === 1 && parts.title && parts.buttons >= 1, JSON.stringify(parts));
+        const look = await c.evaluate("({ bg: getComputedStyle(document.getElementById('teExpandGate')).backgroundImage, color: getComputedStyle(document.querySelector('#teExpanded .profiles-title')).color })");
+        ok('it wears the draft: the theme\'s background layers' + tag, /gradient/.test(look.bg), look.bg);
+        // It follows a change made while it is open.
+        await c.evaluate("(function(){ var b = document.getElementById('teText'); b.value = '#00ff00'; b.dispatchEvent(new Event('input', { bubbles: true })); })()");
+        await wait(200);
+        const green = await c.evaluate("getComputedStyle(document.querySelector('#teExpanded .profiles-title')).color");
+        ok('and follows a change made while it is open' + tag, green === 'rgb(0, 255, 0)' && look.color !== green, look.color + ' -> ' + green);
+        // Escape and Close both go back, with focus on Expand.
+        await press(c, 'Escape');
+        ok('Escape closes it' + tag, !(await c.evaluate('!!' + X)));
+        ok('and focus is on Expand' + tag, await c.evaluate("document.activeElement === document.getElementById('teExpand')"));
+        await c.evaluate("document.getElementById('teExpand').click()");
+        await wait(200);
+        await c.evaluate("document.querySelector('#teExpanded .jpf-te-xclose').click()");
+        ok('Close closes it' + tag, !(await c.evaluate('!!' + X)));
+        ok('and focus is on Expand after Close' + tag, await c.evaluate("document.activeElement === document.getElementById('teExpand')"));
+        await c.evaluate("document.getElementById('teExpand').click()");
+        await wait(200);
+        await c.evaluate("document.getElementById('teCancel').click()");
+        ok('closing the editor takes it down' + tag, !(await c.evaluate('!!' + X)));
+    }
 }
 function rgbOf(h) { const m = /^#([0-9a-f]{6})/i.exec(h || ''); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null; }
 
