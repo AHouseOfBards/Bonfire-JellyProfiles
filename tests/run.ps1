@@ -32,7 +32,12 @@ function Invoke-Harness {
     Write-Host ("  {0,-14} " -f $Label) -NoNewline
     $out = & $Body 2>&1
     $script:ran++
-    if ($LASTEXITCODE -eq 0) {
+    $text = ($out | ForEach-Object { [string]$_ }) -join "`n"
+    if ($LASTEXITCODE -eq 0 -and ($text.Trim() -eq '' -or $text -match '(?i)(^|[^0-9.])0 (passed|checks|assertions)|pass 0([^0-9]|$)')) {
+        # Exit 0 with nothing said, or zero checks counted, proved nothing.
+        $script:failed.Add($Label)
+        Write-Host 'FAILED (asserted nothing)'
+    } elseif ($LASTEXITCODE -eq 0) {
         $tail = ($out | Select-Object -Last 1)
         if ($null -ne $tail) { Write-Host ([string]$tail).Trim() } else { Write-Host 'ok' }
     } else {

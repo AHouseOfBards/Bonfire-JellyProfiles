@@ -30,6 +30,14 @@ run() {                       # run <label> <command...>
     local out
     if out=$("$@" 2>&1); then
         RAN=$((RAN + 1))
+        # A harness that exits 0 having said nothing, or having counted zero checks, proved
+        # nothing: an emptied test body looks exactly like that. Fail it.
+        if [ -z "$(printf %s "$out" | tr -d '[:space:]')" ] \
+           || printf '%s\n' "$out" | grep -Eiq '(^|[^0-9.])0 (passed|checks|assertions)|pass 0([^0-9]|$)'; then
+            FAILED+=("$label")
+            echo "FAILED (asserted nothing)"
+            return
+        fi
         echo "$out" | tail -1 | cut -c1-70
     else
         RAN=$((RAN + 1))
@@ -63,7 +71,7 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
     # offline checks compare against — it is a maintenance tool, not a gate.
     # *.scan.js surveys the source and prints what it finds; it asserts nothing and
     # always exits 0, so counting it would add a harness that can never go red.
-    for f in tests/js/*.js; do
+    for f in "${BONFIRE_JS_DIR:-tests/js}"/*.js; do   # the override is for tests/js/runner.js
         base="$(basename "$f")"
         [ "${base#_}" != "$base" ] && continue
         case "$base" in *.verify.js|*.scan.js) continue ;; esac
