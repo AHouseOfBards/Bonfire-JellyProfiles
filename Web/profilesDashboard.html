@@ -1758,6 +1758,9 @@
                 'admin.panic.tooShort': 'The code must be at least 10 characters.',
                 'admin.panic.saved': 'Code saved. Write it down: it can\'t be shown again.',
                 'admin.panic.cleared': 'Code cleared. This is off.',
+                'admin.panic.clearConfirm': 'Clear the emergency code? Nobody will be able to switch Bonfire off from the sign-in screen until you set another.',
+                'admin.panic.clearTitle': 'Clear code',
+                'admin.panic.tooLong': 'The code can be at most 128 characters.',
                 'admin.panic.rejected': 'The server refused that code.',
 
                 'admin.report.copied': 'Copied.',
@@ -5697,7 +5700,22 @@
                     show(t('admin.panic.tooShort'), false);
                     return;
                 }
+                if (code.length > 128) {
+                    show(t('admin.panic.tooLong'), false);
+                    return;
+                }
 
+                // Clearing turns the emergency switch off for everyone, so it asks first.
+                if (!code) {
+                    askFirst(t('admin.panic.clearConfirm'), t('admin.panic.clearTitle')).then(function () {
+                        sendPanicCode(page, code, input, show);
+                    });
+                    return;
+                }
+                sendPanicCode(page, code, input, show);
+            }
+
+            function sendPanicCode(page, code, input, show) {
                 ApiClient.ajax({
                     type: 'POST',
                     url: ApiClient.getUrl('plugins/profiles/admin/panic-code'),
