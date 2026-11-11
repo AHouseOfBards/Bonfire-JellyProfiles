@@ -1164,7 +1164,6 @@
   "refused.limitsInvalid": "İzleme sınırlarını kontrol edip tekrar deneyin.",
   "refused.timeZone": "Listeden bir saat dilimi seçin.",
   "refused.credentials": "Kullanıcı adı veya parola doğru değil. Tekrar deneyin.",
-  "refused.signsInElsewhere": "Bu hesap başka bir yolla oturum açıyor. Bir yöneticiden eklemesini isteyin.",
   "refused.notLinkable": "Bu hesap eklenemez. Başka bir ana hesap seçin.",
   "refused.alreadyLinked": "Bu hesap zaten eklenmiş.",
   "refused.linkLimit": "İzin verilen en fazla sayıda hesap eklediniz. Önce birini kaldırın.",

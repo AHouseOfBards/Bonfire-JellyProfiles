@@ -1152,7 +1152,6 @@
   "refused.limitsInvalid": "Revisa los límites de visionado e inténtalo de nuevo.",
   "refused.timeZone": "Elige una zona horaria de la lista.",
   "refused.credentials": "Ese usuario o contraseña no es correcto. Inténtalo de nuevo.",
-  "refused.signsInElsewhere": "Esa cuenta inicia sesión de otra forma. Pide a un administrador que la añada.",
   "refused.notLinkable": "No se puede añadir esa cuenta. Elige otra cuenta principal.",
   "refused.alreadyLinked": "Esa cuenta ya está añadida.",
   "refused.linkLimit": "Has añadido todas las cuentas permitidas. Quita una primero.",

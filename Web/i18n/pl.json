@@ -1152,7 +1152,6 @@
   "refused.limitsInvalid": "Sprawdź limity oglądania, a potem spróbuj ponownie.",
   "refused.timeZone": "Wybierz strefę czasową z listy.",
   "refused.credentials": "Nazwa użytkownika lub hasło jest nieprawidłowe. Spróbuj ponownie.",
-  "refused.signsInElsewhere": "To konto loguje się w inny sposób. Poproś administratora o jego dodanie.",
   "refused.notLinkable": "Tego konta nie można dodać. Wybierz inne konto główne.",
   "refused.alreadyLinked": "To konto zostało już dodane.",
   "refused.linkLimit": "Dodano maksymalną liczbę kont. Najpierw usuń jedno.",

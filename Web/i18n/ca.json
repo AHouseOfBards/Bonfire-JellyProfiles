@@ -1152,7 +1152,6 @@
   "refused.limitsInvalid": "Revisa els límits de visionat i torna-ho a provar.",
   "refused.timeZone": "Tria una zona horària de la llista.",
   "refused.credentials": "Aquest nom d'usuari o contrasenya no és correcte. Torna-ho a provar.",
-  "refused.signsInElsewhere": "Aquest compte inicia la sessió d'una altra manera. Demana a un administrador que l'afegeixi.",
   "refused.notLinkable": "No es pot afegir aquest compte. Tria un altre compte principal.",
   "refused.alreadyLinked": "Aquest compte ja està afegit.",
   "refused.linkLimit": "Has afegit tots els comptes permesos. Treu-ne un primer.",
