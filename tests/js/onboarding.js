@@ -138,8 +138,12 @@ const html = () => content.innerHTML;
     const menuCard = content.querySelectorAll('.switcher-location-option').filter(c => c.getAttribute('data-location') === 'menu')[0];
     menuCard.click();
     id('#onboarding-ask').checked = false;
-    id('#onboarding-next').click();
+    // A double Next (R-1225): the second click must not save again or move on a step too far.
+    const nextBtn = id('#onboarding-next');
+    nextBtn.click();
+    nextBtn.click();
     await settle();
+    ok('a double Next saves once', sent('plugins/profiles/preferences').filter(p => p.body).length === 1);
     const pref = sent('plugins/profiles/preferences').filter(p => p.body).pop();
     ok('Next saves both answers', pref && pref.body.askOnStartup === false && pref.body.switcherLocation === 'menu');
     ok('with the main PIN', pref && pref.init.headers && pref.init.headers['X-Bonfire-Master-Pin'] === '1234');
@@ -148,8 +152,11 @@ const html = () => content.innerHTML;
     ok('then the theme', content.querySelectorAll('.jpf-theme-option').length > 1);
     const harbor = content.querySelectorAll('.jpf-theme-option').filter(o => o.getAttribute('data-id') === 'harbor')[0];
     harbor.click();
-    id('#onboarding-next').click();
+    const themeNext = id('#onboarding-next');
+    themeNext.click();
+    themeNext.click();
     await settle();
+    ok('a double Next saves the theme once', sent('plugins/profiles/theme').filter(p => p.body).length === 1);
     const theme = sent('plugins/profiles/theme').pop();
     ok("Next saves the main account's theme",
        theme && theme.body.profileId === 'main' && theme.body.theme === 'harbor' && theme.body.masterPin === '1234');

@@ -10731,9 +10731,15 @@
             this._roveRadios(cards);
             this.initTVCheckboxes(content);
 
+            // One save per draw: a second Next while the first is in flight saved twice and
+            // called next() twice, which skipped the step after this one (R-1225). A failure
+            // redraws the step, which makes a fresh guard.
+            let busy = false;
             content.querySelector('#onboarding-next').addEventListener('click', () => {
                 const ask = content.querySelector('#onboarding-ask').checked;
                 this.withMainPin(this.currentProfiles, () => {
+                    if (busy) return;
+                    busy = true;
                     const masterState = this.readMasterState();
                     fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
                         method: 'POST',
@@ -10790,9 +10796,13 @@
                 options.forEach(o => o.setAttribute('aria-checked', String(o === btn)));
             }));
 
+            let busy = false;   // as the switcher step: one save, one next()
             content.querySelector('#onboarding-next').addEventListener('click', () => {
-                if (chosen === (stored || settings.defaultTheme)) { next(); return; }
+                if (busy) return;
+                if (chosen === (stored || settings.defaultTheme)) { busy = true; next(); return; }
                 this.withMainPin(this.currentProfiles, () => {
+                    if (busy) return;
+                    busy = true;
                     const masterState = this.readMasterState();
                     fetch(ApiClient.getUrl('plugins/profiles/theme'), {
                         method: 'POST',
