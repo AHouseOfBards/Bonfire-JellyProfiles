@@ -681,7 +681,7 @@
                  failure banner (issue #25). -->
             <div class="jpf-hidden jpf-note jpf-note-warn" id="restartRequiredContainer">
                 <strong class="jpf-note-title"><span aria-hidden="true">↻ </span><span data-i18n="admin.banner.restartTitle">Restart Jellyfin to finish updating Bonfire</span></strong>
-                <span data-i18n="admin.banner.restartBody">The new version starts when the server restarts. Until then the old one keeps running, so profiles still work.</span>
+                <span data-i18n="admin.banner.restartBody">The new version starts when the server restarts. Until then the old version keeps running.</span>
                 <!-- Filled in from the mechanism's runningVersion / newestInstalledVersion. The
                      banner used to assert a restart was needed and stop there, which the reader
                      had no way to check: someone who has already restarted, or who pressed
@@ -754,7 +754,7 @@
                     <span data-i18n="admin.onboarding.askBody">New main accounts get a few screens to set a main PIN and make a profile. You can change this under Setup.</span>
                     <div class="jpf-actions jpf-mt-2">
                         <button is="emby-button" type="button" class="raised button-submit" id="onboardingAskYes" data-i18n="admin.onboarding.askYes">Turn it on</button>
-                        <button is="emby-button" type="button" class="raised" id="onboardingAskNo" data-i18n="admin.onboarding.askNo">No thanks</button>
+                        <button is="emby-button" type="button" class="raised" id="onboardingAskNo" data-i18n="admin.onboarding.askNo">Leave it off</button>
                     </div>
                 </div>
                 <!-- Ticks itself off from the settings; gone once everything is done. -->
@@ -771,7 +771,7 @@
             <!-- ── Households ─────────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelHouseholds" data-panel="households" role="tabpanel" aria-labelledby="jpfTabHouseholds" hidden>
                 <div class="sectionTitleContainer jpf-section" id="jpfAccounts">
-                    <h2 class="sectionTitle" data-i18n="admin.households.title">Accounts &amp; profiles</h2>
+                    <h2 class="sectionTitle" data-i18n="admin.households.title">Households</h2>
                 </div>
                 <div class="fieldDescription jpf-lede" data-i18n="admin.households.lede">Every main account and its profiles. You can clear any PIN.</div>
                 <div class="paperList jpf-block-end" id="masterUsersList">
@@ -790,7 +790,7 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfOrphans">
                     <h2 class="sectionTitle" data-i18n="admin.orphans.title">Leftover records</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.orphans.lede">Left behind when a profile is deleted in Dashboard → Users instead of in Bonfire. They still count against the main account's limit. Scanning changes nothing.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.orphans.lede">Left behind when a profile is deleted in Dashboard → Users instead of in Bonfire. They still count against the main account's limit.</div>
                 <button is="emby-button" type="button" id="scanOrphansBtn" class="raised">
                     <span data-i18n="admin.orphans.scan">Scan</span>
                 </button>
@@ -840,15 +840,15 @@
                         <label class="inputLabel" data-i18n="admin.trust.title">Addresses that skip PINs</label>
                         <div id="trustedList"></div>
                         <button is="emby-button" type="button" id="trustedAdd" class="raised jpf-narrow" data-i18n="admin.trust.add">Add address</button>
-                        <div class="fieldDescription" data-i18n="admin.trust.hint">Chosen accounts open without a PIN from there.</div>
+                        <div class="fieldDescription" data-i18n="admin.trust.hint">Chosen accounts skip the PIN from these addresses.</div>
                     </div>
 
                     <div class="sectionTitleContainer jpf-section" id="jpfEmergency">
                         <h2 class="sectionTitle" data-i18n="admin.panic.title">Emergency disable code</h2>
                     </div>
                     <div class="jpf-note jpf-note-soft">
-                        <strong class="jpf-label-block" data-i18n="admin.panic.warnTitle">Read this before turning it on</strong>
-                        <span data-i18n="admin.panic.warnBody">Entering the code turns Bonfire off until Jellyfin restarts. Anyone with it can skip the profile screen on a device that's already signed in, which on a TV left on a main account means that account's library. Other profiles still need their PIN, and parental controls still apply. No password is asked for, so make it long.</span>
+                        <strong class="jpf-label-block" data-i18n="admin.panic.warnTitle">Anyone with the code can turn Bonfire off</strong>
+                        <span data-i18n="admin.panic.warnBody">Anyone with the code can turn Bonfire off until Jellyfin restarts, which skips the profile screen on any signed-in device. On a TV left on a main account, that opens its whole library. Profiles with a PIN still ask for it, and parental controls still apply.</span>
                     </div>
                     <div id="panicStatusLine" class="fieldDescription jpf-lede">…</div>
                     <div class="inputContainer jpf-form-narrow">
@@ -893,7 +893,7 @@
                 </div>
 
                 <div class="sectionTitleContainer jpf-section">
-                    <h2 class="sectionTitle" data-i18n="admin.theme.title">Theme</h2>
+                    <h2 class="sectionTitle" data-i18n="admin.theme.title">Default theme</h2>
                 </div>
                 <div class="fieldDescription jpf-lede" data-i18n="admin.theme.lede">For Bonfire's own screens. The rest of Jellyfin keeps its theme.</div>
                 <!-- The words after each name are there so an administrator can tell them
@@ -994,7 +994,7 @@
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
                 </div>
                 <div class="inputContainer jpf-form-narrow jpf-mt-3">
-                    <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Or copy a folder on the server</label>
+                    <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Copy from a server folder</label>
                     <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" translate="no" />
                     <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
                 </div>
@@ -1035,7 +1035,7 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfThemes">
                     <h2 class="sectionTitle" data-i18n="admin.themes.title">Themes</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.themes.lede">Hide built-in themes, make your own and add fonts. Changes here save at once.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.themes.lede">Hide built-in themes, make your own and add fonts. Hiding and fonts save at once.</div>
                 <div class="jpf-hidden jpf-status jpf-status-error" id="themesLoadError"></div>
 
                 <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.builtIn">Built-in themes</h3>
@@ -1080,9 +1080,9 @@
                             <!-- Filled in from the name until it is typed in, so Simple does
                                  not show it; Advanced does, for whoever wants a particular one. -->
                             <div class="inputContainer jpf-te-field" data-paths="id" id="teIdBox">
-                                <label class="inputLabel" for="teId" data-i18n="admin.themes.id">Id</label>
+                                <label class="inputLabel" for="teId" data-i18n="admin.themes.id">ID</label>
                                 <input is="emby-input" type="text" id="teId" maxlength="40" autocomplete="off" spellcheck="false" />
-                                <div class="fieldDescription" data-i18n="admin.themes.idHint">Lower case letters, digits and -. Fixed once saved.</div>
+                                <div class="fieldDescription" data-i18n="admin.themes.idHint">Lowercase letters, digits and hyphens. Can't change once saved.</div>
                             </div>
                             <div class="jpf-te-simple" id="teSimple">
                                 <div class="jpf-te-colors">
@@ -1218,20 +1218,20 @@
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.apps.title">Sign-in on other clients</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.lede">For clients that never load the web client, like Android TV, Roku and Swiftfin. Set each client to ask for sign-in every time, or a saved profile opens without its PIN.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.lede">For clients that don't use Jellyfin's web page, like Android TV, Roku and Swiftfin. Set each one to ask for sign-in every time, or a saved profile opens without its PIN.</div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="enableClientPinLogin" />
                         <span data-i18n="admin.apps.pinLogin">Let profiles sign in with their PIN</span>
                     </label>
-                    <div class="fieldDescription" data-i18n="admin.apps.pinLoginHint">Type the PIN where the app asks for a password. A profile with no PIN opens with an empty box, on devices its household has used.</div>
+                    <div class="fieldDescription" data-i18n="admin.apps.pinLoginHint">Type the PIN where the client asks for a password. A profile with no PIN opens with an empty box, on devices its household has used.</div>
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="enableClientProfileList" />
                         <span data-i18n="admin.apps.profileList">Show profiles on the sign-in screen</span>
                     </label>
-                    <div class="fieldDescription" data-i18n="admin.apps.profileListHint">A household's profiles appear on devices it has signed in on. This changes the user list every app on this server reads.</div>
+                    <div class="fieldDescription" data-i18n="admin.apps.profileListHint">A household's profiles appear on devices it has signed in on. This changes the user list every client on this server reads.</div>
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
@@ -1254,8 +1254,8 @@
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.apps.pickerTitle">Profile picker (beta)</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.pickerLede">Sign in with the main account, then pick a profile on the app's home screen.</div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.pickerBeta">Beta. It may change when native support arrives. Off by default.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.pickerLede">Sign in with the main account, then pick a profile on the client's home screen.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.apps.pickerBeta">Beta. It may change once clients support profiles themselves. Off by default.</div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" class="jpfProxyClient" data-proxy-client="moonfin" />
@@ -1324,7 +1324,7 @@
                 <div class="inputContainer jpf-form-narrow">
                     <label class="inputLabel" for="mntUntil" data-i18n="admin.mnt.until">Back by</label>
                     <input is="emby-input" type="datetime-local" id="mntUntil" />
-                    <div class="fieldDescription" data-i18n="admin.mnt.untilHint">Optional. Shown to everyone who can't get in.</div>
+                    <div class="fieldDescription" data-i18n="admin.mnt.untilHint">Optional. Shown with the message.</div>
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
@@ -1353,7 +1353,7 @@
                 <div id="emailStatus" class="jpf-note">…</div>
                 <div class="jpf-email-server">
                     <div class="inputContainer">
-                        <label class="inputLabel" for="emailHost" data-i18n="admin.email.host">Server</label>
+                        <label class="inputLabel" for="emailHost" data-i18n="admin.email.host">Mail server</label>
                         <input is="emby-input" type="text" id="emailHost" autocomplete="off" placeholder="smtp.example.com" data-i18n-placeholder="admin.email.hostPlaceholder" />
                     </div>
                     <div class="inputContainer">
@@ -1402,7 +1402,7 @@
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.audit.title">Profile switches</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.audit.lede">The last 1,000 switches on this server, kept for 90 days. Profiles added, PIN lockouts and maintenance are in Dashboard → Activity.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.audit.lede">The last 1,000 switches on this server, kept for 90 days. Profiles added, too many wrong PINs and maintenance are in Dashboard → Activity.</div>
                 <div class="jpf-audit-controls">
                     <div class="jpf-audit-field jpf-audit-filter">
                         <label for="auditFilter" data-i18n="admin.audit.filter">Main account or profile</label>
@@ -1446,8 +1446,8 @@
                         <p><button is="emby-button" type="button" class="raised button-mini" id="faqOpenClientScript" data-i18n="admin.help.openClientScript">Check the client script</button></p>
                     </details>
                     <details>
-                        <summary data-i18n="admin.help.appsQ">It works in a browser but not in a client app</summary>
-                        <p data-i18n="admin.help.appsA">Only apps that load the web client from your server show the switcher. For other clients, turn on sign-in with a PIN under Clients. Parental controls apply in every client either way.</p>
+                        <summary data-i18n="admin.help.appsQ">It works in a browser but not in an app</summary>
+                        <p data-i18n="admin.help.appsA">Only clients that load Jellyfin's web page from your server show the switcher. For other clients, turn on sign-in with a PIN under Clients. Parental controls apply in every client either way.</p>
                     </details>
                     <details>
                         <summary data-i18n="admin.help.librariesQ">A profile's library access keeps reverting</summary>
@@ -1481,13 +1481,13 @@
                     <div class="sectionTitleContainer jpf-section" id="jpfClientScript">
                         <h2 class="sectionTitle" data-i18n="admin.script.title">Client script</h2>
                     </div>
-                    <div class="fieldDescription jpf-lede" data-i18n="admin.script.lede">Whether Bonfire's script is reaching the web client.</div>
+                    <div class="fieldDescription jpf-lede" data-i18n="admin.script.lede">Whether Bonfire's script is reaching Jellyfin's web page.</div>
                     <div class="fieldDescription jpf-block-end" id="middlewareStatusLine"></div>
 
                     <div class="sectionTitleContainer jpf-section">
                         <h2 class="sectionTitle" data-i18n="admin.backup.title">Backup</h2>
                     </div>
-                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export saves every profile, PIN, Bonfire, device, avatar and email address, but not the mail password or emergency code. Import replaces all of it and keeps the current mail password and emergency code. The file holds PIN hashes, so keep it somewhere safe.</div>
+                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export saves every profile, PIN, Bonfire, device, avatar and email address, but not the mail password or emergency code. Import replaces all of it and keeps this server's mail password and emergency code. The file holds PINs in scrambled form, so keep it private.</div>
                     <div class="jpf-backup-row">
                         <button is="emby-button" type="button" id="exportConfigBtn" class="raised">
                             <span data-i18n="admin.backup.export">Export</span>
@@ -1563,15 +1563,15 @@
                 'admin.readFailed': 'Couldn\'t read the current status.',
                 'admin.version.preTitle': 'Pre-release build. Please report problems on GitHub.',
 
-                'admin.script.notAttached': 'Live injection couldn\'t attach to Jellyfin. Restart Jellyfin.',
-                'admin.script.notYet': 'Live injection is loaded, but no page has reached it yet. Reload this page to check.',
-                'admin.script.servedOne': 'Live injection is working: 1 page served.',
-                'admin.script.servedMany': 'Live injection is working: {count} pages served.',
-                'admin.script.idle': 'Live injection is loaded and index.html is already patched, so it has nothing to do.',
+                'admin.script.notAttached': 'Bonfire\'s script couldn\'t attach to Jellyfin. Restart Jellyfin.',
+                'admin.script.notYet': 'The script is loaded, but no page has reached it yet. Reload this page to check.',
+                'admin.script.servedOne': 'The script is working: 1 page served.',
+                'admin.script.servedMany': 'The script is working: {count} pages served.',
+                'admin.script.idle': 'The script is loaded and index.html already has it, so nothing is needed.',
                 'admin.script.lastProblem': 'Last problem: {error}',
 
                 'admin.banner.restartVersions': 'Running {running}. Version {newest} is installed and starts when the server process restarts.',
-                'admin.banner.failLive': 'Bonfire is set to serve the client script live, and it isn\'t reaching the page. index.html isn\'t involved, so there is nothing to change on disk.',
+                'admin.banner.failLive': 'index.html isn\'t the cause, so there\'s nothing to change on disk. Restart Jellyfin if it still fails after a re-check.',
                 'admin.banner.rechecking': 'Re-checking…',
                 'admin.banner.stillBroken': 'Still not fixed. See the reason above.',
                 'admin.banner.fixedTitle': 'Fixed',
@@ -1613,7 +1613,7 @@
                 'admin.households.resetPin': 'Reset PIN',
                 'admin.households.resetConfirm': 'Clear the PIN for {name}?',
                 'admin.households.resetFailed': 'Couldn\'t reset the PIN. The server log has details.',
-                'admin.households.makeAccount': 'Make own account',
+                'admin.households.makeAccount': 'Make its own account',
                 'admin.households.openUser': 'User page',
                 'admin.households.limit': 'Limit',
                 'admin.households.set': 'Set',
@@ -1625,7 +1625,7 @@
                 'admin.households.noSubs': 'No profiles',
                 'admin.households.unlinkedTitle': 'Profiles without a main account',
                 'admin.households.unlinkedBody': 'These profiles point at a main account that no longer exists.',
-                'admin.links.alsoHere': 'Also on this screen:',
+                'admin.links.alsoHere': 'Also on the profile screen:',
                 'admin.links.removeAria': 'Take {name} off this screen',
                 'admin.aria.named': '{action}: {name}',
                 'admin.themes.fontUnset': 'Not set',
@@ -1667,7 +1667,7 @@
                 'admin.standalone.newName': 'its new name',
                 'admin.standalone.failed': 'Couldn\'t make the account.',
 
-                'admin.orphans.none': 'Nothing left over. Every profile and Bonfire points at an account that exists.',
+                'admin.orphans.none': 'Nothing left over.',
                 'admin.orphans.foundOne': 'Found 1 record pointing at a deleted account:',
                 'admin.orphans.foundMany': 'Found {count} records pointing at deleted accounts:',
                 'admin.orphans.unnamed': '(unnamed profile)',
@@ -1685,7 +1685,7 @@
                 'admin.audit.countMany': '{count} events.',
                 'admin.audit.empty': 'No profile switches yet. They show up here as people switch.',
                 'admin.audit.noMatch': 'No events match this filter. Clear it to see all.',
-                'admin.audit.loadFailed': 'Couldn\'t load the activity.',
+                'admin.audit.loadFailed': 'Couldn\'t load the switch log.',
                 'admin.audit.deleteTitle': 'Delete the log',
                 'admin.audit.deleteConfirm': 'Delete every switch in the log? This can\'t be undone.',
                 'admin.audit.deleteFailed': 'Couldn\'t delete the log.',
@@ -1715,7 +1715,7 @@
                 'admin.backup.exportFailed': 'Export failed.',
                 'admin.backup.notJson': 'That file isn\'t valid JSON.',
                 'admin.backup.notExport': 'That doesn\'t look like a Bonfire export.',
-                'admin.backup.confirm': 'Export first if you may want today\'s settings back. This replaces every profile, PIN, Bonfire and device list with that file. It can\'t be undone.',
+                'admin.backup.confirm': 'This replaces every profile, PIN, Bonfire and device list with that file. It can\'t be undone. Export first to keep today\'s settings.',
                 'admin.backup.confirmTitle': 'Import configuration',
                 'admin.backup.importFailed': 'Import failed. Nothing was changed.',
 
@@ -1732,7 +1732,7 @@
                 'admin.avatars.unreadable': 'That file couldn\'t be read.',
                 'admin.avatars.badFormat': 'That image format isn\'t supported. Save it as JPEG or PNG first.',
                 'admin.avatars.resizeFailed': 'That image couldn\'t be resized.',
-                'admin.avatars.rejected': 'The server refused it. It may be over the {mb} MB limit after resizing, or the avatar quality was changed without saving.',
+                'admin.avatars.rejected': 'The server refused it. It may be over {mb} MB after resizing, or Avatar quality was changed and not saved.',
                 'admin.avatars.thatImage': 'That image',
                 'admin.avatars.uploading': 'Uploading {n} of {total}…',
                 'admin.avatars.uploaded': '{done} of {total} uploaded.',
@@ -1740,7 +1740,7 @@
                 'admin.avatars.emptyFolder': 'No images in that folder. Choose another.',
                 'admin.avatars.importing': 'Importing {n} of {total}…',
                 'admin.avatars.imported': '{done} of {total} imported.',
-                'admin.avatars.truncated': 'The folder holds more than can be listed at once.',
+                'admin.avatars.truncated': 'Only part of the folder was copied. Copy the rest from another folder.',
                 'admin.avatars.folderFailed': 'That folder couldn\'t be read. Check the path as the server sees it.',
                 'admin.avatars.unnamed': 'Unnamed profile',
                 'admin.avatars.missingOne': '1 profile has an avatar that\'s no longer on disk.',
@@ -1781,7 +1781,7 @@
                 'admin.mnt.confirmStop': 'Everyone but administrators is locked out and what they are watching stops, until you reopen.',
                 'admin.mnt.confirm': 'Everyone but administrators is locked out until you reopen.',
                 'admin.mnt.reopened': 'Reopened.',
-                'admin.viewing.serverIs': 'This server runs in {zone}.',
+                'admin.viewing.serverIs': 'This server\'s time zone is {zone}.',
                 'admin.email.working': 'Working. The last test went through.',
                 'admin.email.untested': 'Not tested since the last change. Nothing is sent until a test goes through.',
                 'admin.email.notSet': "Email isn't set up.",
@@ -1798,8 +1798,8 @@
                 'admin.email.needsEmail': 'Needs working email. Set it up under Notices.',
                 'admin.status.emailUntested': "Email is set up but hasn't been tested, so nothing is sent.",
                 'admin.status.sendTest': 'Send a test',
-                'admin.mnt.closedTold': 'Closed. Clients told: {told}.',
-                'admin.mnt.closedStopped': 'Closed. Clients told: {told}. Streams stopped: {stopped}.',
+                'admin.mnt.closedTold': 'Closed. Screens notified: {told}.',
+                'admin.mnt.closedStopped': 'Closed. Screens notified: {told}. Streams stopped: {stopped}.',
 
                 'admin.panic.offTitle': 'Bonfire is switched off.',
                 'admin.panic.offBody': 'Restart Jellyfin to bring the switcher back.',
@@ -1809,7 +1809,7 @@
                 'admin.panic.tooShort': 'The code must be at least 10 characters.',
                 'admin.panic.saved': 'Code saved. Write it down: it can\'t be shown again.',
                 'admin.panic.cleared': 'Code cleared. This is off.',
-                'admin.panic.clearConfirm': 'Clear the emergency code? Nobody will be able to switch Bonfire off from the sign-in screen until you set another.',
+                'admin.panic.clearConfirm': 'Clear the emergency code? Nobody will be able to switch Bonfire off from the profile screen until you set another.',
                 'admin.panic.clearTitle': 'Clear code',
                 'admin.panic.tooLong': 'The code can be at most 128 characters.',
                 'admin.panic.rejected': 'The server refused that code.',
@@ -1820,7 +1820,7 @@
                 'admin.themes.loadFailed': 'Couldn\'t load themes.',
                 'admin.themes.hide': 'Hide',
                 'admin.themes.isDefault': 'Default',
-                'admin.themes.alwaysOn': 'Always offered',
+                'admin.themes.alwaysOn': 'Can\'t be hidden',
                 'admin.themes.none': 'No themes of your own yet. Choose "New theme" to make one.',
                 'admin.themes.count': '{n} of {max}',
                 'admin.themes.notOffered': 'Has problems, so it isn\'t offered. Edit it to fix them.',
@@ -1841,11 +1841,11 @@
                 'admin.themes.pattern.snow': 'Snow',
                 'admin.themes.pattern.blossoms': 'Blossoms',
                 'admin.themes.pattern.stars': 'Stars',
-                'admin.themes.group.file': 'Scheme',
+                'admin.themes.group.file': 'Light or dark',
                 'admin.themes.group.accent': 'Accent',
                 'admin.themes.group.text': 'Text',
                 'admin.themes.group.surfaces': 'Panels and borders',
-                'admin.themes.group.status': 'Warnings',
+                'admin.themes.group.status': 'Status colors',
                 'admin.themes.group.background': 'Background',
                 'admin.themes.group.shape': 'Shape',
                 'admin.themes.group.type': 'Type',
@@ -1859,7 +1859,7 @@
                 'admin.themes.previewText': 'Secondary text',
                 'admin.themes.previewPrimary': 'Continue',
                 'admin.themes.previewSecondary': 'Cancel',
-                'admin.themes.noPreview': 'No preview: Bonfire\'s script isn\'t running on this page.',
+                'admin.themes.noPreview': 'No preview. Bonfire\'s script isn\'t loaded here; see Troubleshoot.',
                 'admin.themes.noProblems': 'No problems.',
                 'admin.themes.checkFailed': 'Couldn\'t check the theme.',
                 'admin.themes.fixFirst': 'Fix the problems first.',
@@ -1929,7 +1929,7 @@
                 'admin.err.notConvertible': 'That account can\'t be made a profile. It may be an administrator, have profiles of its own, or be in a Bonfire.',
                 'admin.err.notLinkable': 'That account can\'t be added. Choose a different main account.',
                 'admin.err.alreadyLinked': 'That account is already added.',
-                'admin.err.linkLimit': 'That screen shows as many accounts as allowed. Remove one first.',
+                'admin.err.linkLimit': 'The profile screen is full. Remove an account first.',
                 'admin.err.adminPin': 'Set a PIN for the administrator account first.',
                 'admin.err.linkGone': 'That account is no longer added. Reload the page.',
                 'admin.err.imageInvalid': 'That image can\'t be used. Choose a different one.',
@@ -1940,19 +1940,19 @@
                 'admin.themes.p.oneOf': 'Must be one of: {values}.',
                 'admin.themes.p.opaque': 'Can\'t be see-through.',
                 'admin.themes.p.hundreds': 'Must be a multiple of 100.',
-                'admin.themes.p.id': 'Lower case letters, digits and -, up to 40.',
+                'admin.themes.p.id': 'Lowercase letters, digits and hyphens, up to 40.',
                 'admin.themes.p.name': '1 to 40 characters, on one line.',
                 'admin.themes.p.nameText': 'Give the theme a name.',
-                'admin.themes.p.aliases': 'Must be empty in your own theme.',
-                'admin.themes.p.range': 'Out of range.',
+                'admin.themes.p.aliases': 'Leave this empty.',
+                'admin.themes.p.range': 'Outside the allowed range.',
                 'admin.themes.p.missing': 'Required.',
                 'admin.themes.p.colour': 'Must be a color: #rrggbb or #rrggbbaa.',
-                'admin.themes.p.type': 'Wrong kind of value.',
-                'admin.themes.p.unknown': 'Not part of the theme format.',
-                'admin.themes.p.red': 'Must read as red.',
-                'admin.themes.p.amber': 'Must read as amber.',
-                'admin.themes.p.font': 'Not a font Bonfire has.',
-                'admin.themes.p.pattern': 'Not a pattern Bonfire has.',
+                'admin.themes.p.type': 'Wrong type of value.',
+                'admin.themes.p.unknown': 'Not a theme setting.',
+                'admin.themes.p.red': 'Must be a red color.',
+                'admin.themes.p.amber': 'Must be an amber color.',
+                'admin.themes.p.font': 'Choose a font from the list, or add one under Fonts.',
+                'admin.themes.p.pattern': 'Choose a pattern from the list.',
                 'admin.themes.p.address': 'Themes can\'t link to other files or sites.',
                 'admin.themes.p.size': 'Too large. A theme is at most 64 KB.',
                 'admin.themes.p.taken': 'A built-in theme uses this id.',

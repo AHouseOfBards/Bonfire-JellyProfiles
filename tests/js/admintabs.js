@@ -57,9 +57,9 @@ ok('no setting was dropped: every control id the page saves is still in exactly 
 // The Moonfin picker is beta, and says so where it is switched on and where it is described.
 // It stays off by default (an empty ProxyClients list; tests/cs/proxyswitcher).
 const pickerBlock = (panels.clients || '').slice((panels.clients || '').indexOf('data-i18n="admin.apps.pickerTitle"'));
-ok('the Clients tab marks the profile picker as beta, in one short line about native support',
+ok('the Clients tab marks the profile picker as beta, in one short line about clients supporting profiles themselves',
    /data-i18n="admin\.apps\.pickerTitle">[^<]*\(beta\)</.test(pickerBlock)
-   && /data-i18n="admin\.apps\.pickerBeta">[^<]*native support[^<]*</.test(pickerBlock));
+   && /data-i18n="admin\.apps\.pickerBeta">[^<]*clients support profiles themselves[^<]*</.test(pickerBlock));
 const fs = require('fs'), path = require('path');
 const readme = fs.readFileSync(path.join(L.ROOT, 'README.md'), 'utf8');
 const clients = fs.readFileSync(path.join(L.ROOT, 'docs', 'clients.md'), 'utf8');

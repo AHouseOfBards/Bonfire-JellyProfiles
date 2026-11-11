@@ -146,7 +146,7 @@ function freshAccount() {
         await settle();
         ok('a refusal puts the box back', lan.checked === false);
         // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
-        ok('and says why, by its code', content.querySelector('#account-status').textContent === "That PIN isn't right. Try again.",
+        ok('and says why, by its code', content.querySelector('#account-status').textContent === 'Wrong PIN. Try again.',
             content.querySelector('#account-status').textContent);
 
         posts.length = 0;
@@ -185,7 +185,7 @@ function freshAccount() {
         sent = accountPosts();
         ok('Clear sends an empty PIN', sent.length === 1 && sent[0].body.pin === '' && sent[0].body.masterPin === '1357');
         ok('and nothing is sent as the PIN after it', PP.masterPin === null);
-        ok('and says it was removed, on the status line now on screen (R-1224)', content.querySelector('#account-status').textContent === 'PIN removed.',
+        ok('and says it was removed, on the status line now on screen (R-1224)', content.querySelector('#account-status').textContent === 'PIN cleared.',
             content.querySelector('#account-status').textContent);
         ok('the page redraws with no Clear button', !/id="account-pin-clear"/.test(content.innerHTML));
 

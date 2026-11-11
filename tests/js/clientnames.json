@@ -112,12 +112,12 @@
   "tr": "Bonfire üyelerinin sunucunun ağında hesabımı açmasına izin ver"
  },
  "bonfire.lanSwitchHint": {
-  "en": "No PIN needed on the server's network, for your account or your profiles. Elsewhere it still is{extra}.",
-  "ca": "No cal PIN a la xarxa del servidor, ni per al teu compte ni per als teus perfils. Fora, sí que cal{extra}.",
-  "es": "No hace falta PIN en la red del servidor, ni para tu cuenta ni para tus perfiles. Fuera sí{extra}.",
-  "fr": "Aucun code PIN requis sur le réseau du serveur, ni pour votre compte ni pour vos profils. Ailleurs, il reste requis{extra}.",
-  "pl": "Kod PIN nie jest wymagany w sieci serwera, ani dla Twojego konta, ani dla Twoich profili. Poza nią nadal jest wymagany{extra}.",
-  "tr": "Sunucunun ağında hesabınız veya profilleriniz için PIN gerekmez. Dışarıda PIN gerekliliği devam eder{extra}."
+  "en": "No PIN needed on the server's network, for your account or your profiles. Elsewhere a PIN is still needed{extra}.",
+  "ca": "No cal PIN a la xarxa del servidor, ni per al teu compte ni per als teus perfils. Fora, el PIN continua fent falta{extra}.",
+  "es": "No hace falta PIN en la red del servidor, ni para tu cuenta ni para tus perfiles. Fuera, el PIN sigue haciendo falta{extra}.",
+  "fr": "Aucun code PIN requis sur le réseau du serveur, ni pour votre compte ni pour vos profils. Ailleurs, le code PIN reste requis{extra}.",
+  "pl": "Kod PIN nie jest wymagany w sieci serwera, ani dla Twojego konta, ani dla Twoich profili. Poza nią PIN nadal jest wymagany{extra}.",
+  "tr": "Sunucunun ağında hesabınız veya profilleriniz için PIN gerekmez. Başka yerlerde PIN yine gerekir{extra}."
  },
  "bonfire.allowHouseholdBody": {
   "en": "Anyone in your Bonfire can open your account on the server's network without your PIN.",

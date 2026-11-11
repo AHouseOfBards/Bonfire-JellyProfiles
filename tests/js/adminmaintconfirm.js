@@ -78,7 +78,9 @@ ok('and a plain close does not', !/by itself/i.test(closePlain.asked[0] || ''));
 const tickNoTime = run({ reopen: true, until: '' });
 ok('a tick with no time says nothing about reopening in the question', !/by itself/i.test(tickNoTime.asked[0] || ''));
 
-const imp = /'admin\.backup\.confirm':\s*'([^']|\\')*'/.exec(script);
+// The whole literal: an escaped quote (today\'s) is part of it, not its end. The old pattern
+// ([^']|\\')* stopped at the first one, so a sentence after it was never read.
+const imp = /'admin\.backup\.confirm':\s*'(?:[^'\\]|\\.)*'/.exec(script);
 ok('the import confirmation tells the administrator to export first', !!imp && /export first/i.test(imp[0]));
 
 console.log('\n' + pass + ' passed, ' + fails.length + ' failed');

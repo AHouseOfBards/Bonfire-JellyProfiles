@@ -163,7 +163,7 @@ const last = url => sent(url).pop();
     await settle();
     const ask = last('plugins/profiles/limits/kid/ask');
     ok('asking posts to /ask', !!ask && ask.init.method === 'POST');
-    ok('and says it was asked', alerts.length && alerts[alerts.length - 1].title === 'Asked');
+    ok('and says it was asked', alerts.length && alerts[alerts.length - 1].title === 'Request sent');
 
     server.refuse['plugins/profiles/limits/kid/ask'] = [429, 'You already asked. Try again in a few minutes.'];
     PP.showTimeUp(kid, () => {});
@@ -236,7 +236,7 @@ const last = url => sent(url).pop();
     await settle();
     const given = last('plugins/profiles/limits/kid/grant');
     ok('more time is given at once, with the PIN', given && given.body.minutes === 30 && given.body.masterPin === '1234');
-    ok('and says so', q('#viewing-grant-status').textContent === 'Given 30 min.');
+    ok('and says so', q('#viewing-grant-status').textContent === 'Added 30 min.');
     ok('without losing what was being edited', q('#viewing-daily').value === '120');
 
     server.limits = Object.assign({}, server.limits, { allowed: false, reason: 'limit', askedUtc: '2030-01-09T19:00:00Z' });
@@ -249,7 +249,7 @@ const last = url => sent(url).pop();
     if (no) no.click();
     await settle();
     ok('which grants nothing', last('plugins/profiles/limits/kid/grant').body.minutes === 0
-       && slot.querySelector('#viewing-grant-status').textContent === 'Told no.');
+       && slot.querySelector('#viewing-grant-status').textContent === 'Declined.');
 
     server.refuse['plugins/profiles/limits/kid'] = [404, ''];
     slot = D.makeContent();

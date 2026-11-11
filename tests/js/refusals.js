@@ -182,9 +182,13 @@ PP.handleSessionExpired = () => {};
         PP.executeProfileSwitch('kid', '1234', (text) => resolve(text));
     });
     const s1 = await switched({ 'X-Bonfire-Error': 'pin_wrong' });
-    ok('a wrong PIN on a switch is said by its sentence', s1 === "That PIN isn't right. Try again.", s1);
+    ok('a wrong PIN on a switch is said by its sentence', s1 === 'Wrong PIN. Try again.', s1);
+    // That sentence is now the PIN screen's own line too, so it cannot show the code was read.
+    // A code whose sentence no fallback has does.
+    const s1b = await switched({ 'X-Bonfire-Error': 'too_many_sessions' });
+    ok('and a switch refused for too many screens says so, by its code', s1b === 'This profile is open on too many screens. Close one and try again.', s1b);
     const s2 = await switched(null);
-    ok('and without a code is the PIN screen\'s own line, not the body', s2 === 'Incorrect PIN. Please try again.' || (/PIN/.test(s2) && !/SERVER ENGLISH/.test(s2)), s2);
+    ok('and without a code is the PIN screen\'s own line, not the body', s2 === 'Wrong PIN. Try again.' || (/PIN/.test(s2) && !/SERVER ENGLISH/.test(s2)), s2);
 
     // Translated: the sentence follows the language.
     const fr = JSON.parse(fs.readFileSync(path.join(ROOT, 'Web', 'i18n', 'fr.json'), 'utf8'));

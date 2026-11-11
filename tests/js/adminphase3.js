@@ -59,7 +59,7 @@ const WANT = {
     'admin.avatars.qualityHint': 'Sharper on big screens, more disk. Applies to new avatars.',
     'admin.status.avatarsOne': '1 profile avatar is missing from disk.',
     'admin.status.avatarsMany': '{count} profile avatars are missing from disk.',
-    'admin.avatars.rejected': 'The server refused it. It may be over the {mb} MB limit after resizing, or the avatar quality was changed without saving.',
+    'admin.avatars.rejected': "The server refused it. It may be over {mb} MB after resizing, or Avatar quality was changed and not saved.",
     'admin.avatars.missingOne': "1 profile has an avatar that's no longer on disk.",
     'admin.avatars.missingMany': "{count} profiles have an avatar that's no longer on disk.",
     'admin.avatars.missingHint': 'They show their initial and color instead. Set a new avatar on each to clear this.',
@@ -68,7 +68,7 @@ const WANT = {
     'admin.themes.followHint': 'Related colors follow the ones you pick.',
     'admin.themes.p.colour': 'Must be a color: #rrggbb or #rrggbbaa.',
     'admin.apps.fromAnywhereHint': "Off: these open only from the server's network. A profile with a PIN and no device list isn't affected.",
-    'admin.banner.failLive': "Bonfire is set to serve the client script live, and it isn't reaching the page. index.html isn't involved, so there is nothing to change on disk.",
+    'admin.banner.failLive': "index.html isn't the cause, so there's nothing to change on disk. Restart Jellyfin if it still fails after a re-check.",
     'admin.saveBlocked': 'The settings didn\'t load, so nothing was saved. Press "Try again".',
     'admin.themes.none': 'No themes of your own yet. Choose "New theme" to make one.',
     'admin.help.librariesA': 'Change a profile\'s libraries in "Edit profile", not in Dashboard → Users. Adding one there sticks; removing one doesn\'t, because it looks the same as Jellyfin resetting the account.',
@@ -123,7 +123,7 @@ const MAILWANT = {
     'email.lockout.body': "Someone entered {name}'s PIN wrong too many times. They can try again in 15 minutes.\n\n" + TAIL,
     'email.newDevice.body': "Your household signed in on a new device: {device}.\n\nIf you don't recognize it, ask your server's administrator to sign it out.\n\n" + TAIL,
     'email.timeAsked.body': '{name} asked for more time.\n\nTo answer, open Bonfire, choose Manage profiles, then {name}.\n\n' + TAIL,
-    'email.limitReached.body': '{name} has watched {minutes} minutes today and reached the limit.\n\nTo give more time, open Bonfire, choose Manage profiles, then {name}.\n\n' + TAIL,
+    'email.limitReached.body': '{name} has reached today\'s limit of {minutes} min.\n\nTo give more time, open Bonfire, choose Manage profiles, then {name}.\n\n' + TAIL,
     'notice.asked': '{name} asked for more time. To answer, open Bonfire, choose Manage profiles, then {name}.',
     'notice.picker.tooMany': 'Too many tries. Try again later.'
 };

@@ -511,7 +511,7 @@ console.log('── #23  The hint that caused the issue ────────
 ok('the colour picker no longer claims to be unused behind a picture',
     src.indexOf('Not used while a picture is set.') === -1);
 ok('it says where the colour actually shows',
-    src.indexOf('Shows behind the avatar, wherever it is transparent.') !== -1);
+    src.indexOf('Shows through transparent parts of the avatar.') !== -1);
 ok('and dims only when the colour is genuinely dead',
     /const unused = !!hasPicture && !!isTransparent;/.test(src));
 ok('the picker owns that state, so the two forms cannot race it',
@@ -656,7 +656,7 @@ ok('there is no chown block to show: the file is never touched',
     !/injectionFileFix|linuxChownCmd|dockerChownCmd|hideFileFix/.test(dash));
 ok('the failure headline says index.html is not involved',
     dash.indexOf('id="injectionFailureHeadline"') !== -1
-    && dash.indexOf("index.html isn\\'t involved") !== -1);
+    && dash.indexOf("index.html isn\\'t the cause") !== -1);
 ok('and no account row or command-filling block is left to re-show one',
     !/injectionFailureAccountRow|detectedAccountRow|windowsFixCmd/.test(dash));
 

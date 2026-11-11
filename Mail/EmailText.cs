@@ -47,7 +47,7 @@ namespace Jellyfin.Profiles.Mail
             ["email.timeAsked.subject"] = "{name} asked for more time",
             ["email.timeAsked.body"] = "{name} asked for more time.\n\nTo answer, open Bonfire, choose Manage profiles, then {name}.\n\nTurn these emails off in Bonfire: Settings, Your account.",
             ["email.limitReached.subject"] = "{name} reached today's limit",
-            ["email.limitReached.body"] = "{name} has watched {minutes} minutes today and reached the limit.\n\nTo give more time, open Bonfire, choose Manage profiles, then {name}.\n\nTurn these emails off in Bonfire: Settings, Your account.",
+            ["email.limitReached.body"] = "{name} has reached today's limit of {minutes} min.\n\nTo give more time, open Bonfire, choose Manage profiles, then {name}.\n\nTurn these emails off in Bonfire: Settings, Your account.",
             ["notice.warning.header"] = "Time's almost up",
             ["notice.timeUp.header"] = "Time's up",
             ["notice.stopsIn"] = "Playback stops in {minutes} min.",
@@ -66,7 +66,7 @@ namespace Jellyfin.Profiles.Mail
             ["notice.picker.maintenance"] = "Closed for maintenance.",
             ["notice.picker.device"] = "Not allowed on this device.",
             ["notice.picker.off"] = "This profile is turned off.",
-            ["notice.picker.sessions"] = "Too many sessions for this profile.",
+            ["notice.picker.sessions"] = "Too many screens use this profile.",
             ["notice.asked.header"] = "More time?",
             ["notice.asked"] = "{name} asked for more time. To answer, open Bonfire, choose Manage profiles, then {name}.",
         };
