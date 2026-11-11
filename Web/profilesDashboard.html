@@ -2445,6 +2445,8 @@
                             profiles: res.removedMappings, groups: res.removedGroups, members: res.removedMembers
                         })) + '</span>';
                         loadMappings(page);
+                        // The Status tab still counted the records just removed.
+                        loadOrphanStatus(page);
                     }, function () {
                         Dashboard.hideLoadingMsg();
                         box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.orphans.cleanupFailed')) + '</span>';
