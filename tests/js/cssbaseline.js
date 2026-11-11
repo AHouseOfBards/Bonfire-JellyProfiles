@@ -1,7 +1,9 @@
 /*
  * P4-13: the injected stylesheet must render on the televisions people actually have.
  *
- * webOS 5 (the LG CX in issue #16) is Chromium 68. Tizen 6.0 is Chromium 76. Two
+ * The floor is Chromium 53: webOS 4.x (the 2018 and 2019 LG sets) is stuck on it for good,
+ * and the owner decided the stylesheet has to render there (C-1006). webOS 5 is 68 and
+ * Tizen 6.0 is 76; both are above the floor, so a rule that holds on 53 holds on them. Two
  * different failure modes, and the second is the dangerous one:
  *
  *   - a DECLARATION they cannot parse is dropped, and the rest of the rule survives.
@@ -11,7 +13,7 @@
  *     four takes all four down.
  *
  * So this does not ask "is the feature used". It asks, per use, "is there something
- * that carries this on Chromium 68", and it names the mitigation it will accept. A
+ * that carries this on Chromium 53", and it names the mitigation it will accept. A
  * check that merely counted modern features would go green the moment someone deleted
  * a fallback, because the feature count would not change.
  *
@@ -24,7 +26,11 @@
 
 const L = require('./_lib');
 
-const BASELINE = 68;          // webOS 5. Tizen 6.0 is 76 and is covered by it.
+const BASELINE = 53;          // webOS 4.x. webOS 5 (68) and Tizen 6.0 (76) are above it.
+// Every feature table below carries the Chromium version that introduced the feature, and
+// a check applies when that version is above the floor. Raising BASELINE past a feature's
+// version retires its check; lowering it can only add checks.
+const newer = f => f.since > BASELINE;
 
 let pass = 0;
 const fails = [];
@@ -101,7 +107,7 @@ const SELECTOR_FEATURES = [
     { token: ':has(', since: 105 },
 ];
 
-for (const f of SELECTOR_FEATURES) {
+for (const f of SELECTOR_FEATURES.filter(newer)) {
     const using = rules.filter(r => r.selector.indexOf(f.token) !== -1);
     if (!using.length) { ok('no ' + f.token + ' to worry about', true); continue; }
 
@@ -137,9 +143,17 @@ const VALUE_FEATURES = [
     { name: 'clamp()', since: 79, re: /(^|[^\w-])clamp\s*\(/ },
     { name: 'min()', since: 79, re: /(^|[^\w-])min\s*\(/ },
     { name: 'max()', since: 79, re: /(^|[^\w-])max\s*\(/ },
+    { name: 'env()', since: 69, re: /(^|[^\w-])env\s*\(/ },
+    { name: 'color-mix()', since: 111, re: /(^|[^\w-])color-mix\s*\(/ },
+    { name: '#rgba / #rrggbbaa', since: 62, re: /#(?:[0-9a-f]{4}|[0-9a-f]{8})(?![0-9a-z_-])/i },
+    { name: 'rgb()/hsl() with a slash alpha', since: 65, re: /(?:rgb|hsl)a?\([^)]*\//i },
+    { name: 'overflow-wrap: anywhere', since: 80, re: /^\s*anywhere\b/, only: 'overflow-wrap' },
 ];
 
-for (const f of VALUE_FEATURES) {
+/* `padding-left` is carried by an earlier `padding`; `top` only by an earlier `top`. */
+const carries = (earlierProp, prop) => earlierProp === prop || prop.indexOf(earlierProp + '-') === 0;
+
+for (const f of VALUE_FEATURES.filter(newer)) {
     let seen = 0;
     for (const r of rules) {
         const decls = r.body.split(';').map(d => d.trim()).filter(Boolean);
@@ -148,10 +162,12 @@ for (const f of VALUE_FEATURES) {
             if (colon === -1) return;
             const prop = d.slice(0, colon).trim();
             const val = d.slice(colon + 1);
+            if (f.only && prop !== f.only) return;
             if (!f.re.test(val)) return;
             seen++;
-            // Look back for the same property with a value this baseline can parse.
-            const earlier = decls.slice(0, idx).filter(p => p.slice(0, p.indexOf(':')).trim() === prop);
+            // Look back for the same property (or the shorthand that sets it) with a value
+            // this baseline can parse.
+            const earlier = decls.slice(0, idx).filter(p => carries(p.slice(0, p.indexOf(':')).trim(), prop));
             const fallback = earlier.some(p => !f.re.test(p.slice(p.indexOf(':') + 1)));
             ok(f.name + ' on ' + prop + ' at L' + lineOf(r.index) + ' has a plain fallback first',
                 fallback,
@@ -174,7 +190,7 @@ const PROP_FEATURES = [
 const displayOf = new Map();
 for (const r of rules) {
     // A flex fallback under @supports not (display: grid) is for a browser older than
-    // Chromium 57, below this 68 baseline. Read as the container's display here it made
+    // Chromium 57, below the old 68 baseline. Read as the container's display here it made
     // a grid container look like a flex one and demanded a margin on top of its grid gap.
     // Section 3 checks those blocks on their own terms.
     if (r.context.some(c => /^@supports\s+not\s*\(\s*display\s*:\s*(inline-)?grid/.test(c))) continue;
@@ -192,7 +208,7 @@ function isFlex(sel) {
     return false;
 }
 
-for (const f of PROP_FEATURES) {
+for (const f of PROP_FEATURES.filter(newer)) {
     const propRe = new RegExp('(^|[;{\\s])' + f.prop + '\\s*:');
     let seen = 0;
     for (const r of rules) {
@@ -239,8 +255,8 @@ for (const f of PROP_FEATURES) {
 
 /* ── 3. Chromium 53, the floor (webOS 4.5) ───────────────────────────────────
  *
- * Everything above is written against 68. The floor the client promises is 53, and three
- * things the 68 checks cannot see were broken there (P2-504..507):
+ * Three things that sections 1 and 2 were once blind to, when they were written against 68
+ * and not 53, were broken on the floor (P2-504..507):
  *
  *   - :focus-within is Chrome 60. In a list with :hover and :focus it took both with it.
  *   - display: grid is Chrome 57. Declared with nothing to fall back to, it is a block.
@@ -517,6 +533,145 @@ const inlineGaps = inlineGapProblems(SRC_JS, selectors);
 inlineGaps.forEach(g => ok('inline flex gap at L' + g.line + ' has a .jpf-no-flex-gap fallback', false,
     g.tag + '  — give it a class with a margin fallback'));
 ok('every inline flex gap in the markup has a fallback (' + inlineGaps.length + ' without)', inlineGaps.length === 0);
+
+/* ── 5. The rest of what is newer than the floor (C-1006) ────────────────────
+ *
+ * Sections 1 to 3 name the features that were known to bite. This one is the survey that
+ * asked "what else is above 53", and its answers are enumerated here so a new use of any
+ * of them has to meet a check and not a reviewer's memory.
+ *
+ *   - PREFIXED: the unprefixed spelling arrived after 53, the -webkit- one is there. The
+ *     rule has to carry the prefixed property too. (user-select is 54; appearance is 84.)
+ *   - FOCUS_WITHIN: :focus-within is 60 and the rule is dropped whole. Every positive use
+ *     must be twinned with the same declarations under :focus, directly beside it, so the
+ *     cascade that ran when they shared a list is the cascade that runs now. "A :focus
+ *     rule exists somewhere" is an aggregate; each twin is matched on its own, and nothing
+ *     between the pair may set one of its properties.
+ *   - BACKDROP: backdrop-filter is 76; it has to sit under @supports (or only reset).
+ *   - COSMETIC: a declaration whose loss leaves the browser's own default and nothing
+ *     unusable. Each is named with its reason and is not a silent pass.
+ */
+console.log();
+console.log('── Chromium 53: the rest of what is newer ─────────────────────');
+
+const PREFIXED = [
+    { prop: 'user-select', since: 54, need: '-webkit-user-select' },
+    { prop: 'appearance', since: 84, need: '-webkit-appearance' },
+];
+const COSMETIC = [
+    { prop: 'accent-color', since: 93, why: 'a checkbox keeps the browser\'s own colour; it still works' },
+    { prop: 'scrollbar-width', since: 121, why: 'the scrollbar keeps its default width; the -webkit-scrollbar rules beside it style it' },
+    { prop: 'scrollbar-color', since: 121, why: 'the scrollbar keeps its default colour; the -webkit-scrollbar rules beside it style it' },
+];
+const declProps = body => body.split(';').map(d => d.trim()).filter(Boolean)
+    .map(d => d.slice(0, d.indexOf(':')).trim()).filter(Boolean);
+
+function prefixedProblems(rs) {
+    const out = [];
+    for (const f of PREFIXED.filter(newer)) {
+        const re = new RegExp('(^|[;{\\s])' + f.prop + '\\s*:');
+        for (const r of rs) {
+            if (!re.test(r.body)) continue;
+            if (declProps(r.body).indexOf(f.need) === -1)
+                out.push({ line: r.index, sel: norm(r.selector).slice(0, 60), feature: f.prop, why: f.prop + ' is Chromium ' + f.since + '; wanted ' + f.need + ' in the same rule' });
+        }
+    }
+    return out;
+}
+function backdropProblems(rs) {
+    const out = [];
+    for (const r of rs) {
+        const m = /(^|[;{\s-])backdrop-filter\s*:\s*([^;}]+)/.exec(r.body);
+        if (!m || 76 <= BASELINE) continue;
+        if (r.context.some(c => /^@supports/.test(c)) || /^none\b/.test(m[2].trim())) continue;
+        out.push({ line: r.index, sel: norm(r.selector).slice(0, 60), feature: 'backdrop-filter', why: 'backdrop-filter is Chromium 76 and sits outside @supports' });
+    }
+    return out;
+}
+function bodyDecls(body) {
+    const map = new Map();
+    body.split(';').map(d => d.trim()).filter(Boolean).forEach(d => {
+        const c = d.indexOf(':');
+        if (c !== -1) map.set(d.slice(0, c).trim(), d.slice(c + 1).replace(/\s+/g, ' ').trim());
+    });
+    return map;
+}
+/** Every selector with a positive :focus-within, and whether its :focus twin is beside it. */
+function focusWithinProblems(rs, accepted) {
+    const out = [];
+    if (60 <= BASELINE) return out;
+    rs.forEach((r, idx) => {
+        for (const sel of splitList(r.selector).map(norm)) {
+            if (!/:focus-within/.test(sel) || /:not\([^)]*:focus-within/.test(sel)) continue;
+            const a = accepted.find(x => x.selector === sel);
+            if (a) { if (!a.holds()) out.push({ line: r.index, sel, feature: ':focus-within', why: 'its accepted reason no longer holds: ' + a.why }); continue; }
+            const twin = sel.replace(/:focus-within/g, ':focus');
+            const want = bodyDecls(r.body);
+            let found = -1;
+            for (let i = 0; i < rs.length; i++) {
+                if (i === idx || rs[i].context.join('|') !== r.context.join('|')) continue;
+                if (!splitList(rs[i].selector).map(norm).some(s => s === twin)) continue;
+                const have = bodyDecls(rs[i].body);
+                if ([...want].every(([k, v]) => have.get(k) === v)) { found = i; break; }
+            }
+            if (found === -1) { out.push({ line: r.index, sel, feature: ':focus-within', why: 'no rule for ' + twin + ' carries the same declarations' }); continue; }
+            // Nothing between the pair, or after the twin and before the :focus-within rule,
+            // may set one of the twin's properties: that rule would win on a browser that only reads one.
+            const lo = Math.min(found, idx), hi = Math.max(found, idx);
+            const props = [...want.keys()];
+            const between = rs.slice(lo + 1, hi).filter(o => o.context.join('|') === r.context.join('|')
+                && declProps(o.body).some(p => props.some(q => carries(p, q) || carries(q, p))));
+            if (between.length) out.push({ line: r.index, sel, feature: ':focus-within', why: 'its :focus twin is separated from it by ' + norm(between[0].selector).slice(0, 50) + ', which sets one of the same properties' });
+        }
+    });
+    return out;
+}
+function cosmeticUses(rs) {
+    const out = [];
+    for (const f of COSMETIC.filter(newer)) {
+        const re = new RegExp('(^|[;{\\s])' + f.prop + '\\s*:');
+        for (const r of rs) if (re.test(r.body)) out.push({ line: r.index, sel: norm(r.selector).slice(0, 60), prop: f.prop, why: f.why });
+    }
+    return out;
+}
+
+// The one :focus-within with no :focus twin, and why that is all right.
+const FOCUS_WITHIN_OK = [{
+    selector: '.device-dropdown-item:focus-within',
+    why: 'a tint on the row while its button has focus; the button is a control inside .profile-section and keeps the plain :focus ring there',
+    holds: () => /(^|\n)\.profile-section :focus \{/.test(css)
+        && /\.profile-section :focus \{[^}]*outline\s*:\s*2px solid/.test(css),
+}];
+
+{
+    const p = s => parseSheet(s);
+    ok('detector: user-select with no -webkit- twin is flagged',
+        prefixedProblems(p('.a { user-select: none; }')).length === 1);
+    ok('detector: user-select with its -webkit- twin passes',
+        prefixedProblems(p('.a { -webkit-user-select: none; user-select: none; }')).length === 0);
+    ok('detector: appearance with no -webkit- twin is flagged',
+        prefixedProblems(p('.a { appearance: none; }')).length === 1);
+    ok('detector: backdrop-filter outside @supports is flagged, inside it and a reset pass',
+        backdropProblems(p('.a { backdrop-filter: blur(4px); }')).length === 1
+        && backdropProblems(p('@supports (backdrop-filter: blur(1px)) { .a { backdrop-filter: blur(4px); } }')).length === 0
+        && backdropProblems(p('.a { backdrop-filter: none; }')).length === 0);
+    ok('detector: a :focus-within rule with no :focus twin is flagged',
+        focusWithinProblems(p('.c:focus-within .x { color: red; }'), []).length === 1);
+    ok('detector: a :focus twin with different declarations is flagged',
+        focusWithinProblems(p('.c:focus .x { color: blue; } .c:focus-within .x { color: red; }'), []).length === 1);
+    ok('detector: a :focus twin directly beside it passes',
+        focusWithinProblems(p('.c:hover .x, .c:focus .x { color: red; } .c:focus-within .x { color: red; }'), []).length === 0);
+    ok('detector: a rule between the pair that sets the same property is flagged',
+        focusWithinProblems(p('.c:focus .x { color: red; } .z .x { color: green; } .c:focus-within .x { color: red; }'), []).length === 1);
+    ok('detector: an accepted :focus-within whose reason has stopped holding is flagged',
+        focusWithinProblems(p('.c:focus-within { color: red; }'), [{ selector: '.c:focus-within', why: 'x', holds: () => false }]).length === 1);
+}
+
+const prob5 = prefixedProblems(rules).concat(backdropProblems(rules), focusWithinProblems(rules, FOCUS_WITHIN_OK));
+prob5.forEach(x => ok(x.feature + ' on ' + x.sel + ' at L' + lineOf(x.line) + ' has a fallback for Chromium ' + BASELINE, false, x.why));
+ok('every prefixed property, backdrop-filter and :focus-within use has a fallback (' + prob5.length + ' without)', prob5.length === 0);
+FOCUS_WITHIN_OK.forEach(a => ok('accepted :focus-within with no twin still holds: ' + a.selector, a.holds(), a.why));
+cosmeticUses(rules).forEach(c => ok(c.prop + ' on ' + c.sel + ' at L' + lineOf(c.line) + ' is cosmetic only: ' + c.why, true));
 
 console.log();
 console.log('  baseline Chromium ' + BASELINE + ': ' + pass + ' passed, ' + fails.length + ' failed');

@@ -694,8 +694,8 @@ body.profiles-no-scroll [id*="spinner"] {
    they were small at viewing distance. clamp keeps the phone size as
    the floor and lets them grow with the viewport. */
 /* Each clamp is preceded by the plain value it falls back to. clamp() is
-   Chrome 79; webOS 5 is 68 and Tizen 6.0 is 76, so on both of the sets
-   in the open issues the clamped declaration is dropped — and without a
+   Chrome 79; the floor is Chromium 53 (webOS 4.x), so on every television
+   set the clamped declaration is dropped — and without a
    preceding one the card would have no width at all, which is a large
    part of what "colour bars stretched across the screen" was. The floor
    is used rather than the ceiling because it is the value that was
@@ -744,7 +744,7 @@ body.profiles-no-scroll [id*="spinner"] {
     content: '';
     position: absolute;
     /* Longhand rather than the inset shorthand, which is Chrome 87;
-       webOS 5 is 68 and Tizen 6.0 is 76, and a declaration they cannot
+       the floor is Chromium 53, and a declaration it cannot
        parse is dropped — leaving this spinner with no offsets at all,
        so it collapses into the top-left corner of the avatar instead of
        centring over it. The whole point of it is to show a switch is
@@ -774,7 +774,7 @@ body.profiles-no-scroll [id*="spinner"] {
     content: '';
     position: absolute;
     /* Longhand for the same reason as the switch spinner above: the
-       inset shorthand is Chrome 87 and both television baselines drop
+       inset shorthand is Chrome 87 and the Chromium 53 floor drops
        it, which would leave every busy button's spinner stuck in its
        corner. */
     top: 0;
@@ -1411,9 +1411,8 @@ body.profiles-no-scroll [id*="spinner"] {
 
    Scoped to the scrolling container on purpose: sticky positions
    against the nearest scrolling ancestor, and this row only ever
-   appears inside that one. position: sticky is Chrome 56, so it holds on
-   webOS 5 and Tizen 6 but NOT on webOS 4.5 (Chromium 53), which ignores
-   it. The fallback there is that the row is the last child of the form,
+   appears inside that one. position: sticky is Chrome 56, so it is ignored
+   on the Chromium 53 floor (webOS 4.x). The fallback there is that the row is the last child of the form,
    so without sticky it is simply the end of the form: still reachable,
    because the remote's focus move scrolls the focused control into view
    (_focusVisibly). It just is not pinned. cssbaseline.js names this.
@@ -1820,6 +1819,7 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1rem;
     line-height: 1.55;
     opacity: 0.85;
+    overflow-wrap: break-word;
     overflow-wrap: anywhere;
 }
 .jpf-onboarding-check {
@@ -1852,7 +1852,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-inline-row > input { flex: 1 1 180px; min-width: 0; }
 .jpf-inline-row > .profiles-btn { padding: 10px 15px; }
 .jpf-email-address { flex: 1 1 180px; min-width: 0; font-weight: 600; word-break: break-all; }
-.jpf-email-check { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; }
+.jpf-email-check { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; -webkit-user-select: none; user-select: none; }
 .jpf-email-check input { accent-color: var(--jpf-accent); cursor: pointer; }
 
 /* ── Viewing hours (1.7.2) ──────────────────────────────────────────
@@ -1892,7 +1892,7 @@ body.profiles-no-scroll [id*="spinner"] {
 
 /* Other accounts on this screen (issue #39): one row per account, its Remove at the end. */
 .jpf-link-row { display: flex; align-items: center; gap: var(--jpf-gap); margin-bottom: 8px; }
-.jpf-link-name { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.jpf-link-name { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; font-weight: 600; overflow-wrap: break-word; overflow-wrap: anywhere; }
 .jpf-link-name .form-hint { font-weight: 400; margin-top: 2px; }
 
 /* ── "More settings" under a profile form's Basics (1.7.2) ──────────
@@ -1911,6 +1911,7 @@ body.profiles-no-scroll [id*="spinner"] {
     padding: 0.75rem 0.5rem;
     border-radius: var(--jpf-r-sm);
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
 }
 .jpf-more > summary::-webkit-details-marker { display: none; }
@@ -2091,8 +2092,8 @@ body.profiles-no-scroll [id*="spinner"] {
 /* The plan asked only that this rule be standalone so that dropping it
    is harmless. It is standalone — but dropping it is NOT harmless, and
    checking the shape rather than the consequence nearly let that
-   through. :focus-visible is Chrome 86, so webOS 5 (68) and Tizen 6.0
-   (76) discard the whole rule as an unparseable selector. The one rule
+   through. :focus-visible is Chrome 86, so every television (floor:
+   Chromium 53) discards the whole rule as an unparseable selector. The one rule
    written for televisions was the one televisions could not see.
 
    So: a plain :focus carries the ring on old browsers, and the
@@ -2217,6 +2218,7 @@ body.profiles-no-scroll [id*="spinner"] {
     color: var(--jpf-text-1);
     font-size: 1rem;
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -2245,7 +2247,7 @@ body.profiles-no-scroll [id*="spinner"] {
        label alone, and in Settings -> Your account a name and three action
        buttons (rename, merge, forget). Declared here rather than in a second block for the same selector,
        which is where it used to live -- see the note on the positioning rule
-       above. A margin fallback for Chromium 68 is in the flex-gap section. */
+       above. A margin fallback for Chromium 53 is in the flex-gap section. */
     gap: 8px;
     justify-content: space-between;
     padding: 8px 12px;
@@ -2274,10 +2276,11 @@ body.profiles-no-scroll [id*="spinner"] {
    the value that was actually applying. outline:none is gone with it — a focused
    control has to be findable, and the tint alone is not that on a television. */
 
-/* ── The Chromium 68 baseline ─────────────────────────────────────
-   webOS 5 (the LG CX in issue #16) is Chromium 68 and Tizen 6.0 is 76.
-   Everything below is here because a declaration those two cannot parse
-   is dropped silently, and a *rule* they cannot parse is dropped whole.
+/* ── The Chromium 53 floor ────────────────────────────────────────
+   webOS 4.x (2018 and 2019 LG sets) is Chromium 53 and stays there; webOS 5
+   (68) and Tizen 6.0 (76) are above it, so what holds on 53 holds on them.
+   Everything below is here because a declaration the floor cannot parse
+   is dropped silently, and a *rule* it cannot parse is dropped whole.
 
    The pattern is the one the color-mix block at the top already uses:
    state the old way first, or guard the new way with @supports. Do not
@@ -2327,7 +2330,7 @@ body.profiles-no-scroll [id*="spinner"] {
    like bars rather than cards.
 
    Gated on a measured class, not on @supports. A feature query for
-   gap answers TRUE on Chromium 68, because grid gap shipped in 66 and
+   gap answers TRUE on Chromium 68 and later, because grid gap shipped in 66 and
    the query cannot tell the two layout modes apart — so the obvious
    guard says yes on exactly the devices where flex gap does nothing.
    See _supportsFlexGap, which measures a probe instead.
@@ -2493,8 +2496,8 @@ body.profiles-no-scroll [id*="spinner"] {
    min-width: 900px, so before this a 1920px television at three metres
    was handed exactly the layout of a monitor at sixty centimetres.
 
-   Plain pixel values, deliberately. This block exists for Chromium 68
-   and 76, which drop clamp() — sizing the television with the one
+   Plain pixel values, deliberately. This block exists for Chromium 53
+   and every other television browser below 79, which drop clamp() — sizing the television with the one
    feature the television cannot parse would be the same mistake twice.
 
    It is last in the sheet and every selector carries .jpf-tv, so it
@@ -2681,7 +2684,7 @@ body.profiles-no-scroll [id*="spinner"] {
    fitGateToScreen sets --jpf-tile and .jpf-fitted on the gate's content only
    when the gate would otherwise scroll. Every other screen in the overlay is
    new markup without the class, so none of them is resized by it. var() and calc() are both Chromium
-   49+, so these hold on the webOS 5 and Tizen sets the .jpf-tv block is for. */
+   49+, so these hold on the Chromium 53 floor the .jpf-tv block is for. */
 /* The routine sets the real size inline; this is what the class means without
    one, so a var() here can never be left with nothing to resolve to. */
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted {
