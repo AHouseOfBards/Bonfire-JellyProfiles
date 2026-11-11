@@ -140,7 +140,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: {User} took over an open session on device {DeviceId} ({Client}) "
                     + "without a sign-out, which Jellyfin does not report as a sign-in; treated as one.",
                     session.UserName, session.DeviceId, session.Client);
-                OnSignedIn(session);
+                OnSignedIn(session, before);
             }
             catch (Exception ex)
             {
@@ -162,7 +162,7 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>Somebody signed in on <paramref name="session"/>: a new session, or a handover.</summary>
-        private void OnSignedIn(SessionInfo session)
+        private void OnSignedIn(SessionInfo session, Guid? previousUserId = null)
         {
             // Nothing here may be allowed to escape. This runs on Jellyfin's own event
             // dispatch, not on a request, so an exception is not ours to lose politely —
@@ -219,6 +219,16 @@ namespace Jellyfin.Profiles.Auth
 
                     return;
                 }
+
+                // A household's account signed in on a device: for the other Campground plugins that is
+                // a profile switch, and on a native app this is the only place it is seen. The switch
+                // route raises its own, and BonfireCampground keeps the two from being counted twice.
+                BonfireCampground.RaiseSwitchedFromSession(
+                    master,
+                    session.UserId,
+                    config.Mappings.FirstOrDefault(m => m.ProfileUserId == session.UserId)?.ProfileName ?? session.UserName,
+                    session.DeviceId,
+                    previousUserId == Guid.Empty ? null : previousUserId);
 
                 DeviceRegistry.RecordAndSave(
                     session.DeviceId,

@@ -578,6 +578,7 @@ namespace Jellyfin.Profiles.Controllers
 
             LogActivity(_userManager.GetUserById(masterUserId)?.Username + " added the profile " + profileName,
                 "ProfileCreated", masterUserId);
+            BonfireCampground.RaiseCreated(masterUserId, targetUser.Id, profileName);
 
             return Ok(new
             {
@@ -743,6 +744,7 @@ namespace Jellyfin.Profiles.Controllers
 
                 LogActivity(_userManager.GetUserById(masterUserId)?.Username + " deleted the profile " + mapping.ProfileName,
                     "ProfileDeleted", masterUserId);
+                BonfireCampground.RaiseDeleted(masterUserId, request.ProfileId, mapping.ProfileName);
             }
 
             return Ok();
@@ -970,6 +972,9 @@ namespace Jellyfin.Profiles.Controllers
             // Never let this throw past us: Jellyfin's exception middleware turns these into a 401,
             // and the client reads a 401 as "the caller's session expired" and signs the master out.
             MediaBrowser.Controller.Authentication.AuthenticationResult session;
+            // Before the session exists: the session listener hears of it inside this call, and
+            // must leave the "switched" event to this route, which knows who it came from.
+            BonfireCampground.ExpectSwitch(targetUser.Id, authRequest.DeviceId);
             try
             {
                 session = await _sessionManager.AuthenticateDirect(authRequest).ConfigureAwait(false);
@@ -1005,6 +1010,13 @@ namespace Jellyfin.Profiles.Controllers
 
             // Record profile switch audit log
             RecordAuditLog(masterUser?.Username ?? "Unknown", targetUser.Username);
+
+            BonfireCampground.RaiseSwitched(
+                mapping?.MasterUserId ?? targetUser.Id,
+                targetUser.Id,
+                mapping?.ProfileName ?? targetUser.Username,
+                authRequest.DeviceId,
+                currentUserId);
 
             var total = sw.ElapsedMilliseconds;
             // Warn on switches slow enough for a user to notice; otherwise keep it at Debug.
@@ -1356,6 +1368,7 @@ namespace Jellyfin.Profiles.Controllers
             bool Exists(Guid id) => id != Guid.Empty && _userManager.GetUserById(id) != null;
 
             var orphansRemoved = new List<Guid>();
+            var orphanEvents = new List<(Guid Main, Guid Profile, string Name)>();
             (int Mappings, int Groups, int Members) removed;
             lock (ConfigLock)
             {
@@ -1395,6 +1408,10 @@ namespace Jellyfin.Profiles.Controllers
                     .Where(m => orphanIds.Contains(m.ProfileUserId) && (!Exists(m.ProfileUserId) || !Exists(m.MasterUserId)))
                     .Select(m => m.ProfileUserId)
                     .ToList();
+                orphanEvents = orphans
+                    .Where(o => orphansRemoved.Contains(o.profileUserId))
+                    .Select(o => (o.masterUserId, o.profileUserId, o.profileName))
+                    .ToList();
                 config.Mappings.RemoveAll(m => orphanIds.Contains(m.ProfileUserId)
                                                && (!Exists(m.ProfileUserId) || !Exists(m.MasterUserId)));
 
@@ -1420,6 +1437,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             foreach (var gone in orphansRemoved) Auth.ViewingTracker.Forget(gone);   // R-1023
+            foreach (var (gonesMain, gonesProfile, gonesName) in orphanEvents) BonfireCampground.RaiseDeleted(gonesMain, gonesProfile, gonesName);
 
             // A master whose profiles were all orphans is no longer one the PIN provider
             // should hold.
@@ -2099,6 +2117,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             var pinChanged = false;
+            string? renamedTo = null;
             lock (ConfigLock)
             {
                 // Fetch or create mapping for this profile inside the lock
@@ -2120,7 +2139,9 @@ namespace Jellyfin.Profiles.Controllers
                     // Update basic mapping properties (only for sub-profiles; master name is read-only)
                     if (request.ProfileId != masterUserId)
                     {
-                        mappingEntry.ProfileName = request.ProfileName.Trim();
+                        var newName = request.ProfileName.Trim();
+                        if (!string.Equals(mappingEntry.ProfileName, newName, StringComparison.Ordinal)) renamedTo = newName;
+                        mappingEntry.ProfileName = newName;
                     }
 
                     // Left out keeps it, like the other fields. It used to reset to a
@@ -2230,6 +2251,8 @@ namespace Jellyfin.Profiles.Controllers
 
                 Plugin.Instance?.SaveConfiguration();
             }
+
+            if (renamedTo != null) BonfireCampground.RaiseRenamed(masterUserId, request.ProfileId, renamedTo);
 
             // A master setting its PIN becomes enterable by it on other apps at once, rather
             // than after the next restart. A master clearing it must come off the PIN provider
@@ -4541,6 +4564,7 @@ namespace Jellyfin.Profiles.Controllers
 
             // 3. No longer a profile. Before the provider changes below: while it is mapped,
             //    the provider reconcile would put it straight back on Bonfire's.
+            var left = false;
             lock (ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
@@ -4549,8 +4573,12 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     config!.Mappings.Remove(row);
                     Plugin.Instance?.SaveConfiguration();
+                    left = true;
                 }
             }
+
+            // Out of the household it was in, so as far as the household goes it was deleted.
+            if (left) BonfireCampground.RaiseDeleted(mapping.MasterUserId, mapping.ProfileUserId, mapping.ProfileName);
 
             // 4. Shown on the sign-in screen if its master is. Every profile is hidden, because
             //    it is reached through its master; left that way, the new account is missing

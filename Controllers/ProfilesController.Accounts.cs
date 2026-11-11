@@ -470,6 +470,7 @@ namespace Jellyfin.Profiles.Controllers
 
             LogActivity(CallerName() + " made " + user.Username + " a profile of " + householdUser.Username,
                 "AccountMadeProfile", user.Id);
+            BonfireCampground.RaiseCreated(request.HouseholdId, request.UserId, name);
             _logger.LogWarning("ProfilesPlugin: {Admin} made {User} a profile of {Household}.", CallerName(), user.Username, householdUser.Username);
 
             return Ok(new { ProfileUserId = request.UserId, ProfileName = name });

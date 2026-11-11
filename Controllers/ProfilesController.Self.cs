@@ -94,16 +94,25 @@ namespace Jellyfin.Profiles.Controllers
                 await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
             }
 
+            string? renamedTo = null;
+            var householdOf = Guid.Empty;
             lock (ConfigLock)
             {
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);
                 if (row == null) return NotFound("Profile not found.");
-                if (newName != null) row.ProfileName = newName;
+                householdOf = row.MasterUserId;
+                if (newName != null)
+                {
+                    if (!string.Equals(row.ProfileName, newName, StringComparison.Ordinal)) renamedTo = newName;
+                    row.ProfileName = newName;
+                }
                 if (request.AvatarColor != null) row.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
                 if (request.TransparentAvatar.HasValue) row.TransparentAvatar = request.TransparentAvatar.Value;
                 if (imageChanged) row.ProfileImage = newImageUrl;
                 Plugin.Instance?.SaveConfiguration();
             }
+
+            if (renamedTo != null) BonfireCampground.RaiseRenamed(householdOf, callerId.Value, renamedTo);
 
             return Ok();
         }

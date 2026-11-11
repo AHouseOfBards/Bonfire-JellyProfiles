@@ -91,6 +91,10 @@ namespace Jellyfin.Profiles
 
             // For other plugins: which household a user belongs to. Read-only.
             serviceCollection.AddSingleton<IBonfireProfiles, BonfireProfiles>();
+
+            // The same answers for the other Campground plugins: campground.household.v1 and
+            // campground.device.v1 (see BonfireCampground).
+            serviceCollection.AddHostedService<CampgroundProvidersTask>();
         }
     }
 }
