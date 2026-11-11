@@ -965,6 +965,7 @@
         'avatar.avatarLabel': 'Avatar',
         'avatar.zoom': 'Zoom',
         'avatar.chooseFirst': 'Choose an avatar first.',
+        'avatar.loadFailed': 'Could not load the pictures.',
         'avatar.libraryArtworkTitle': 'Library artwork',
 
         'errors.error': 'Error',
@@ -5431,7 +5432,13 @@
                 const id = row.getAttribute("data-lib");
                 state[id] = { mode: "inherit" };
 
+                // What the row was before the last change to Picture, for a picker that is
+                // closed without a choice. Left as "Picture" it would be saved, and the
+                // server answers "Choose a picture first." (R-1191).
+                let before = null;
+
                 row.querySelector(".libart-mode").addEventListener("change", (e) => {
+                    before = { mode: state[id].mode, dirty: state[id].dirty };
                     state[id].mode = e.target.value;
                     state[id].dirty = true;
                     paint(row);
@@ -5450,6 +5457,11 @@
                         state[id].avatarLibraryId = picked.libraryId;
                         state[id].url = null;
                         state[id].dirty = true;
+                        paint(row);
+                    }, () => {
+                        if (state[id].mode !== "custom" || state[id].image || state[id].url) return;
+                        state[id].mode = before ? before.mode : "inherit";
+                        state[id].dirty = before ? !!before.dirty : false;
                         paint(row);
                     });
                 });
@@ -5525,7 +5537,7 @@
         /// Opens the picker and crop editor the profile pictures already use, so library
         /// artwork gets the avatar library, uploads and positioning without a second
         /// implementation of any of it.
-        pickLibraryArtwork: function (onPicked) {
+        pickLibraryArtwork: function (onPicked, onCancel) {
             const apiClient = ApiClient;
             const masterState = this.readMasterState();
             const token = masterState ? masterState.token : apiClient.accessToken();
@@ -5559,8 +5571,21 @@
                 host.innerHTML = this.renderAvatarPicker("libart", library, null, DEFAULT_AVATAR_COLOR);
                 const picker = this.initAvatarPicker(host, "libart", library, null, () => {});
 
+                // remove() hands focus back to the opener; markDialog wraps it.
                 const close = () => dialog.remove();
-                dialog.querySelector("#profiles-libart-cancel").addEventListener("click", close);
+                // Closing without a choice tells the caller, which has changed its form
+                // to "Picture" already and has to put that back (R-1191).
+                const cancel = () => { close(); if (onCancel) onCancel(); };
+                dialog.querySelector("#profiles-libart-cancel").addEventListener("click", cancel);
+                dialog.addEventListener("keydown", (e) => {
+                    if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); cancel(); }
+                });
+                if (library.failed) {
+                    // An empty grid with no word said looked like a library with no pictures (R-1197).
+                    const loadErr = dialog.querySelector("#profiles-libart-error");
+                    loadErr.textContent = t('avatar.loadFailed');
+                    loadErr.style.display = "block";
+                }
                 dialog.querySelector("#profiles-libart-save").addEventListener("click", () => {
                     const picked = picker.get();
                     if (!picked.image && !picked.libraryId) {
@@ -8437,7 +8462,7 @@
                     thumbUrl: a.thumbUrl || a.ThumbUrl
                 }))
             }))
-            .catch(() => ({ allowCustomUploads: true, avatars: [] }));
+            .catch(() => ({ allowCustomUploads: true, avatars: [], failed: true }));
         },
 
         /// Renders the profile-picture block. Shared by the create and edit forms so the two

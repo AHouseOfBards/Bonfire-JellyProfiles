@@ -57,6 +57,7 @@
   "avatar.avatarLabel": "Awatar",
   "avatar.zoom": "Powiększenie",
   "avatar.chooseFirst": "Najpierw wybierz awatar.",
+  "avatar.loadFailed": "Nie udało się wczytać obrazów.",
   "avatar.libraryArtworkTitle": "Grafika biblioteki",
   "errors.error": "Błąd",
   "errors.validationError": "Nie można jeszcze zapisać",

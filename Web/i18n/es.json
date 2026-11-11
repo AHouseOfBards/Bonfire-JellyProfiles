@@ -57,6 +57,7 @@
   "avatar.avatarLabel": "Avatar",
   "avatar.zoom": "Zoom",
   "avatar.chooseFirst": "Elige primero un avatar.",
+  "avatar.loadFailed": "No se pudieron cargar las imágenes.",
   "avatar.libraryArtworkTitle": "Imagen de la biblioteca",
   "errors.error": "Error",
   "errors.validationError": "Todavía no se puede guardar",
