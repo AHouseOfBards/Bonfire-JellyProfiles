@@ -343,7 +343,16 @@ Console.WriteLine("── CleanupOrphans ─────────────
     Ok("and lists no live profile", !orphans.Contains(KID) && !orphans.Contains(PARENT) && !orphans.Contains(ADMIN));
     Ok("and removes nothing", Mapped(GONE) && Mapped(LEFT));
 
+    // First-time setup remembers who has seen it, one row per main account (R-1075).
+    var onboarding = cfgType.GetProperty("Onboarding").GetValue(config);
+    var seenMark = onboarding.GetType().GetMethod("MarkSeen");
+    seenMark.Invoke(onboarding, new object[] { GONE_MASTER });
+    seenMark.Invoke(onboarding, new object[] { PARENT });
+    bool SeenKept(Guid id) => ((IEnumerable)onboarding.GetType().GetProperty("Seen").GetValue(onboarding))
+        .Cast<object>().Any(r => (Guid)Prop(r, "UserId") == id);
+
     var applied = Call("CleanupOrphans", ADMIN, raw: new object[] { true });
+    Ok("a deleted account's first-time setup record goes, a live one's stays", !SeenKept(GONE_MASTER) && SeenKept(PARENT));
     Ok("applying removes them (" + Say(applied) + ")", applied.status == 200 && !Mapped(GONE) && !Mapped(LEFT));
     Ok("and keeps every live profile", Mapped(KID) && Mapped(OPEN_KID) && Mapped(PARENT) && Mapped(ADMIN) && Mapped(STRANGER));
     Ok("their viewing time is forgotten, and a live profile's is not", !WatchTimeKept(GONE) && !WatchTimeKept(LEFT) && WatchTimeKept(KID));

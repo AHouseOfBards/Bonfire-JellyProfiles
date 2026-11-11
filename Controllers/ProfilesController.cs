@@ -1435,6 +1435,9 @@ namespace Jellyfin.Profiles.Controllers
                 // Nothing to review: a tile for an account that doesn't exist is never drawn.
                 config.LinkedAccounts?.RemoveAll(l => !Exists(l.UserId) || !Exists(l.HouseholdId));
 
+                // First-time setup's "has seen it" rows for accounts that no longer exist (R-1075).
+                config.Onboarding?.Seen?.RemoveAll(s => !Exists(s.UserId));
+
                 // Devices are NOT touched here. A device outliving the profile that used it is
                 // normal — the hardware is still in the house — and dropping one that some
                 // other profile still names would empty that whitelist, which means "any
