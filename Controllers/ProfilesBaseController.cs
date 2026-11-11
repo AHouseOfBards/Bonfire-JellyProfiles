@@ -796,13 +796,32 @@ namespace Jellyfin.Profiles.Controllers
             Response.Headers["Cache-Control"] = "private, no-cache";
             Response.Headers["ETag"] = tag;
 
-            var sent = Request.Headers["If-None-Match"].ToString();
-            if (!string.IsNullOrEmpty(sent)
-                && sent.Split(',').Any(t => t.Trim().Replace("W/", string.Empty, StringComparison.Ordinal) == tag))
+            if (IfNoneMatchHas(tag))
             {
                 return StatusCode(StatusCodes.Status304NotModified);
             }
             return Ok(body);
+        }
+
+        /// <summary>
+        /// Whether the request's If-None-Match names <paramref name="etag"/>. The header is a
+        /// list, and a proxy that compresses the body turns a strong tag into <c>W/"..."</c>;
+        /// an exact comparison with the whole header never matched either, so every request
+        /// behind one paid for the full body. Weak comparison is the one the spec gives for
+        /// If-None-Match. <c>*</c> is not honoured: nothing here is a create.
+        /// </summary>
+        protected bool IfNoneMatchHas(string etag)
+        {
+            var sent = Request.Headers["If-None-Match"].ToString();
+            if (string.IsNullOrEmpty(sent)) return false;
+            var want = etag.StartsWith("W/", StringComparison.Ordinal) ? etag.Substring(2) : etag;
+            foreach (var part in sent.Split(','))
+            {
+                var t = part.Trim();
+                if (t.StartsWith("W/", StringComparison.Ordinal)) t = t.Substring(2);
+                if (string.Equals(t, want, StringComparison.Ordinal)) return true;
+            }
+            return false;
         }
 
         /// <summary>

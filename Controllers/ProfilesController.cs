@@ -2407,7 +2407,7 @@ namespace Jellyfin.Profiles.Controllers
             Response.Headers["ETag"] = etag;
             Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
 
-            if (string.Equals(Request.Headers["If-None-Match"].ToString(), etag, StringComparison.Ordinal))
+            if (IfNoneMatchHas(etag))
             {
                 return StatusCode(StatusCodes.Status304NotModified);
             }
@@ -2720,7 +2720,7 @@ namespace Jellyfin.Profiles.Controllers
             Response.Headers["ETag"] = etag;
             Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
 
-            if (string.Equals(Request.Headers["If-None-Match"].ToString(), etag, StringComparison.Ordinal))
+            if (IfNoneMatchHas(etag))
             {
                 return StatusCode(StatusCodes.Status304NotModified);
             }

@@ -44,7 +44,7 @@ namespace Jellyfin.Profiles.Controllers
             // Revalidated every time: the default theme can change at any moment, and an
             // unchanged answer costs a 304.
             Response.Headers["Cache-Control"] = "public, no-cache";
-            if (string.Equals(Request.Headers["If-None-Match"].ToString(), etag, StringComparison.Ordinal))
+            if (IfNoneMatchHas(etag))
             {
                 return StatusCode(StatusCodes.Status304NotModified);
             }
@@ -82,7 +82,7 @@ namespace Jellyfin.Profiles.Controllers
             // app), and browsers refuse a font without this.
             Response.Headers["Access-Control-Allow-Origin"] = "*";
             Response.Headers["ETag"] = found.Value.ETag;
-            if (string.Equals(Request.Headers["If-None-Match"].ToString(), found.Value.ETag, StringComparison.Ordinal))
+            if (IfNoneMatchHas(found.Value.ETag))
             {
                 return StatusCode(StatusCodes.Status304NotModified);
             }
@@ -129,7 +129,7 @@ namespace Jellyfin.Profiles.Controllers
             Response.Headers["Cache-Control"] = "public, max-age=86400";
             var etag = ThemeCatalog.ETagFor(svg);
             Response.Headers["ETag"] = etag;
-            if (string.Equals(Request.Headers["If-None-Match"].ToString(), etag, StringComparison.Ordinal))
+            if (IfNoneMatchHas(etag))
             {
                 return StatusCode(StatusCodes.Status304NotModified);
             }

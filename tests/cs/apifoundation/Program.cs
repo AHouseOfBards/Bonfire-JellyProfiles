@@ -185,6 +185,20 @@ foreach (var route in new[] { "GetAnnouncements", "GetProfiles" })
     Ok(route + ": another tag gets the body", stale.status == 200, stale.status.ToString());
 }
 
+// The anonymous script and theme routes answer the same way: a compressing proxy turns a
+// strong tag into W/"..." and a list is legal, so an exact compare never matched.
+foreach (var route in new[] { "GetProfilesJs", "GetThemes" })
+{
+    var rargs = route == "GetThemes" ? new object[] { null } : null;
+    var f = Call(route, UserPrincipal(MAIN), rargs);
+    var t = f.http?.Response.Headers["ETag"].ToString();
+    if (string.IsNullOrEmpty(t)) { Ok(route + ": answers with an ETag", false, f.status + " tag=" + t); continue; }
+    Ok(route + ": the same tag gets 304", Call(route, UserPrincipal(MAIN), rargs, new() { ["If-None-Match"] = t }).status == 304);
+    Ok(route + ": a weak tag gets 304", Call(route, UserPrincipal(MAIN), rargs, new() { ["If-None-Match"] = "W/" + t }).status == 304);
+    Ok(route + ": a weak tag in a list gets 304", Call(route, UserPrincipal(MAIN), rargs, new() { ["If-None-Match"] = "\"other\", W/" + t }).status == 304);
+    Ok(route + ": another tag gets the body", Call(route, UserPrincipal(MAIN), rargs, new() { ["If-None-Match"] = "\"0000\"" }).status == 200);
+}
+
 var before = Call("GetAnnouncements", UserPrincipal(MAIN)).http?.Response.Headers["ETag"].ToString();
 var ann = Activator.CreateInstance(annType);
 annType.GetProperty("Id").SetValue(ann, Guid.NewGuid());
