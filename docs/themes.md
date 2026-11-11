@@ -222,12 +222,24 @@ or `dotted`. A `line` is just a colour, for a 1-pixel solid edge.
 ## Layout
 
 ```json
-"layout": { "households": "panels" }
+"layout": { "households": "panels", "profiles": "tiles", "align": "center", "size": "medium", "logo": "top-right" }
 ```
 
 `households` is `panels`, where each household's profiles sit in a box with a heading, or
 `open`, where profiles sit straight on the background. With `open`, a screen with one
-household shows no heading at all.
+household shows no heading at all. It is required.
+
+The other four are optional. Leave one out and it takes the default, the first value below.
+
+| Field | Values | |
+| --- | --- | --- |
+| `profiles` | `tiles`, `list` | Tiles in rows, or one profile per line with the picture and the name beside it. |
+| `align` | `center`, `left` | The title, the profiles and the buttons centred, or lined up 5% in from the left. |
+| `size` | `medium`, `small`, `large` | The picture: 80% or 125% of medium. A list draws smaller pictures than tiles at every size. |
+| `logo` | `top-right`, `top-left`, `bottom-left`, `bottom-right` | The corner the server's logo goes in. At the bottom it comes after the buttons, so on a screen that scrolls it is below them. |
+
+There is no free positioning. Whatever is chosen, the logo never covers the title, a
+profile or a button.
 
 ## Decorations
 
@@ -268,8 +280,9 @@ values matches the web client.
 | Screen part | Uses |
 | --- | --- |
 | Screen | `background` |
-| Logo, top right | `logo.image`, or `logo.text` in `text2`; 5% in from the edges on a TV |
-| "Who's watching?" title | `text1`, `type.title`, `depth.title` |
+| Logo | `logo.image`, or `logo.text` in `text2`; in the corner `layout.logo` names; 5% in from the edges on a TV |
+| "Who's watching?" title | `text1`, `type.title`, `depth.title`; placed by `layout.align` |
+| Profiles | `layout.profiles`, `layout.size`, `layout.align` |
 | Household heading | `layout.households`; `text3` with `open`, `text1` in a panel |
 | Household panel | `surface1`, `border1`, `shape.radius.large`, `depth.sheet` |
 | Profile picture | `shape.avatar`, `depth.avatar` |
@@ -373,7 +386,7 @@ as `If-None-Match` and you get `304` until something changes.
 - **Which theme a profile uses** is in `/list`, as each profile's `theme`. When it's
   `null`, use `default`. An id you don't recognise is an alias or a deleted theme: look
   for it in `aliases`, and otherwise use `default`.
-- **The logo** is shown at the top right of every switcher screen. It's an `image`, or
+- **The logo** is shown in the corner the theme's `layout.logo` names, top right by default. It's an `image`, or
   when there's none a line of `text` in `text2`, or nothing. Give the image `alt` for
   screen readers. Keep it inside the TV safe area: 5% in from each edge.
 
