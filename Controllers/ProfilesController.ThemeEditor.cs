@@ -74,8 +74,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Sets the logo's text and alt text. Both are replaced: leave one out, or send "",
-        /// to clear it. The image is its own route.
+        /// Sets the logo's text and alt text. A field the body leaves out stays as it is;
+        /// send "" or null to clear it. The image is its own route.
         /// </summary>
         [HttpPut("admin/themes/logo")]
         [Produces("application/json")]
@@ -85,13 +85,23 @@ namespace Jellyfin.Profiles.Controllers
             if (adminError != null) return adminError;
 
             if (body.ValueKind != JsonValueKind.Object) return BadRequest("Send the logo's text and alt text.");
-            string? Read(string name) =>
-                TryProperty(body, name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
-            string? text, alt;
+            // A field the body does not have is left as it is, so a client that sets one does
+            // not wipe the other. null or "" clears it. Anything else that is not text is
+            // refused rather than read as "clear" (R-1090).
+            bool Has(string name, out JsonElement v) => TryProperty(body, name, out v);
+            string? Read(JsonElement v) => v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+            string? text = null, alt = null;
+            var hasText = Has("text", out var textEl);
+            var hasAlt = Has("alt", out var altEl);
             try
             {
-                text = ThemeLogo.CleanText(Read("text"), ThemeLogo.MaxText);
+                if (hasText)
+                {
+                    if (textEl.ValueKind != JsonValueKind.String && textEl.ValueKind != JsonValueKind.Null) throw new ArgumentException("text");
+                    text = ThemeLogo.CleanText(Read(textEl), ThemeLogo.MaxText);
+                }
             }
             catch (ArgumentException)
             {
@@ -100,7 +110,11 @@ namespace Jellyfin.Profiles.Controllers
 
             try
             {
-                alt = ThemeLogo.CleanText(Read("alt"), ThemeLogo.MaxAlt);
+                if (hasAlt)
+                {
+                    if (altEl.ValueKind != JsonValueKind.String && altEl.ValueKind != JsonValueKind.Null) throw new ArgumentException("alt");
+                    alt = ThemeLogo.CleanText(Read(altEl), ThemeLogo.MaxAlt);
+                }
             }
             catch (ArgumentException)
             {
@@ -111,8 +125,8 @@ namespace Jellyfin.Profiles.Controllers
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
-                config.LogoText = text;
-                config.LogoAlt = alt;
+                if (hasText) config.LogoText = text;
+                if (hasAlt) config.LogoAlt = alt;
                 Plugin.Instance?.SaveConfiguration();
                 return Ok(JsonNode.Parse(ThemeCatalog.LogoPayload(config).ToJsonString()));
             }

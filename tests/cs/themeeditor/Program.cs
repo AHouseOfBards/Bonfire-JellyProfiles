@@ -720,6 +720,27 @@ var logoPub = JsonNode.Parse(ThemeCatalog.PublicPayload(live))!["logo"]!;
 Ok("GET /themes gives the text, the alt and no image",
    (string)logoPub["text"]! == "The Hayes House" && (string)logoPub["alt"]! == "Hayes" && logoPub["image"] == null);
 
+// A field the body does not have is left alone; "" or null clears it (R-1090).
+Ok("setting only the text leaves the alt text",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["text"] = "The Hayes Home" }))) == 200
+   && live.LogoText == "The Hayes Home" && live.LogoAlt == "Hayes", live.LogoText + " / " + live.LogoAlt);
+Ok("setting only the alt text leaves the text",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["alt"] = "Hayes logo" }))) == 200
+   && live.LogoText == "The Hayes Home" && live.LogoAlt == "Hayes logo", live.LogoText + " / " + live.LogoAlt);
+Ok("an empty body changes nothing",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject()))) == 200
+   && live.LogoText == "The Hayes Home" && live.LogoAlt == "Hayes logo");
+Ok("an empty string clears only that field",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["text"] = "" }))) == 200
+   && live.LogoText == null && live.LogoAlt == "Hayes logo");
+Ok("null clears only that field",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["alt"] = null }))) == 200
+   && live.LogoText == null && live.LogoAlt == null);
+Ok("a field that is not text is refused, and nothing changes",
+   Status(Call(As(true), "SetThemeLogo", Json(new JsonObject { ["text"] = "Kept", ["alt"] = 5 }))) == 400
+   && live.LogoText == null && live.LogoAlt == null);
+Call(As(true), "SetThemeLogo", Json(new JsonObject { ["text"] = "The Hayes House", ["alt"] = "Hayes" }));
+
 var firstLogo = Png(400, 120);
 var up1 = Call(As(true, firstLogo), "UploadThemeLogo");
 var firstName = ThemeLogo.FileNameFor(firstLogo, ThemeLogo.Read(firstLogo));

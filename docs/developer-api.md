@@ -1586,7 +1586,7 @@ Deletes an uploaded font and its file. `400` while a custom theme uses it.
 { "text": "The Hayes House", "alt": "The Hayes House" }
 ```
 
-Replaces both. Leave one out or send `""` to clear it. Each is one line: `text` up to 40
+A field left out stays as it is. Send `""` or `null` to clear it; anything that is not text is `400`. Each is one line: `text` up to 40
 characters, `alt` up to 100. Returns the logo as [`/themes`](#get-pluginsprofilesthemes) gives it.
 
 ### `POST /plugins/profiles/admin/themes/logo/image`
