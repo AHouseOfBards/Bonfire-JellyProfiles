@@ -130,6 +130,7 @@ function optional(name) {
         ['Web/profiles.js', '`<img src="${resolved}" alt="" onerror="this.remove()" ` +', 'resolved by safeImageSrc, which routes through pluginUrl()'],
         ['Web/profiles.js', "thumb.style.backgroundImage = preview ? (\"url(\\\"\" + preview + \"\\\")\") : \"\";", 'preview comes from _libraryArtUrl, which routes through pluginUrl()'],
         ['Web/profiles.js', "['--jpf-deco', patternImage ? 'url(\"' + patternImage + '\")' : 'none'],", 'patternImage is a data: URL from the theme table'],
+        ['Web/profiles.js', "const chevron = 'url(\"data:image/svg+xml,", 'an inline SVG data: URL drawn in the theme text colour (R-1269)'],
         ['Web/profiles.js', "src: url(\"' + url + '\") format(\"woff2\");", 'url is urlFor(), which is pluginUrl()'],
         ['Web/profilesDashboard.html', "src: url(\"' + url + '\") format(\"", 'url is themeFontUrl(), which is ApiClient.getUrl()'],
         ['Web/profiles.js', '<img src="${safeImageSrc(a.thumbUrl)}"', 'safeImageSrc routes through pluginUrl()'],
