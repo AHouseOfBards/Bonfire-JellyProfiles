@@ -574,7 +574,7 @@ function part6() {
         getElementById: id => (id === 'jpfThemeEditorCss' && head.length ? head[0] : null),
         createElement: () => style, head: { appendChild: s => head.push(s) }
     };
-    const fns = lift(['getThemePath', 'escapeHtml', 'renderThemeDraftPreview'], { window: win, document: doc });
+    const fns = lift(['getThemePath', 'escapeHtml', 'paintThemeExpanded', 'renderThemeDraftPreview'], { window: win, document: doc });
     ok('the preview is drawn by a function a test can run', !!fns);
     if (fns) {
         fns.renderThemeDraftPreview(page);
