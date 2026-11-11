@@ -27,15 +27,14 @@ check('only the create form still has a separate checklist',
     (SRC.match(/<div class="library-checklist">/g) || []).length, 1);
 check('and its heading with it', /<label>Library Artwork<\/label>/.test(SRC), false);
 // Translated since 1.5.3, so the literal is gone from the markup — but the wording it
-// resolves to is the thing that was decided, and still has to hold. The create form keeps
-// "Enabled Libraries"; the edit section, which already sits under a Libraries heading,
-// must not.
+// resolves to is the thing that was decided, and still has to hold. Both forms say
+// "Libraries" (phase 3, 2.0: "Enabled Libraries" was dropped on Add too).
 check('the edit section label is just "Libraries"',
     /<label style="margin: 0;">\$\{t\('profileForm\.libraries'\)\}<\/label>/.test(SRC)
     && /'profileForm\.libraries':\s*'Libraries'/.test(SRC), true);
-check('and the create form still says "Enabled Libraries"',
+check('and the create form says "Libraries" too',
     /<label style="margin: 0;">\$\{t\('profileForm\.enabledLibraries'\)\}<\/label>/.test(SRC)
-    && /'profileForm\.enabledLibraries':\s*'Enabled Libraries'/.test(SRC), true);
+    && /'profileForm\.enabledLibraries':\s*'Libraries'/.test(SRC), true);
 
 console.log();
 console.log('── The row still answers both queries ────────────────────────');

@@ -655,7 +655,7 @@ ok('there is no chown block to show: the file is never touched',
     !/injectionFileFix|linuxChownCmd|dockerChownCmd|hideFileFix/.test(dash));
 ok('the failure headline says index.html is not involved',
     dash.indexOf('id="injectionFailureHeadline"') !== -1
-    && dash.indexOf('index.html is not involved') !== -1);
+    && dash.indexOf("index.html isn\\'t involved") !== -1);
 ok('and no account row or command-filling block is left to re-show one',
     !/injectionFailureAccountRow|detectedAccountRow|windowsFixCmd/.test(dash));
 

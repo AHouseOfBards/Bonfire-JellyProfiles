@@ -91,7 +91,7 @@ const ADMIN = {
         more: ['.jpf-te-mode[button]', '.jpf-te-mode[button]', '.raised[button]', 'avatarScanBtn', 'avatarScanPath', 'enableStarterAvatars', 'fontChoose', 'fontFallback', 'fontFamily', 'fontFile', 'fontRights', 'fontUpload', 'logoAlt', 'logoChoose', 'logoFile', 'logoRemove', 'logoSave', 'logoText', 'profileImageQuality', 'richThemeMotion', 'teAccent', 'teAvatar', 'teBase', 'teBg1', 'teBg2', 'teButton', 'teCancel', 'teFont', 'teId', 'teName', 'tePattern', 'teSave', 'teText', 'themeImport', 'themeImportFile', 'themeNew']
     },
     setup: {
-        basic: ['.raised[button]', 'defaultTimeZone', 'emailFrom', 'emailHost', 'emailPassword', 'emailPort', 'emailSave', 'emailSecurity', 'emailTest', 'emailTestTo', 'emailUsername', 'onboardingEnabled', 'onboardingShowAgain'],
+        basic: ['.raised[button]', 'defaultTimeZone', 'onboardingEnabled', 'onboardingShowAgain'],
         more: []
     },
     apps: {
@@ -99,7 +99,7 @@ const ADMIN = {
         more: ['clientPinLoginFromAnywhere']
     },
     messages: {
-        basic: ['annCancel', 'annMessage', 'annSave', 'annSeverity', 'mntClose', 'mntMessage', 'mntOpen', 'mntReopen', 'mntStop', 'mntUntil'],
+        basic: ['annCancel', 'annMessage', 'annSave', 'annSeverity', 'emailFrom', 'emailHost', 'emailPassword', 'emailPort', 'emailSave', 'emailSecurity', 'emailTest', 'emailTestTo', 'emailUsername', 'mntClose', 'mntMessage', 'mntOpen', 'mntReopen', 'mntStop', 'mntUntil'],
         more: ['annEnds', 'annStarts']
     },
     activity: { basic: ['auditClear', 'auditDownload', 'auditFilter', 'auditFrom', 'auditTo'], more: [] },

@@ -353,7 +353,7 @@ Ok("so is a wrong PIN", r.status == 400 && Sent() == before);
 r = Call("SetAccountEmail", MAIN, B(("Address", " parent@example.com "), ("Language", "fr"), ("MasterPin", "1234")));
 var confirm = Last();
 Ok("a code is sent to the new address", r.status == 200 && Sent() == before + 1 && confirm.To == "parent@example.com", r.status + " " + r.value);
-Ok("in the language asked for", confirm?.Subject == "Confirmez votre e-mail pour Bonfire", confirm?.Subject);
+Ok("in the language asked for", confirm?.Subject == "Confirmez votre e-mail Bonfire", confirm?.Subject);
 Ok("with a six-digit code and the account's name", CodeIn(confirm)?.Length == 6 && confirm.Body.Contains("Parent"));
 Ok("no placeholder is left in it", confirm != null && !Regex.IsMatch(confirm.Subject + confirm.Body, @"\{[a-z]+\}"));
 Ok("nothing is stored before the code comes back", StoredAddress(MAIN) == null);
@@ -427,7 +427,7 @@ Call("SetAccountEmail", OTHER, B(("Address", "other@example.com")));
 var otherMail = Last();
 Call("ConfirmAccountEmail", OTHER, B(("Code", CodeIn(otherMail))));
 Ok("an account without a PIN adds one too, in English by default",
-   StoredAddress(OTHER) == "other@example.com" && otherMail.Subject == "Confirm your email for Bonfire");
+   StoredAddress(OTHER) == "other@example.com" && otherMail.Subject == "Confirm your Bonfire email");
 
 // ── Notices ──────────────────────────────────────────────────────────────────
 Section("Notices");
