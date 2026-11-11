@@ -1401,9 +1401,28 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            // Resolved once, outside the lock: GetUserById is a database read per call and
-            // the set is small. Doing it inside would hold the lock across all of them.
-            bool Exists(Guid id) => id != Guid.Empty && _userManager.GetUserById(id) != null;
+            // Each id is looked up once, outside the lock: GetUserById is a database read per
+            // call, and the old shape asked again for every row and every test inside the lock.
+            // The ids are copied under a short lock, resolved with none held, and the rows are
+            // then judged against that answer. An id that appears after the copy is simply not
+            // in the dead set, so a profile created meanwhile is never taken for an orphan.
+            HashSet<Guid> seen;
+            lock (ConfigLock)
+            {
+                seen = new HashSet<Guid>();
+                foreach (var m in config.Mappings) { seen.Add(m.ProfileUserId); seen.Add(m.MasterUserId); }
+                foreach (var g in config.BonfireGroups)
+                {
+                    seen.Add(g.OwnerUserId);
+                    foreach (var id in g.MemberUserIds ?? new List<Guid>()) seen.Add(id);
+                }
+                if (config.LinkedAccounts != null) foreach (var l in config.LinkedAccounts) { seen.Add(l.UserId); seen.Add(l.HouseholdId); }
+                if (config.Onboarding?.Seen != null) foreach (var s in config.Onboarding.Seen) seen.Add(s.UserId);
+                if (config.AccountEmails != null) foreach (var a in config.AccountEmails) seen.Add(a.UserId);
+                if (config.UserProfileLimitOverrides != null) foreach (var o in config.UserProfileLimitOverrides) seen.Add(o.UserId);
+            }
+            var deadIds = seen.Where(id => id == Guid.Empty || _userManager.GetUserById(id) == null).ToHashSet();
+            bool Exists(Guid id) => !deadIds.Contains(id);
 
             var orphansRemoved = new List<Guid>();
             var orphanEvents = new List<(Guid Main, Guid Profile, string Name)>();
@@ -1429,8 +1448,10 @@ namespace Jellyfin.Profiles.Controllers
                     .Select(g => new { groupId = g.GroupId, code = g.BonfireCode })
                     .ToList();
 
-                // A group whose owner is alive can still list members who are not.
+                // A group whose owner is alive can still list members who are not. A group that
+                // is going anyway takes its members with it, so they are not counted here too.
                 var deadMembers = config.BonfireGroups
+                    .Where(g => Exists(g.OwnerUserId))
                     .SelectMany(g => (g.MemberUserIds ?? new List<Guid>())
                         .Where(id => !Exists(id))
                         .Select(id => new { groupId = g.GroupId, userId = id }))
@@ -1456,9 +1477,10 @@ namespace Jellyfin.Profiles.Controllers
                 var deadGroupIds = deadGroups.Select(g => g.groupId).ToHashSet(StringComparer.Ordinal);
                 config.BonfireGroups.RemoveAll(g => deadGroupIds.Contains(g.GroupId));
 
+                var membersRemoved = 0;
                 foreach (var g in config.BonfireGroups)
                 {
-                    g.MemberUserIds?.RemoveAll(id => !Exists(id));
+                    membersRemoved += g.MemberUserIds?.RemoveAll(id => !Exists(id)) ?? 0;
                 }
 
                 // An account shown in another household's switcher, where either side is gone.
@@ -1479,7 +1501,10 @@ namespace Jellyfin.Profiles.Controllers
                 // device". Device housekeeping has its own rules; see RemoveStaleDevices.
                 Plugin.Instance?.SaveConfiguration();
 
-                removed = (orphans.Count, deadGroups.Count, deadMembers.Count);
+                // What was actually taken out, not what the preview listed. The linked-account,
+                // first-setup, address and override rows above are housekeeping with nothing
+                // for an administrator to review, so they are not counted.
+                removed = (orphansRemoved.Count, deadGroups.Count, membersRemoved);
             }
 
             foreach (var gone in orphansRemoved) Auth.ViewingTracker.Forget(gone);   // R-1023

@@ -368,6 +368,61 @@ Console.WriteLine("── A signed-in route does not enumerate the live lists �
     Ok("GetProfiles never fails because the list changed under it (" + raced + " of 400)", raced == 0, firstError);
 }
 
+// ── POST /admin/cleanup-orphans ──────────────────────────────────────────────
+// R-1151: each Jellyfin user is looked up once (not once per row, per test, inside the
+// lock), the preview and the result count what is actually removed, and a member of a
+// group that is itself removed is not counted twice.
+{
+    Console.WriteLine();
+    Console.WriteLine("── POST /admin/cleanup-orphans ─────────────────────────────────");
+    mappings.Clear();
+    var groupType = asm.GetType("Jellyfin.Profiles.Configuration.BonfireGroup", true);
+    var groups = (IList)cfgType.GetProperty("BonfireGroups").GetValue(config);
+    groups.Clear();
+    object Group(string id, Guid owner, params Guid[] members)
+    {
+        var g = Activator.CreateInstance(groupType);
+        groupType.GetProperty("GroupId").SetValue(g, id);
+        groupType.GetProperty("OwnerUserId").SetValue(g, owner);
+        groupType.GetProperty("MemberUserIds").SetValue(g, members.ToList());
+        groups.Add(g);
+        return g;
+    }
+
+    var liveMaster = Guid.NewGuid(); var liveKid = Guid.NewGuid(); var liveKid2 = Guid.NewGuid();
+    var goneKid = Guid.NewGuid(); var goneMaster = Guid.NewGuid(); var goneA = Guid.NewGuid(); var goneB = Guid.NewGuid();
+    world.Add(liveMaster, "om"); world.Add(liveKid, "ok"); world.Add(liveKid2, "ok2");
+    Map(liveKid, liveMaster, "Fine");
+    Map(goneKid, liveMaster, "Gone");
+    Map(liveKid2, goneMaster, "Masterless");
+    Group("g-dead", goneMaster, liveMaster, goneA);          // owner gone: the whole group goes
+    Group("g-live", liveMaster, liveMaster, goneA, goneB);   // two members gone
+
+    System.Text.Json.JsonElement Json(object o) =>
+        System.Text.Json.JsonSerializer.SerializeToElement(o);
+
+    world.Lookups = 0;
+    var preview = Call("CleanupOrphans", KeyPrincipal(true, "Administrator"), new object[] { false });
+    var pj = Json(preview.value);
+    Ok("cleanup preview: lists the two orphaned mappings", pj.GetProperty("orphans").GetArrayLength() == 2,
+       preview.status + " " + preview.value);
+    Ok("cleanup preview: one group goes", pj.GetProperty("deadGroups").GetArrayLength() == 1);
+    Ok("cleanup preview: counts only members that are removed on their own (not those of a group that goes)",
+       pj.GetProperty("deadMembers").GetArrayLength() == 2, pj.GetProperty("deadMembers").GetArrayLength().ToString());
+    Ok("cleanup preview: each user is looked up once", world.Lookups <= 7, world.Lookups + " lookups for 7 users");
+
+    var applied = Call("CleanupOrphans", KeyPrincipal(true, "Administrator"), new object[] { true });
+    var aj = Json(applied.value);
+    Ok("cleanup: reports the mappings removed", aj.GetProperty("removedMappings").GetInt32() == 2, applied.value?.ToString());
+    Ok("cleanup: reports the group removed", aj.GetProperty("removedGroups").GetInt32() == 1);
+    Ok("cleanup: reports the members removed, not those of the removed group",
+       aj.GetProperty("removedMembers").GetInt32() == 2, aj.GetProperty("removedMembers").GetInt32().ToString());
+    Ok("cleanup: what is left is the live mapping and the live group", mappings.Count == 1 && groups.Count == 1,
+       mappings.Count + " mappings, " + groups.Count + " groups");
+    Ok("cleanup: the live group keeps only its live member",
+       ((System.Collections.Generic.List<Guid>)groupType.GetProperty("MemberUserIds").GetValue(groups[0])).Count == 1);
+}
+
 Console.WriteLine();
 try { Directory.Delete(tempDir, true); } catch { }
 if (fails.Count > 0)
@@ -405,6 +460,7 @@ public class Recorder : DispatchProxy
 public class World
 {
     public Dictionary<Guid, User> Users = new();
+    public int Lookups;
 
     public void Add(Guid id, string name)
     {
@@ -432,6 +488,7 @@ public class WorldProxy : DispatchProxy
         switch (m.Name)
         {
             case "GetUserById":
+                System.Threading.Interlocked.Increment(ref W.Lookups);
                 return W.Users.TryGetValue((Guid)args[0], out var u) ? u : null;
             case "GetUserDto":
                 var user = (User)args[0];
