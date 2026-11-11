@@ -454,6 +454,14 @@ foreach (var (method, verb, template, argsFor) in routes)
     var r = Call(As(false, good), method, argsFor());
     Ok("  refuses a caller with no token", Status(r) == 401, Status(r).ToString());
 }
+// R-1091: the 64 KB cap on a theme was checked after the whole body had been read.
+foreach (var sized in new[] { "ValidateCustomTheme", "SaveCustomTheme" })
+{
+    var limit = ctrlType.GetMethod(sized)?.GetCustomAttributes().FirstOrDefault(a => a.GetType().Name == "RequestSizeLimitAttribute");
+    var bytes = limit == null ? -1L : (long)(limit.GetType().GetField("_bytes", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(limit) ?? -1L);
+    Ok(sized + " stops reading at the theme size cap, not after the whole body",
+       bytes > 0 && bytes <= 2L * 64 * 1024, bytes.ToString());
+}
 Ok("nothing was changed by a refused caller",
    live.CustomThemes.Count == 0 && live.CustomFonts.Count == 0 && !Directory.Exists(ThemeCatalog.CustomFontFolder));
 
@@ -556,6 +564,15 @@ Ok("and its file goes with it", !File.Exists(Path.Combine(ThemeCatalog.CustomFon
 Ok("and it is no longer served", Status(Call(As(false), "GetThemeFont", fileName)) == 404);
 Ok("deleting a name that is not a hash is a 404, and touches nothing", Status(Call(As(true), "DeleteThemeFont", "../PluginConfiguration.xml")) == 404);
 
+// R-1092: the file is written before the configuration names it; if the save then throws,
+// the file must not be left behind and the list must not name it.
+StubXml.Fail = true;
+try { Call(As(true, Font(family: "Fails To Save")), "UploadThemeFont", "sans-serif", true, null); } catch (Exception) { }
+StubXml.Fail = false;
+Ok("a font whose save throws leaves no file and no list entry",
+   live.CustomFonts.Count == 0
+   && (!Directory.Exists(ThemeCatalog.CustomFontFolder) || Directory.GetFiles(ThemeCatalog.CustomFontFolder).Length == 0));
+
 // GET /themes answers with what the routes made.
 Call(As(true), "SaveCustomTheme", "after", Json(Custom("after")));
 var getThemes = Call(As(false), "GetThemes", (string)null);
@@ -569,6 +586,13 @@ Ok("and ?part=custom only the custom one", partBody != null && partBody["themes"
 
 Console.WriteLine();
 Console.WriteLine("── The logo ─────────────────────────────────────────────────────");
+
+StubXml.Fail = true;
+try { Call(As(true, Png(400, 120)), "UploadThemeLogo"); } catch (Exception) { }
+StubXml.Fail = false;
+Ok("a logo whose save throws leaves no file and no name in the configuration",
+   live.LogoImage == null
+   && (!Directory.Exists(ThemeLogo.Folder) || Directory.GetFiles(ThemeLogo.Folder).Length == 0));
 
 // Images built here, header by header: each format the reader knows, and the ones it must not.
 byte[] Png(int w, int h)
@@ -749,7 +773,8 @@ sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
 sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
 {
     public void SerializeToStream(object obj, Stream stream) { }
-    public void SerializeToFile(object obj, string file) { }
+    public static bool Fail;
+    public void SerializeToFile(object obj, string file) { if (Fail) throw new IOException("disk full"); }
     public object DeserializeFromFile(Type type, string file) => throw new FileNotFoundException("stub serializer", file);
     public object DeserializeFromStream(Type type, Stream stream) => throw new NotSupportedException();
     public object DeserializeFromBytes(Type type, byte[] buffer) => throw new NotSupportedException();

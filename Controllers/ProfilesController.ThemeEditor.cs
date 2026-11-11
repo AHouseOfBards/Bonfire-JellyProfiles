@@ -167,7 +167,18 @@ namespace Jellyfin.Profiles.Controllers
                 System.IO.File.WriteAllBytes(Path.Combine(ThemeLogo.Folder, file), bytes);
                 old = config.LogoImage;
                 config.LogoImage = file;
-                Plugin.Instance?.SaveConfiguration();
+                try
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                catch
+                {
+                    // Not saved, so not named: put the old logo back and take the new file
+                    // away, unless it is the file the old name already points at.
+                    config.LogoImage = old;
+                    if (old != file) DeleteLogoFile(file);
+                    throw;
+                }
 
                 // Deleted here, not after the lock: two uploads at once, the second sending
                 // the first one's old bytes, could otherwise have the first delete a file
@@ -220,6 +231,7 @@ namespace Jellyfin.Profiles.Controllers
         /// computed here rather than in the page so there is one implementation of the rules.
         /// </summary>
         [HttpPost("admin/themes/validate")]
+        [RequestSizeLimit(ThemeValidator.MaxBytes + 4096)]
         [Produces("application/json")]
         public ActionResult ValidateCustomTheme([FromBody] JsonElement body)
         {
@@ -237,6 +249,7 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>Saves one custom theme, new or edited. Its id is the one in the address.</summary>
         [HttpPut("admin/themes/custom/{id}")]
+        [RequestSizeLimit(ThemeValidator.MaxBytes + 4096)]
         [Produces("application/json")]
         public ActionResult SaveCustomTheme(string id, [FromBody] JsonElement body)
         {
@@ -433,7 +446,17 @@ namespace Jellyfin.Profiles.Controllers
                     Fallback = fb,
                 };
                 config.CustomFonts.Add(font);
-                Plugin.Instance?.SaveConfiguration();
+                try
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                catch
+                {
+                    // Not saved, so not listed, and the file written for it goes too.
+                    config.CustomFonts.Remove(font);
+                    try { System.IO.File.Delete(Path.Combine(ThemeCatalog.CustomFontFolder, file)); } catch (IOException) { }
+                    throw;
+                }
                 _logger.LogInformation("ProfilesPlugin: administrator uploaded the font {Family} as {File}.", info.Family, file);
                 return Ok(FontEntry(font, config));
             }
