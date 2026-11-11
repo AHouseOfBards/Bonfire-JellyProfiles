@@ -186,6 +186,34 @@ ok('but when profiles.js did load, the reveal is left to it — showing the shel
    alive.style.opacity === '0');
 ok('and the failsafe stays armed as the backstop', alive.timeouts[0].cancelled !== true);
 
+console.log('\n── the head script against Chromium 53 (R-1278) ───────────────');
+
+// It runs on every page of every client, and a token Chromium 53 (webOS 4.5) cannot parse
+// blanks the document it exists to reveal. Everything above runs it under today's V8, which
+// parses all of these happily. The same syntax floor as jsbaseline.js, applied to this
+// script, which is not in profiles.js and so is not covered there.
+const C53_TOKENS = [
+    ['optional chaining ?.', /[\w)\]]\?\./],
+    ['nullish coalescing ??', /\?\?/],
+    ['logical assignment', /(\|\|=|&&=)/],
+    ['object spread or rest', /\{[^}]*\.\.\./],
+    ['async function', /\basync\b/],
+    ['optional catch binding', /\bcatch\s*\{/],
+    ['trailing comma in a call', /,\s*\)/],
+    ['numeric separator', /\b\d+_\d/],
+    ['a library call newer than 53',
+        /\.(padStart|padEnd|replaceAll|flat|flatMap|finally|fromEntries)\s*\(|Object\.(entries|values)/],
+    ['globalThis / queueMicrotask', /\b(globalThis|queueMicrotask)\b/],
+];
+function c53Hits(src) {
+    return C53_TOKENS.filter(function (t) { return t[1].test(src); }).map(function (t) { return t[0]; });
+}
+ok('the detector sees optional chaining and a spread in a bait script',
+    c53Hits('var a = b?.c; var d = {...e};').length === 2);
+ok('and does not flag ordinary old-style code', c53Hits('var a = b ? c : d; f(a, b);').length === 0);
+ok('the head script uses nothing Chromium 53 cannot parse (' + (c53Hits(tag).join(', ') || 'none') + ')',
+    c53Hits(tag).length === 0);
+
 console.log('\n── profiles.js holds up its end ────────────────────────────────');
 
 const js = L.readProfiles();
