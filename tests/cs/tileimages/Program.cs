@@ -223,6 +223,46 @@ Ok("the drawing is version " + TileImage.DrawingVersion + ": its pixels hash to 
    + " (raise DrawingVersion and update this when the drawing changes)",
    TileImage.DrawingVersion == 1 && pinned == "37159e0e581a2ddd");
 
+// R-1084: a layer was read again for every pixel (a list, a regex per stop, a sort), about
+// 65,000 times a tile, and a television asking for several tiles at once drew each one
+// on every thread. The counters are read by reflection so that a build without them fails
+// here rather than failing to compile.
+var drawsField = typeof(TileImage).GetField("Draws", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+var parsesField = typeof(TileImage).GetField("ColourParses", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+Ok("the drawing counters exist", drawsField != null && parsesField != null);
+if (drawsField != null && parsesField != null)
+{
+    JsonObject Stacked(string accent)
+    {
+        var layers = new JsonArray();
+        for (var i = 0; i < 3; i++)
+        {
+            var stops = new JsonArray();
+            for (var s = 0; s < 4; s++) stops.Add(new JsonObject { ["at"] = s * 33, ["color"] = "#" + (0x102030 + (i * 0x101010) + (s * 0x050505)).ToString("x6") });
+            layers.Add(new JsonObject { ["type"] = i == 1 ? "radial" : "linear", ["angle"] = 90 + (i * 30), ["stops"] = stops });
+        }
+        var t = Flat("#102030", accent);
+        t["background"]["layers"] = layers;
+        return t;
+    }
+
+    var many = Stacked("#ffcc01");
+    var parses0 = (int)parsesField.GetValue(null);
+    TileImage.Png(many, TileGlyph.Person);
+    var parsed = (int)parsesField.GetValue(null) - parses0;
+    // Fill and accent, then 3 layers of 4 stops: 14, and nowhere near 65,536 x 12.
+    Ok("a tile parses each colour once, not once per pixel (" + parsed + " parses)", parsed <= 40, parsed.ToString());
+
+    var drawsBefore = (int)drawsField.GetValue(null);
+    var fresh = Stacked("#ffcc02");
+    var gate = new System.Threading.ManualResetEventSlim(false);
+    var tasks = Enumerable.Range(0, 8).Select(_ => System.Threading.Tasks.Task.Run(() => { gate.Wait(); return TileImage.Png(fresh, TileGlyph.Switch); })).ToArray();
+    gate.Set();
+    System.Threading.Tasks.Task.WaitAll(tasks);
+    var drew = (int)drawsField.GetValue(null) - drawsBefore;
+    Ok("eight requests for one new tile draw it once (" + drew + " draws)", drew == 1 && tasks.All(t => t.Result.SequenceEqual(tasks[0].Result)), drew.ToString());
+}
+
 Console.WriteLine();
 if (fails.Count > 0)
 {

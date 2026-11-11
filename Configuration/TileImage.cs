@@ -47,7 +47,14 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public const int DrawingVersion = 1;
 
-        private static readonly ConcurrentDictionary<string, byte[]> Cache = new(StringComparer.Ordinal);
+        // Lazy, so a television that asks for many tiles at once draws each one once: GetOrAdd
+        // alone may run its factory on every thread that misses, and a draw is 65,536 pixels.
+        private static readonly ConcurrentDictionary<string, Lazy<byte[]>> Cache = new(StringComparer.Ordinal);
+
+        // What the tests read to show a tile is drawn once and its colours are parsed once
+        // per stop, not once per pixel.
+        internal static int Draws;
+        internal static int ColourParses;
 
         /// <summary>
         /// A short tag for one theme and glyph that changes whenever the picture would. Apps
@@ -64,7 +71,8 @@ namespace Jellyfin.Profiles.Configuration
         public static byte[] Png(JsonObject theme, TileGlyph glyph)
         {
             if (Cache.Count > 200) Cache.Clear();
-            return Cache.GetOrAdd(Tag(theme, glyph), _ => Encode(Draw(theme, glyph)));
+            return Cache.GetOrAdd(Tag(theme, glyph),
+                _ => new Lazy<byte[]>(() => Encode(Draw(theme, glyph)), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication)).Value;
         }
 
         private static string Key(JsonObject theme) =>
@@ -79,12 +87,15 @@ namespace Jellyfin.Profiles.Configuration
             var bg = theme["background"] as JsonObject;
             var fill = Colour(bg?["fill"]) ?? new Rgba(0x12, 0x15, 0x21, 1);
             var accent = Colour(theme["colors"]?["accent"]) ?? new Rgba(0xff, 0xb3, 0x47, 1);
-            var layers = new List<JsonObject>();
+            System.Threading.Interlocked.Increment(ref Draws);
+            // Each layer is read once here, not once for every pixel: its stops parsed, checked
+            // and sorted, and its geometry worked out.
+            var layers = new List<Layer>();
             if (bg?["layers"] is JsonArray list)
             {
                 foreach (var l in list)
                 {
-                    if (l is JsonObject o) layers.Add(o);
+                    if (l is JsonObject o) layers.Add(Prepare(o));
                 }
             }
 
@@ -176,7 +187,11 @@ namespace Jellyfin.Profiles.Configuration
             return Sq(dx) + Sq(dy) <= Sq(r);
         }
 
-        private static Rgba LayerAt(JsonObject layer, double u, double v)
+        /// <summary>One background layer, read once: see <see cref="Prepare"/>.</summary>
+        private sealed record Layer(bool Radial, double Cx, double Cy, double Rx, double Ry, double Dx, double Dy, double Half,
+            (double At, Rgba Colour)[] Stops);
+
+        private static Layer Prepare(JsonObject layer)
         {
             var stops = new List<(double At, Rgba Colour)>();
             if (layer["stops"] is JsonArray list)
@@ -188,12 +203,10 @@ namespace Jellyfin.Profiles.Configuration
                 }
             }
 
-            if (stops.Count == 0) return new Rgba(0, 0, 0, 0);
             // OrderBy is stable, so two stops at one position keep the order they were written
             // in, as CSS does; List.Sort makes no such promise.
-            stops = stops.OrderBy(x => x.At).ToList();
+            var sorted = stops.OrderBy(x => x.At).ToArray();
 
-            double t;
             if ((string?)layer["type"] == "radial")
             {
                 // An ellipse sized to the farthest corner, as CSS draws one by default.
@@ -202,21 +215,28 @@ namespace Jellyfin.Profiles.Configuration
                 var rx = Math.Max(cx, 1 - cx) * Math.Sqrt(2);
                 var ry = Math.Max(cy, 1 - cy) * Math.Sqrt(2);
                 if ((string?)layer["shape"] == "circle") rx = ry = Math.Sqrt(Sq(Math.Max(cx, 1 - cx)) + Sq(Math.Max(cy, 1 - cy)));
-                t = Math.Sqrt(Sq((u - cx) / rx) + Sq((v - cy) / ry));
-            }
-            else
-            {
-                // CSS angles: 0deg points up, 90deg right. The line's length is what reaches
-                // the corners, so 0% and 100% land on them.
-                var a = Number(layer["angle"], 180) * Math.PI / 180;
-                var dx = Math.Sin(a);
-                var dy = -Math.Cos(a);
-                var half = (Math.Abs(dx) + Math.Abs(dy)) / 2;
-                t = (((u - 0.5) * dx) + ((v - 0.5) * dy) + half) / (2 * half);
+                return new Layer(true, cx, cy, rx, ry, 0, 0, 0, sorted);
             }
 
+            // CSS angles: 0deg points up, 90deg right. The line's length is what reaches
+            // the corners, so 0% and 100% land on them.
+            var a = Number(layer["angle"], 180) * Math.PI / 180;
+            var dx = Math.Sin(a);
+            var dy = -Math.Cos(a);
+            return new Layer(false, 0, 0, 0, 0, dx, dy, (Math.Abs(dx) + Math.Abs(dy)) / 2, sorted);
+        }
+
+        private static Rgba LayerAt(Layer layer, double u, double v)
+        {
+            var stops = layer.Stops;
+            if (stops.Length == 0) return new Rgba(0, 0, 0, 0);
+
+            double t;
+            if (layer.Radial) t = Math.Sqrt(Sq((u - layer.Cx) / layer.Rx) + Sq((v - layer.Cy) / layer.Ry));
+            else t = (((u - 0.5) * layer.Dx) + ((v - 0.5) * layer.Dy) + layer.Half) / (2 * layer.Half);
+
             if (t <= stops[0].At) return stops[0].Colour;
-            for (var i = 1; i < stops.Count; i++)
+            for (var i = 1; i < stops.Length; i++)
             {
                 if (t <= stops[i].At)
                 {
@@ -226,7 +246,7 @@ namespace Jellyfin.Profiles.Configuration
                 }
             }
 
-            return stops[^1].Colour;
+            return stops[stops.Length - 1].Colour;
         }
 
         private static Rgba Mix(Rgba a, Rgba b, double f) =>
@@ -245,6 +265,7 @@ namespace Jellyfin.Profiles.Configuration
         private static Rgba? Colour(JsonNode? node)
         {
             if (node is not JsonValue v || !v.TryGetValue<string>(out var s)) return null;
+            System.Threading.Interlocked.Increment(ref ColourParses);
             if (!System.Text.RegularExpressions.Regex.IsMatch(s, "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\\z")) return null;
             int H(int i) => int.Parse(s.AsSpan(i, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
             return new Rgba(H(1), H(3), H(5), s.Length == 9 ? H(7) / 255.0 : 1);
