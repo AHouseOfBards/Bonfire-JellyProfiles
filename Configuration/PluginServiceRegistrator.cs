@@ -82,6 +82,10 @@ namespace Jellyfin.Profiles
             // before opening the picker. Bonfire's record is the only one that survives.
             serviceCollection.AddHostedService<BonfireSessionListener>();
 
+            // Passes a change made to a main account in Dashboard → Users on to its profiles
+            // when it is made, not when one is next opened (R-1301).
+            serviceCollection.AddHostedService<MasterUpdateListener>();
+
             // Counts what limited profiles watch and stops it when their time is up. Does
             // nothing but read the session list while no profile has limits.
             serviceCollection.AddHostedService<ViewingTimer>();
