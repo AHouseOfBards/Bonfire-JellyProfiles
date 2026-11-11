@@ -59,7 +59,19 @@ function makeEl(tag) {
         appendChild: c => { el.children.push(c); return c; },
         addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
         click: () => (listeners.click || []).forEach(fn => fn({ preventDefault() {} })),
-        focus() {},
+        focused: 0,
+        focus() { el.focused++; },
+        // Just enough for '.cls' and 'button' lists, which is all the client asks.
+        querySelector(sel) {
+            let found = null;
+            sel.split(',').map(s => s.trim()).forEach(s => {
+                walk(el, e => {
+                    if (found || e === el) return;
+                    if (s.charAt(0) === '.' ? e.classList.contains(s.slice(1)) : e.tagName === s.toUpperCase()) found = e;
+                });
+            });
+            return found;
+        },
         _attrs: attrs
     };
     let inner = '';
@@ -191,6 +203,10 @@ const settle = () => new Promise(r => setImmediate(r));
     let after = byClass(o.box, 'profiles-announcement');
     ok('a dismissed one goes at once', after.length === 3
         && after.every(r => byClass(r, 'profiles-announcement-text')[0].textContent !== 'New films added.'));
+
+    // The button that was clicked is gone; focus must land on something, not on the body (R-1198).
+    const left = byClass(o.box, 'profiles-announcement-dismiss');
+    ok('after a dismissal focus moves to the next dismiss button', left.length > 0 && left[0].focused > 0, left.length + ' left, focused ' + (left[0] && left[0].focused));
 
     // The gate is drawn again inside the minute: from the cache, not the server.
     const o2 = overlay();

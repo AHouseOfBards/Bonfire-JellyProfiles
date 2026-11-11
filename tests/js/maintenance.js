@@ -116,8 +116,15 @@ const notice = env => env.sandbox.document.getElementById('profiles-maintenance'
     ok('the client checks for maintenance', !!(env.P && typeof env.P.checkMaintenance === 'function'));
     if (!env.P || typeof env.P.checkMaintenance !== 'function') return finish();
 
+    // dateStyle/timeStyle are Chromium 76; on a webOS 4.5 television they are ignored and
+    // the whole date prints in full (R-1199). Spelled out as fields, they work everywhere.
+    const fmtOptions = [];
+    const dateProto = vm.runInContext('Date.prototype', env.sandbox);
+    const realLocale = dateProto.toLocaleString;
+    dateProto.toLocaleString = function (loc, opts) { fmtOptions.push(opts || {}); return realLocale.call(this, loc, opts); };
     env.P.checkMaintenance();
     await settle();
+    ok('the expected time is formatted with fields, not dateStyle', fmtOptions.length > 0 && fmtOptions.every(o => !('dateStyle' in o) && !('timeStyle' in o)), JSON.stringify(fmtOptions));
     ok('it asks /info', env.calls.length === 1 && /plugins\/profiles\/info$/.test(env.calls[0].url));
     ok('with no token', !(env.calls[0].o && env.calls[0].o.headers));
     let n = notice(env);

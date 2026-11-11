@@ -6656,6 +6656,11 @@
                         close.addEventListener('click', () => {
                             this._dismissAnnouncement(a);
                             draw(items);
+                            // The button that held focus was redrawn away. Next one if there
+                            // is one, otherwise the first control of the screen (R-1198).
+                            const next = box.querySelector('.profiles-announcement-dismiss')
+                                || overlay.querySelector('.focusable, button');
+                            if (next && typeof next.focus === 'function') next.focus();
                         });
                         row.appendChild(close);
                     }
@@ -6720,7 +6725,7 @@
             if (until) {
                 const d = new Date(until);
                 // Only a time still to come: "Back by" an hour ago says the server is late.
-                if (!isNaN(d.getTime()) && d.getTime() > Date.now()) back = t('maintenance.backBy', { time: d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) });
+                if (!isNaN(d.getTime()) && d.getTime() > Date.now()) back = t('maintenance.backBy', { time: d.toLocaleString(activeLocale || [], { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) });
             }
 
             const box = document.createElement('div');
