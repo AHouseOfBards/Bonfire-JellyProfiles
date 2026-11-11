@@ -376,8 +376,12 @@ namespace Jellyfin.Profiles
             }
 
             // Resolved BEFORE the response is captured, so a device we do not recognise -
-            // the overwhelmingly common case on a busy server - costs one header parse and
-            // one device lookup, and never buffers a body at all.
+            // the overwhelmingly common case on a busy server - never buffers a body. It is
+            // not free: the snapshot above copies the configuration (every mapping, device
+            // and list) under ConfigLock before the device is looked at, and that copy is
+            // made for every request, known device or not. Not slow enough to be worth
+            // caching (2026-11-11); if it ever is, cache an immutable copy rather than
+            // moving this check.
             IReadOnlyList<Guid> household;
             try
             {
