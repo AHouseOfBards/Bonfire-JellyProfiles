@@ -914,6 +914,8 @@
   "admin.avatars.builtIn": "Wbudowany",
   "admin.avatars.remove": "Usuń",
   "admin.avatars.removeFailed": "Nie udało się usunąć tego awatara.",
+  "admin.avatars.removeConfirm": "Usunąć ten awatar? Profile, które już go używają, zachowają go.",
+  "admin.avatars.removeTitle": "Usuń awatar",
   "admin.avatars.heic": "Zdjęcia HEIC nie są obsługiwane. Najpierw wyeksportuj zdjęcie jako JPEG.",
   "admin.avatars.svg": "SVG nie jest obsługiwany. Użyj JPEG, PNG, WebP lub GIF.",
   "admin.avatars.tooBig": "Ten obraz ma ponad 25 MB. Użyj mniejszego.",

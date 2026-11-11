@@ -1676,6 +1676,8 @@
                 'admin.avatars.builtIn': 'Built-in',
                 'admin.avatars.remove': 'Remove',
                 'admin.avatars.removeFailed': 'Couldn\'t remove that avatar.',
+                'admin.avatars.removeConfirm': 'Remove this avatar? Profiles already using it keep it.',
+                'admin.avatars.removeTitle': 'Remove avatar',
                 'admin.avatars.heic': 'HEIC photos aren\'t supported. Export the photo as JPEG first.',
                 'admin.avatars.svg': 'SVG isn\'t supported. Use JPEG, PNG, WebP or GIF.',
                 'admin.avatars.tooBig': 'That image is over 25 MB. Use a smaller one.',
@@ -2372,12 +2374,17 @@
                     })
                     .then(function (result) {
                         renderInjectionStatus(page, result);
+                        // A pending restart has its own banner (renderInjectionStatus shows it and
+                        // hides the failure reason), so neither "still not fixed, see the reason
+                        // above" nor "installed and up to date" is true of it (R-1252).
+                        const mech = field(result, 'mechanism');
+                        const restart = mech ? field(mech, 'restartRequired') === true : false;
                         const ok = field(result, 'injectionSucceeded') !== false;
                         buttons.forEach(function (b) { b.disabled = false; });
                         statuses.forEach(function (s) {
-                            s.textContent = ok ? '' : t('admin.banner.stillBroken');
+                            s.textContent = (ok || restart) ? '' : t('admin.banner.stillBroken');
                         });
-                        if (ok) {
+                        if (ok && !restart) {
                             Dashboard.alert({ title: t('admin.banner.fixedTitle'), message: t('admin.banner.fixedBody') });
                         }
                     })
@@ -3134,7 +3141,8 @@
                         // Accepts the export wrapper or a bare configuration, because the
                         // obvious thing to do with an export is edit it and paste back the
                         // inner object.
-                        const config = parsed.configuration || parsed;
+                        // A file holding `null` parses fine and has no properties (R-1253).
+                        const config = parsed && (parsed.configuration || parsed);
                         if (!config || typeof config !== 'object' || !('Mappings' in config || 'mappings' in config)) {
                             box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.notExport')) + '</span>';
                             return;
@@ -3350,15 +3358,18 @@
 
             function deleteAvatar(page, id) {
                 // Profiles created from this avatar keep their own copy, so nothing anyone
-                // is using breaks — only the picker loses the option.
-                ApiClient.ajax({
-                    type: 'DELETE',
-                    url: ApiClient.getUrl('plugins/profiles/admin/avatars/' + encodeURIComponent(id))
-                }).then(function () {
-                    loadAvatarLibrary(page);
-                }).catch(function (err) {
-                    console.error('Failed to delete avatar:', err);
-                    Dashboard.alert({ message: t('admin.avatars.removeFailed'), title: t('admin.error') });
+                // is using breaks — only the picker loses the option. It still asks first, as
+                // every other removal on this page does (R-1257).
+                askFirst(t('admin.avatars.removeConfirm'), t('admin.avatars.removeTitle')).then(function () {
+                    ApiClient.ajax({
+                        type: 'DELETE',
+                        url: ApiClient.getUrl('plugins/profiles/admin/avatars/' + encodeURIComponent(id))
+                    }).then(function () {
+                        loadAvatarLibrary(page);
+                    }).catch(function (err) {
+                        console.error('Failed to delete avatar:', err);
+                        Dashboard.alert({ message: t('admin.avatars.removeFailed'), title: t('admin.error') });
+                    });
                 });
             }
 
@@ -3390,7 +3401,7 @@
                                     thumb: squareToDataUrl(img, spec.thumb, preferPng, spec.jpeg),
                                     // Filename without its extension is a reasonable default
                                     // label, and the admin can rename the file to change it.
-                                    displayName: (file.name || 'Avatar').replace(/\.[^.]+$/, '')
+                                    displayName: (file.name || '').replace(/\.[^.]+$/, '').trim() || 'Avatar'
                                 });
                             } catch (e) {
                                 console.error('Avatar resize failed:', e);
@@ -3405,7 +3416,9 @@
                                 data: payload
                             }).then(resolve).catch(function (err) {
                                 console.error('Avatar upload failed:', err);
-                                reject(new Error(t('admin.avatars.rejected', { mb: spec.mb })));
+                                // The server's own reason when it gave one; "too big" was only ever
+                                // one of the things it refuses for (R-1259).
+                                reject(new Error(refusalMessage(err) || t('admin.avatars.rejected', { mb: spec.mb })));
                             });
                         };
                         img.src = event.target.result;
@@ -3840,16 +3853,23 @@
                 if (page.dataset.annEditing) body.id = page.dataset.annEditing;
                 const editing = !!body.id;
 
+                // A second click while the first is in flight posted it twice (R-1258).
+                const saveBtn = page.querySelector('#annSave');
+                if (saveBtn) saveBtn.disabled = true;
+                const settle = function () { if (saveBtn) saveBtn.disabled = false; };
+
                 ApiClient.ajax({
                     type: 'POST',
                     url: ApiClient.getUrl('plugins/profiles/admin/announcements'),
                     contentType: 'application/json',
                     data: JSON.stringify(body)
                 }).then(function () {
+                    settle();
                     resetAnnouncementForm(page);
                     showAnnouncementResult(page, editing ? t('admin.ann.saved') : t('admin.ann.postDone'), true);
                     loadAnnouncements(page);
                 }, function (err) {
+                    settle();
                     errorText(err, t('admin.saveFailed')).then(function (msg) {
                         showAnnouncementResult(page, msg, false);
                         // The server may be refusing the dates, which sit in the fold.
@@ -6221,14 +6241,19 @@
                     // The dialog form always has a title ("Alert" if none is given), and
                     // jellyfin-web's dialog pads the title off the centre line of its text.
                     Dashboard.alert(t('admin.saved'));
-                }).catch(function (err) {
+                }, function (err) {
+                    // Two arguments to then, not a catch: the settings are saved by the time
+                    // the first handler runs, and a throw in it must not report a failure
+                    // (R-1264).
                     console.error('Failed to save settings:', err);
                     Dashboard.hideLoadingMsg();
                     // The list is the one field the server refuses for its contents, so a 400
                     // with a list sent says which to look at.
                     const badList = err && err.status === 400 && sent.trustedAddressEntries.length > 0;
+                    // A reason the server gave in its own code comes first.
+                    const reason = refusalMessage(err);
                     Dashboard.alert({
-                        message: t(badList ? 'admin.trust.bad' : 'admin.saveSettingsFailed'),
+                        message: reason || t(badList ? 'admin.trust.bad' : 'admin.saveSettingsFailed'),
                         title: t('admin.error')
                     });
                 });

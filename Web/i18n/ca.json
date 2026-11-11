@@ -914,6 +914,8 @@
   "admin.avatars.builtIn": "Inclòs",
   "admin.avatars.remove": "Treu",
   "admin.avatars.removeFailed": "No s'ha pogut treure aquest avatar.",
+  "admin.avatars.removeConfirm": "Vols treure aquest avatar? Els perfils que ja el fan servir el conserven.",
+  "admin.avatars.removeTitle": "Treure l'avatar",
   "admin.avatars.heic": "Les fotos HEIC no són compatibles. Exporta primer la foto com a JPEG.",
   "admin.avatars.svg": "SVG no és compatible. Fes servir JPEG, PNG, WebP o GIF.",
   "admin.avatars.tooBig": "Aquesta imatge supera els 25 MB. Fes-ne servir una de més petita.",

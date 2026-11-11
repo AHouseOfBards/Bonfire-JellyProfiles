@@ -925,6 +925,8 @@
   "admin.avatars.builtIn": "Yerleşik",
   "admin.avatars.remove": "Kaldır",
   "admin.avatars.removeFailed": "O avatar kaldırılamadı.",
+  "admin.avatars.removeConfirm": "Bu avatar kaldırılsın mı? Zaten kullanan profiller onu korur.",
+  "admin.avatars.removeTitle": "Avatarı kaldır",
   "admin.avatars.heic": "HEIC fotoğrafları desteklenmiyor. Önce fotoğrafı JPEG olarak dışa aktarın.",
   "admin.avatars.svg": "SVG desteklenmiyor. JPEG, PNG, WebP veya GIF kullanın.",
   "admin.avatars.tooBig": "Bu resim 25 MB'tan büyük. Daha küçük bir resim kullanın.",

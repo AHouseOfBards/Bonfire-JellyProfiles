@@ -914,6 +914,8 @@
   "admin.avatars.builtIn": "Incluido",
   "admin.avatars.remove": "Quitar",
   "admin.avatars.removeFailed": "No se ha podido quitar ese avatar.",
+  "admin.avatars.removeConfirm": "¿Quitar este avatar? Los perfiles que ya lo usan lo conservan.",
+  "admin.avatars.removeTitle": "Quitar avatar",
   "admin.avatars.heic": "Las fotos HEIC no son compatibles. Exporta primero la foto como JPEG.",
   "admin.avatars.svg": "SVG no es compatible. Usa JPEG, PNG, WebP o GIF.",
   "admin.avatars.tooBig": "Esa imagen supera los 25 MB. Usa una más pequeña.",
