@@ -1320,6 +1320,7 @@
         'bonfire.shareCode': 'Share this code to invite someone to your Bonfire:',
         'bonfire.members': 'Members ({count})',
         'bonfire.kick': 'Remove',
+        'bonfire.kickNamed': 'Remove {name}',
         'bonfire.noMembersYet': 'No one has joined yet. Share the code above.',
         'bonfire.deleteGroup': 'Delete Bonfire',
         'bonfire.hostTitle': 'Host a Bonfire',
@@ -10982,7 +10983,7 @@
                 </label>
                 <div class="form-hint">${t('switcher.askOnStartupHint')}</div>
                 <div class="jpf-onboarding-label">${t('switcher.whereToSwitchFrom')}</div>
-                <div role="radiogroup" class="jpf-onboarding-choices">
+                <div role="radiogroup" aria-label="${escapeHtml(t('switcher.whereToSwitchFrom'))}" class="jpf-onboarding-choices">
                     ${option('button', 'account_circle', t('switcher.bonfireButtonTitle'), t('switcher.bonfireButtonBody'))}
                     ${option('menu', 'switch_account', t('switcher.menuTitle'), t('switcher.menuBody'))}
                 </div>
@@ -11059,7 +11060,7 @@
             `;
             const content = this._onboardingFrame(t('onboarding.themeTitle'), `
                 <p class="jpf-onboarding-text">${t('onboarding.themeBody')}</p>
-                <div class="jpf-theme-grid" role="radiogroup">${offeredThemes().map(option).join('')}</div>
+                <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(t('settings.themeTitle'))}">${offeredThemes().map(option).join('')}</div>
             `, t('onboarding.next'), skip);
             if (!content) return;
 
@@ -11416,7 +11417,7 @@
                     </div>
 
                     <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">${t('switcher.whereToSwitchFrom')}</div>
-                    <div role="radiogroup" class="jpf-col-gap" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
+                    <div role="radiogroup" aria-label="${escapeHtml(t('switcher.whereToSwitchFrom'))}" class="jpf-col-gap" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
                         ${locationOption('button', 'account_circle', t('switcher.bonfireButtonTitle'),
                             t('switcher.bonfireButtonBody'))}
                         ${locationOption('menu', 'switch_account', t('switcher.menuTitle'),
@@ -11588,7 +11589,7 @@
                                     return `
                                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--jpf-card-bg); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
-                                        <button type="button" class="bonfire-kick-btn" data-id="${escapeHtml(mUserId)}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${escapeHtml(mUserId)}" aria-label="${escapeHtml(t('bonfire.kickNamed', { name: m.username || m.Username || t('bonfire.unknownUser') }))}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
                                     </div>
                                     `;
                                 }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">' + t('bonfire.noMembersYet') + '</div>'}
@@ -11630,7 +11631,7 @@
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.joinBody')}</span>
                         <div class="bonfire-join-row" style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
-                            <input type="text" id="bonfire-join-input" placeholder="${escapeHtml(t('bonfire.joinCodePlaceholder'))}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; padding: 10px !important;" />
+                            <input type="text" id="bonfire-join-input" aria-label="${escapeHtml(t('bonfire.joinTitle'))}" placeholder="${escapeHtml(t('bonfire.joinCodePlaceholder'))}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; padding: 10px !important;" />
                             <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; box-sizing: border-box !important;">${t('common.join')}</button>
                         </div>
                         <div id="bonfire-join-error" role="alert" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
@@ -11703,6 +11704,15 @@
                     </div>
                 </div>
             `;
+
+            // Every action here redraws this whole block, which destroys the button that was
+            // just pressed and drops focus to the page behind the dialog (R-1231). The first
+            // draw leaves focus alone; a redraw puts it back on the first control.
+            if (container._bonfireDrawn) {
+                const firstControl = container.querySelector('button, input');
+                if (firstControl && firstControl.focus) firstControl.focus();
+            }
+            container._bonfireDrawn = true;
 
             // Event Listener: Back Button
             const backBtn = container.querySelector('#bonfire-back-btn');

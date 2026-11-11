@@ -335,6 +335,7 @@
   "bonfire.shareCode": "Comparteix aquest codi per convidar algú a unir-se al teu Bonfire:",
   "bonfire.members": "Membres ({count})",
   "bonfire.kick": "Treure",
+  "bonfire.kickNamed": "Treure {name}",
   "bonfire.noMembersYet": "Encara no s'ha unit ningú. Comparteix el codi d'aquí dalt.",
   "bonfire.deleteGroup": "Elimina el Bonfire",
   "bonfire.hostTitle": "Allotja un Bonfire",

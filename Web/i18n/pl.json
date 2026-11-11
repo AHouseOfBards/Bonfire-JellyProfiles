@@ -335,6 +335,7 @@
   "bonfire.shareCode": "Udostępnij ten kod, aby zaprosić kogoś do dołączenia do Twojego Bonfire:",
   "bonfire.members": "Członkowie ({count})",
   "bonfire.kick": "Usuń",
+  "bonfire.kickNamed": "Usuń: {name}",
   "bonfire.noMembersYet": "Nikt jeszcze nie dołączył. Udostępnij kod powyżej.",
   "bonfire.deleteGroup": "Usuń Bonfire",
   "bonfire.hostTitle": "Hostuj Bonfire",

@@ -650,6 +650,39 @@ function tagOf(id) {
         ok('no icon in markup is read aloud as its glyph name (' + bare.length + ' bare)', bare.length === 0, bare.join(' | '));
     }
 
+    // R-1231. A radiogroup with no name is announced as "radio group" and nothing more;
+    // the Remove button said only "Remove", once per member; the join code box had a
+    // placeholder and no label.
+    {
+        const bare = [];
+        const re = /<[a-z]+[^>]*\brole="radiogroup"[^>]*>/g;
+        let m;
+        while ((m = re.exec(SRC))) {
+            if (!/aria-label=/.test(m[0])) bare.push(SRC.slice(0, m.index).split('\n').length);
+        }
+        ok('every radiogroup is named (' + bare.length + ' bare)', bare.length === 0, 'lines ' + bare.join(', '));
+
+        const P = D.loadPlugin(SRC).PP;
+        const stubContent = { querySelector: () => null, querySelectorAll: () => [] };
+        const box = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [] };
+        P.renderBonfireStatus(box, stubContent,
+            { isOwner: true, ownedCode: 'ABC123', ownedMembers: [{ userId: 'u1', username: 'Ada' }, { userId: 'u2', username: 'Bo' }] }, { getUrl: u => u }, 'tok');
+        const kicks = box.innerHTML.match(/<button[^>]*bonfire-kick-btn[^>]*>/g) || [];
+        ok('each Remove button names its member', kicks.length === 2 && /aria-label="[^"]*Ada/.test(kicks[0]) && /aria-label="[^"]*Bo/.test(kicks[1]), kicks[0]);
+
+        const box2 = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [] };
+        P.renderBonfireStatus(box2, stubContent, { isOwner: false, isMember: false }, { getUrl: u => u }, 'tok');
+        const join = /<input[^>]*bonfire-join-input[^>]*>/.exec(box2.innerHTML);
+        let focused = 0;
+        const box3 = { innerHTML: '', querySelector: s => (/button, input/.test(s) ? { focus: () => { focused++; } } : null), querySelectorAll: () => [] };
+        const st = { isOwner: false, isMember: false };
+        P.renderBonfireStatus(box3, stubContent, st, { getUrl: u => u }, 'tok');
+        const afterFirst = focused;
+        P.renderBonfireStatus(box3, stubContent, st, { getUrl: u => u }, 'tok');
+        ok('a redraw puts focus back, the first draw leaves it', afterFirst === 0 && focused === 1, afterFirst + '/' + focused);
+        ok('the join code box has a name',!!join && /aria-label="[^"]+"/.test(join[0]), join && join[0].slice(0, 120));
+    }
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();

@@ -359,6 +359,7 @@
   "bonfire.shareCode": "Comparte este código para invitar a alguien a tu Bonfire:",
   "bonfire.members": "Miembros ({count})",
   "bonfire.kick": "Quitar",
+  "bonfire.kickNamed": "Quitar a {name}",
   "bonfire.noMembersYet": "Todavía no se ha unido nadie. Comparte el código de arriba.",
   "bonfire.deleteGroup": "Eliminar Bonfire",
   "bonfire.hostTitle": "Alojar un Bonfire",

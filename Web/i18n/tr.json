@@ -368,6 +368,7 @@
   "bonfire.shareCode": "Birini Bonfire'ınıza davet etmek için bu kodu paylaşın:",
   "bonfire.members": "Üyeler ({count})",
   "bonfire.kick": "Kaldır",
+  "bonfire.kickNamed": "Kaldır: {name}",
   "bonfire.noMembersYet": "Henüz kimse katılmadı. Yukarıdaki kodu paylaşın.",
   "bonfire.deleteGroup": "Bonfire'ı sil",
   "bonfire.hostTitle": "Bonfire oluştur",
