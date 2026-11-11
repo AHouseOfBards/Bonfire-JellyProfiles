@@ -621,6 +621,24 @@ ProxyReset();
 // Put the session back where the rest of the file expects it: in Kids.
 Child();
 
+// An app seen before its account had a profile is remembered as not ours. Creating the
+// first profile must not leave it without the picker for five minutes (R-1038).
+{
+    var NEWMASTER = Guid.NewGuid(); var NEWKID = Guid.NewGuid();
+    const string NEW_TOKEN = "ffffffffffffffffffffffffffffffff";
+    deviceTokens[NEW_TOKEN] = (NEWMASTER, "Moonfin for Android TV");
+    usernames[NEWMASTER] = "Newbie"; usernames[NEWKID] = "Newbie_kid";
+    Get("/UserViews", NEW_TOKEN);
+    var calls1 = DeviceManagerStub.Calls;
+    Get("/UserViews", NEW_TOKEN);
+    Ok("an account with no profiles is remembered as not ours", DeviceManagerStub.Calls == calls1, (DeviceManagerStub.Calls - calls1) + " lookups");
+    mappings.Add(Map(NEWKID, NEWMASTER, "Kid"));
+    Get("/UserViews", NEW_TOKEN);
+    Ok("and looked at again once it has a profile", DeviceManagerStub.Calls > calls1, (DeviceManagerStub.Calls - calls1) + " lookups");
+    mappings.RemoveAt(mappings.Count - 1);
+    ProxyReset(); Child();
+}
+
 var logout = Get("/Sessions/Logout", method: "POST");
 Ok("signing out of the app signs the profile out too",
    sessionLog.LoggedOut.Contains("tok-" + N(KIDS)) && logout.reachedJellyfin && seenAuth.Contains(MOON_TOKEN),

@@ -74,7 +74,7 @@ namespace Jellyfin.Profiles.Auth
         private static readonly ConcurrentDictionary<string, ProxySession> Sessions = new(StringComparer.Ordinal);
 
         /// <summary>Tokens looked at and found not to be ours, until when. Saves a database read per request.</summary>
-        private static readonly ConcurrentDictionary<string, DateTime> NotOurs = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, (DateTime Until, int Mappings)> NotOurs = new(StringComparer.Ordinal);
 
         private static readonly TimeSpan NotOursFor = TimeSpan.FromMinutes(5);
 
@@ -625,7 +625,10 @@ namespace Jellyfin.Profiles.Auth
             if (Sessions.TryGetValue(token, out var known)) return known;
 
             var now = DateTime.UtcNow;
-            if (NotOurs.TryGetValue(token, out var until) && until > now) return null;
+            // Not trusted once the number of profiles has changed: an account that had none and
+            // has just made its first would otherwise wait out the five minutes without a picker.
+            var mappingCount = config?.Mappings?.Count ?? 0;
+            if (NotOurs.TryGetValue(token, out var notOurs) && notOurs.Until > now && notOurs.Mappings == mappingCount) return null;
 
             // An app that names itself and is not ticked costs nothing more.
             var auth = request.Headers[HeaderNames.Authorization];
@@ -641,7 +644,7 @@ namespace Jellyfin.Profiles.Auth
                 || !HasProfiles(config, device.UserId))
             {
                 if (NotOurs.Count > 10_000) NotOurs.Clear();
-                NotOurs[token] = now + NotOursFor;
+                NotOurs[token] = (now + NotOursFor, mappingCount);
                 return null;
             }
 
