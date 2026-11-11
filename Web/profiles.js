@@ -6542,7 +6542,7 @@
                         ` : ''}
                         ${p.isBonfire ? `
                         <div class="profile-bonfire-indicator" aria-hidden="true" title="${p.isLinked ? t('gate.addedAccount') : t('gate.bonfireProfile')}">
-                            <span class="material-icons" style="font-size: 1.15rem; color: #fff;">${p.isLinked ? 'link' : 'local_fire_department'}</span>
+                            <span class="material-icons" aria-hidden="true" style="font-size: 1.15rem; color: #fff;">${p.isLinked ? 'link' : 'local_fire_department'}</span>
                         </div>
                         ` : ''}
                     </div>
@@ -6624,7 +6624,7 @@
                 sectionsHtml += `
                     <div class="profiles-home-section">
                         <div class="profiles-home-header">
-                            <span class="material-icons profiles-home-icon ${isBonfireIcon ? 'bonfire-icon-color' : ''}">${headerIcon}</span>
+                            <span class="material-icons profiles-home-icon ${isBonfireIcon ? 'bonfire-icon-color' : ''}" aria-hidden="true">${headerIcon}</span>
                             <span class="profiles-home-title">${headerTitle}</span>
                         </div>
                         <div class="profiles-grid">
@@ -8750,7 +8750,7 @@
                 <div class="picture-source-block">
                     <div class="picture-source-title">${t('avatar.fromThisDevice')}</div>
                     <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
-                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                        <span class="material-icons" aria-hidden="true" style="font-size: 1.25rem;">photo_camera</span>
                         <span>${t('avatar.uploadPicture')}</span>
                     </label>
                     <input type="file" id="${prefix}-profile-image-file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display: none;" />
@@ -8789,13 +8789,13 @@
                             <div class="image-upload-actions">
                                 <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn picture-change-btn"
                                         aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
-                                    <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                    <span class="material-icons" aria-hidden="true" style="font-size: 1.25rem;">photo_camera</span>
                                     <span>${currentImage ? t('avatar.changePicture') : t('avatar.choosePicture')}</span>
                                     <span class="material-icons picture-caret" aria-hidden="true">expand_more</span>
                                 </button>
                                 <button type="button" id="${prefix}-clear-profile-image-btn" class="profiles-btn btn-secondary image-upload-btn picture-remove-btn"
                                         style="display: ${currentImage ? 'inline-flex' : 'none'};">
-                                    <span class="material-icons" style="font-size: 1.25rem;">delete_outline</span>
+                                    <span class="material-icons" aria-hidden="true" style="font-size: 1.25rem;">delete_outline</span>
                                     <span>${t('common.remove')}</span>
                                 </button>
                             </div>
@@ -10917,7 +10917,7 @@
             const option = (value, icon, title, body) => `
                 <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="${location === value ? 0 : -1}" role="radio"
                      aria-checked="${location === value}">
-                    <span class="material-icons jpf-choice-icon">${icon}</span>
+                    <span class="material-icons jpf-choice-icon" aria-hidden="true">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -11099,7 +11099,7 @@
 
             const entry = (id, icon, title, body) => `
                 <div class="settings-menu-entry jpf-choice focusable" id="${id}" tabindex="0" role="button">
-                    <span class="material-icons jpf-choice-icon">${icon}</span>
+                    <span class="material-icons jpf-choice-icon" aria-hidden="true">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -11339,7 +11339,7 @@
             const locationOption = (value, icon, title, body) => `
                 <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="${prefs.location === value ? 0 : -1}" role="radio"
                      aria-checked="${prefs.location === value}">
-                    <span class="material-icons jpf-choice-icon">${icon}</span>
+                    <span class="material-icons jpf-choice-icon" aria-hidden="true">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>

@@ -637,6 +637,19 @@ function tagOf(id) {
         ok('the canvas is hidden from a screen reader', /\baria-hidden="true"/.test(tag('profiles-crop-canvas')), tag('profiles-crop-canvas'));
     }
 
+    // R-1194. An icon font draws a glyph from its name, so a screen reader reads the name
+    // ("photo camera", "local fire department"). Every icon span written in markup is hidden
+    // from it; the words beside it, or a visually hidden label, carry the meaning.
+    {
+        const bare = [];
+        const re = /<span class="material-icons[^"]*"[^>]*>/g;
+        let m;
+        while ((m = re.exec(SRC))) {
+            if (!/aria-hidden="true"/.test(m[0])) bare.push(SRC.slice(0, m.index).split('\n').length + ': ' + m[0].slice(0, 70));
+        }
+        ok('no icon in markup is read aloud as its glyph name (' + bare.length + ' bare)', bare.length === 0, bare.join(' | '));
+    }
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();
