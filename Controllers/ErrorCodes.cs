@@ -142,6 +142,7 @@ namespace Jellyfin.Profiles.Controllers
             ("A viewing window isn't valid", "limits_invalid"),
             ("A daily limit is between", "limits_invalid"),
             ("More time is between", "limits_invalid"),
+            ("That's past the 4 hours of extra time", "grant_cap"),
             ("That time zone isn't known", "time_zone_invalid"),
 
             // Other accounts in a switcher, and an account made a profile (1.7.2).

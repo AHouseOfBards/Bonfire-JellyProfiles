@@ -172,6 +172,7 @@ foreach (var (text, code) in new[]
     ("Enter a name for the profile.", "name_invalid"),
     ("A user with this name already exists.", "name_taken"),
     ("This profile has no viewing limits.", "not_limited"),
+    ("That's past the 4 hours of extra time allowed in a day.", "grant_cap"),
     ("Email isn't set up on this server.", "email_unavailable"),
     ("That code isn't right.", "code_wrong"),
     ("That code has expired. Send a new one.", "code_expired"),

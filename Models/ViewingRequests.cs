@@ -89,6 +89,30 @@ namespace Jellyfin.Profiles.Models
         public int? WeekendMinutes { get; set; }
     }
 
+    /// <summary>GET /time-requests: the caller's household's profiles waiting for an answer.</summary>
+    public class TimeRequestsResponse
+    {
+        public List<TimeRequestView> Requests { get; set; } = new();
+    }
+
+    public class TimeRequestView
+    {
+        public Guid ProfileId { get; set; }
+        public string ProfileName { get; set; } = string.Empty;
+
+        /// <summary>When the profile asked.</summary>
+        public DateTime AskedUtc { get; set; }
+
+        /// <summary>The household's zone, as an IANA id, for showing <see cref="AskedUtc"/>.</summary>
+        public string TimeZone { get; set; } = string.Empty;
+
+        /// <summary>
+        /// How many more minutes can still be given today: 240 less today's grants. At 0 the
+        /// only answer left is no.
+        /// </summary>
+        public int GrantMinutesLeft { get; set; }
+    }
+
     /// <summary>GET /timezones.</summary>
     public class TimeZonesResponse
     {

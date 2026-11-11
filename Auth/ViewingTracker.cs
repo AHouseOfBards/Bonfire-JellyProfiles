@@ -38,6 +38,12 @@ namespace Jellyfin.Profiles.Auth
         internal static readonly TimeSpan IndexLife = TimeSpan.FromSeconds(30);
         internal static readonly TimeSpan AskQuiet = TimeSpan.FromMinutes(10);
 
+        /// <summary>
+        /// The most more time one profile can be given in one household day: four hours. A fixed
+        /// limit, not a setting. The PIN holder is the only one who can give time, but a PIN
+        /// that is guessed, watched or lent is the case this is for: it caps what that gets.
+        /// </summary>
+        internal const int MaxDailyGrantMinutes = 240;
         /// <summary>A limited profile, as the gate and the timer need it.</summary>
         internal sealed class Limited
         {
@@ -55,6 +61,12 @@ namespace Jellyfin.Profiles.Auth
             public DateTime? ExtraUntilUtc { get; set; }
             public DateTime? AskedUtc { get; set; }
             public string LimitNoticeDay { get; set; } = string.Empty;
+
+            /// <summary>The household day <see cref="GrantedMinutes"/> was counted on.</summary>
+            public string GrantDay { get; set; } = string.Empty;
+
+            /// <summary>Minutes of more time given on <see cref="GrantDay"/>, for the daily cap.</summary>
+            public int GrantedMinutes { get; set; }
 
             // Not written down: a restart starts these afresh, which at worst repeats a warning.
             internal DateTime? WarnedForUtc;
@@ -159,6 +171,18 @@ namespace Jellyfin.Profiles.Auth
             }
         }
 
+        /// <summary>How many more minutes can be given to the profile on this household day.</summary>
+        internal static int GrantMinutesLeft(Guid profileId, TimeZoneInfo zone, DateTime nowUtc)
+        {
+            var day = ViewingClock.DayOf(zone, nowUtc);
+            lock (UsageLock)
+            {
+                EnsureLoaded();
+                var given = Entries.TryGetValue(profileId, out var e) && e.GrantDay == day ? e.GrantedMinutes : 0;
+                return Math.Max(0, MaxDailyGrantMinutes - given);
+            }
+        }
+
         // ── Changes ─────────────────────────────────────────────────────────────────
 
         internal static void AddSeconds(Guid profileId, string day, double seconds)
@@ -195,6 +219,27 @@ namespace Jellyfin.Profiles.Auth
                 _dirty = true;
                 return e.ExtraUntilUtc.Value;
             }
+        }
+
+        /// <summary>
+        /// <see cref="Grant"/>, unless the day's grants for this profile would then pass
+        /// <see cref="MaxDailyGrantMinutes"/>. The check and the count are one step under the
+        /// lock, so two grants at once cannot both squeeze under it. The day is the household's:
+        /// it starts again at midnight in the zone the profile's rules are read in.
+        /// </summary>
+        internal static bool TryGrant(Guid profileId, int minutes, DateTime nowUtc, TimeZoneInfo zone)
+        {
+            var day = ViewingClock.DayOf(zone, nowUtc);
+            lock (UsageLock)
+            {
+                var e = EntryFor(profileId);
+                var given = e.GrantDay == day ? e.GrantedMinutes : 0;
+                if (given + minutes > MaxDailyGrantMinutes) return false;
+                e.GrantDay = day;
+                e.GrantedMinutes = given + minutes;
+            }
+            Grant(profileId, minutes, nowUtc);
+            return true;
         }
 
         /// <summary>Answers a request for more time with no. Time already given stays.</summary>

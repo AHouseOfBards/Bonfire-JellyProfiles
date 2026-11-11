@@ -28,7 +28,9 @@ namespace Jellyfin.Profiles.Controllers
         // the client its token was rejected, and some clients sign out on that.
         internal const string OtherHouseholdMessage = "That profile does not belong to this account.";
 
-        /// <summary>The longest single grant: four hours.</summary>
+        internal const string DailyGrantCapMessage = "That's past the 4 hours of extra time allowed in a day.";
+
+        /// <summary>The longest single grant: four hours. The daily cap is the same number, and is the one that decides.</summary>
         internal const int MaxGrantMinutes = 240;
 
         /// <summary>The main account a user belongs to: its own id for a main account.</summary>
@@ -237,7 +239,12 @@ namespace Jellyfin.Profiles.Controllers
             }
             else
             {
-                ViewingTracker.Grant(profileId, request.Minutes, ViewingTracker.Now());
+                // The daily cap is checked and counted in one step, so it holds for an
+                // administrator and for two grants at once. It is the household's day.
+                var main = snapshot.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
+                var zone = HouseholdTime.Resolve(main?.TimeZone, snapshot.DefaultTimeZone);
+                if (!ViewingTracker.TryGrant(profileId, request.Minutes, ViewingTracker.Now(), zone))
+                    return BadRequest(DailyGrantCapMessage);
                 LogActivity(profile.ProfileName + " was given " + request.Minutes + " more minutes", "ViewingLimits", profileId);
             }
             ViewingTracker.Save(_logger);
@@ -282,6 +289,46 @@ namespace Jellyfin.Profiles.Controllers
             LogActivity(profile.ProfileName + " asked for more time", "ViewingLimits", profileId);
             ViewingTracker.Save(_logger);
             return Ok(ViewingView(profile, config, false));
+        }
+
+        /// <summary>
+        /// The profiles in the caller's household that have asked for more time and are still
+        /// waiting, oldest first. For the row above the tiles on the picker. Anyone in the
+        /// household may read it, as with the limits themselves; the answer, with the main PIN,
+        /// is <c>limits/{profileId}/grant</c>. Never another household's: the household is the
+        /// caller's own, not a parameter. An API key has no household and is refused.
+        /// </summary>
+        [HttpGet("time-requests")]
+        [ProducesResponseType(typeof(TimeRequestsResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult<TimeRequestsResponse> GetTimeRequests()
+        {
+            var caller = GetCurrentUserId();
+            if (caller == null) return Unauthorized();
+            var config = ReadConfigSnapshot();
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var household = HouseholdOf(config, caller.Value);
+            var main = config.Mappings.FirstOrDefault(m => m.ProfileUserId == household);
+            var zone = HouseholdTime.Resolve(main?.TimeZone, config.DefaultTimeZone);
+            var response = new TimeRequestsResponse();
+            foreach (var m in config.Mappings)
+            {
+                if (m.MasterUserId != household || m.ProfileUserId == household) continue;
+                if (m.Viewing == null || !m.Viewing.IsLimited) continue;
+                var asked = ViewingTracker.AskedUtc(m.ProfileUserId);
+                if (!asked.HasValue) continue;
+                response.Requests.Add(new TimeRequestView
+                {
+                    ProfileId = m.ProfileUserId,
+                    ProfileName = m.ProfileName,
+                    AskedUtc = DateTime.SpecifyKind(asked.Value, DateTimeKind.Utc),
+                    TimeZone = HouseholdTime.IdOf(zone),
+                    GrantMinutesLeft = ViewingTracker.GrantMinutesLeft(m.ProfileUserId, zone, ViewingTracker.Now()),
+                });
+            }
+            response.Requests.Sort((a, b) => a.AskedUtc.CompareTo(b.AskedUtc));
+            return Ok(response);
         }
 
         /// <summary>

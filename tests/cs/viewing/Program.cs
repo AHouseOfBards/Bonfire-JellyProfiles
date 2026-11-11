@@ -970,6 +970,110 @@ Ok("a read snapshot has its own copy of the rules", ((IList)Get(StoredRules(KID)
 
 string ViewingDay(DateTime utc) => (string)Static(clockType, "DayOf", london, utc);
 
+// ── Requests for more time, and the daily cap (2.0) ─────────────────────────
+Section("Time requests");
+
+// Clean slate: both children limited, nothing asked, nothing given, a fresh day.
+Call("SetViewingLimits", ADMIN, B(("DailyMinutes", 60)), KID);
+Call("SetViewingLimits", ADMIN, B(("DailyMinutes", 60)), OKID);
+Static(tracker, "Forget", KID); Static(tracker, "Forget", OKID);
+var zoneProp = mapType.GetProperty("TimeZone");
+zoneProp.SetValue(Mapping(MAIN), null);
+clockNow = Utc(2026, 11, 10, 20); Fresh();
+IList Pending(Guid caller)
+{
+    var res = Call("GetTimeRequests", caller);
+    // A missing or refused route reads as an empty list, so each assertion that needs it
+    // fails on its own instead of the run ending on a null.
+    return res.status == 200 ? (IList)Get(res.value, "Requests") : new ArrayList();
+}
+r = Call("GetTimeRequests", MAIN);
+Ok("this build lists a household's pending requests", r.status == 200, r.status + " " + r.value);
+Ok("none to begin with", r.status == 200 && Pending(MAIN).Count == 0);
+Ok("and not for nobody", Call("GetTimeRequests", Guid.Empty).status == 401);
+
+Call("AskForViewingTime", KID, null, KID);
+Call("AskForViewingTime", OKID, null, OKID);
+var mine = Pending(MAIN);
+Ok("the main account sees its child's request, and only that", mine != null && mine.Count == 1
+   && (Guid)Get(mine[0], "ProfileId") == KID && (string)Get(mine[0], "ProfileName") == "Kid"
+   && Get(mine[0], "AskedUtc") != null, mine == null ? "null" : mine.Count.ToString());
+Ok("the other household sees its own, never this one's", Pending(OTHER) != null && Pending(OTHER).Count == 1
+   && (Guid)Get(Pending(OTHER)[0], "ProfileId") == OKID);
+Ok("a profile's own device sees its household's", Pending(KID) != null && Pending(KID).Count == 1 && (Guid)Get(Pending(KID)[0], "ProfileId") == KID);
+Ok("an administrator outside both households sees neither", Pending(ADMIN) != null && Pending(ADMIN).Count == 0);
+Ok("the request says how much of today's four hours is left", mine.Count > 0 && Get(mine[0], "GrantMinutesLeft") is int left && left == 240);
+
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 30)), KID);
+Ok("the main account without its PIN gives nothing", r.status == 400 && Pending(MAIN).Count == 1, r.status + " " + r.value);
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 30), ("MasterPin", "0000")), KID);
+Ok("nor with the wrong one", r.status == 400 && Pending(MAIN).Count == 1, r.status + " " + r.value);
+r = Call("GrantViewingTime", OTHER, B(("Minutes", 30), ("MasterPin", "1234")), KID);
+Ok("another household cannot answer it, and it stays", Refused(r) && Pending(MAIN).Count == 1, r.status + " " + r.value);
+
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 0), ("MasterPin", "1234")), KID);
+Ok("saying no clears the request", r.status == 200 && Pending(MAIN).Count == 0, r.status + " " + r.value);
+Ok("and only that one: the other household's stays", Pending(OTHER).Count == 1);
+
+// The cap: four hours of grants for one profile in one household day.
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 200), ("MasterPin", "1234")), KID);
+Ok("200 minutes today is fine", r.status == 200, r.status + " " + r.value);
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 41), ("MasterPin", "1234")), KID);
+Ok("and 41 more would pass four hours: refused", r.status == 400, r.status + " " + r.value);
+Ok("the refusal gave nothing: the time is still 200 minutes", (int?)Get(Static(tracker, "State", KID, clockNow), "MinutesLeft") == 200,
+   Show(Static(tracker, "State", KID, clockNow)));
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 40), ("MasterPin", "1234")), KID);
+Ok("40 more reaches four hours exactly", r.status == 200, r.status + " " + r.value);
+r = Call("GrantViewingTime", ADMIN, B(("Minutes", 1)), KID);
+Ok("nobody can go past it, an administrator included", r.status == 400, r.status + " " + r.value);
+r = Call("GrantViewingTime", KID, B(("Minutes", 1), ("MasterPin", "1234")), KID);
+Ok("nor from the child's own device with the PIN", r.status == 400, r.status + " " + r.value);
+Call("AskForViewingTime", KID, null, KID);
+Ok("a request made after that says nothing is left to give", Pending(MAIN).Count == 1 && Get(Pending(MAIN)[0], "GrantMinutesLeft") is int l0 && l0 == 0);
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 0), ("MasterPin", "1234")), KID);
+Ok("no is still allowed at the cap, and clears it", r.status == 200 && Pending(MAIN).Count == 0, r.status + " " + r.value);
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 240), ("MasterPin", "1234")), OKID);
+Ok("the cap is per profile: another household's child has its own", Refused(r) || r.status == 400 && Pending(OTHER).Count == 1);
+r = Call("GrantViewingTime", OTHER, B(("Minutes", 240)), OKID);
+Ok("their own main account can give it all four hours", r.status == 200, r.status + " " + r.value);
+
+// A second profile in the same household does not share Kid's allowance.
+Call("SetViewingLimits", ADMIN, B(("DailyMinutes", 60)), KID2);
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 120), ("MasterPin", "1234")), KID2);
+Ok("a sibling's allowance is its own", r.status == 200, r.status + " " + r.value);
+
+// It resets at the household's midnight, not the server's.
+clockNow = Utc(2026, 11, 11, 0, 1); Fresh();
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 60), ("MasterPin", "1234")), KID);
+Ok("at midnight in the household's zone the allowance is back", r.status == 200, r.status + " " + r.value);
+zoneProp.SetValue(Mapping(MAIN), "America/New_York"); Fresh();
+clockNow = Utc(2026, 11, 11, 3); // 22:00 on the 10th in New York
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 240), ("MasterPin", "1234")), KID2);
+Ok("in New York it is still the 10th, where Teen has had 120", r.status == 400, r.status + " " + r.value);
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 120), ("MasterPin", "1234")), KID2);
+Ok("120 more reaches the cap there", r.status == 200, r.status + " " + r.value);
+clockNow = Utc(2026, 11, 11, 5, 30); // 00:30 on the 11th in New York
+r = Call("GrantViewingTime", MAIN, B(("Minutes", 240), ("MasterPin", "1234")), KID2);
+Ok("and it resets at New York's midnight, not London's", r.status == 200, r.status + " " + r.value);
+zoneProp.SetValue(Mapping(MAIN), null); Fresh();
+
+// Two PIN holders answering at once: the check and the count are one step, so six grants of
+// 100 minutes racing each other give exactly two of them, never three.
+Static(tracker, "Forget", KID2);
+clockNow = Utc(2026, 11, 12, 12); Fresh();
+var raced = new int[6];
+Parallel.For(0, 6, new ParallelOptions { MaxDegreeOfParallelism = 6 }, i =>
+{
+    raced[i] = Call("GrantViewingTime", MAIN, B(("Minutes", 100), ("MasterPin", "1234")), KID2).status;
+});
+// (The PIN's own attempt throttle may answer some of them 429; that is fewer gets through,
+// never more.)
+int gotThrough = raced.Count(s => s == 200);
+Ok("six grants of 100 minutes at once: never more than two get through", gotThrough <= 2 && gotThrough >= 1
+   && raced.All(s => s == 200 || s == 400 || s == 429), string.Join(",", raced));
+Ok("and the time given is what got through, not 600", Get(Static(tracker, "State", KID2, clockNow), "MinutesLeft") is int ml && ml == gotThrough * 100
+   , Show(Static(tracker, "State", KID2, clockNow)));
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 

@@ -70,6 +70,7 @@ All 105 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/limits/{profileId}` | user | Set a profile's viewing hours and daily limit. |
 | `POST /plugins/profiles/limits/{profileId}/grant` | user | Give a profile more time, or say no. |
 | `POST /plugins/profiles/limits/{profileId}/ask` | user | Ask for more time. |
+| `GET /plugins/profiles/time-requests` | user | The household's profiles waiting for more time. |
 | `GET /plugins/profiles/timezones` | user | Time zones, and the one the household uses. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
@@ -1882,6 +1883,28 @@ or an administrator. From a profile's own device the main account must have a PI
 
 1 to 240 minutes. `0` says no to a request and leaves time already given. Returns the
 `GET` shape without `rules`.
+
+One profile can be given at most 240 minutes in a household day (midnight in the household's
+zone), however many grants that takes and whoever gives them, an administrator included.
+A grant that would pass it is `400` with `grant_cap` and gives nothing. Saying no is always
+allowed.
+
+### `GET /plugins/profiles/time-requests`
+
+**Authorisation:** signed-in user. Returns the caller's own household's requests, never
+another's. An API key has no household and gets `401`.
+
+```json
+{
+  "requests": [
+    { "profileId": "…", "profileName": "Sam", "askedUtc": "2026-11-10T19:02:00Z", "timeZone": "Europe/London", "grantMinutesLeft": 240 }
+  ]
+}
+```
+
+The profiles that have asked for more time and are still waiting, oldest first. A profile
+with its limits switched off is left out. `grantMinutesLeft` is 240 less what was given
+today; at 0 only no is left. Answer with `limits/{profileId}/grant`.
 
 ### `POST /plugins/profiles/limits/{profileId}/ask`
 
