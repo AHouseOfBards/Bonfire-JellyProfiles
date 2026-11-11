@@ -142,7 +142,7 @@ namespace Jellyfin.Profiles.Controllers
             if (request == null) return BadRequest("Missing request body.");
 
             var profile = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-            if (profile == null) return BadRequest("Profile not found.");
+            if (profile == null) return NotFound("Profile not found.");
             if (profile.MasterUserId == Guid.Empty || profile.MasterUserId == profile.ProfileUserId)
                 return BadRequest(LimitsForProfilesMessage);
             var mainId = profile.MasterUserId;
@@ -183,7 +183,7 @@ namespace Jellyfin.Profiles.Controllers
             lock (ConfigLock)
             {
                 row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-                if (row == null) return BadRequest("Profile not found.");
+                if (row == null) return NotFound("Profile not found.");
                 row.Viewing = rules.IsLimited || rules.Windows.Count > 0 ? rules : null;
                 Plugin.Instance?.SaveConfiguration();
                 saved = config.SnapshotForReading();
@@ -217,7 +217,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var snapshot = ReadConfigSnapshot() ?? config;
             var profile = snapshot.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-            if (profile == null) return BadRequest("Profile not found.");
+            if (profile == null) return NotFound("Profile not found.");
             var mainId = profile.MasterUserId;
 
             if (!CallerIsAdministrator(caller))
@@ -268,7 +268,7 @@ namespace Jellyfin.Profiles.Controllers
             if (config == null) return BadRequest("Plugin configuration missing.");
 
             var profile = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-            if (profile == null) return BadRequest("Profile not found.");
+            if (profile == null) return NotFound("Profile not found.");
             var mainId = profile.MasterUserId;
             if (HouseholdOf(config, caller.Value) != mainId) return Unauthorized(OtherHouseholdMessage);
             if (profile.Viewing == null || !profile.Viewing.IsLimited) return BadRequest(NotLimitedMessage);
