@@ -64,9 +64,21 @@ string For(int status, string message) => (string)forMethod.Invoke(null, new obj
 Console.WriteLine();
 Console.WriteLine("── The filter, on real results ─────────────────────────────────");
 
-(int status, string code) Run(IActionResult result, string preset = null)
+(int status, string code) Run(IActionResult result, string preset = null, bool apiKey = false)
 {
     var http = new DefaultHttpContext();
+    if (apiKey)
+    {
+        // What Jellyfin's handler builds for an API key: authenticated, the administrator
+        // role, the key marker, and an all-zero user id.
+        var id = new System.Security.Claims.ClaimsIdentity(new[]
+        {
+            new System.Security.Claims.Claim("Jellyfin-IsApiKey", "True"),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "Administrator"),
+            new System.Security.Claims.Claim("Jellyfin-UserId", Guid.Empty.ToString()),
+        }, "CustomAuthentication");
+        http.User = new System.Security.Claims.ClaimsPrincipal(id);
+    }
     if (preset != null) http.Response.Headers["X-Bonfire-Error"] = preset;
     var action = new ActionContext(http, new RouteData(), new ActionDescriptor());
     var ctx = new ResultExecutingContext(action, new List<IFilterMetadata>(), result, controller: null);
@@ -83,6 +95,14 @@ Console.WriteLine("── The filter, on real results ────────�
 
 var dead = Run(new UnauthorizedResult());
 Ok("a rejected token stays 401, coded unauthenticated", dead == (401, "unauthenticated"), dead.ToString());
+
+// An API key is signed in, so a route that needs a person refuses it with a 403. The route
+// answers an empty 401 (a key has no user id); the filter is what says which it is.
+var keyOnPersonRoute = Run(new UnauthorizedResult(), apiKey: true);
+Ok("an API key on a route that needs a person gets 403, not 401", keyOnPersonRoute.status == 403, keyOnPersonRoute.ToString());
+Ok("coded forbidden", keyOnPersonRoute.code == "forbidden", keyOnPersonRoute.code);
+var strangerEmpty = Run(new UnauthorizedResult());
+Ok("an empty 401 from nobody stays 401", strangerEmpty == (401, "unauthenticated"), strangerEmpty.ToString());
 
 var notMain = Run(new UnauthorizedObjectResult("Only the master profile can manage profiles."));
 Ok("a signed-in caller who isn't allowed gets 403, not 401", notMain.status == 403, notMain.ToString());

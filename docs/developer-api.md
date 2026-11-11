@@ -267,8 +267,8 @@ see [Maintenance](#maintenance). Sent with
 | `200` | Done, including when there was nothing to change. |
 | `304` | Not modified: the `ETag` you sent still matches. See [Caching](#caching). |
 | `400` | Refused. The body says why. |
-| `401` | The caller's token was rejected. Sign in again. |
-| `403` | The caller is signed in but not allowed, such as a profile managing profiles. Keep the session. |
+| `401` | Not signed in: no token, or the token was rejected. Sign in again. This is the only case that gets a `401`. |
+| `403` | Signed in but not allowed: a profile on a main-account route, a non-administrator on an administrator route, or an API key on a route that needs a person. Keep the session. |
 | `404` | Unknown profile, image, library or main account. |
 | `429` | Rate limited. Most limits also send `Retry-After` in seconds. |
 | `500` | A bug. |
@@ -685,7 +685,7 @@ Returns `200`. Errors as for `/create`.
 
 ### `POST /plugins/profiles/copy-rules`
 
-**Authorisation:** signed-in user, and only a main account: a profile gets `401`.
+**Authorisation:** signed-in user, and only a main account: a profile gets `403`.
 
 Copies one profile's rules onto another in the same household.
 
@@ -707,7 +707,7 @@ Returns `200`. Errors as for `/update`.
 
 ### `POST /plugins/profiles/me`
 
-**Authorisation:** signed-in user, and only a profile: a main account gets `401`.
+**Authorisation:** signed-in user, and only a profile: a main account gets `403`.
 
 A profile changes its own name and picture without the main PIN. It takes `profileName`,
 `avatarColor`, `transparentAvatar`, `profileImage`, `profileImageThumb` and `avatarLibraryId`,
@@ -1893,7 +1893,7 @@ allowed.
 ### `GET /plugins/profiles/time-requests`
 
 **Authorisation:** signed-in user. Returns the caller's own household's requests, never
-another's. An API key has no household and gets `401`.
+another's. An API key has no household and gets `403`.
 
 ```json
 {

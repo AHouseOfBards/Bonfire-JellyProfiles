@@ -228,6 +228,13 @@ namespace Jellyfin.Profiles.Controllers
     [AttributeUsage(AttributeTargets.Class, Inherited = true)]
     public sealed class BonfireErrorsAttribute : ResultFilterAttribute
     {
+        // The same test as ProfilesBaseController.CallerIsApiKey: both claims, because a key
+        // always carries the administrator role and nothing else carries the marker.
+        private static bool IsApiKey(System.Security.Claims.ClaimsPrincipal? user)
+            => user != null
+               && string.Equals(user.FindFirst("Jellyfin-IsApiKey")?.Value, "True", StringComparison.OrdinalIgnoreCase)
+               && user.IsInRole("Administrator");
+
         /// <inheritdoc />
         public override void OnResultExecuting(ResultExecutingContext context)
         {
@@ -248,6 +255,15 @@ namespace Jellyfin.Profiles.Controllers
 
                 case StatusCodeResult plain when plain.StatusCode >= 400:
                     status = plain.StatusCode;
+                    // An API key is signed in but has no user id, so a route that needs a
+                    // person answers it with an empty 401. That is "not allowed", not "your
+                    // token is dead": a 401 would have a client sign the key's holder out.
+                    if (status == StatusCodes.Status401Unauthorized && IsApiKey(context.HttpContext.User))
+                    {
+                        context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
+                        status = StatusCodes.Status403Forbidden;
+                    }
+
                     break;
             }
 
