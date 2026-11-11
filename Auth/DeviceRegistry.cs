@@ -668,16 +668,19 @@ namespace Jellyfin.Profiles.Auth
                 // "unseen for 180 days" question the value is actually used to answer, and it
                 // is one write an hour rather than one a request.
                 //
-                // Throttled against when it was last *persisted*, not last seen: LastSeen is
-                // bumped in memory on every request, so comparing against it would never
+                // Throttled against when LastSeen was last *persisted*, not last seen: LastSeen
+                // is bumped in memory on every request, so comparing against it would never
                 // reach an hour on a device that is in regular use — which is every device
                 // this matters for.
-                var lastWrite = ProfilesBaseController.DevicePersistedAt.TryGetValue(existing.DeviceId, out var at)
-                    ? at
-                    : DateTime.MinValue;
-                if (now - lastWrite >= ProfilesBaseController.DeviceLastSeenWriteInterval)
+                //
+                // One stamp for all devices, not one each: a save writes the whole file, so
+                // every device's in-memory LastSeen goes out with it. A stamp per device made
+                // twenty devices twenty rewrites an hour (SD-card wear on a Pi), and was a
+                // dictionary that never shrank. The cost is that a device seen only between
+                // two saves is written with the next one, whoever causes it.
+                if (now - ProfilesBaseController.LastSeenPersistedAt >= ProfilesBaseController.DeviceLastSeenWriteInterval)
                 {
-                    ProfilesBaseController.DevicePersistedAt[existing.DeviceId] = now;
+                    ProfilesBaseController.LastSeenPersistedAt = now;
                     save = true;
                 }
 
@@ -734,7 +737,8 @@ namespace Jellyfin.Profiles.Auth
                     MasterUserId = ownerId,
                     Owners = AddOwners(null, ownerId),
                 });
-                ProfilesBaseController.DevicePersistedAt[deviceId] = now;
+                // Saved now, and every other device's LastSeen goes out with it.
+                ProfilesBaseController.LastSeenPersistedAt = now;
                 save = true;
             }
 

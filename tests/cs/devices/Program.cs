@@ -70,9 +70,52 @@ Ok("the write interval is far finer than the retention it feeds — otherwise th
    writeEvery > TimeSpan.Zero && retention > TimeSpan.FromDays(1)
    && writeEvery < TimeSpan.FromTicks(retention.Ticks / 100));
 
-Ok("there is a record of when each device was last written, separate from LastSeen "
+Ok("there is a record of when LastSeen was last written, separate from LastSeen "
    + "(throttling against LastSeen would never fire for a device in daily use)",
-   baseCtl.GetField("DevicePersistedAt", Any) != null);
+   baseCtl.GetField("LastSeenPersistedAt", Any) != null);
+Ok("and it is one stamp, not a dictionary that grows with every device ever seen",
+   baseCtl.GetField("DevicePersistedAt", Any) == null
+   && baseCtl.GetField("LastSeenPersistedAt", Any)?.FieldType == typeof(DateTime));
+
+Console.WriteLine();
+Console.WriteLine("── One save an interval, however many devices ──────────────────");
+{
+    var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", true);
+    var sight = registry.GetMethod("RecordSighting", Any);
+    var stamp = baseCtl.GetField("LastSeenPersistedAt", Any);
+    var owner = Guid.NewGuid();
+    var t0 = new DateTime(2030, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+    var cfg = Activator.CreateInstance(cfgType);
+    var list = (IList)cfgType.GetProperty("KnownDevices").GetValue(cfg);
+    const int N = 20;
+    for (var i = 0; i < N; i++)
+    {
+        var d = Activator.CreateInstance(deviceType);
+        deviceType.GetProperty("DeviceId").SetValue(d, "dev-" + i);
+        deviceType.GetProperty("DeviceName").SetValue(d, "Device " + i);
+        deviceType.GetProperty("LastSeen").SetValue(d, t0.AddDays(-1));
+        deviceType.GetProperty("MasterUserId").SetValue(d, owner);
+        list.Add(d);
+    }
+
+    int Saves(DateTime at)
+    {
+        var n = 0;
+        for (var i = 0; i < N; i++)
+            if ((bool)sight.Invoke(null, new object[] { cfg, "dev-" + i, "Device " + i, "Web", owner, at, null, false })) n++;
+        return n;
+    }
+
+    stamp?.SetValue(null, DateTime.MinValue);
+    var first = Saves(t0);
+    Ok(N + " devices seen in the same minute cause one save, not " + N + " (" + first + ")", first == 1);
+    Ok("and the rest of the hour causes none (" + Saves(t0.AddMinutes(30)) + ")", Saves(t0.AddMinutes(30)) == 0);
+    var next = Saves(t0.AddMinutes(61));
+    Ok("an hour on, one more (" + next + ")", next == 1);
+    Ok("every device's LastSeen is what the sighting set, so the one save carries all of them",
+       list.Cast<object>().All(d => (DateTime)deviceType.GetProperty("LastSeen").GetValue(d) == t0.AddMinutes(61)));
+}
 
 Console.WriteLine();
 Console.WriteLine("── Pruning keeps anything a profile still names ────────────────");

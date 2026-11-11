@@ -1372,8 +1372,13 @@ namespace Jellyfin.Profiles.Controllers
 
         // ── Device housekeeping ─────────────────────────────────────────────────────
 
-        /// <summary>When each device's LastSeen was last written to disk. See RecordDeviceActivity.</summary>
-        internal static readonly ConcurrentDictionary<string, DateTime> DevicePersistedAt = new();
+        /// <summary>
+        /// When LastSeen was last written to disk, for every device at once. It was one entry per
+        /// device, which was never pruned and cost one configuration rewrite per active device
+        /// per hour; every device's LastSeen rides along on whichever save comes first, so the
+        /// hour costs one write however many devices there are. Read and set under ConfigLock.
+        /// </summary>
+        internal static DateTime LastSeenPersistedAt = DateTime.MinValue;
 
         internal static readonly TimeSpan DeviceLastSeenWriteInterval = TimeSpan.FromHours(1);
 
