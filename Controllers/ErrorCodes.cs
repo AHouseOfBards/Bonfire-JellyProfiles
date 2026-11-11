@@ -169,6 +169,7 @@ namespace Jellyfin.Profiles.Controllers
             ("Delete a custom theme first", "theme_limit"),
             ("No such theme", "theme_not_found"),
             ("That's the default theme. Choose another default first", "theme_in_use"),
+            ("That theme was changed somewhere else", "theme_changed"),
             ("Only built-in themes can be hidden", "theme_invalid"),
             ("Bonfire can't be hidden", "theme_invalid"),
             ("Send the list of themes to hide", "theme_invalid"),

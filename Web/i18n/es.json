@@ -604,6 +604,7 @@
   "admin.themes.err.invalid": "Ese tema tiene problemas. Corrígelos y vuelve a guardar.",
   "admin.themes.err.limit": "Elimina antes un tema. Un servidor guarda hasta {max}.",
   "admin.themes.err.inUse": "Es el tema predeterminado. Elige y guarda antes otro predeterminado.",
+  "admin.themes.err.changed": "Alguien guardó este tema desde que lo abriste. Recarga la página e inténtalo de nuevo.",
   "admin.themes.err.notFound": "Ese tema ya no existe. Recarga la página.",
   "admin.themes.err.fontInvalid": "Ese archivo no es una fuente WOFF2 que Bonfire pueda usar.",
   "admin.themes.err.fontRights": "Confirma que tienes derecho a usar esta fuente.",

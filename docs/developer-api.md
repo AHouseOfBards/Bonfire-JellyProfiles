@@ -267,6 +267,7 @@ see [Maintenance](#maintenance). Sent with
 | `200` | Done, including when there was nothing to change. |
 | `304` | Not modified: the `ETag` you sent still matches. See [Caching](#caching). |
 | `400` | Refused. The body says why. |
+| `409` | A save from an older copy of what it changes. Reload and try again. |
 | `401` | Not signed in: no token, or the token was rejected. Sign in again. This is the only case that gets a `401`. |
 | `403` | Signed in but not allowed: a profile on a main-account route, a non-administrator on an administrator route, or an API key on a route that needs a person. Keep the session. |
 | `404` | Unknown profile, image, library or main account. |
@@ -297,6 +298,7 @@ Invalid PIN code.
 | `theme_limit` | 40 custom themes are stored. Delete one first. |
 | `theme_not_found` | No custom theme has that id. |
 | `theme_in_use` | That theme is the default. Choose another default first. |
+| `theme_changed` | The theme was saved again after the copy you edited. Reload it. Sent with `409`. |
 | `font_invalid` | The file isn't a WOFF2 font that can draw Latin letters, is over 2 MB, or the name or fallback isn't allowed. |
 | `font_rights` | `rights=true` wasn't sent. |
 | `font_taken` | A font with that name is already on the server. |
@@ -1531,6 +1533,11 @@ The body is a theme file whose `id` is `{id}`. Adds it, or replaces the custom t
 that id. Returns `{ "id": "shop", "created": true }`. `400` with
 `{ "message": "…", "problems": [ … ] }` when it doesn't pass, and `400` when 40 are
 already stored.
+
+A theme's `revision` goes up on every save. Send one above the stored revision, which is
+what the dashboard does. An edit whose revision is not above it was made from an older copy
+and gets `409 theme_changed`, leaving the newer save as it is. A file with no `revision` is
+still accepted and takes the next one.
 
 ### `DELETE /plugins/profiles/admin/themes/custom/{id}`
 

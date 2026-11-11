@@ -604,6 +604,7 @@
   "admin.themes.err.invalid": "Ten motyw ma problemy. Popraw je i zapisz ponownie.",
   "admin.themes.err.limit": "Najpierw usuń jakiś motyw. Serwer przechowuje najwyżej {max}.",
   "admin.themes.err.inUse": "To motyw domyślny. Najpierw wybierz i zapisz inny motyw domyślny.",
+  "admin.themes.err.changed": "Ktoś zapisał ten motyw po jego otwarciu. Odśwież stronę i spróbuj ponownie.",
   "admin.themes.err.notFound": "Tego motywu już nie ma. Odśwież stronę.",
   "admin.themes.err.fontInvalid": "Ten plik nie jest czcionką WOFF2, której Bonfire może użyć.",
   "admin.themes.err.fontRights": "Potwierdź, że masz prawo używać tej czcionki.",

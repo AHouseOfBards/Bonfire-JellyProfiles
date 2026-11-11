@@ -247,7 +247,25 @@ namespace Jellyfin.Profiles.Controllers
             }
         }
 
-        /// <summary>Saves one custom theme, new or edited. Its id is the one in the address.</summary>
+        /// <summary>The revision in a stored theme's file, 0 when there is none to read.</summary>
+        private static int StoredRevision(CustomTheme? theme)
+        {
+            if (theme == null) return 0;
+            try
+            {
+                return JsonNode.Parse(theme.Json) is JsonObject o && o["revision"] is JsonValue v && v.TryGetValue<double>(out var r) ? (int)r : 0;
+            }
+            catch (JsonException)
+            {
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Saves one custom theme, new or edited. Its id is the one in the address. An edit
+        /// has to carry a revision above the stored one, or <c>409</c>; one with no revision
+        /// takes the next.
+        /// </summary>
         [HttpPut("admin/themes/custom/{id}")]
         [RequestSizeLimit(ThemeValidator.MaxBytes + 4096)]
         [Produces("application/json")]
@@ -262,6 +280,12 @@ namespace Jellyfin.Profiles.Controllers
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
 
+                // The revision a save has to beat. A file with none takes the next one, so a
+                // caller that never heard of revisions keeps working (and keeps last-write-wins).
+                var stored = config.CustomThemes.FirstOrDefault(c => c.Id == id);
+                var storedRevision = StoredRevision(stored);
+                if (node is JsonObject file && !file.ContainsKey("revision")) file["revision"] = storedRevision + 1;
+
                 var problems = ThemeCatalog.ValidateCustom(node, config).ToList();
                 var bodyId = node?["id"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
                 if (problems.Count == 0 && bodyId != id)
@@ -274,7 +298,15 @@ namespace Jellyfin.Profiles.Controllers
                     return BadRequest(new { message = "That theme isn't valid.", problems = ProblemList(problems) });
                 }
 
-                var existing = config.CustomThemes.FirstOrDefault(c => c.Id == id);
+                var existing = stored;
+
+                // A theme's revision goes up on every save and the editor sends the one after
+                // the one it loaded. One that is not above the stored revision was made from a
+                // copy another save has since replaced, and would overwrite that save, live at
+                // once for every profile. Refused; the page says to reload (R-1089).
+                if (existing != null && node!["revision"] is JsonValue rev && rev.TryGetValue<double>(out var sent) && sent <= storedRevision)
+                    return Conflict("That theme was changed somewhere else. Reload it and try again.");
+
                 if (existing == null && config.CustomThemes.Count >= ThemeCatalog.MaxCustomThemes)
                     return BadRequest("Delete a custom theme first. A server can keep up to " + ThemeCatalog.MaxCustomThemes + ".");
 

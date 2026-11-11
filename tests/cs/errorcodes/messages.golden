@@ -58,6 +58,7 @@ BadRequest|invalid_request|PIN tries a day must be 1 to {PinBudget.DailyLimit}.
 BadRequest|invalid_request|Pick two different profiles.
 BadRequest|invalid_request|Picture quality must be '{ImageQualities.Standard}', '{ImageQualities.High}', '{ImageQualities.Maximum}' or '{ImageQualities.Ultra}'.
 BadRequest|invalid_request|Switcher location must be '{SwitcherLocations.Button}' or '{SwitcherLocations.Menu}'.
+BadRequest|invalid_request|That account does not exist.
 BadRequest|invalid_request|That file does not look like a Bonfire configuration — it has none of the expected sections. Nothing was changed.
 BadRequest|invalid_request|That folder could not be read: 
 BadRequest|invalid_request|That image could not be saved.
@@ -65,6 +66,7 @@ BadRequest|invalid_request|That path is not valid.
 BadRequest|invalid_request|That theme isn't valid.
 BadRequest|invalid_request|The code is too long.
 BadRequest|invalid_request|The code must be at least {MinPanicCodeLength} characters.
+BadRequest|invalid_request|The library is full ({MaxLibraryAvatars} pictures). Remove one first.
 BadRequest|invalid_request|Those devices could not be merged.
 BadRequest|invalid_request|Unknown device.
 BadRequest|library_not_found|That library no longer exists.

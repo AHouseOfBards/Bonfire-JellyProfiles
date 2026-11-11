@@ -470,6 +470,7 @@ var saved = Call(As(true), "SaveCustomTheme", "mine", Json(Custom("mine")));
 Ok("an administrator saves a theme", Status(saved) == 200 && (bool)Body(saved)!["created"]!, Body(saved)?.ToJsonString());
 Ok("it is stored, by its id", live.CustomThemes.Count == 1 && live.CustomThemes[0].Id == "mine");
 var edited = Custom("mine", "crimson");
+edited["revision"] = 100;   // what the page sends: one past the one it loaded (R-1089)
 var again = Call(As(true), "SaveCustomTheme", "mine", Json(edited));
 Ok("saving it again edits it in place", Status(again) == 200 && !(bool)Body(again)!["created"]!
    && live.CustomThemes.Count == 1 && JsonNode.DeepEquals(JsonNode.Parse(live.CustomThemes[0].Json), edited));
@@ -486,12 +487,44 @@ Ok("validate answers the problems without saving", Status(check) == 200 && Body(
 var checkGood = Call(As(true), "ValidateCustomTheme", Json(Custom("fine")));
 Ok("and none for a good one", Status(checkGood) == 200 && Body(checkGood)!["problems"]!.AsArray().Count == 0);
 
+// A stale tab must not overwrite a newer save (R-1089). A theme's revision goes up on every
+// save and the page sends the one after the one it loaded, so a save whose revision is not
+// above the stored one was made from an older copy. One with no revision is still taken.
+Console.WriteLine("── Saving over a newer save ─────────────────────────────────────");
+JsonObject AtRevision(string id, string from, int? revision, string name)
+{
+    var t = Custom(id, from);
+    t["name"] = new JsonObject { ["text"] = name };
+    if (revision == null) t.Remove("revision"); else t["revision"] = revision.Value;
+    return t;
+}
+int StoredRevision(string id) => (int)JsonNode.Parse(live.CustomThemes.First(c => c.Id == id).Json)!["revision"]!;
+string StoredName(string id) => (string)JsonNode.Parse(live.CustomThemes.First(c => c.Id == id).Json)!["name"]!["text"]!;
+
+Ok("a new theme at revision 1 is saved", Status(Call(As(true), "SaveCustomTheme", "race", Json(AtRevision("race", "harvest", 1, "First")))) == 200);
+Ok("an edit one revision on is saved", Status(Call(As(true), "SaveCustomTheme", "race", Json(AtRevision("race", "harvest", 2, "Second")))) == 200
+   && StoredRevision("race") == 2);
+var staleTab = Call(As(true), "SaveCustomTheme", "race", Json(AtRevision("race", "harvest", 2, "From a stale tab")));
+Ok("a tab that loaded revision 1 and saves after revision 2 is refused with 409", Status(staleTab) == 409, Status(staleTab).ToString());
+Ok("and the newer save is untouched", StoredRevision("race") == 2 && StoredName("race") == "Second");
+Ok("the refusal has its own code", Status(staleTab) == 409 && Body(staleTab) != null
+   && Jellyfin.Profiles.Controllers.ErrorCodes.For(409, (string)Body(staleTab)) == "theme_changed", Body(staleTab)?.ToJsonString());
+Ok("an older revision is refused too", Status(Call(As(true), "SaveCustomTheme", "race", Json(AtRevision("race", "harvest", 1, "Older")))) == 409
+   && StoredName("race") == "Second");
+Ok("a save with no revision is still accepted", Status(Call(As(true), "SaveCustomTheme", "race", Json(AtRevision("race", "harvest", null, "No revision")))) == 200
+   && StoredName("race") == "No revision");
+Ok("and takes the next revision", StoredRevision("race") == 3, StoredRevision("race").ToString());
+Ok("a new theme with no revision is accepted at revision 1", Status(Call(As(true), "SaveCustomTheme", "norev", Json(AtRevision("norev", "harvest", null, "New")))) == 200
+   && StoredRevision("norev") == 1);
+live.CustomThemes.RemoveAll(c => c.Id == "race" || c.Id == "norev");
+
 // The limit.
 for (var i = live.CustomThemes.Count; i < ThemeCatalog.MaxCustomThemes; i++)
     Call(As(true), "SaveCustomTheme", "fill-" + i, Json(Custom("fill-" + i)));
 var over = Call(As(true), "SaveCustomTheme", "one-more", Json(Custom("one-more")));
 Ok("at " + ThemeCatalog.MaxCustomThemes + " themes a new one is refused", Status(over) == 400 && live.CustomThemes.Count == ThemeCatalog.MaxCustomThemes);
-Ok("but an existing one can still be edited", Status(Call(As(true), "SaveCustomTheme", "mine", Json(Custom("mine")))) == 200);
+var editAgain = Custom("mine"); editAgain["revision"] = 101;
+Ok("but an existing one can still be edited", Status(Call(As(true), "SaveCustomTheme", "mine", Json(editAgain))) == 200);
 live.CustomThemes.RemoveAll(c => c.Id.StartsWith("fill-", StringComparison.Ordinal));
 
 // Hidden.

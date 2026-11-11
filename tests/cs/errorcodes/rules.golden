@@ -84,6 +84,7 @@ limits_invalid|More time is between
 grant_cap|That's past the 4 hours of extra time
 time_zone_invalid|That time zone isn't known
 credentials_wrong|That username or password isn't right
+not_linkable|That account is turned off in Jellyfin
 not_linkable|That's your own account
 not_linkable|That's a profile. Add its main account
 already_linked|That account is already here
@@ -100,6 +101,7 @@ not_convertible|It's in a Bonfire. Leave it first
 theme_limit|Delete a custom theme first
 theme_not_found|No such theme
 theme_in_use|That's the default theme. Choose another default first
+theme_changed|That theme was changed somewhere else
 theme_invalid|Only built-in themes can be hidden
 theme_invalid|Bonfire can't be hidden
 theme_invalid|Send the list of themes to hide

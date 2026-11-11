@@ -604,6 +604,7 @@
   "admin.themes.err.invalid": "Aquest tema té problemes. Corregeix-los i torna a desar.",
   "admin.themes.err.limit": "Primer elimina un tema. Un servidor en guarda fins a {max}.",
   "admin.themes.err.inUse": "És el tema per defecte. Primer tria i desa un altre tema per defecte.",
+  "admin.themes.err.changed": "Algú ha desat aquest tema des que l'has obert. Recarrega la pàgina i torna-ho a provar.",
   "admin.themes.err.notFound": "Aquest tema ja no existeix. Torna a carregar la pàgina.",
   "admin.themes.err.fontInvalid": "Aquest fitxer no és un tipus de lletra WOFF2 que Bonfire pugui usar.",
   "admin.themes.err.fontRights": "Confirma que tens dret a usar aquest tipus de lletra.",

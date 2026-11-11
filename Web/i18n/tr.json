@@ -615,6 +615,7 @@
   "admin.themes.err.invalid": "Bu temada sorunlar var. Düzeltip yeniden kaydedin.",
   "admin.themes.err.limit": "Önce bir tema silin. Bir sunucu en fazla {max} tema tutar.",
   "admin.themes.err.inUse": "Bu varsayılan tema. Önce başka bir varsayılan seçip kaydedin.",
+  "admin.themes.err.changed": "Bu tema, siz açtıktan sonra kaydedildi. Sayfayı yenileyip tekrar deneyin.",
   "admin.themes.err.notFound": "Bu tema artık yok. Sayfayı yenileyin.",
   "admin.themes.err.fontInvalid": "Bu dosya Bonfire'ın kullanabileceği bir WOFF2 yazı tipi değil.",
   "admin.themes.err.fontRights": "Bu yazı tipini kullanma hakkınız olduğunu onaylayın.",
