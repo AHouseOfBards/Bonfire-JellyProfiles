@@ -8,14 +8,17 @@ using Jellyfin.Profiles.Configuration;
 namespace Jellyfin.Profiles.Auth
 {
     /// <summary>
-    /// The addresses an administrator has said count as home for "No PIN on the server's
-    /// network" (issue #42: a parent's house the server is not in). Off while the list is
-    /// empty.
+    /// The addresses an administrator has said are a household's own (issue #42: a parent's
+    /// house the server is not in). Each entry is an address or range plus the main accounts
+    /// it is for. Off while there are no entries.
     ///
-    /// <para><b>What it feeds.</b> Only a profile's own skip, <c>CanSkipPin</c>, and only for a
-    /// profile whose household turned that skip on. It is not "local": the cross-household
-    /// bypass, the "seen at home" memory and the device records never read it. And it never
-    /// reaches a main account or an administrator, which is decided where it is used.</para>
+    /// <para><b>What it feeds.</b> <c>CanSkipPin</c>, and only for a household an entry names:
+    /// from that address its main account and its profiles open without a PIN, whatever
+    /// the household chose for "No PIN on the server's network". It is not "local": the
+    /// cross-household bypass, the "seen at home" memory and the device records never read
+    /// it. It never reaches an administrator account (checked where it is used, because rights
+    /// change after an entry is saved), a switch into another household, an account no entry
+    /// names, or the main PIN that guards changing household settings.</para>
     ///
     /// <para><b>Fixed limits, not settings.</b> A looser value lets a stranger past a PIN, so an
     /// administrator can only be stricter:
@@ -125,33 +128,55 @@ namespace Jellyfin.Profiles.Auth
             return true;
         }
 
-        /// <summary>The reason <paramref name="entries"/> cannot be saved, or null when they can.</summary>
-        public static string? Validate(IEnumerable<string>? entries)
+        /// <summary>
+        /// The reason <paramref name="entries"/> cannot be saved, or null when they can.
+        /// <paramref name="checkAccount"/> answers for one account id: null when it is a real
+        /// main account that is not an administrator, otherwise the text to show.
+        /// </summary>
+        public static string? Validate(IEnumerable<TrustedAddressEntry>? entries, Func<Guid, string?>? checkAccount = null)
         {
             if (entries == null) return null;
             var list = entries.ToList();
             if (list.Count > MaxEntries) return $"At most {MaxEntries} addresses.";
+            var seen = new HashSet<string>();
             foreach (var entry in list)
             {
-                if (!TryParse(entry, out _, out _, out _, out var error)) return error;
+                if (entry == null) return "An address is empty.";
+                if (!TryParse(entry.Address, out _, out _, out var canonical, out var error)) return error;
+                if (!seen.Add(canonical)) return $"'{canonical}' is listed twice.";
+                var ids = (entry.UserIds ?? new List<Guid>()).Distinct().ToList();
+                if (ids.Count == 0) return $"'{canonical}' has no account.";
+                foreach (var id in ids)
+                {
+                    if (id == Guid.Empty) return $"'{canonical}' names an account that does not exist.";
+                    var problem = checkAccount?.Invoke(id);
+                    if (problem != null) return problem;
+                }
             }
 
             return null;
         }
 
         /// <summary>
-        /// The entries that are valid, written in full, once each, no more than
+        /// The entries that are valid, the address written in full, once each, no more than
         /// <see cref="MaxEntries"/>. For a backup file: a restore keeps what it can and never
-        /// widens past the limits.
+        /// widens past the limits. Whether an account still exists, or is now an administrator,
+        /// is not asked here but every time an address is used (<see cref="Applies"/>), so a
+        /// file from another server can only name accounts that fail closed.
         /// </summary>
-        public static List<string> Normalize(IEnumerable<string>? entries)
+        public static List<TrustedAddressEntry> Normalize(IEnumerable<TrustedAddressEntry>? entries)
         {
-            var kept = new List<string>();
+            var kept = new List<TrustedAddressEntry>();
             if (entries == null) return kept;
             foreach (var entry in entries)
             {
                 if (kept.Count >= MaxEntries) break;
-                if (TryParse(entry, out _, out _, out var canonical, out _) && !kept.Contains(canonical)) kept.Add(canonical);
+                if (entry == null) continue;
+                if (!TryParse(entry.Address, out _, out _, out var canonical, out _)) continue;
+                if (kept.Any(k => k.Address == canonical)) continue;
+                var ids = (entry.UserIds ?? new List<Guid>()).Where(i => i != Guid.Empty).Distinct().ToList();
+                if (ids.Count == 0) continue;
+                kept.Add(new TrustedAddressEntry { Address = canonical, UserIds = ids });
             }
 
             return kept;
@@ -159,33 +184,64 @@ namespace Jellyfin.Profiles.Auth
 
         /// <summary>
         /// Whether <paramref name="address"/>, the one Jellyfin resolved after its known
-        /// proxies, is inside a listed range. False for no list, no address, or an entry that no
-        /// longer parses (a hand-edited file); never throws.
+        /// proxies, is a listed address that names <paramref name="household"/>, and
+        /// neither that main account nor <paramref name="account"/> (the one being opened) is an
+        /// administrator. False for no list, no address, or an entry that no longer parses
+        /// (a hand-edited file); never throws. <paramref name="isAdministrator"/> is asked
+        /// only after an entry matched, so the feature costs nothing while it is off.
         /// </summary>
-        public static bool Contains(PluginConfiguration? config, IPAddress? address)
+        public static bool Applies(
+            PluginConfiguration? config, IPAddress? address, Guid household, Guid account, Func<Guid, bool> isAdministrator)
         {
-            var list = config?.TrustedPinAddresses;
-            if (list == null || list.Count == 0 || address == null) return false;
+            var list = config?.TrustedAddressEntries;
+            if (list == null || list.Count == 0 || address == null || household == Guid.Empty) return false;
 
             try
             {
                 if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
                 var bytes = address.GetAddressBytes();
+                var matched = false;
 
                 // Only the first MaxEntries, so a file edited by hand cannot grow the work.
                 foreach (var entry in list.Take(MaxEntries))
                 {
-                    if (!TryParse(entry, out var network, out var prefix, out _, out _)) continue;
+                    if (entry?.UserIds == null || !entry.UserIds.Contains(household)) continue;
+                    if (!TryParse(entry.Address, out var network, out var prefix, out _, out _)) continue;
                     if (network.Length != bytes.Length) continue;
-                    if (Mask(bytes, prefix).AsSpan().SequenceEqual(network)) return true;
+                    if (!Mask(bytes, prefix).AsSpan().SequenceEqual(network)) continue;
+                    matched = true;
+                    break;
                 }
+
+                if (!matched) return false;
+
+                // Rights can change after an entry was saved. An administrator's PIN is never
+                // skipped from an address, whichever way the account is reached.
+                return !isAdministrator(household) && !isAdministrator(account);
             }
             catch (Exception)
             {
                 return false;
             }
+        }
 
-            return false;
+        /// <summary>
+        /// Whether the account carries administrator rights, answering yes when it cannot
+        /// tell (no such user, a failed lookup): here a wrong yes costs one PIN, a wrong
+        /// no lets an administrator in without one.
+        /// </summary>
+        public static bool IsAdministrator(MediaBrowser.Controller.Library.IUserManager? users, Guid userId)
+        {
+            try
+            {
+                var user = users?.GetUserById(userId);
+                if (user == null) return true;
+                return users!.GetUserDto(user, string.Empty).Policy?.IsAdministrator ?? true;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
         }
 
         private static byte[] Mask(byte[] bytes, int prefix)

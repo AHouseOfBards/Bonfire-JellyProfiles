@@ -111,7 +111,8 @@ namespace Jellyfin.Profiles.Controllers
                     && !CanSkipPin(linkedMapping, isLocal, crossHousehold,
                         householdLanBypass: addedRules != null
                             ? addedRules.HouseholdLanBypass
-                            : isLocal && linkedMapping.AllowHouseholdLanBypass);
+                            : isLocal && linkedMapping.AllowHouseholdLanBypass,
+                        isTrusted: IsTrustedFor(linkedMapping, remoteIp, config));
 
                 profileList.Add(new
                 {
@@ -1809,8 +1810,8 @@ namespace Jellyfin.Profiles.Controllers
                 if (TryProperty(root, "ProxyClients", out _))
                     config.ProxyClients = Auth.ProxyClients.Normalize(incoming.ProxyClients);
                 // Only ever within the limits: a file cannot widen what the settings route refuses.
-                if (TryProperty(root, "TrustedPinAddresses", out _))
-                    config.TrustedPinAddresses = Auth.TrustedAddresses.Normalize(incoming.TrustedPinAddresses);
+                if (TryProperty(root, "TrustedAddressEntries", out _))
+                    config.TrustedAddressEntries = Auth.TrustedAddresses.Normalize(incoming.TrustedAddressEntries);
                 // Through the same rules as the route, so a hand-edited file cannot store
                 // an announcement the settings page would refuse.
                 if (TryProperty(root, "Announcements", out _))
@@ -1869,7 +1870,7 @@ namespace Jellyfin.Profiles.Controllers
             "LinkedAccounts", "UserProfileLimitOverrides", "AvatarLibrary", "DisallowCustomAvatarUploads",
             "ProfileImageQuality", "DefaultAskOnStartup", "DefaultSwitcherLocation", "CustomFonts", "CustomThemes",
             "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
-            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients", "TrustedPinAddresses",
+            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients", "TrustedAddressEntries",
             "Announcements", "AccountEmails",
         };
 
@@ -5259,7 +5260,7 @@ namespace Jellyfin.Profiles.Controllers
 
             // Fixed limits (Auth/TrustedAddresses.cs), refused rather than trimmed: a list
             // that quietly loses an entry looks saved.
-            var trustedError = Auth.TrustedAddresses.Validate(request.TrustedPinAddresses);
+            var trustedError = Auth.TrustedAddresses.Validate(request.TrustedAddressEntries, TrustedAccountProblem);
             if (trustedError != null) return BadRequest(trustedError);
 
             if (!string.IsNullOrEmpty(request.DefaultTimeZone) && !HouseholdTime.TryFind(request.DefaultTimeZone, out _))
@@ -5359,8 +5360,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.ProxyClients = Auth.ProxyClients.Normalize(request.ProxyClients);
                 if (request.EnablePinResetByEmail.HasValue)
                     config.EnablePinResetByEmail = request.EnablePinResetByEmail.Value;
-                if (request.TrustedPinAddresses != null)
-                    config.TrustedPinAddresses = Auth.TrustedAddresses.Normalize(request.TrustedPinAddresses);
+                if (request.TrustedAddressEntries != null)
+                    config.TrustedAddressEntries = Auth.TrustedAddresses.Normalize(request.TrustedAddressEntries);
 
                 config.Onboarding ??= new OnboardingSettings();
                 var onboarding = config.Onboarding;

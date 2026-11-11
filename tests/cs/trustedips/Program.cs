@@ -20,13 +20,13 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 #pragma warning disable CS0219, CS8321 // the shared world setup has helpers this harness does not use
 // ─────────────────────────────────────────────────────────────────────────────
-// Addresses an administrator trusts (issue #42): a profile that has "No PIN on the
-// server's network" turned on skips its PIN from them too, as it would at home.
+// Addresses an administrator trusts (issue #42): each entry is an address or range and
+// the main accounts it is for. From it, those households open their main account and
+// their profiles without a PIN, whatever the household's own settings say.
 //
-// Each household still chooses per profile; the administrator only adds addresses that
-// count. Never the main account, an administrator, or a switch into another household.
-// At most ten entries, none wider than /16 (IPv4) or /48 (IPv6): fixed limits, since a
-// looser one lets a stranger past a PIN.
+// Never an administrator's account, a switch into another household, an account no entry
+// names, or the main PIN for changing household settings. At most ten entries, none wider
+// than /16 (IPv4) or /48 (IPv6): fixed limits, since a looser one lets a stranger past a PIN.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -218,22 +218,57 @@ const string HERE = "10.0.0.20";      // NetworkStub: local
 const string TRUSTED4 = "198.51.100.7";
 const string TRUSTED6 = "2001:db8:abcd:1::5";
 
-Ok("this build keeps a list of trusted addresses", cfgType.GetProperty("TrustedPinAddresses") != null);
-Ok("and the settings route takes it", typeof(object).Assembly != null && asm.GetType("Jellyfin.Profiles.Models.AdminSettingsRequest")?.GetProperty("TrustedPinAddresses") != null);
-IList Trusted() => (IList)cfgType.GetProperty("TrustedPinAddresses")?.GetValue(config) ?? new List<string>();
-void SetTrusted(params string[] a) { Trusted().Clear(); foreach (var x in a) Trusted().Add(x); }
-(int status, object value) SaveList(IEnumerable<string> list, Guid? caller = null)
-    { try { return Call("UpdateAdminSettings", caller ?? ADMIN, B(("TrustedPinAddresses", list.ToList()))); } catch (Exception e) { return (-500, e.Message); } }
+var entryType = asm.GetType("Jellyfin.Profiles.Configuration.TrustedAddressEntry");
+var entriesProp = cfgType.GetProperty("TrustedAddressEntries");
+Ok("this build keeps entries of an address and the accounts it is for",
+   entryType != null && entriesProp != null && entryType.GetProperty("Address") != null && entryType.GetProperty("UserIds") != null);
+Ok("and the settings route takes them", asm.GetType("Jellyfin.Profiles.Models.AdminSettingsRequest")?.GetProperty("TrustedAddressEntries") != null);
+IList Entries() => entriesProp == null ? new ArrayList() : (IList)entriesProp.GetValue(config);
+object MakeEntry(string address, Guid[] ids)
+{
+    var e = Activator.CreateInstance(entryType);
+    entryType.GetProperty("Address").SetValue(e, address);
+    var l = (IList)entryType.GetProperty("UserIds").GetValue(e);
+    foreach (var id in ids) l.Add(id);
+    return e;
+}
+// Written straight into the configuration, as a hand-edited file or a restore would: no validation.
+void TrustNone() { Entries().Clear(); }
+void AddEntry(string address, params Guid[] ids) { if (entryType != null) Entries().Add(MakeEntry(address, ids)); }
+void Trust(string address, params Guid[] ids) { TrustNone(); AddEntry(address, ids); }
+int EntryCount() => Entries().Count;
+string FirstAddress() => Entries().Count == 0 ? null : (string)entryType.GetProperty("Address").GetValue(Entries()[0]);
+// Through the settings route, as the dashboard does.
+(int status, object value) Save(Guid? caller, params (string address, Guid[] ids)[] list)
+{
+    try
+    {
+        var typed = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(entryType));
+        foreach (var (a, ids) in list) typed.Add(MakeEntry(a, ids));
+        return Call("UpdateAdminSettings", caller ?? ADMIN, B(("TrustedAddressEntries", typed)));
+    }
+    catch (Exception e) { return (-500, e.Message); }
+}
 
-// A household with one profile that skips its PIN at home, one that does not, an
-// administrator account that was somehow made a profile, and a main account that skips at home.
+// Household HOME: a main account that asks, a profile that skips at home, one that does not,
+// and an administrator account that was somehow made a profile. Household OTHER: a main
+// account and a profile that skips at home. Household ADMIN2: an administrator's own.
 var ON = Guid.NewGuid();   world.Add(ON, "Parent_On", null);
 var OFF = Guid.NewGuid();  world.Add(OFF, "Parent_Off", null);
+var AKID = Guid.NewGuid(); world.Add(AKID, "Root_Kid", null);
 Map(ON, HOME, "On", pin: "1111");
 Map(OFF, HOME, "Off", pin: "2222");
 Map(ADMIN, HOME, "Boss", pin: "3333");
-foreach (var id in new[] { ON, ADMIN, HOME, ADMIN2 })
+Map(AKID, ADMIN2, "Rootkid", pin: "7777");
+mapType.GetProperty("PinHash").SetValue(Row(OTHER), Hash("5555"));
+mapType.GetProperty("PinHash").SetValue(Row(OKID), Hash("6666"));
+foreach (var id in new[] { ON, ADMIN, OKID, AKID })
     mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(Row(id), true);
+foreach (var id in new[] { HOME, OTHER, ADMIN2 })
+{
+    mapType.GetProperty("AskPinToOpen").SetValue(Row(id), true);
+    mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(Row(id), false);
+}
 
 List<object> Tiles(Guid caller, string ip)
 {
@@ -245,38 +280,68 @@ bool? Asks(Guid caller, Guid profile, string ip)
     var t = Tiles(caller, ip).FirstOrDefault(x => (Guid)P(x, "ProfileUserId") == profile);
     return t == null ? (bool?)null : (bool)P(t, "RequiresPin");
 }
+bool Opens((int status, object value) r) => r.status == 200;
 
-SetTrusted();
-Ok("at home the profile with the skip is not asked", Asks(HOME, ON, HERE) == false);
-Ok("away with nothing listed it is asked", Asks(HOME, ON, TRUSTED4) == true);
-Ok("an empty list changes nothing for a profile with the skip off", Asks(HOME, OFF, TRUSTED4) == true);
+TrustNone();
+Ok("nothing listed: a main account asks", Asks(HOME, HOME, TRUSTED4) == true);
+Ok("nothing listed: a profile that skips at home asks away", Asks(HOME, ON, TRUSTED4) == true);
+Ok("at home the profile with the skip is not asked, as before", Asks(HOME, ON, HERE) == false);
 
-SetTrusted(TRUSTED4);
-Ok("a profile with the skip on, from a trusted IPv4 address, is not asked", Asks(HOME, ON, TRUSTED4) == false);
-Ok("an untrusted remote address is asked", Asks(HOME, ON, AWAY) == true);
-Ok("the next address along is asked", Asks(HOME, ON, "198.51.100.8") == true);
-Ok("a profile with the skip off is asked even from a trusted address", Asks(HOME, OFF, TRUSTED4) == true);
-Ok("the main account is asked from a trusted address", Asks(HOME, HOME, TRUSTED4) == true);
-Ok("an administrator's PIN is asked from a trusted address", Asks(HOME, ADMIN, TRUSTED4) == true);
+// 1. A named household, from its address.
+Trust(TRUSTED4, HOME);
+Ok("a named household's main account from its address is not asked", Asks(HOME, HOME, TRUSTED4) == false);
+Ok("its profile is not asked", Asks(HOME, ON, TRUSTED4) == false);
+Ok("its profile with 'No PIN on the server's network' off is not asked either", Asks(HOME, OFF, TRUSTED4) == false);
+Ok("entering its profile from there needs no PIN", Opens(Call("SwitchProfile", HOME, B(("ProfileId", OFF)), ip: TRUSTED4)));
+Ok("entering its main account from a profile there needs no PIN", Opens(Call("SwitchProfile", KID, B(("ProfileId", HOME)), ip: TRUSTED4)));
+Ok("the PIN check route agrees", Opens(Call("VerifyPin", HOME, B(("ProfileId", OFF)), ip: TRUSTED4)));
 
-SetTrusted("2001:db8:abcd::/48");
-Ok("from a trusted IPv6 range it is not asked", Asks(HOME, ON, TRUSTED6) == false);
-Ok("from outside that range it is asked", Asks(HOME, ON, "2001:db8:abce::5") == true);
-SetTrusted("198.51.100.0/24");
-Ok("from a trusted IPv4 range it is not asked", Asks(HOME, ON, "198.51.100.200") == false && Asks(HOME, ON, "198.51.101.1") == true);
+// 2. An unnamed household from the same address.
+Ok("an unnamed household's main account from the same address is asked", Asks(OTHER, OTHER, TRUSTED4) == true);
+Ok("and its profile, even with the skip on", Asks(OTHER, OKID, TRUSTED4) == true);
+Ok("entering it needs the PIN", !Opens(Call("SwitchProfile", OTHER, B(("ProfileId", OKID)), ip: TRUSTED4)));
 
-// Entering one: the same rule through /switch.
-SetTrusted(TRUSTED4);
-var sw = Call("SwitchProfile", HOME, B(("ProfileId", ON)), ip: TRUSTED4);
-Ok("switching to it from a trusted address needs no PIN", sw.status == 200, Text(sw));
-sw = Call("SwitchProfile", HOME, B(("ProfileId", ON)), ip: AWAY);
-Ok("and from elsewhere it does", sw.status != 200, Text(sw));
-sw = Call("SwitchProfile", HOME, B(("ProfileId", OFF)), ip: TRUSTED4);
-Ok("a profile with the skip off still needs it", sw.status != 200, Text(sw));
-sw = Call("SwitchProfile", HOME, B(("ProfileId", ADMIN)), ip: TRUSTED4);
-Ok("an administrator account never skips it", sw.status != 200, Text(sw));
+// 3. The same household from another address.
+Ok("the named household's main account from elsewhere is asked", Asks(HOME, HOME, AWAY) == true);
+Ok("its profile from elsewhere is asked", Asks(HOME, OFF, AWAY) == true);
+Ok("the next address along is asked", Asks(HOME, OFF, "198.51.100.8") == true);
+Ok("entering from elsewhere needs the PIN", !Opens(Call("SwitchProfile", HOME, B(("ProfileId", OFF)), ip: AWAY)));
 
-// Across a household: the owner's consent is the only thing that opens it.
+// 4. Changing the household's settings still takes the main PIN.
+var mgmt = Call("AddAccountLink", HOME, B(("Username", "Someone"), ("Password", "pw")), ip: TRUSTED4);
+Ok("from its address, a household setting still asks for the main PIN", mgmt.status == 400 && Convert.ToString(mgmt.value).Contains("PIN"), Text(mgmt));
+mgmt = Call("AddAccountLink", HOME, B(("Username", "Someone"), ("Password", "pw")), pinHeader: "0000", ip: TRUSTED4);
+Ok("and a wrong main PIN is refused", mgmt.status != 200, Text(mgmt));
+
+// 5. An administrator always asks, at every call site. The entries are written by hand
+// (a restored file, or rights granted after the entry was saved): the save route refuses them.
+TrustNone();
+AddEntry(TRUSTED4, HOME, ADMIN2);
+var proxyType = asm.GetType("Jellyfin.Profiles.Auth.ProxySwitcher", true);
+var needsPin = proxyType.GetMethod("NeedsPin", Any);
+var svcType = proxyType.GetNestedType("Services", Any);
+var sessType = proxyType.GetNestedType("ProxySession", Any);
+var svc = Activator.CreateInstance(svcType, Any, null, new object[] { new UsersServices(users) }, null);
+bool NeedsPin(Guid master, Guid profile, string ip)
+{
+    var s = Activator.CreateInstance(sessType, true);
+    sessType.GetField("MasterId").SetValue(s, master);
+    var http = new DefaultHttpContext { RequestServices = new Services() };
+    http.Connection.RemoteIpAddress = IPAddress.Parse(ip);
+    return (bool)needsPin.Invoke(null, new object[] { http, s, profile, config, svc });
+}
+Ok("(control) the picker lets the named household's profile in from its address", NeedsPin(HOME, OFF, TRUSTED4) == false);
+Ok("(control) and its main account", NeedsPin(HOME, HOME, TRUSTED4) == false);
+Ok("web switcher tile: an administrator's profile in a named household asks", Asks(HOME, ADMIN, TRUSTED4) == true);
+Ok("web switcher /switch: it asks", !Opens(Call("SwitchProfile", HOME, B(("ProfileId", ADMIN)), ip: TRUSTED4)));
+Ok("PIN check route: it asks", !Opens(Call("VerifyPin", HOME, B(("ProfileId", ADMIN)), ip: TRUSTED4)));
+Ok("web switcher tile: an administrator's own main account asks", Asks(ADMIN2, ADMIN2, TRUSTED4) == true);
+Ok("and a profile in an administrator's household asks", Asks(ADMIN2, AKID, TRUSTED4) == true);
+Ok("the picker: an administrator's profile asks", NeedsPin(HOME, ADMIN, TRUSTED4) == true);
+Ok("the picker: an administrator's main account asks", NeedsPin(ADMIN2, ADMIN2, TRUSTED4) == true);
+Ok("the picker: a profile in an administrator's household asks", NeedsPin(ADMIN2, AKID, TRUSTED4) == true);
+
+// 6. Switching into another household asks.
 var canSkip = baseType.GetMethod("CanSkipPin", Any);
 bool Skip(object row, bool local, bool cross, bool lan, bool trusted)
 {
@@ -285,18 +350,31 @@ bool Skip(object row, bool local, bool cross, bool lan, bool trusted)
     if (ps.Length > 4) args.Add(trusted);
     return (bool)canSkip.Invoke(null, args.ToArray());
 }
-Ok("CanSkipPin takes whether the address is trusted", canSkip.GetParameters().Length == 5);
-Ok("a cross-household switch asks, trusted or not", !Skip(Row(ON), false, true, false, true));
-Ok("a main account's row asks, trusted or not", !Skip(Row(HOME), false, false, false, true));
-Ok("and a profile row skips when trusted", Skip(Row(ON), false, false, false, true));
+Ok("CanSkipPin takes whether the address is trusted for this household", canSkip.GetParameters().Length == 5);
+Ok("a cross-household switch asks, trusted or not", !Skip(Row(OTHER), false, true, false, true));
+Ok("a trusted profile row skips", Skip(Row(OFF), false, false, false, true));
+Ok("a trusted main row skips, whatever its own settings", Skip(Row(HOME), false, false, false, true));
+TrustNone();
+AddEntry("198.51.100.0/24", HOME, OTHER);
+{
+    var link = Activator.CreateInstance(linkType);
+    linkType.GetProperty("HouseholdId").SetValue(link, HOME);
+    linkType.GetProperty("UserId").SetValue(link, OTHER);
+    Links().Add(link);
+    var cross = Call("SwitchProfile", HOME, B(("ProfileId", OTHER)), ip: TRUSTED4);
+    Ok("from an address that names both, switching into the other household's account still asks", !Opens(cross), Text(cross));
+    var crossTiles = Tiles(HOME, TRUSTED4).Where(x => (Guid)P(x, "ProfileUserId") == OTHER).ToList();
+    Ok("and its tile says so", crossTiles.Count == 0 || crossTiles.All(x => (bool)P(x, "RequiresPin")));
+    Links().Remove(link);
+}
 
-// Trusted is not local.
-SetTrusted(TRUSTED4);
+// A trusted address is not the server's network.
+Trust(TRUSTED4, HOME, OTHER);
 Tiles(OTHER, TRUSTED4);
-Ok("a trusted address is not the server's network: the household is not marked seen there",
+Ok("a trusted address is not local: the household is not marked seen there",
    !((IList)cfgType.GetProperty("HouseholdsSeenLocally").GetValue(config)).Cast<Guid>().Contains(OTHER));
 
-// Saved sign-in lock: the same skip on the television's own sign-in screen.
+// 7. Saved sign-in lock: the same rule on the television's own sign-in screen.
 var lockType = asm.GetType("Jellyfin.Profiles.Auth.SavedSignInLock", true);
 var targets = lockType.GetMethod("Targets");
 var devType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
@@ -307,71 +385,142 @@ devType.GetProperty("MasterUserId").SetValue(dev, HOME);
 devType.GetProperty("LastSeen").SetValue(dev, DateTime.UtcNow);
 ((IList)cfgType.GetProperty("KnownDevices").GetValue(config)).Add(dev);
 cfgType.GetProperty("EnableClientPinLogin").SetValue(config, true);
-int LockedNames(string ip, bool local)
+bool Locked(Guid who, string ip, bool local = false, bool withAdminCheck = true)
 {
     var ps = targets.GetParameters();
     var args = new List<object> { config, TV, local, (Func<Guid, string>)(id => world.Users.TryGetValue(id, out var u) ? u.Username : null) };
     if (ps.Length > 4) args.Add(IPAddress.Parse(ip));
+    if (ps.Length > 5) args.Add(withAdminCheck ? (Func<Guid, bool>)(id => world.Admins.Contains(id)) : null);
     var res = (IEnumerable)targets.Invoke(null, args.ToArray());
-    return res.Cast<object>().Count(t => (Guid)P(t, "UserId") == ON);
+    return res.Cast<object>().Any(t => (Guid)P(t, "UserId") == who);
 }
-Ok("the television's sign-in lock takes an address", targets.GetParameters().Length == 5);
-Ok("a profile with the skip on is locked from an untrusted address", LockedNames(AWAY, false) == 1);
-Ok("and left open from a trusted one", LockedNames(TRUSTED4, false) == 0);
+Ok("the television's sign-in lock takes an address and a way to tell administrators", targets.GetParameters().Length == 6);
+Trust(TRUSTED4, HOME);
+Ok("lock: the named household's profile is left open from its address, with the skip off", !Locked(OFF, TRUSTED4));
+Ok("lock: and with the skip on", !Locked(ON, TRUSTED4));
+Ok("lock: and its main account", !Locked(HOME, TRUSTED4));
+Ok("lock: from elsewhere they are locked", Locked(OFF, AWAY) && Locked(ON, AWAY) && Locked(HOME, AWAY));
+Ok("lock: at home, a profile with the skip on is open and one without is locked", !Locked(ON, AWAY, local: true) && Locked(OFF, AWAY, local: true));
+Ok("lock: an administrator's profile in the named household stays locked", Locked(ADMIN, TRUSTED4));
+Ok("lock: nobody is trusted when administrators cannot be told apart", Locked(OFF, TRUSTED4, withAdminCheck: false));
+Trust(TRUSTED4, OTHER);
+Ok("lock: a household the address does not name stays locked", Locked(OFF, TRUSTED4));
 
-// ── What can be saved ────────────────────────────────────────────────────────
+// 8. What can be saved.
 Section("What the administrator may save");
-SetTrusted();
-var saved = SaveList(new[] { "198.51.100.7", "203.0.113.0/24", "2001:db8:abcd::/48" });
-Ok("an address, a range and an IPv6 range are accepted", saved.status == 200 && Trusted().Count == 3, Text(saved));
-saved = SaveList(new string[0]);
-Ok("an empty list turns it off", saved.status == 200 && Trusted().Count == 0, Text(saved));
-SetTrusted("198.51.100.7");
-saved = SaveList(Enumerable.Range(1, 10).Select(i => "198.51.100." + i));
-Ok("ten entries are accepted", saved.status == 200 && Trusted().Count == 10, Text(saved));
-SetTrusted("198.51.100.7");
-saved = SaveList(Enumerable.Range(1, 11).Select(i => "198.51.100." + i));
-Ok("eleven are refused, and nothing changes", saved.status == 400 && Trusted().Count == 1, Text(saved));
-foreach (var bad in new[] { "not an address", "1.2.3", "300.1.1.1", "198.51.100.7/33", "198.51.100.7/", "198.51.100.7/-1", "198.51.100.07", "0x7f.0.0.1", "::ffff:198.51.100.7", "fe80::1%eth0", "0.0.0.0", "::", "198.51.100.7 203.0.113.1" })
+TrustNone();
+var saved = Save(null, ("198.51.100.7", new[] { HOME }), ("203.0.113.0/24", new[] { HOME, OTHER }), ("2001:db8:abcd::/48", new[] { MUM }));
+Ok("an address, a range and an IPv6 range, each with its accounts, are accepted", saved.status == 200 && EntryCount() == 3, Text(saved));
+saved = Save(null);
+Ok("an empty list turns it off", saved.status == 200 && EntryCount() == 0, Text(saved));
+Trust("198.51.100.7", HOME);
+saved = Save(null, Enumerable.Range(1, 10).Select(i => ("198.51.100." + i, new[] { HOME })).ToArray());
+Ok("ten entries are accepted", saved.status == 200 && EntryCount() == 10, Text(saved));
+Trust("198.51.100.7", HOME);
+saved = Save(null, Enumerable.Range(1, 11).Select(i => ("198.51.100." + i, new[] { HOME })).ToArray());
+Ok("eleven are refused, and nothing changes", saved.status == 400 && EntryCount() == 1 && FirstAddress() == "198.51.100.7", Text(saved));
+
+bool Kept() => EntryCount() == 1 && FirstAddress() == "198.51.100.7";
+foreach (var bad in new[] { "not an address", "1.2.3", "300.1.1.1", "198.51.100.7/33", "198.51.100.7/", "198.51.100.7/-1", "198.51.100.07", "0x7f.0.0.1", "::ffff:198.51.100.7", "fe80::1%eth0", "0.0.0.0", "::", "198.51.100.7 203.0.113.1", "" })
 {
-    SetTrusted("198.51.100.7");
-    saved = SaveList(new[] { bad });
-    Ok("refused: " + bad, saved.status == 400 && Trusted().Count == 1 && Trusted().Cast<string>().FirstOrDefault() == "198.51.100.7", Text(saved));
+    Trust("198.51.100.7", HOME);
+    saved = Save(null, (bad, new[] { HOME }));
+    Ok("refused: '" + bad + "'", saved.status == 400 && Kept(), Text(saved));
 }
 foreach (var wide in new[] { "0.0.0.0/0", "10.0.0.0/8", "198.51.0.0/15", "::/0", "2001:db8::/32", "2001:db8::/47" })
 {
-    SetTrusted("198.51.100.7");
-    saved = SaveList(new[] { wide });
-    Ok("too wide: " + wide, saved.status == 400 && Trusted().Count == 1, Text(saved));
+    Trust("198.51.100.7", HOME);
+    saved = Save(null, (wide, new[] { HOME }));
+    Ok("too wide: " + wide, saved.status == 400 && Kept(), Text(saved));
 }
-SetTrusted();
-Ok("the widest allowed are /16 and /48", SaveList(new[] { "198.51.0.0/16", "2001:db8:abcd::/48" }).status == 200);
+TrustNone();
+Ok("the widest allowed are /16 and /48", Save(null, ("198.51.0.0/16", new[] { HOME }), ("2001:db8:abcd::/48", new[] { HOME })).status == 200);
 
-SetTrusted("198.51.100.7");
-var nonAdmin = SaveList(new[] { "203.0.113.1" }, HOME);
-Ok("a main account cannot set the list", nonAdmin.status != 200 && Trusted().Count == 1 && Trusted().Cast<string>().FirstOrDefault() == "198.51.100.7", Text(nonAdmin));
-nonAdmin = SaveList(new[] { "203.0.113.1" }, KID);
-Ok("nor a profile", nonAdmin.status != 200 && Trusted().Cast<string>().FirstOrDefault() == "198.51.100.7", Text(nonAdmin));
-nonAdmin = SaveList(new[] { "203.0.113.1" }, Guid.Empty);
-Ok("nor somebody signed out", nonAdmin.status != 200 && Trusted().Cast<string>().FirstOrDefault() == "198.51.100.7", Text(nonAdmin));
-var infoText = System.Text.Json.JsonSerializer.Serialize(Call("GetInfo", HOME).value);
-Ok("and what /info tells a non-administrator does not include it", !infoText.Contains("198.51.100"), infoText);
+Trust("198.51.100.7", HOME);
+saved = Save(null, ("203.0.113.1", new[] { Guid.NewGuid() }));
+Ok("an id that is no account is refused", saved.status == 400 && Kept(), Text(saved));
+saved = Save(null, ("203.0.113.1", new[] { KID }));
+Ok("a profile's id is refused: it is not a main account", saved.status == 400 && Kept(), Text(saved));
+saved = Save(null, ("203.0.113.1", new[] { ADMIN2 }));
+Ok("an administrator's id is refused", saved.status == 400 && Kept(), Text(saved));
+saved = Save(null, ("203.0.113.1", new[] { HOME, ADMIN2 }));
+Ok("an administrator among others refuses the whole list", saved.status == 400 && Kept(), Text(saved));
+saved = Save(null, ("203.0.113.1", new Guid[0]));
+Ok("an address for nobody is refused", saved.status == 400 && Kept(), Text(saved));
+saved = Save(null, ("203.0.113.1", new[] { Guid.Empty }));
+Ok("an empty id is refused", saved.status == 400 && Kept(), Text(saved));
+saved = Save(null, ("203.0.113.1", new[] { HOME }), ("203.0.113.1", new[] { OTHER }));
+Ok("the same address twice is refused", saved.status == 400 && Kept(), Text(saved));
+saved = Save(null, ("203.0.113.1/24", new[] { HOME }), ("203.0.113.0/24", new[] { OTHER }));
+Ok("and so is the same range written two ways", saved.status == 400 && Kept(), Text(saved));
+saved = Save(null, ("203.0.113.1", new[] { HOME }), ("not an address", new[] { HOME }));
+Ok("one bad entry among good ones changes nothing", saved.status == 400 && Kept(), Text(saved));
 
-// ── Who gets counted ─────────────────────────────────────────────────────────
+Trust("198.51.100.7", HOME);
+var nonAdmin = Save(HOME, ("203.0.113.1", new[] { HOME }));
+Ok("a main account cannot set entries, not even its own", nonAdmin.status != 200 && Kept(), Text(nonAdmin));
+nonAdmin = Save(KID, ("203.0.113.1", new[] { HOME }));
+Ok("nor a profile", nonAdmin.status != 200 && Kept(), Text(nonAdmin));
+nonAdmin = Save(Guid.Empty, ("203.0.113.1", new[] { HOME }));
+Ok("nor somebody signed out", nonAdmin.status != 200 && Kept(), Text(nonAdmin));
+nonAdmin = Save(HOME);
+Ok("nor can one clear them", nonAdmin.status != 200 && Kept(), Text(nonAdmin));
+foreach (var who in new[] { HOME, KID, OTHER })
+{
+    var infoText = System.Text.Json.JsonSerializer.Serialize(Call("GetInfo", who).value);
+    Ok("what /info tells " + (who == HOME ? "a main account" : who == KID ? "a profile" : "another household") + " does not include them", !infoText.Contains("198.51.100") && !infoText.Contains("rustedAddress"), infoText);
+}
+if (entryType == null) Ok("an administrator's save is read back the way it was sent", false);
+else
+{
+    var back = Save(ADMIN, ("203.0.113.0/24", new[] { HOME }));
+    Ok("an administrator's save is read back the way it was sent", back.status == 200 && FirstAddress() == "203.0.113.0/24"
+       && ((IList)entryType.GetProperty("UserIds").GetValue(Entries()[0])).Cast<Guid>().SequenceEqual(new[] { HOME }));
+}
+
+// A restored file keeps only what is valid and within the limits.
+if (entryType == null) Ok("a restore keeps ten valid entries, once each, and drops the rest", false);
+else
+{
+    var normalize = asm.GetType("Jellyfin.Profiles.Auth.TrustedAddresses", true).GetMethod("Normalize");
+    var typed = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(entryType));
+    typed.Add(MakeEntry("198.51.100.07", new[] { HOME }));          // bad
+    typed.Add(MakeEntry("10.0.0.0/8", new[] { HOME }));             // too wide
+    typed.Add(MakeEntry("198.51.100.0/24", new Guid[0]));           // nobody
+    typed.Add(MakeEntry("198.51.100.77", new[] { HOME, HOME, Guid.Empty }));
+    typed.Add(MakeEntry("198.51.100.77", new[] { OTHER }));         // twice
+    for (int i = 1; i <= 12; i++) typed.Add(MakeEntry("203.0.113." + i, new[] { HOME }));
+    var kept = ((IEnumerable)normalize.Invoke(null, new object[] { typed })).Cast<object>().ToList();
+    Ok("a restore keeps ten valid entries, once each, and drops the rest", kept.Count == 10
+       && (string)P(kept[0], "Address") == "198.51.100.77" && ((IList)P(kept[0], "UserIds")).Count == 1);
+}
+
+// ── Red team: who counts as the address ──────────────────────────────────────
 Section("Who counts as trusted");
-SetTrusted("198.51.100.0/24");
-Ok("an IPv4-mapped IPv6 form of a trusted address counts, as the IPv4 it is", Asks(HOME, ON, "::ffff:198.51.100.7") == false);
-Ok("an IPv4-mapped form of an untrusted one does not", Asks(HOME, ON, "::ffff:203.0.113.9") == true);
-SetTrusted("2001:db8:abcd::/48");
-Ok("an IPv4 address does not match an IPv6 range", Asks(HOME, ON, "198.51.100.7") == true);
-SetTrusted("198.51.100.7");
-Ok("an IPv6 address does not match an IPv4 entry", Asks(HOME, ON, "2001:db8::c633:6407") == true);
-Ok("the IPv4-compatible form does not", Asks(HOME, ON, "::198.51.100.7") == true);
-SetTrusted("not an address", "198.51.100.0/8");
-Ok("a hand-edited file with bad entries trusts nothing", Asks(HOME, ON, "198.51.100.7") == true && Asks(HOME, ON, "198.99.1.1") == true);
+Trust("198.51.100.0/24", HOME);
+Ok("an IPv4-mapped IPv6 form of a trusted address counts, as the IPv4 it is", Asks(HOME, OFF, "::ffff:198.51.100.7") == false);
+Ok("an IPv4-mapped form of an untrusted one does not", Asks(HOME, OFF, "::ffff:203.0.113.9") == true);
+Trust("2001:db8:abcd::/48", HOME);
+Ok("from a trusted IPv6 range it is not asked", Asks(HOME, OFF, TRUSTED6) == false);
+Ok("from outside that range it is asked", Asks(HOME, OFF, "2001:db8:abce::5") == true);
+Ok("an IPv4 address does not match an IPv6 range", Asks(HOME, OFF, "198.51.100.7") == true);
+Trust("198.51.100.0/24", HOME);
+Ok("from a trusted IPv4 range it is not asked", Asks(HOME, OFF, "198.51.100.200") == false && Asks(HOME, OFF, "198.51.101.1") == true);
+Trust("198.51.100.7", HOME);
+Ok("an IPv6 address does not match an IPv4 entry", Asks(HOME, OFF, "2001:db8::c633:6407") == true);
+Ok("the IPv4-compatible form does not", Asks(HOME, OFF, "::198.51.100.7") == true);
+TrustNone();
+AddEntry("not an address", HOME);
+AddEntry("198.51.100.0/8", HOME);
+AddEntry("198.51.100.7", Guid.Empty);
+Ok("a hand-edited file with bad entries trusts nothing", Asks(HOME, OFF, "198.51.100.7") == true && Asks(HOME, OFF, "198.99.1.1") == true);
+TrustNone();
+for (int i = 1; i <= 15; i++) AddEntry("203.0.113." + i, HOME);
+AddEntry("198.51.100.7", HOME);
+Ok("a hand-edited file past ten entries does not read the eleventh", Asks(HOME, OFF, "198.51.100.7") == true);
 
 // A header does not move the address: only what Jellyfin resolved counts.
-SetTrusted("198.51.100.7");
+Trust("198.51.100.7", HOME);
 {
     var r = ctrlType.GetMethod("GetProfiles");
     var ctor = ctrlType.GetConstructors().First();
@@ -397,16 +546,24 @@ SetTrusted("198.51.100.7");
     var res = r.Invoke(c, new object[0]);
     if (res is IConvertToActionResult conv) res = conv.Convert();
     var rows = ((res as ObjectResult)?.Value as IEnumerable)?.Cast<object>().ToList() ?? new List<object>();
-    var tile = rows.FirstOrDefault(x => (Guid)P(x, "ProfileUserId") == ON);
-    Ok("forwarding headers on the request do not make a stranger trusted", tile != null && (bool)P(tile, "RequiresPin"));
+    var tile = rows.FirstOrDefault(x => (Guid)P(x, "ProfileUserId") == OFF);
+    var mainTile = rows.FirstOrDefault(x => (Guid)P(x, "ProfileUserId") == HOME);
+    Ok("forwarding headers on the request do not make a stranger trusted",
+       tile != null && (bool)P(tile, "RequiresPin") && mainTile != null && (bool)P(mainTile, "RequiresPin"));
 }
-
-// A different household's own setting still decides.
-Ok("the household's choice is the other half: skip off stays asked from a trusted address", Asks(HOME, OFF, "198.51.100.7") == true);
 
 return Finish();
 
 // ── A modelled Jellyfin ────────────────────────────────────────────────────
+
+// What the picker finds in the request's services: the user manager and the network.
+public sealed class UsersServices : IServiceProvider
+{
+    private readonly IUserManager _users;
+    public UsersServices(IUserManager users) { _users = users; }
+    public object GetService(Type t) => t == typeof(IUserManager) ? _users
+        : t == typeof(INetworkManager) ? NetworkStub.Create() : null;
+}
 
 public class World
 {

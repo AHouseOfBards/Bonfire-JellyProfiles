@@ -194,13 +194,14 @@ namespace Jellyfin.Profiles.Configuration
         public List<string> ProxyClients { get; set; } = new();
 
         /// <summary>
-        /// Addresses and ranges ("203.0.113.7", "203.0.113.0/24", "2001:db8:abcd::/48") that
-        /// count as the server's network for a profile's "No PIN on the server's network"
-        /// (issue #42). Empty means off. At most ten, none wider than /16 or /48: fixed limits,
-        /// see <see cref="Auth.TrustedAddresses"/>. Never skips a main account's or an
-        /// administrator's PIN, nor one for another household. Advanced.
+        /// Addresses and ranges, each with the main accounts it is for (issue #42): from one
+        /// of them that household opens its main account and its profiles without a PIN.
+        /// Empty means off. At most ten, none wider than /16 or /48: fixed limits, see
+        /// <see cref="Auth.TrustedAddresses"/>. Never skips an administrator's PIN, one for
+        /// another household, or the main PIN for changing settings. Only an administrator
+        /// sets it. Advanced. (An earlier flat list of addresses was never released.)
         /// </summary>
-        public List<string> TrustedPinAddresses { get; set; } = new();
+        public List<TrustedAddressEntry> TrustedAddressEntries { get; set; } = new();
 
         /// <summary>
         /// Messages from the administrator, shown on the profile screen. Replaced as a whole

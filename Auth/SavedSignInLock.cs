@@ -77,7 +77,8 @@ namespace Jellyfin.Profiles.Auth
             string? deviceId,
             bool isLocal,
             Func<Guid, string?> usernameOf,
-            System.Net.IPAddress? address = null)
+            System.Net.IPAddress? address = null,
+            Func<Guid, bool>? isAdministrator = null)
         {
             var none = Array.Empty<LockTarget>();
             var bare = deviceId?.Trim();
@@ -89,7 +90,8 @@ namespace Jellyfin.Profiles.Auth
             if (master == Guid.Empty) return none;
 
             var mappings = config.Mappings.ToList();
-            var trusted = TrustedAddresses.Contains(config, address);
+            // No way to tell who is an administrator means nobody is trusted.
+            var adminCheck = isAdministrator ?? (_ => true);
             var hasProfiles = mappings.Any(m => m.MasterUserId == master && m.ProfileUserId != master);
 
             var targets = new List<LockTarget>();
@@ -101,9 +103,10 @@ namespace Jellyfin.Profiles.Auth
                 // rule the provider uses before it will open a master by PIN.
                 if (m.ProfileUserId == master && !hasProfiles) continue;
 
-                // The web switcher skips this PIN on the home network, or from a trusted
-                // address, never the master's own row; so does this.
-                if (m.BypassPinOnLocalNetwork && (isLocal || (trusted && m.ProfileUserId != master))) continue;
+                // The web switcher skips this PIN on the home network, or from an address
+                // listed for this household (never an administrator's); so does this.
+                if (m.BypassPinOnLocalNetwork && isLocal) continue;
+                if (TrustedAddresses.Applies(config, address, m.MasterUserId, m.ProfileUserId, adminCheck)) continue;
 
                 var names = new List<string>();
                 if (m.ProfileUserId != master && !string.IsNullOrWhiteSpace(m.ProfileName)) names.Add(m.ProfileName);
@@ -145,7 +148,8 @@ namespace Jellyfin.Profiles.Auth
             var revoked = 0;
             try
             {
-                var targets = Targets(config, deviceId, isLocal, id => userManager.GetUserById(id)?.Username, address);
+                var targets = Targets(config, deviceId, isLocal, id => userManager.GetUserById(id)?.Username, address,
+                    id => TrustedAddresses.IsAdministrator(userManager, id));
 
                 foreach (var target in targets)
                 {

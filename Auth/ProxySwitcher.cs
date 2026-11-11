@@ -1011,20 +1011,22 @@ namespace Jellyfin.Profiles.Auth
             if (mapping == null || string.IsNullOrEmpty(mapping.PinHash)) return false;
 
             // Only the household's own tiles are on the picker, so never a cross-household entry.
-            // A trusted address (TrustedAddresses) counts for a profile and never for the main
-            // account's row; CanSkipPin holds that line, as for the web switcher.
+            // A trusted address (TrustedAddresses) opens this household's tiles, the main
+            // account's too, and never an administrator's: the same rule as the web switcher.
             return !Controllers.ProfilesBaseController.CanSkipPin(
                 mapping, IsLocal(context, services), isCrossAccountMasterSwitch: false, householdLanBypass: false,
-                isTrusted: IsTrusted(context, config));
+                isTrusted: IsTrusted(context, mapping, config, services));
         }
 
-        /// <summary>Whether the request comes from a listed address: the one Jellyfin resolved, never a header read here.</summary>
-        private static bool IsTrusted(HttpContext context, PluginConfiguration? config)
+        /// <summary>Whether the request comes from an address listed for this tile's household: the one Jellyfin resolved, never a header read here.</summary>
+        private static bool IsTrusted(HttpContext context, ProfileMapping mapping, PluginConfiguration? config, Services services)
         {
-            if (config?.TrustedPinAddresses == null || config.TrustedPinAddresses.Count == 0) return false;
+            if (config?.TrustedAddressEntries == null || config.TrustedAddressEntries.Count == 0) return false;
             try
             {
-                return TrustedAddresses.Contains(config, ClientAddress.Of(context));
+                return TrustedAddresses.Applies(
+                    config, ClientAddress.Of(context), mapping.MasterUserId, mapping.ProfileUserId,
+                    id => TrustedAddresses.IsAdministrator(services.Users, id));
             }
             catch (Exception)
             {

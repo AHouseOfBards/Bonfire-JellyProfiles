@@ -524,11 +524,11 @@ namespace Jellyfin.Profiles.Controllers
         /// the PIN anywhere else.
         /// </para>
         /// <para>
-        /// <paramref name="isTrusted"/> is an address the administrator listed
-        /// (<see cref="Auth.TrustedAddresses"/>): it counts as home for a <b>profile's</b> skip and
-        /// nowhere else. Never a main account's row, which keeps the PIN that guards
-        /// its household and, often, the server; never across a link. A caller that can also
-        /// see the account's rights keeps an administrator out too (<see cref="IsTrustedFor"/>).
+        /// <paramref name="isTrusted"/> is "this address is listed for this household"
+        /// (<see cref="IsTrustedFor"/>, which also keeps an administrator out): the household's main account
+        /// and its profiles open without a PIN, whatever "No PIN on the server's network" says.
+        /// Never across a link, which is decided first, and never the main PIN for changing
+        /// settings, which this function does not touch.
         /// </para>
         /// </summary>
         protected internal static bool CanSkipPin(
@@ -537,24 +537,37 @@ namespace Jellyfin.Profiles.Controllers
         {
             if (isCrossAccountMasterSwitch) return householdLanBypass;
             if (mapping == null) return false;
+            if (isTrusted) return true;
             if (IsMainRow(mapping) && !mapping.AskPinToOpen) return true;
-            if (!mapping.BypassPinOnLocalNetwork) return false;
-            return isLocal || (isTrusted && !IsMainRow(mapping));
+            return mapping.BypassPinOnLocalNetwork && isLocal;
         }
 
         /// <summary>
-        /// Whether <paramref name="address"/> is a listed address that may skip <paramref name="mapping"/>'s PIN:
-        /// listed, and the row is neither a main account nor an administrator. Computed only
-        /// when the list is not empty, so it costs nothing while the feature is off.
+        /// Whether <paramref name="address"/> is listed for <paramref name="mapping"/>'s household and
+        /// neither the household's main account nor the account being opened is an administrator
+        /// (promoted since the entry was saved, or made a profile). Cheap while the list is empty.
         /// </summary>
         protected bool IsTrustedFor(ProfileMapping? mapping, System.Net.IPAddress? address, PluginConfiguration? config)
         {
-            if (mapping == null || IsMainRow(mapping)) return false;
-            if (config?.TrustedPinAddresses == null || config.TrustedPinAddresses.Count == 0) return false;
-            if (!Auth.TrustedAddresses.Contains(config, address)) return false;
-            // Cannot be made a profile, but could have been promoted since: an administrator's
-            // PIN is never skipped from an address, whatever the row says.
-            return !IsUserAdministrator(mapping.ProfileUserId);
+            if (mapping == null) return false;
+            return Auth.TrustedAddresses.Applies(
+                config, address, mapping.MasterUserId, mapping.ProfileUserId,
+                id => Auth.TrustedAddresses.IsAdministrator(_userManager, id));
+        }
+
+        /// <summary>
+        /// Why <paramref name="id"/> cannot be named by a trusted address, or null when it can:
+        /// it must be a real main account (not a profile) and not an administrator.
+        /// </summary>
+        protected string? TrustedAccountProblem(Guid id)
+        {
+            if (_userManager.GetUserById(id) == null) return "That account does not exist.";
+            var mappings = Plugin.Instance?.Configuration?.Mappings;
+            if (mappings != null && mappings.Any(m => m.ProfileUserId == id && m.MasterUserId != id))
+                return "A profile can not be listed. Use its main account.";
+            if (Auth.TrustedAddresses.IsAdministrator(_userManager, id))
+                return "An administrator always asks for a PIN.";
+            return null;
         }
 
         /// <summary>
