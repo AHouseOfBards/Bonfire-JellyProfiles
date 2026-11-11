@@ -167,7 +167,11 @@
     }
   },
   "layout": {
-    "households": "open"
+    "households": "open",
+    "profiles": "tiles",
+    "align": "center",
+    "size": "medium",
+    "logo": "top-right"
   },
   "decorations": [
     {

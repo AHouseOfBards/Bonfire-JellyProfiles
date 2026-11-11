@@ -405,6 +405,36 @@ function part5() {
     fns.simpleThemeEdit(d, 'font', 'Lora', [{ family: 'Lora', fallback: 'serif' }]);
     ok('a font brings its own fallback', d.type.font.family === 'Lora' && d.type.font.fallback === 'serif');
 
+    // The four layout choices (2.0), in Simple: a select each, offering exactly the values
+    // the server accepts, each label a key; absent shows the default; a pick sets one field.
+    const LAYOUT = { profiles: ['tiles', 'list'], align: ['center', 'left'], size: ['small', 'medium', 'large'],
+        logo: ['top-left', 'top-right', 'bottom-left', 'bottom-right'] };
+    const DEFAULTS = { profiles: 'tiles', align: 'center', size: 'medium', logo: 'top-right' };
+    const simpleBox = (/<div class="jpf-te-simple" id="teSimple">([\s\S]*?)<div class="jpf-te-advanced/.exec(html) || [])[1] || '';
+    Object.keys(LAYOUT).forEach(k => {
+        const m = new RegExp('<div class="selectContainer jpf-te-field" data-paths="layout\\.' + k + '">([\\s\\S]*?)</select>').exec(simpleBox);
+        const opts = m ? (m[1].match(/<option value="[^"]*" data-i18n="admin\.themes\.[A-Za-z]+">/g) || []).map(o => /value="([^"]*)"/.exec(o)[1]) : [];
+        ok('Simple has layout.' + k + ', offering ' + LAYOUT[k].join(', '), !!m && /data-simple="/.test(m[1])
+            && new RegExp('data-simple="' + k + '"').test(m[1]) && JSON.stringify(opts) === JSON.stringify(LAYOUT[k]), opts.join(', '));
+        const bare = JSON.parse(JSON.stringify(bonfireFile));
+        bare.layout = { households: 'panels' };
+        ok('a theme without layout.' + k + ' shows ' + DEFAULTS[k], fns.simpleThemeValues(bare)[k] === DEFAULTS[k], fns.simpleThemeValues(bare)[k]);
+        LAYOUT[k].forEach(v => {
+            const e = JSON.parse(JSON.stringify(bare));
+            fns.simpleThemeEdit(e, k, v, []);
+            ok('choosing ' + v + ' sets layout.' + k + ' and nothing else',
+                e.layout[k] === v && JSON.stringify(Object.assign({}, e, { layout: { households: 'panels' } })) === JSON.stringify(bare)
+                && fns.simpleThemeValues(e)[k] === v);
+        });
+        const e = JSON.parse(JSON.stringify(bare));
+        fns.simpleThemeEdit(e, k, 'middle', []);
+        ok('a value the server would refuse is not written to layout.' + k, e.layout[k] === undefined);
+    });
+    const advanced = [];
+    fns.themeFieldList().forEach(g => { if (g[0] === 'admin.themes.group.layout') g[1].forEach(f => advanced.push(f[0] + ' ' + JSON.stringify(f[2]))); });
+    Object.keys(LAYOUT).forEach(k => ok('Advanced\'s Layout section has layout.' + k + ' with the same values',
+        advanced.indexOf('layout.' + k + ' ' + JSON.stringify(LAYOUT[k])) !== -1, advanced.join(' | ')));
+
     // Advanced: every field a built-in theme uses has a control, and every control is a field.
     const fields = fns.themeFieldList();
     const paths = [];
@@ -429,8 +459,9 @@ function part5() {
     // Grouped under headings that say what the field is for. The fields did not change: this
     // list is what Advanced had before they were regrouped, by path and kind, and the page
     // must still have exactly these, each once.
-    // 2.0 added one on purpose: "background.image photo", the picture's control.
-    const BEFORE = ["background.fill color","background.image photo","background.layers json","colors.accent color","colors.accentFocus color","colors.border1 color","colors.border2 color","colors.border3 color","colors.danger color","colors.name color","colors.nameFocus color","colors.onAccent color","colors.panel color","colors.ring color","colors.shadow color","colors.surface1 color","colors.surface2 color","colors.surface3 color","colors.text1 color","colors.text2 color","colors.text3 color","colors.warning color","decorations json","depth.avatar json","depth.sheet json","depth.title json","focus.glow json","focus.scale number","layout.households choice","parts.addTile.border.color color","parts.addTile.border.style choice","parts.addTile.border.width number","parts.addTile.fill color","parts.addTile.focusFill color","parts.addTile.text color","parts.button2.border.color color","parts.button2.border.style choice","parts.button2.border.width number","parts.button2.fill color","parts.button2.focus.border.color color","parts.button2.focus.border.style choice","parts.button2.focus.border.width number","parts.button2.focus.fill color","parts.button2.focus.glow json","parts.button2.focus.text color","parts.button2.text color","parts.card.fill color","parts.card.line color","parts.input.fill color","parts.input.line color","parts.sheet.border.color color","parts.sheet.border.style choice","parts.sheet.border.width number","parts.sheet.fill color","scheme choice","shape.avatar.kind choice","shape.avatar.radius number","shape.button.kind choice","shape.button.radius number","shape.input.radius number","shape.radius.large number","shape.radius.medium number","shape.radius.small number","shape.ringWidth number","type.button.case choice","type.button.spacing number","type.button.weight number","type.font.fallback choice","type.font.family font","type.name.opacity number","type.name.scale number","type.name.weight number","type.title.scale number","type.title.spacing number","type.title.weight number"];
+    // 2.0 added on purpose: "background.image photo", the picture's control, and the four
+    // layout choices (layout.profiles, align, size, logo).
+    const BEFORE = ["background.fill color","background.image photo","background.layers json","colors.accent color","colors.accentFocus color","colors.border1 color","colors.border2 color","colors.border3 color","colors.danger color","colors.name color","colors.nameFocus color","colors.onAccent color","colors.panel color","colors.ring color","colors.shadow color","colors.surface1 color","colors.surface2 color","colors.surface3 color","colors.text1 color","colors.text2 color","colors.text3 color","colors.warning color","decorations json","depth.avatar json","depth.sheet json","depth.title json","focus.glow json","focus.scale number","layout.align choice","layout.households choice","layout.logo choice","layout.profiles choice","layout.size choice","parts.addTile.border.color color","parts.addTile.border.style choice","parts.addTile.border.width number","parts.addTile.fill color","parts.addTile.focusFill color","parts.addTile.text color","parts.button2.border.color color","parts.button2.border.style choice","parts.button2.border.width number","parts.button2.fill color","parts.button2.focus.border.color color","parts.button2.focus.border.style choice","parts.button2.focus.border.width number","parts.button2.focus.fill color","parts.button2.focus.glow json","parts.button2.focus.text color","parts.button2.text color","parts.card.fill color","parts.card.line color","parts.input.fill color","parts.input.line color","parts.sheet.border.color color","parts.sheet.border.style choice","parts.sheet.border.width number","parts.sheet.fill color","scheme choice","shape.avatar.kind choice","shape.avatar.radius number","shape.button.kind choice","shape.button.radius number","shape.input.radius number","shape.radius.large number","shape.radius.medium number","shape.radius.small number","shape.ringWidth number","type.button.case choice","type.button.spacing number","type.button.weight number","type.font.fallback choice","type.font.family font","type.name.opacity number","type.name.scale number","type.name.weight number","type.title.scale number","type.title.spacing number","type.title.weight number"];
     const NOW = [];
     fields.forEach(g => g[1].forEach(f => NOW.push(f[0] + ' ' + f[1])));
     ok('no field was added or removed by grouping: the same ' + BEFORE.length + ', each once',

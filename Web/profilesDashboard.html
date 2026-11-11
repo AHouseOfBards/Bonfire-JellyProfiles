@@ -1131,6 +1131,37 @@
                                 </div>
                                 <!-- Filled by themePhotoControlHtml, the same control Advanced shows under Background. -->
                                 <div class="jpf-te-field jpf-te-photo" data-paths="background.image" id="teSimplePhoto"></div>
+                                <div class="selectContainer jpf-te-field" data-paths="layout.profiles">
+                                    <label class="selectLabel" for="teProfiles" data-i18n="admin.themes.layoutProfiles">Profiles</label>
+                                    <select is="emby-select" id="teProfiles" data-simple="profiles">
+                                        <option value="tiles" data-i18n="admin.themes.layoutTiles">Tiles in a row</option>
+                                        <option value="list" data-i18n="admin.themes.layoutList">A list, one per line</option>
+                                    </select>
+                                </div>
+                                <div class="selectContainer jpf-te-field" data-paths="layout.align">
+                                    <label class="selectLabel" for="teAlign" data-i18n="admin.themes.layoutAlign">Title and profiles</label>
+                                    <select is="emby-select" id="teAlign" data-simple="align">
+                                        <option value="center" data-i18n="admin.themes.layoutCenter">Centered</option>
+                                        <option value="left" data-i18n="admin.themes.layoutLeft">Aligned left</option>
+                                    </select>
+                                </div>
+                                <div class="selectContainer jpf-te-field" data-paths="layout.size">
+                                    <label class="selectLabel" for="teSize" data-i18n="admin.themes.layoutSize">Tile size</label>
+                                    <select is="emby-select" id="teSize" data-simple="size">
+                                        <option value="small" data-i18n="admin.themes.layoutSmall">Small</option>
+                                        <option value="medium" data-i18n="admin.themes.layoutMedium">Medium</option>
+                                        <option value="large" data-i18n="admin.themes.layoutLarge">Large</option>
+                                    </select>
+                                </div>
+                                <div class="selectContainer jpf-te-field" data-paths="layout.logo">
+                                    <label class="selectLabel" for="teLogo" data-i18n="admin.themes.layoutLogo">Logo corner</label>
+                                    <select is="emby-select" id="teLogo" data-simple="logo">
+                                        <option value="top-left" data-i18n="admin.themes.layoutTopLeft">Top left</option>
+                                        <option value="top-right" data-i18n="admin.themes.layoutTopRight">Top right</option>
+                                        <option value="bottom-left" data-i18n="admin.themes.layoutBottomLeft">Bottom left</option>
+                                        <option value="bottom-right" data-i18n="admin.themes.layoutBottomRight">Bottom right</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="jpf-te-advanced jpf-hidden" id="teAdvanced">
                                 <div class="fieldDescription jpf-lede" data-i18n="admin.themes.advancedHint">Every value in the theme file. Lists are written as JSON.</div>
@@ -4081,7 +4112,10 @@
                     ['admin.themes.group.cards', [colour('parts.card.fill'), colour('parts.card.line'), colour('parts.sheet.fill')]
                         .concat(border('parts.sheet.border'))],
                     ['admin.themes.group.inputs', [colour('parts.input.fill'), colour('parts.input.line')]],
-                    ['admin.themes.group.layout', [pick('layout.households', ['panels', 'open'])]],
+                    ['admin.themes.group.layout', [pick('layout.households', ['panels', 'open']),
+                        pick('layout.profiles', ['tiles', 'list']), pick('layout.align', ['center', 'left']),
+                        pick('layout.size', ['small', 'medium', 'large']),
+                        pick('layout.logo', ['top-left', 'top-right', 'bottom-left', 'bottom-right'])]],
                     ['admin.themes.group.decorations', [['decorations', 'json']]]
                 ];
             }
@@ -4184,7 +4218,11 @@
                     font: String(getThemePath(draft, 'type.font.family') || ''),
                     avatar: String(getThemePath(draft, 'shape.avatar.kind') || 'circle'),
                     button: String(getThemePath(draft, 'shape.button.kind') || 'pill'),
-                    pattern: pattern && typeof pattern.image === 'string' ? pattern.image : ''
+                    pattern: pattern && typeof pattern.image === 'string' ? pattern.image : '',
+                    profiles: getThemePath(draft, 'layout.profiles') === 'list' ? 'list' : 'tiles',
+                    align: getThemePath(draft, 'layout.align') === 'left' ? 'left' : 'center',
+                    size: ['small', 'large'].indexOf(getThemePath(draft, 'layout.size')) !== -1 ? getThemePath(draft, 'layout.size') : 'medium',
+                    logo: ['top-left', 'bottom-left', 'bottom-right'].indexOf(getThemePath(draft, 'layout.logo')) !== -1 ? getThemePath(draft, 'layout.logo') : 'top-right'
                 };
             }
 
@@ -4252,6 +4290,12 @@
                     const old = getThemePath(draft, 'shape.button.radius');
                     setThemePath(draft, 'shape.button', value === 'rounded'
                         ? { kind: value, radius: typeof old === 'number' ? old : 10 } : { kind: value });
+                } else if (control === 'profiles' || control === 'align' || control === 'size' || control === 'logo') {
+                    // The four layout choices: one field each, nothing follows them.
+                    const allowed = { profiles: ['tiles', 'list'], align: ['center', 'left'], size: ['small', 'medium', 'large'],
+                        logo: ['top-left', 'top-right', 'bottom-left', 'bottom-right'] }[control];
+                    if (allowed.indexOf(value) === -1) return;
+                    setThemePath(draft, 'layout.' + control, value);
                 } else if (control === 'pattern') {
                     const rest = (Array.isArray(draft.decorations) ? draft.decorations : []).filter(function (d) {
                         return !d || d.name !== 'pattern';
@@ -4825,6 +4869,10 @@
                         pattern.appendChild(extra);
                     }
                     pattern.value = v.pattern;
+                    page.querySelector('#teProfiles').value = v.profiles;
+                    page.querySelector('#teAlign').value = v.align;
+                    page.querySelector('#teSize').value = v.size;
+                    page.querySelector('#teLogo').value = v.logo;
                     return;
                 }
                 const fonts = themeFonts(page);

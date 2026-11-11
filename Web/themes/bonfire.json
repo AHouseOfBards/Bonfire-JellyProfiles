@@ -179,7 +179,11 @@
     }
   },
   "layout": {
-    "households": "panels"
+    "households": "panels",
+    "profiles": "tiles",
+    "align": "center",
+    "size": "medium",
+    "logo": "top-right"
   },
   "decorations": []
 }
