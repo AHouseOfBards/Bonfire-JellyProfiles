@@ -92,7 +92,7 @@ function load(opts) {
             getUrl: p => 'http://server/' + p,
             accessToken: () => (opts.user ? 'tok' : null),
             getCurrentUserId: () => (opts.user ? 'u1' : null),
-            getCurrentUser: () => Promise.resolve(opts.user),
+            getCurrentUser: () => (opts.userError ? Promise.reject(new Error('offline')) : Promise.resolve(opts.user)),
             logout: () => { loggedOut++; return Promise.resolve(); },
             appName: () => 'Jellyfin Web', deviceName: () => 'T', deviceId: () => 'd', appVersion: () => '1'
         }
@@ -235,6 +235,52 @@ const notice = env => env.sandbox.document.getElementById('profiles-maintenance'
         if (live(env)[0]) live(env)[0].fn();
         await settle();
         ok('and goes without a reload', !notice(env) && env.counts().reloaded === 0 && live(env).length === 0);
+    }
+
+    console.log('\n── Who is looking changes, or cannot be read (R-1209) ──────────');
+    {
+        const opts = { serve: () => json(closed), user: null };
+        env = load(opts);
+        env.P.checkMaintenance();
+        await settle();
+        ok('signed out: a strip', !!notice(env) && !notice(env).classList.contains('is-blocking'));
+        opts.user = { Policy: { IsAdministrator: false } };
+        live(env)[0].fn();
+        await settle();
+        n = notice(env);
+        ok('a member signs in on the same page: the strip becomes the cover', !!n && n.classList.contains('is-blocking'));
+        ok('and there is one notice, with one timer', env.body.children.filter(c => c.id === 'profiles-maintenance').length === 1 && live(env).length === 1);
+
+        const opts2 = { serve: () => json(closed), user: { Policy: { IsAdministrator: true } } };
+        env = load(opts2);
+        env.P.checkMaintenance();
+        await settle();
+        ok('an administrator: the strip says only administrators', /Only administrators/.test(byClass(notice(env), 'profiles-maintenance-title')[0].textContent));
+        opts2.user = null;
+        live(env)[0].fn();
+        await settle();
+        n = notice(env);
+        ok('signed out again: no longer worded for an administrator', !!n && !/Only administrators/.test(byClass(n, 'profiles-maintenance-title')[0].textContent) && !n.classList.contains('is-blocking'));
+
+        const opts3 = { serve: () => json(closed), user: { Policy: { IsAdministrator: true } }, userError: true };
+        env = load(opts3);
+        env.P.checkMaintenance();
+        await settle();
+        n = notice(env);
+        ok('an account that cannot be read does not cover the page', !!n && !n.classList.contains('is-blocking'));
+        opts3.userError = false;
+        live(env)[0].fn();
+        await settle();
+        ok('and once it can be read, an administrator still has a strip', !!notice(env) && !notice(env).classList.contains('is-blocking'));
+
+        const opts4 = { serve: () => json(closed), user: member };
+        env = load(opts4);
+        env.P.checkMaintenance();
+        await settle();
+        opts4.userError = true;
+        live(env)[0].fn();
+        await settle();
+        ok('a cover is not lifted by a failed account read', !!notice(env) && notice(env).classList.contains('is-blocking'));
     }
 
     console.log('\n── Open, or unknown ────────────────────────────────────────────');

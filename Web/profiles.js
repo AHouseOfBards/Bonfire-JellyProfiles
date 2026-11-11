@@ -6827,18 +6827,29 @@
                 .then(info => {
                     const m = info && (info.maintenance || info.Maintenance);
                     if (!m) return;
-                    const userId = typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : null;
-                    if (!userId || typeof ApiClient.getCurrentUser !== 'function') {
-                        this.showMaintenance(m, false);
-                        return;
-                    }
-                    return Promise.resolve(ApiClient.getCurrentUser()).then(user => {
-                        const policy = user && (user.Policy || user.policy);
-                        const admin = !!(policy && (policy.IsAdministrator || policy.isAdministrator));
-                        this.showMaintenance(m, !admin, admin);
-                    }, () => this.showMaintenance(m, true));
+                    return this._maintenanceView().then(v => this.showMaintenance(m, v.blocking, v.admin));
                 })
                 .catch(() => { /* unknown: say nothing */ });
+        },
+
+        /// How the notice should look to whoever is on this page now: nobody signed in or an
+        /// administrator gets a strip, anyone else a cover. Asked again by the notice's own
+        /// timer, because the page is not reloaded by signing in or out (R-1209).
+        ///
+        /// Someone whose account cannot be read (offline, a bad token) is `unknown` and gets
+        /// the strip, never the cover: the cover locks the page, and locking an administrator
+        /// out of it over a failed request is worse than a notice that is too quiet. The
+        /// server refuses what it should whatever is drawn.
+        _maintenanceView: function () {
+            const userId = typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : null;
+            if (!userId || typeof ApiClient.getCurrentUser !== 'function') {
+                return Promise.resolve({ blocking: false, admin: false });
+            }
+            return Promise.resolve(ApiClient.getCurrentUser()).then(user => {
+                const policy = user && (user.Policy || user.policy);
+                const admin = !!(policy && (policy.IsAdministrator || policy.isAdministrator));
+                return { blocking: !admin, admin: admin };
+            }, () => ({ blocking: false, admin: false, unknown: true }));
         },
 
         showMaintenance: function (m, blocking, admin) {
@@ -6858,6 +6869,8 @@
             // gate underneath, and a remote moves around profiles nobody can see.
             box.className = blocking ? 'profiles-maintenance is-blocking ' + this.TRAP_SURFACE_CLASS : 'profiles-maintenance';
             box.setAttribute('role', blocking ? 'alertdialog' : 'status');
+            // What it was drawn for, so a re-check can tell when who is looking has changed.
+            box._maintenanceKey = (blocking ? 'cover' : 'strip') + (admin ? '-admin' : '');
 
             const inner = document.createElement('div');
             inner.className = 'profiles-maintenance-inner';
@@ -6931,9 +6944,21 @@
             this.serverInfo().then(info => {
                 if (document.getElementById('profiles-maintenance') !== box) { this._stopMaintenanceTimer(); return; }
                 if (!info) return;
-                if (info.maintenance || info.Maintenance) {
-                    if (status) status.textContent = t('maintenance.stillClosed');
-                    return;
+                const still = info.maintenance || info.Maintenance;
+                if (still) {
+                    // Someone may have signed in or out since it was drawn. Redrawn for who
+                    // is here now, never taken down or downgraded on a failed account read.
+                    return this._maintenanceView().then(v => {
+                        if (document.getElementById('profiles-maintenance') !== box) return;
+                        const key = (v.blocking ? 'cover' : 'strip') + (v.admin ? '-admin' : '');
+                        if (!v.unknown && key !== box._maintenanceKey) {
+                            this._stopMaintenanceTimer();
+                            box.remove();
+                            this.showMaintenance(still, v.blocking, v.admin);
+                            return;
+                        }
+                        if (status) status.textContent = t('maintenance.stillClosed');
+                    });
                 }
                 this._stopMaintenanceTimer();
                 box.remove();
