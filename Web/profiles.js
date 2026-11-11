@@ -2427,7 +2427,7 @@
                 { label: t('viewing.ask'), primary: true, run: () => {
                     this._limitsCall(profile.profileUserId, 'ask', {})
                         .then(() => this.showAlert(t('viewing.askedTitle'), t('viewing.askedBody'), refresh))
-                        .catch(err => this.showAlert(t('viewing.timeUpTitle'), escapeHtml(err.message)));
+                        .catch(err => this.showAlert(t('viewing.timeUpTitle'), escapeHtml(this._failText(err, err.message))));
                 } },
                 { label: t('viewing.giveTime'), run: () => {
                     this.withMainPin(this.currentProfiles, () => this.chooseMoreTime(profile, refresh));
@@ -2443,7 +2443,7 @@
             this.showSelectDialog(t('viewing.giveTitle', { name: profile.profileName }), t('viewing.giveBody'), options, (minutes) => {
                 this._limitsCall(profile.profileUserId, 'grant', { minutes: parseInt(minutes, 10), masterPin: this.masterPin })
                     .then(() => { if (!this.isManageMode) this.masterPin = null; done(); })
-                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(err.message), done));
+                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, err.message)), done));
             });
         },
 
@@ -2747,7 +2747,7 @@
                                 const after = slot.querySelector('#viewing-grant-status');
                                 if (after) after.textContent = minutes ? t('viewing.given', { duration: this.durationText(minutes) }) : t('viewing.declined');
                             })
-                            .catch(err => { if (status) { status.textContent = err.message; status.style.color = 'var(--jpf-danger)'; } });
+                            .catch(err => { if (status) { status.textContent = this._failText(err, err.message); status.style.color = 'var(--jpf-danger)'; } });
                     });
                 });
             };

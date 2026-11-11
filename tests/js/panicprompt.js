@@ -51,6 +51,16 @@ async function attempt(status) {
     const limited = await attempt(429);
     ok('too many attempts keeps its own message', /\S/.test(limited.text) && limited.text !== incorrect && limited.text !== fault.text, limited.text);
 
+    // R-1182: the viewing-time dialogs showed the browser's own words for a dead connection.
+    const env = S.loadPlugin(L.readProfiles());
+    const alerts = [];
+    env.PP.showAlert = (title, body) => alerts.push(String(body));
+    env.PP.showSelectDialog = (title, body, options, cb) => cb('15');
+    env.PP._limitsCall = () => Promise.reject(new TypeError('Failed to fetch'));
+    env.PP.chooseMoreTime({ profileUserId: 'x', profileName: 'Sam' }, () => {});
+    await env.settle();
+    ok('a failed "give more time" is not "Failed to fetch"', alerts.length === 1 && !/Failed to fetch/.test(alerts[0]) && /\S/.test(alerts[0]), alerts.join('|'));
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();
