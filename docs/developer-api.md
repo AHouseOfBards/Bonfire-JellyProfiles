@@ -1233,6 +1233,7 @@ sees nothing of the switcher it's on.
 - Opening it asks for its own Bonfire PIN if it has one, otherwise nothing. Its owner's
   home-network setting applies.
 - An administrator account must have a PIN, and it's always asked.
+- An account with no password can't be added by the household. An administrator adds it.
 - A switcher shows up to 10 other accounts. One account can be on many.
 - Either side can take it off.
 - The [profile picker](#the-profile-picker-beta) doesn't show added accounts.
