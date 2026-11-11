@@ -4641,24 +4641,39 @@ namespace Jellyfin.Profiles.Controllers
             //    from Jellyfin's user list and nobody is told to type its name. Before the
             //    provider below: Jellyfin's UpdatePolicyAsync also writes the policy's
             //    provider id onto the account, so a policy write after it would undo it.
-            user = _userManager.GetUserById(mapping.ProfileUserId) ?? user;
-            var masterAccount = _userManager.GetUserById(mapping.MasterUserId);
-            var hidden = masterAccount != null && _userManager.GetUserDto(masterAccount, string.Empty).Policy?.IsHidden == true;
-            var ownPolicy = _userManager.GetUserDto(user, string.Empty).Policy;
-            if (ownPolicy != null && ownPolicy.IsHidden != hidden)
+            //
+            //    Both writes are past the point of no return too, the mapping being gone: a
+            //    throw would leave an account that is no profile, has no password anyone
+            //    knows, and may still be on Bonfire's provider. It is answered like the
+            //    password failure below, and the provider reconcile is run (R-1163).
+            try
             {
-                ownPolicy.IsHidden = hidden;
-                await _userManager.UpdatePolicyAsync(user.Id, ownPolicy).ConfigureAwait(false);
                 user = _userManager.GetUserById(mapping.ProfileUserId) ?? user;
-            }
+                var masterAccount = _userManager.GetUserById(mapping.MasterUserId);
+                var hidden = masterAccount != null && _userManager.GetUserDto(masterAccount, string.Empty).Policy?.IsHidden == true;
+                var ownPolicy = _userManager.GetUserDto(user, string.Empty).Policy;
+                if (ownPolicy != null && ownPolicy.IsHidden != hidden)
+                {
+                    ownPolicy.IsHidden = hidden;
+                    await _userManager.UpdatePolicyAsync(user.Id, ownPolicy).ConfigureAwait(false);
+                    user = _userManager.GetUserById(mapping.ProfileUserId) ?? user;
+                }
 
-            // 5. Its own sign-in, on Jellyfin's own provider. Never an empty id: see
-            //    ProfilesBootstrapTask.ReconcileAuthProviders for what that did to a server.
-            var provider = StandaloneProviderId(mapping.MasterUserId);
-            if (!string.Equals(user.AuthenticationProviderId, provider, StringComparison.Ordinal))
+                // 5. Its own sign-in, on Jellyfin's own provider. Never an empty id: see
+                //    ProfilesBootstrapTask.ReconcileAuthProviders for what that did to a server.
+                var provider = StandaloneProviderId(mapping.MasterUserId);
+                if (!string.Equals(user.AuthenticationProviderId, provider, StringComparison.Ordinal))
+                {
+                    user.AuthenticationProviderId = provider;
+                    await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                user.AuthenticationProviderId = provider;
-                await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+                _logger.LogError(ex, "ProfilesPlugin: {User} is no longer a profile, but its sign-in could not be set up.", user.Username);
+                ProfilesBootstrapTask.ReconcileAuthProvidersNow();
+                return (StatusCodes.Status500InternalServerError,
+                    "The account was made, but its sign-in couldn't be set up. Finish it in Dashboard → Users.", user);
             }
 
             // After the mapping is gone: while it is a profile, Bonfire's provider refuses a

@@ -226,6 +226,25 @@ Ok("the rename works through the Guid overload", guidOnly.status == 200 && world
 Ok("it was given the old name as well", world.Log.Any(l => l == "rename " + SOLO + " from Bard_Solo"), string.Join(" | ", world.Log));
 world.GuidOnlyRename = false;
 
+Console.WriteLine();
+Console.WriteLine("── A write fails after the profile has left its household ──────");
+
+// R-1163: the mapping is gone by then, so a throw from the provider write used to escape as a
+// bare 500: an account that is no profile, with no known password, and no word to the
+// administrator. It answers like the password and rename failures do.
+var FAILING = Guid.NewGuid();
+world.Add(FAILING, "Bard_Failing", BONFIRE);
+Map(FAILING, MASTER, "Failing");
+world.FailUserUpdate = true;
+(int status, object value) failed;
+string failedError = null;
+try { failed = Call(ADMIN, FAILING, "", "pw"); }
+catch (Exception e) { failed = (-1, null); failedError = (e.InnerException ?? e).GetType().Name; }
+world.FailUserUpdate = false;
+Ok("a failed write answers 500 with what is left to do", failed.status == 500 && failed.value is string s500 && s500.Contains("Dashboard"),
+   failed.status + " " + failedError + " " + failed.value);
+Ok("and the profile is not a profile any more", !world.MappedNow(FAILING));
+
 try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 
@@ -253,6 +272,7 @@ public class World
     public HashSet<Guid> Hidden = new();
     public Func<Guid, bool> MappedNow = _ => false;
     public bool GuidOnlyRename;
+    public bool FailUserUpdate;
 
     public void Add(Guid id, string name, string provider, bool admin = false)
     {
@@ -308,6 +328,7 @@ public class WorldProxy : DispatchProxy
                     typeof(User).GetProperty("AuthenticationProviderId").SetValue(pu, policy.AuthenticationProviderId);
                 return Task.CompletedTask;
             case "UpdateUserAsync":
+                if (W.FailUserUpdate) return Task.FromException(new InvalidOperationException("database is locked"));
                 var changed = (User)args[0];
                 W.Log.Add("provider " + changed.Id + " " + changed.AuthenticationProviderId);
                 return Task.CompletedTask;
