@@ -57,6 +57,8 @@ namespace Jellyfin.Profiles
         /// </summary>
         internal const int HouseholdMinor = 1;
 
+        internal const int DeviceMinor = 0;
+
         internal const string GetSignInPolicyOp = "getSignInPolicy";
 
         /// <summary>
@@ -77,6 +79,13 @@ namespace Jellyfin.Profiles
                         ? null
                         : BuildSignInPolicy(ProfilesBaseController.ReadConfigSnapshot())));
             Capabilities.Provide(CapabilityNames.Household, PluginIds.Bonfire, HouseholdMinor, household.Build());
+
+            DeviceClient.Provide(
+                PluginIds.Bonfire,
+                DeviceMinor,
+                (q, ct) => Task.FromResult(Plugin.IsPanicDisabled
+                    ? null
+                    : BuildDevice(ProfilesBaseController.ReadConfigSnapshot(), q)));
         }
 
         // ── household.v1 ─────────────────────────────────────────────────────────
@@ -146,6 +155,36 @@ namespace Jellyfin.Profiles
             => config == null
                 ? null
                 : new SignInPolicy(config.EnableClientPinLogin && config.ClientPinLoginFromAnywhere);
+
+        // ── device.v1 ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The device Bonfire has on record for <c>DeviceId</c>, or null (the library then builds its
+        /// own key from the app, the model and the user, which Bonfire does not guess at).
+        /// <para>
+        /// <b>A grouping key, nothing more.</b> <c>StableKey</c> is the recorded id after the merges an
+        /// administrator made, so two ids of one browser answer alike. Bonfire's device restrictions
+        /// never read it: they match the id the client sent
+        /// (<see cref="ProfilesBaseController.EvaluateDeviceRestriction"/>), and
+        /// tests/cs/household fails if any of that code starts to.</para>
+        /// <para>
+        /// A name a household chose is given only to that household. When the caller says whose
+        /// request it is and the device has never been that household's, the client's own name is
+        /// what comes back, as it would for any device nobody named.</para>
+        /// </summary>
+        internal static DeviceIdentity? BuildDevice(PluginConfiguration? config, DeviceQuery query)
+        {
+            var row = Auth.DeviceRegistry.Row(config?.KnownDevices, query.DeviceId);
+            var key = row?.DeviceId?.Trim();
+            if (row == null || string.IsNullOrEmpty(key)) return null;
+
+            var mayShowName = query.UserId is not { } who || who == Guid.Empty
+                || row.OwnedBy(Auth.DeviceRegistry.HouseholdOf(config, who));
+            var chosen = row.NameIsCustom && mayShowName ? row.DeviceName : null;
+            var reported = string.IsNullOrWhiteSpace(query.DeviceName) ? row.DeviceName : query.DeviceName;
+            var name = string.IsNullOrWhiteSpace(chosen) ? reported : chosen;
+            return new DeviceIdentity(key, string.IsNullOrWhiteSpace(name) ? null : name!.Trim(), true);
+        }
 
         // ── Events ───────────────────────────────────────────────────────────────
         // Raised after the change is saved, never inside ConfigLock: the library runs

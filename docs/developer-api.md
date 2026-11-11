@@ -2161,6 +2161,41 @@ When Bonfire is not installed, or the call fails or takes over two seconds, the 
 helper answers allowed. Check `Capabilities.IsAvailable` to tell "allowed" from "nobody
 asked".
 
+### Households and devices
+
+Other Campground plugins reach Bonfire through the shared registry, not Bonfire's assembly.
+Besides viewing limits, Bonfire offers two more capabilities. If Bonfire is missing,
+disabled or slow, a caller gets nothing from it and uses the library's fallback, shown below.
+
+**`campground.household.v1`, minor 1.**
+
+| Operation | Returns |
+| --- | --- |
+| `getHousehold(userId)` | The user's main account, whether the user is a profile, the display name (`ProfileName` for a profile, the username for a main account), every member, and `sharingGroup`: the id, owner and main accounts of the Bonfire group the main account is in, or none. The join code is never included. |
+| `getSignInPolicy(userId)` | `{ pinLoginFromAnywhere }`: true when PIN login on other apps is on and allowed from outside the home network. |
+
+A main account with no record of its own is still a main account if profiles point at it.
+A user Bonfire holds no record of gets no answer, and the library's `HouseholdClient`
+turns that into a household of one. A provider without `getSignInPolicy` answers nothing,
+so ask for it with `minMinor: 1` and carry on when there is no answer.
+
+Events, published on `CampgroundEvents` after the change is saved:
+`household.profile-created`, `-renamed`, `-deleted` and `-switched`. The payload is
+`ProfileEvent`: main account, profile, display name, and for a switch the device and the
+account it came from. A switch is raised once, whether it came from Bonfire's switcher or a
+television's own sign-in screen.
+
+**`campground.device.v1`.** `getDevice` answers from Bonfire's own device record: `stableKey`
+is the recorded device id after an administrator's merges, and `displayName` is the name
+the household gave the device, otherwise the client's. A name a household chose is given
+only to that household's users. A device Bonfire has never recorded gets no answer, and the
+library builds its own key.
+
+The key is for grouping and naming. Bonfire's device restrictions match the id the client
+sent and never read it.
+
+While Bonfire is emergency-disabled, every operation answers nothing and no event is raised.
+
 ### Activity log
 
 Bonfire writes these to **Dashboard → Activity**. `type` is what to filter on.
