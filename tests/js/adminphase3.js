@@ -73,8 +73,8 @@ const WANT = {
     'admin.themes.none': 'No themes of your own yet. Choose "New theme" to make one.',
     'admin.help.librariesA': 'Change a profile\'s libraries in "Edit profile", not in Dashboard → Users. Adding one there sticks; removing one doesn\'t, because it looks the same as Jellyfin resetting the account.',
     'admin.email.needsEmail':'Needs working email. Set it up under Notices.',
-    'admin.status.openPinsOne': '1 main account has no main PIN, so anyone using its profiles can switch to it. Require main PINs to stop this.',
-    'admin.status.openPinsMany': '{count} main accounts have no main PIN, so anyone using their profiles can switch to them. Require main PINs to stop this.'
+    'admin.status.openPinsOne': '1 main account has no main PIN, so anyone using its profiles can switch to it. Require main PINs to make them set one.',
+    'admin.status.openPinsMany': '{count} main accounts have no main PIN, so anyone using their profiles can switch to them. Require main PINs to make them set one.'
 };
 Object.keys(WANT).forEach(function (k) {
     ok(k, en[k] === WANT[k], 'is: ' + JSON.stringify(en[k]) + '\n          want: ' + JSON.stringify(WANT[k]));
