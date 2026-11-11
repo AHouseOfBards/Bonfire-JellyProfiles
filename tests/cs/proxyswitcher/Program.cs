@@ -639,6 +639,30 @@ Child();
     ProxyReset(); Child();
 }
 
+// A live connection accepted after the switch back must not keep the old profile (R-1040).
+{
+    var sessType = switcher.GetNestedType("ProxySession", BindingFlags.NonPublic);
+    var actType = switcher.GetNestedType("ActingAs", BindingFlags.NonPublic);
+    var sess = Activator.CreateInstance(sessType);
+    var acting = Activator.CreateInstance(actType, new object[] { KIDS, "kid-token" });
+    sessType.GetField("Acting").SetValue(sess, acting);
+    var hctx = new DefaultHttpContext();
+    hctx.Request.Method = "GET";
+    hctx.Request.Headers["Upgrade"] = "websocket";
+    hctx.Request.Headers["Sec-WebSocket-Version"] = "13";
+    hctx.Request.Headers["Sec-WebSocket-Key"] = Convert.ToBase64String(new byte[16]);
+    hctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpUpgradeFeature>(new UpgradeStub());
+    switcher.GetMethod("InstallSocket", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { hctx, sess, acting });
+    // Back on the picker before the handshake finishes.
+    sessType.GetField("Acting").SetValue(sess, null);
+    switcher.GetMethod("CloseSockets", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { sess });
+    var feat = hctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpWebSocketFeature>();
+    var accepted = feat.AcceptAsync(new Microsoft.AspNetCore.Http.WebSocketAcceptContext()).GetAwaiter().GetResult();
+    var left = ((System.Collections.IDictionary)sessType.GetField("Sockets").GetValue(sess)).Count;
+    Ok("a connection accepted after leaving the profile is closed, not kept", accepted.State != WebSocketState.Open && left == 0,
+       accepted.State + " " + left + " kept");
+}
+
 var logout = Get("/Sessions/Logout", method: "POST");
 Ok("signing out of the app signs the profile out too",
    sessionLog.LoggedOut.Contains("tok-" + N(KIDS)) && logout.reachedJellyfin && seenAuth.Contains(MOON_TOKEN),
@@ -1189,6 +1213,12 @@ public class NetworkStub : DispatchProxy
         var text = args[0]?.ToString() ?? string.Empty;
         return text == "127.0.0.1" || text.StartsWith("192.168.", StringComparison.Ordinal);
     }
+}
+
+public sealed class UpgradeStub : Microsoft.AspNetCore.Http.Features.IHttpUpgradeFeature
+{
+    public bool IsUpgradableRequest => true;
+    public Task<Stream> UpgradeAsync() => Task.FromResult<Stream>(new MemoryStream());
 }
 
 public sealed class RecordingSocket : WebSocket

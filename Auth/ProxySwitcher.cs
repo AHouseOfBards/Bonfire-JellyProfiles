@@ -1358,6 +1358,15 @@ namespace Jellyfin.Profiles.Auth
             {
                 var socket = new RewritingWebSocket(inner, rewrite, s => session.Sockets.TryRemove(s, out _));
                 session.Sockets[socket] = 0;
+                // The handshake finishes after the request began. If the app went back to the
+                // picker in between, CloseSockets ran before this socket was listed and would
+                // never see it, so it would keep rewriting for a profile that is no longer open.
+                if (!ReferenceEquals(session.Acting, acting))
+                {
+                    try { socket.Abort(); } catch (Exception) { }
+                    session.Sockets.TryRemove(socket, out _);
+                }
+
                 return socket;
             }));
         }
