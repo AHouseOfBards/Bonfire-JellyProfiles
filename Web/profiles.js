@@ -6789,7 +6789,7 @@
             const grant = (minutes) => {
                 this._limitsCall(req.profileId, 'grant', { minutes: minutes, masterPin: this.masterPin })
                     .then(() => { if (!this.isManageMode) this.masterPin = null; refresh(); })
-                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(err.message), refresh));
+                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, err.message)), refresh));
             };
             const no = { label: t('viewing.decline'), run: () => grant(0) };
             const cancel = { label: t('common.cancel') };
@@ -7655,7 +7655,7 @@
                     done();
                     return null;
                 })
-                .catch(err => fail(err.message));
+                .catch(err => fail(this._failText(err, err.message)));
             };
 
             content.querySelector('#main-pin-save').addEventListener('click', save);
@@ -7879,7 +7879,7 @@
                         note.textContent = t('pinReset.sentTo', { address: this._field(reply, 'sentTo') || '' });
                         code.focus();
                     })
-                    .catch(err => fail(err.message));
+                    .catch(err => fail(this._failText(err, err.message)));
             };
 
             let busy = false;
@@ -7896,7 +7896,7 @@
                         (this.currentProfiles || []).forEach(p => { if (p.isMaster && !p.isBonfire) p.hasPin = true; });
                         done(newPin);
                     })
-                    .catch(err => { busy = false; fail(err.message); });
+                    .catch(err => { busy = false; fail(this._failText(err, err.message)); });
             };
 
             content.querySelector('#pin-reset-save').addEventListener('click', save);
@@ -9211,7 +9211,7 @@
                     })
                     .catch(err => {
                         busy = false;
-                        showError(err.message || t('errors.couldNotSaveThat'));
+                        showError(this._failText(err, err.message || t('errors.couldNotSaveThat')));
                     });
                 });
 
@@ -10920,7 +10920,7 @@
                     busy = true;
                     this.withMainPin(this.currentProfiles, () => {
                         this._emailCall('account/email/confirm', { code: code })
-                            .then(() => next(), err => fail(err.message));
+                            .then(() => next(), err => fail(this._failText(err, err.message)));
                     });
                 };
                 content.querySelector('#onboarding-next').addEventListener('click', confirm);
@@ -10940,7 +10940,7 @@
                 this.withMainPin(this.currentProfiles, () => {
                     this._emailCall('account/email', { address: address })
                         .then(reply => this._onboardingEmail(next, skip, this._field(reply, 'pendingAddress') || address),
-                              err => fail(err.message, address));
+                              err => fail(this._failText(err, err.message), address));
                 });
             };
             content.querySelector('#onboarding-next').addEventListener('click', send);
@@ -10982,7 +10982,7 @@
                         const again = document.querySelector('.profiles-modal-content');
                         const field = again && again.querySelector('#onboarding-profile-name');
                         if (field) field.value = name;
-                        if (again) this._onboardingError(again, err.message);
+                        if (again) this._onboardingError(again, this._failText(err, err.message));
                     });
                 });
             };
@@ -11060,7 +11060,7 @@
                     .catch(err => {
                         this.showOnboardingStep();
                         const again = document.querySelector('.profiles-modal-content');
-                        if (again) this._onboardingError(again, err.message);
+                        if (again) this._onboardingError(again, this._failText(err, err.message));
                     });
                 });
             });
@@ -11134,7 +11134,7 @@
                     .catch(err => {
                         this.showOnboardingStep();
                         const again = document.querySelector('.profiles-modal-content');
-                        if (again) this._onboardingError(again, err.message);
+                        if (again) this._onboardingError(again, this._failText(err, err.message));
                     });
                 });
             });
