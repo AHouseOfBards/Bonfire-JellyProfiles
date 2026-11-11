@@ -1258,18 +1258,19 @@ body.profiles-no-scroll [id*="spinner"] {
 #profile-pin-input, #master-pin-input, #main-pin-new, #pin-reset-new, #pin-reset-code {
     background: var(--jpf-input-bg); border: 2px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); color: var(--jpf-text-1); font-size: 2.5rem; text-align: center;
-    padding: 12px; width: 180px; letter-spacing: 0.6rem;
+    padding: 12px; width: 17rem; max-width: 100%; letter-spacing: 0.6rem;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     -webkit-text-security: disc;
 }
 /* The mailed code is read off a phone and typed, so it stays visible, and six
    digits need more room than a PIN's four. */
 #pin-reset-code {
-    -webkit-text-security: none; width: 240px; font-size: 2rem; letter-spacing: 0.35rem;
+    -webkit-text-security: none; width: 17rem; font-size: 2rem; letter-spacing: 0.35rem;
     height: 2.25rem;
 }
-/* As wide as the code above it; it was the 180px of a PIN box, 60px narrower. */
-#pin-reset-new { width: 240px; height: 2.8rem; }
+/* As wide as the code above it, and wide enough for the eight digits a PIN may have: the
+   box was 180px and the typed number scrolled inside it from the fifth digit. */
+#pin-reset-new { width: 17rem; height: 2.8rem; }
 /* An empty field's placeholder sits on the baseline of the field's own text, so a 1rem
    placeholder in 2.5rem digits rode low. While the placeholder shows, the field takes the
    placeholder's size; the fixed height above keeps the box the size it was. */
