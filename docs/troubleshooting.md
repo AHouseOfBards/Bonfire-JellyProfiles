@@ -2,6 +2,11 @@
 
 ## The switcher doesn't appear
 
+### Turn Bonfire on
+
+A new install starts with Bonfire off. Turn it on at the top of the Status tab in
+Bonfire's settings.
+
 ### Restart the server
 
 Jellyfin can't unload a plugin. After you install or update Bonfire, the old version

@@ -914,11 +914,13 @@ The client script, as `application/javascript`.
 
 | Header | Value |
 | --- | --- |
-| `ETag` | The plugin version. |
-| `Cache-Control` | `public, max-age=300, must-revalidate` |
+| `ETag` | The plugin version, with `-off` while Bonfire is turned off. |
+| `Cache-Control` | `public, no-cache` |
 
-Returns `304` when `If-None-Match` matches. A browser picks up a new version within five
-minutes even if the `?v=` on its script tag is out of date.
+Returns `304` when `If-None-Match` matches. Every page load asks, so a browser picks up a
+new version, or Bonfire being turned off or on, on its next page load, even if the `?v=` on
+its script tag is out of date. While Bonfire is turned off it is the same script, told to
+draw nothing.
 
 ---
 
@@ -2206,7 +2208,8 @@ the response doesn't reveal which. `429` after 5 tries in an hour.
 
 **Authorisation:** anonymous.
 
-`{ "disabled": false }`. Sent with `no-store`.
+`{ "disabled": false }`. Sent with `no-store`. Only the emergency code sets it; to know
+whether Bonfire is turned off, read `disabled` from [`/info`](#get-pluginsprofilesinfo).
 
 ### `GET /plugins/profiles/admin/panic-status`
 
@@ -2294,7 +2297,7 @@ library builds its own key.
 The key is for grouping and naming. Bonfire's device restrictions match the id the client
 sent and never read it.
 
-While Bonfire is emergency-disabled, every operation answers nothing and no event is raised.
+While Bonfire is turned off or emergency-disabled, every operation answers nothing and no event is raised.
 
 ### Activity log
 
@@ -2390,6 +2393,7 @@ anything added since you read it.
 | `requireMainPin` | boolean | Main accounts must set a PIN before changing profiles or settings. |
 | `disallowCustomAvatarUploads` | boolean | Pictures only from the avatar library. |
 | `enableStarterAvatars` | boolean | Offer the starter avatars. |
+| `bonfireOn` | boolean | Bonfire on or off. Off does what the [emergency code](#emergency-disable) does, without a restart either way. A new install starts off; a server that upgrades stays on. |
 | `defaultAskOnStartup` | boolean | Default for accounts that haven't chosen. |
 | `defaultSwitcherLocation` | string | `button` or `menu`. |
 | `defaultTheme` | string | A [theme](#themes) id. |
