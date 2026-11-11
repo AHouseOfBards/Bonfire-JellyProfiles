@@ -364,7 +364,7 @@
     min-width: 0;
 }
 .picture-remove-btn .material-icons {
-    color: rgba(255, 107, 107, 0.85);
+    color: var(--jpf-danger);
 }
 .picture-remove-btn:hover, .picture-remove-btn:focus {
     color: var(--jpf-danger-quiet);
@@ -637,8 +637,13 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .profiles-maintenance.is-blocking {
     bottom: 0; border-bottom: none;
-    display: flex; align-items: center; justify-content: center;
+    display: flex;
+    /* A long message made the cover taller than a phone on its side. A flex item centred with
+       align-items overflows at both ends, so the title was cut off above the screen and could
+       not be scrolled to. Auto margins on the item centre it only while it fits. */
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
+.profiles-maintenance.is-blocking .profiles-maintenance-inner { margin: auto; }
 .profiles-maintenance-inner { max-width: 640px; margin: 0 auto; }
 .profiles-maintenance-title { font-weight: 700; font-size: 1.05rem; }
 .profiles-maintenance.is-blocking .profiles-maintenance-title { font-size: 2rem; margin-bottom: 1rem; }
@@ -786,9 +791,15 @@ body.profiles-no-scroll [id*="spinner"] {
     height: 18px;
     border-radius: 50%;
     border: 2px solid var(--jpf-border-3);
-    border-top-color: currentColor;
+    /* Not currentColor: the label is color:transparent above, so the arc took that and drew
+       nothing. Each button's own text colour, set where its fill is. */
+    border-top-color: var(--jpf-text-1);
     animation: jpfSpin 0.8s linear infinite;
 }
+.btn-primary.is-busy::after { border-top-color: var(--jpf-on-accent); }
+.btn-secondary.is-busy::after { border-top-color: var(--jpf-btn2-color); }
+.btn-danger.is-busy::after { border-top-color: #fff; }
+.btn-danger-quiet.is-busy::after { border-top-color: var(--jpf-danger-quiet); }
 /* The spinner still turns — it is the only thing reporting progress — but
    nothing else moves. */
 @media (prefers-reduced-motion: reduce) {
@@ -1077,7 +1088,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .bonfire-kick-btn:focus, .bonfire-kick-btn:hover {
     background-color: var(--jpf-danger-deep) !important;
     outline: none;
-    box-shadow: 0 0 10px rgba(255, 107, 107, 0.4);
+    box-shadow: 0 0 10px var(--jpf-danger-a40);
 }
 .profile-card.manage-mode:hover .profile-avatar {
     transform: scale(var(--jpf-hover-scale));
@@ -1440,6 +1451,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .dialog-action-buttons {
     display: flex; gap: var(--jpf-gap);
 }
+/* A fixed red under white text, on every theme: --jpf-danger is a light coral on the dark
+   themes, and white on it is under 3:1. (colortokens.js lists this as the one filled red.) */
 .btn-danger {
     background: rgba(230,0,0,0.85); color:#fff; border:none;
 }
@@ -1450,12 +1463,12 @@ body.profiles-no-scroll [id*="spinner"] {
    loud red is correct — that is the moment you mean it. */
 .btn-danger-quiet {
     background: transparent; color: var(--jpf-danger-quiet);
-    border: 1.5px solid rgba(230,0,0,0.40);
+    border: 1.5px solid var(--jpf-danger-a40);
 }
 .btn-danger-quiet:hover,
 .btn-danger-quiet:focus {
-    background: rgba(230,0,0,0.15);
-    border-color: rgba(230,0,0,0.85);
+    background: var(--jpf-danger-a15);
+    border-color: var(--jpf-danger);
     color: var(--jpf-danger);
     outline: none;
 }
@@ -1558,7 +1571,7 @@ body.profiles-no-scroll [id*="spinner"] {
     color: var(--jpf-text-2); opacity: 1;
 }
 .form-group select {
-    background: var(--jpf-input-bg) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background: var(--jpf-input-bg) var(--jpf-chevron) no-repeat right 12px center;
     background-size: 20px;
     border: 1px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); padding: 10px; color: var(--jpf-text-1); font-size: 1rem;
@@ -1965,7 +1978,9 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 .form-hint-warn {
-    color: rgba(245, 159, 0, 0.85) !important;
+    /* Not the warning colour, for the reason given at .profile-viewing.is-out: mustard is
+       about 2:1 on white. The text colour, bold, reads everywhere. */
+    color: var(--jpf-text-1) !important; font-weight: 600;
 }
 .form-error {
     color: var(--jpf-danger);
@@ -1973,9 +1988,9 @@ body.profiles-no-scroll [id*="spinner"] {
     font-weight: 600;
     text-align: center;
     padding: 8px 12px;
-    background: rgba(255, 107, 107, 0.1);
+    background: var(--jpf-danger-a15);
     border-radius: var(--jpf-r-md);
-    border: 1px solid rgba(255, 107, 107, 0.25);
+    border: 1px solid var(--jpf-danger-a25);
 }
 
 .image-upload-row {
@@ -2016,10 +2031,10 @@ body.profiles-no-scroll [id*="spinner"] {
     transition: background 0.2s;
 }
 .device-delete-btn:hover {
-    background: rgba(255, 107, 107, 0.15);
+    background: var(--jpf-danger-a15);
 }
 .device-delete-btn:focus {
-    background: rgba(255, 107, 107, 0.2);
+    background: var(--jpf-danger-a25);
     outline: 2px solid var(--jpf-danger);
     outline-offset: 1px;
 }
@@ -2209,7 +2224,7 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--jpf-input-bg) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E") no-repeat right 12px center;
+    background: var(--jpf-input-bg) var(--jpf-chevron) no-repeat right 12px center;
     background-size: 20px;
     border: 1px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r);

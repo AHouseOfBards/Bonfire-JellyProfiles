@@ -205,7 +205,8 @@ const NEUTRAL_TOKENS = ['--jpf-accent-a08', '--jpf-accent-a18', '--jpf-accent-a3
     '--jpf-accent-a45', '--jpf-accent-a50', '--jpf-accent-a60',
     '--jpf-surface-1', '--jpf-surface-2', '--jpf-surface-3', '--jpf-border-1', '--jpf-border-2', '--jpf-border-3',
     '--jpf-text-1', '--jpf-text-2', '--jpf-text-3', '--jpf-shadow-1', '--jpf-shadow-2', '--jpf-shadow-3',
-    '--jpf-danger', '--jpf-danger-quiet', '--jpf-danger-deep', '--jpf-warn', '--jpf-deco', '--jpf-deco-size'];
+    '--jpf-danger', '--jpf-danger-quiet', '--jpf-danger-deep', '--jpf-warn', '--jpf-deco', '--jpf-deco-size',
+    '--jpf-danger-a15', '--jpf-danger-a25', '--jpf-danger-a40', '--jpf-chevron'];
 // Bonfire is a theme like the rest since 1.7.2: a fixed look, not the server's accent, so
 // its block owes everything any block owes.
 const BLOCK_TOKENS = THEME_TOKENS.concat(SECTION_TOKENS, NEUTRAL_TOKENS);
@@ -261,6 +262,28 @@ serverIds.forEach(id => {
            !!accent && !!tint && tint.r === accent.r && tint.g === accent.g && tint.b === accent.b
            && Math.abs(tint.a - +a.slice(1) / 100) < 1e-9);
     });
+});
+
+// The red tints are of the theme's own danger colour, for the same reason the accent's are.
+serverIds.forEach(id => {
+    const d = theme[id];
+    const danger = parseColour(d['--jpf-danger']);
+    ['a15', 'a25', 'a40'].forEach(a => {
+        const tint = parseColour(d['--jpf-danger-' + a]);
+        ok(id + ': danger tint ' + a + ' is its danger colour at ' + (+a.slice(1) / 100),
+           !!danger && !!tint && tint.r === danger.r && tint.g === danger.g && tint.b === danger.b
+           && Math.abs(tint.a - +a.slice(1) / 100) < 1e-9);
+    });
+    // The select's arrow was one fixed white picture: invisible on Jellyfin Light's white
+    // fields. It is the theme's text colour now, so it reads wherever the text does.
+    const chev = /fill='%23([0-9a-fA-F]{6})'/.exec(String(d['--jpf-chevron'] || ''));
+    const field = parseColour(d['--jpf-input-bg']);
+    const panelC = parseColour(d['--jpf-panel']);
+    const fieldSolid = field && panelC ? over(field, panelC) : null;
+    const arrow = chev ? parseColour('#' + chev[1]) : null;
+    ok(id + ': the select arrow is drawn in a colour and reads on the field'
+       + (arrow && fieldSolid ? ' (' + contrast(arrow, fieldSolid).toFixed(2) + ':1, 3 needed)' : ''),
+       !!arrow && !!fieldSolid && contrast(arrow, fieldSolid) >= 3);
 });
 
 // ── 3. Each theme can be read ───────────────────────────────────────────────────

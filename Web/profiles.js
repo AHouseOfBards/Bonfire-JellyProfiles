@@ -566,6 +566,14 @@
             ? patterns[pattern.image] : null;
         const patternSize = pattern ? num(pattern.size, 240) : 240;
         const ac = rgbOf(accent);
+        // The danger colour as a base for tints, and the select's arrow in the text colour.
+        // The arrow is a picture, so it cannot follow a token: it was one fixed white, and
+        // vanished on Jellyfin Light's white fields. Its fill is a plain #rrggbb; the text
+        // token's own alpha is left off, which only makes the arrow a little stronger.
+        const dangerHex = hex(c.danger) || (light ? '#e03131' : '#ff6b6b');
+        const arrowFill = (hex(c.text1) || (light ? '#1f1f1f' : '#ffffff')).slice(1, 7);
+        const chevron = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23'
+            + arrowFill + '\'%3E%3Cpath d=\'M7 10l5 5 5-5H7z\'/%3E%3C/svg%3E")';
 
         const vars = [
             ['--jpf-accent', accent.slice(0, 7)],
@@ -586,6 +594,8 @@
             ['--jpf-shadow-2', tint(shadowColour, light ? 0.16 : 0.4)],
             ['--jpf-shadow-3', tint(shadowColour, light ? 0.22 : 0.55)],
             ['--jpf-danger', col(c.danger, light ? '#e03131' : '#ff6b6b')],
+            ['--jpf-danger-a15', tint(dangerHex, 0.15)], ['--jpf-danger-a25', tint(dangerHex, 0.25)],
+            ['--jpf-danger-a40', tint(dangerHex, 0.4)], ['--jpf-chevron', chevron],
             ['--jpf-danger-quiet', light ? '#f03e3e' : '#ff8787'],
             ['--jpf-danger-deep', light ? '#c2255c' : '#e64980'],
             ['--jpf-warn', col(c.warning, light ? '#e8590c' : '#ff9900')],

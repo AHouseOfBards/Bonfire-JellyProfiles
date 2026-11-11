@@ -46,6 +46,7 @@ const ALLOWED = {
         '.profile-card.is-switching .profile-avatar-container::after':
             'the spinner over a picture darkened to 40%, whatever the theme',
         '.btn-danger': 'white on the red fill of a delete button',
+        '.btn-danger.is-busy::after': "the busy arc on that same red fill",
         '.btn-primary:hover,\n.btn-primary:focus': 'a light edge on the accent fill',
         '.image-upload-preview': "a profile's initial on that profile's own colour",
         '#profiles-floating-bubble.profiles-floating-fallback':

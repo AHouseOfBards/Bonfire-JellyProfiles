@@ -156,7 +156,7 @@ const quiet = CSS.slice(CSS.indexOf('.btn-danger-quiet {'));
 const quietRule = quiet.slice(0, quiet.indexOf('}'));
 check('btn-danger-quiet exists', CSS.includes('.btn-danger-quiet {'), true);
 check('and is not filled', /background:\s*transparent/.test(quietRule), true);
-check('but keeps a red edge', /border:.*rgba\(230,0,0/.test(quietRule), true);
+check('but keeps a red edge', /border:.*var\(--jpf-danger-a40\)/.test(quietRule), true);
 
 for (const id of ['edit-delete-btn', 'bonfire-delete-btn', 'bonfire-leave-btn']) {
     const re = new RegExp('id="' + id + '"[^>]*class="profiles-btn btn-danger-quiet"');
@@ -279,7 +279,7 @@ for (const prop of ['background-size: 20px', 'border-radius: var(--jpf-input-r)'
         trigRule.includes(prop) && selRule.includes(prop), true);
 }
 check('both draw the same chevron',
-    trigRule.includes("M7 10l5 5 5-5H7z") && selRule.includes("M7 10l5 5 5-5H7z"), true);
+    trigRule.includes('var(--jpf-chevron)') && selRule.includes('var(--jpf-chevron)'), true);
 check('the text arrow is gone', SRC.includes('>▼<'), false);
 
 console.log();
