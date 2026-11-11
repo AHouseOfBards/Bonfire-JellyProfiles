@@ -228,7 +228,7 @@ Console.WriteLine("── The WOFF2 reader, on files made to be wrong ───�
 
 // A WOFF2 font built here, table by table, so each test changes one thing.
 byte[] Font(string family = "Harness Sans", bool lower = true, int weight = 400, (int Min, int Max)? axis = null,
-             uint? flavor = null, int lengthDelta = 0, byte[] extra = null)
+             uint? flavor = null, int lengthDelta = 0, byte[] extra = null, string extraTag = "zzzz", int os2Version = 0)
 {
     var tables = new List<(string Tag, byte[] Data)>
     {
@@ -238,14 +238,16 @@ byte[] Font(string family = "Harness Sans", bool lower = true, int weight = 400,
         ("OS/2", OS2(weight)),
     };
     if (axis != null) tables.Add(("fvar", Fvar(axis.Value.Min, axis.Value.Max)));
-    if (extra != null) tables.Add(("zzzz", extra));
+    if (extra != null) tables.Add((extraTag, extra));
 
     var dir = new List<byte>();
     foreach (var (tag, data) in tables)
     {
-        dir.Add(63);
+        var version = tag == "OS/2" ? os2Version : 0;
+        dir.Add((byte)(63 | (version << 6)));
         dir.AddRange(Encoding.ASCII.GetBytes(tag));
         dir.AddRange(Base128((uint)data.Length));
+        if (version != 0) dir.AddRange(Base128((uint)data.Length));
     }
     var raw = tables.SelectMany(t => t.Data).ToArray();
     byte[] packed;
@@ -323,6 +325,12 @@ string Refusal(byte[] file)
     catch (Exception e) { return "WRONG EXCEPTION " + e.GetType().Name + ": " + e.Message; }
 }
 
+// R-1081: a table listed twice, and a transform version the format does not define.
+var dupRefusal = Refusal(Font(extra: Name("Harness Sans"), extraTag: "name"));
+Ok("a table listed twice is refused (R-1081)", dupRefusal != null && !dupRefusal.StartsWith("WRONG"));
+var verRefusal = Refusal(Font(os2Version: 2));
+Ok("a transform version the format does not define is refused (R-1081)", verRefusal != null && !verRefusal.StartsWith("WRONG"));
+
 var made = Woff2Font.Read(Font());
 Ok("the made font reads: its family, weight 400 from OS/2", made.Family == "Harness Sans" && made.WeightMin == 400 && made.WeightMax == 400);
 var heavy = Woff2Font.Read(Font(weight: 700));
@@ -398,8 +406,44 @@ var live = (PluginConfiguration)pluginType.GetProperty("Configuration").GetValue
 Ok("the plugin stands up, its fonts folder under the stub data path",
    live != null && ThemeCatalog.CustomFontFolder.StartsWith(tempDir, StringComparison.Ordinal));
 
+// R-1078: GET /themes is anonymous and re-checks every custom theme it has not seen, so it
+// must not do that while holding the lock an administrator's save needs.
+{
+    var forThemes = typeof(PluginConfiguration).GetMethod("SnapshotForThemes");
+    Ok("a snapshot for GET /themes exists", forThemes != null);
+    var forReading = (PluginConfiguration)typeof(PluginConfiguration).GetMethod("SnapshotForReading").Invoke(live, null);
+    Ok("SnapshotForReading copies the theme and font lists, which the payload reads",
+       !ReferenceEquals(forReading.CustomThemes, live.CustomThemes) && !ReferenceEquals(forReading.CustomFonts, live.CustomFonts)
+       && !ReferenceEquals(forReading.HiddenThemes, live.HiddenThemes));
+    if (forThemes != null)
+    {
+        live.CustomThemes.Add(new CustomTheme { Id = "snap", Json = "{}" });
+        var snap = (PluginConfiguration)forThemes.Invoke(live, null);
+        live.CustomThemes.Add(new CustomTheme { Id = "after", Json = "{}" });
+        live.HiddenThemes.Add("after");
+        Ok("a save after the snapshot does not reach it",
+           snap.CustomThemes.Count == live.CustomThemes.Count - 1 && !snap.HiddenThemes.Contains("after"));
+        live.CustomThemes.Clear();
+        live.HiddenThemes.Clear();
+    }
+
+    var src = File.ReadAllText(Path.Combine(root, "Controllers", "ProfilesController.Themes.cs"));
+    var start = src.IndexOf("public ActionResult GetThemes", StringComparison.Ordinal);
+    var lockAt = src.IndexOf("lock (ConfigLock)", start, StringComparison.Ordinal);
+    var open = src.IndexOf('{', lockAt);
+    var depth = 0;
+    var close = open;
+    for (; close < src.Length; close++)
+    {
+        if (src[close] == '{') depth++;
+        else if (src[close] == '}' && --depth == 0) break;
+    }
+    var inLock = src.Substring(open, close - open);
+    Ok("GET /themes builds its payload outside ConfigLock", start > 0 && lockAt > start && !inLock.Contains("PublicPayload"));
+}
+
 var ctrlType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
-var ctor = ctrlType.GetConstructors().First();
+var ctor =ctrlType.GetConstructors().First();
 var ctorArgs = ctor.GetParameters().Select(p => p.ParameterType.Name.StartsWith("ILogger")
     ? Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(ctrlType)) : null).ToArray();
 
@@ -650,6 +694,7 @@ byte[] WebP(int w, int h)
     b[24] = (byte)(w - 1); b[25] = (byte)((w - 1) >> 8); b[27] = (byte)(h - 1); b[28] = (byte)((h - 1) >> 8);
     return b;
 }
+byte[] AnimatedWebP(int w, int h) { var b = WebP(w, h); b[20] = 0x02; return b; }
 string LogoRefusal(byte[] bytes)
 {
     try { ThemeLogo.Read(bytes); return null; }
@@ -661,6 +706,8 @@ var pngInfo = ThemeLogo.Read(Png(400, 120));
 Ok("a PNG reads as one, with its size", pngInfo.Extension == ".png" && pngInfo.Width == 400 && pngInfo.Height == 120);
 var jpgInfo = ThemeLogo.Read(Jpeg(300, 90));
 Ok("a JPEG reads its size from the frame header", jpgInfo.Extension == ".jpg" && jpgInfo.Width == 300 && jpgInfo.Height == 90);
+var animRefusal = LogoRefusal(AnimatedWebP(512, 128));
+Ok("an animated WebP is refused, as an animated GIF is (R-1079)", animRefusal != null && !animRefusal.StartsWith("WRONG"));
 var webpInfo = ThemeLogo.Read(WebP(512, 128));
 Ok("a WebP too", webpInfo.Extension == ".webp" && webpInfo.Width == 512 && webpInfo.Height == 128);
 foreach (var (label, bytes) in new (string, byte[])[]

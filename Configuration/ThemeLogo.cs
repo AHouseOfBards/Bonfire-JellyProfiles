@@ -74,6 +74,10 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public static LogoImageInfo Read(byte[] bytes)
         {
+            // The size is read from the file's own header and not checked against its data
+            // (R-1080). A file that claims one size and holds another is the administrator's
+            // own upload, and the browser draws what the data holds; nothing here allocates
+            // by the claimed size, so a wrong claim costs nothing.
             LogoImageInfo? info;
             try
             {
@@ -132,6 +136,9 @@ namespace Jellyfin.Profiles.Configuration
             var chunk = Ascii(b, 12);
             if (chunk == "VP8X")
             {
+                // Bit 1 of the feature flags: an animation. A GIF is refused for being one, so
+                // an animated WebP is too; a logo does not move.
+                if ((b[20] & 0x02) != 0) throw new InvalidDataException("A logo can't be animated.");
                 var w = 1 + (b[24] | (b[25] << 8) | (b[26] << 16));
                 var h = 1 + (b[27] | (b[28] << 8) | (b[29] << 16));
                 return new LogoImageInfo(".webp", "image/webp", w, h);

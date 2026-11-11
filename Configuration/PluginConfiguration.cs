@@ -88,7 +88,31 @@ namespace Jellyfin.Profiles.Configuration
             copy.Onboarding = Onboarding?.CopyForReading() ?? new OnboardingSettings();
             copy.Email = Email?.CopyForReading() ?? new EmailSettings();
             copy.AccountEmails = AccountEmails?.Select(a => a.Copy()).ToList() ?? new List<AccountEmail>();
+            CopyThemeLists(copy);
             return copy;
+        }
+
+        /// <summary>
+        /// A copy for <c>GET /themes</c>, which is anonymous and asked often: only what
+        /// <c>ThemeCatalog.PublicPayload</c> reads is copied, so taking it under
+        /// <c>ConfigLock</c> costs three short lists and the payload, which re-checks every
+        /// custom theme it has not seen, is built after the lock is let go. Never save one.
+        /// </summary>
+        public PluginConfiguration SnapshotForThemes()
+        {
+            var copy = (PluginConfiguration)MemberwiseClone();
+            CopyThemeLists(copy);
+            return copy;
+        }
+
+        private void CopyThemeLists(PluginConfiguration copy)
+        {
+            copy.CustomThemes = CustomThemes?.Select(c => new CustomTheme { Id = c.Id, Json = c.Json }).ToList() ?? new List<CustomTheme>();
+            copy.CustomFonts = CustomFonts?.Select(f => new CustomFont
+            {
+                Family = f.Family, File = f.File, WeightMin = f.WeightMin, WeightMax = f.WeightMax, Fallback = f.Fallback,
+            }).ToList() ?? new List<CustomFont>();
+            copy.HiddenThemes = HiddenThemes?.ToList() ?? new List<string>();
         }
 
         /// <summary>

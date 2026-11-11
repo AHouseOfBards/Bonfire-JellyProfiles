@@ -144,6 +144,13 @@ namespace Jellyfin.Profiles.Configuration
 
                 if (tag == null) throw new InvalidDataException("That file isn't a WOFF2 font Bonfire can read.");
                 var version = flags >> 6;
+                // The format defines glyf and loca at 0 (transformed) or 3 (not), hmtx at 0 or
+                // 1, and every other table at 0 only. Anything else is a file no font tool
+                // writes, and reading its length by a guess would misplace every table after.
+                var knownVersion = tag == "glyf" || tag == "loca" ? version == 0 || version == 3
+                    : tag == "hmtx" ? version <= 1 : version == 0;
+                if (!knownVersion) throw new InvalidDataException("That file isn't a WOFF2 font Bonfire can read.");
+                if (dir.Any(d => d.Tag == tag)) throw new InvalidDataException("That font file is damaged.");
                 var orig = Base128(file, ref at);
                 var transformed = tag == "glyf" || tag == "loca" ? version != 3 : version != 0;
                 var length = transformed ? Base128(file, ref at) : orig;

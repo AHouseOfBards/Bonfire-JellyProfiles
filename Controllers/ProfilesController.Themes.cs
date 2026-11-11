@@ -25,15 +25,19 @@ namespace Jellyfin.Profiles.Controllers
         [Produces("application/json")]
         public ActionResult GetThemes([FromQuery] string? part = null)
         {
-            // Built under the lock: it reads the custom theme and font lists, which a save can
-            // change underneath it. Cheap, since each custom theme's check is cached.
-            string payload;
+            // Copied under the lock, built outside it. The payload reads the custom theme and
+            // font lists, which a save can change underneath it, but on a cache miss it
+            // re-checks every custom theme, and an anonymous caller must not make an
+            // administrator's save wait for that.
+            PluginConfiguration snapshot;
             lock (ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return NotFound();
-                payload = ThemeCatalog.PublicPayload(config, customOnly: part == "custom");
+                snapshot = config.SnapshotForThemes();
             }
+
+            var payload = ThemeCatalog.PublicPayload(snapshot, customOnly: part == "custom");
 
             var etag = ThemeCatalog.ETagFor(payload);
             Response.Headers["ETag"] = etag;
