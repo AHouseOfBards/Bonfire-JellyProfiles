@@ -197,6 +197,22 @@ for (const r of rules) {
     const m = r.body.match(/display\s*:\s*(inline-)?(flex|grid)/);
     if (m) for (const s of r.selector.split(',')) displayOf.set(s.trim(), m[2]);
 }
+/* A gap set by ANY rule on an element some other rule makes flex: a theme's
+ * `[data-jpf-theme=x] .profiles-grid { gap }` is not itself in displayOf, but its last
+ * compound is the flex container's. Matched on that compound, and only when no rule makes
+ * the same compound a grid. (C-1006 follow-up.) */
+function flexByTarget(sel) {
+    const tailOf = s => { const m = /([^\s>+~]+)$/.exec(s.trim().replace(/\s+/g, ' ')); return m ? m[1] : ''; };
+    const tail = tailOf(sel);
+    if (!tail) return false;
+    let flex = false;
+    for (const [other, mode] of displayOf) {
+        if (tailOf(other) !== tail) continue;
+        if (mode === 'grid') return false;
+        flex = true;
+    }
+    return flex;
+}
 function isFlex(sel) {
     const s = sel.trim();
     if (displayOf.get(s) === 'flex') return true;
@@ -235,15 +251,18 @@ for (const f of PROP_FEATURES.filter(newer)) {
         }
         if (f.guard === 'flexclass') {
             for (const sel of r.selector.split(',').map(s => s.trim())) {
-                if (!isFlex(sel)) continue;      // grid gap is fine at this baseline
+                if (!isFlex(sel) && !flexByTarget(sel)) continue;      // grid gap is fine at this baseline
                 seen++;
                 // A margin fallback must exist for this container under the measured
                 // class. Matched on the container selector, not merely on the class
                 // existing somewhere -- "some fallbacks exist" is an aggregate, and
                 // aggregates hide which member is missing.
                 const wanted = '.jpf-no-flex-gap ' + sel;
+                // A rule under a longer selector (a theme's) is matched on that exact selector
+                // with the class folded into its first compound and the child step removed.
                 const has = [...selectors].some(s =>
-                    s.indexOf('.jpf-no-flex-gap') !== -1 && s.indexOf(sel) !== -1);
+                    s.indexOf('.jpf-no-flex-gap') !== -1 && (s.indexOf(sel) !== -1
+                        || s.replace('.jpf-no-flex-gap', '').replace(/\s*>\s*\*(\s*\+\s*\*)?$/, '') === sel));
                 ok('flex gap on ' + sel + ' at L' + line + ' has a margin fallback',
                     has, has ? '' : 'wanted a rule matching ' + wanted);
             }

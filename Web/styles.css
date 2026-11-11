@@ -2612,6 +2612,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv .profile-section-body {
     gap: 1.8rem;
 }
+/* The same 1.8rem for a browser with no flex gap (Chromium 53). */
+.jpf-no-flex-gap.jpf-tv .profile-section-body > * + * { margin-top: 1.8rem; }
 .jpf-tv .profile-section {
     padding: 1.6rem 1.5rem;
 }

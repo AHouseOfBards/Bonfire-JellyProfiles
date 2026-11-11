@@ -664,6 +664,9 @@
             const open = sel + '[data-jpf-theme]';
             css += open + ':not(.jpf-tv) #profiles-gate-overlay .profiles-modal-content { max-width: 1240px; }\n'
                 + open + ':not(.jpf-tv) .profiles-grid { max-width: none; gap: 2rem; }\n'
+                // The same 2rem for a browser with no flex gap (Chromium 53), which would
+                // otherwise keep the base margins and lose the theme's tighter spacing.
+                + open + ':not(.jpf-tv).jpf-no-flex-gap .profiles-grid > * { margin: 0 1rem 2rem; }\n'
                 + open + ' .profiles-home-header { justify-content: center; padding-bottom: 0; margin-bottom: 1.5rem; }\n'
                 + open + ' .profiles-home-title { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--jpf-text-3); }\n'
                 + open + ' .profiles-home-icon { font-size: 1.1rem; }\n'
