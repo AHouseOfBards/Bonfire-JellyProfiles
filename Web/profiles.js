@@ -815,8 +815,13 @@
                 // gate long enough to scroll. So at the bottom it is in the flow instead: the
                 // gate becomes a column, the content keeps its auto margins (centred while it
                 // fits), and the logo comes after it, at the bottom or below the last button.
-                // fitGateToScreen measures it with everything else.
-                css += sel + ' #profiles-gate-overlay.jpf-has-logo { flex-direction: column; }\n'
+                // fitGateToScreen measures it with everything else. flex-start, not the
+                // overlay's centre: in a column the main axis is the height, and a centred
+                // column longer than the screen spills its top above scroll position 0, where
+                // no scrolling reaches the title or the first rows (81px on a phone with four
+                // profiles, 861px on a TV list of 21). The auto margins still centre a gate
+                // that fits, since they take the free space before justify-content does.
+                css += sel + ' #profiles-gate-overlay.jpf-has-logo { flex-direction: column; justify-content: flex-start; }\n'
                     + sel + ' #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: 0; }\n'
                     + logo + ' { position: relative; top: auto; right: auto; left: auto; flex-shrink: 0; align-self: '
                         + (onLeft ? 'flex-start' : 'flex-end') + '; margin: 1rem 2rem 2rem; '

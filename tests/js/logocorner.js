@@ -167,6 +167,13 @@ async function main() {
         const BOX = `(function () { var b = document.getElementById('profiles-logo'); var root = document.getElementById('profiles-gate-overlay');
           var last = 0; [].slice.call(root.querySelectorAll('.profiles-btn, .profile-card')).forEach(function (e) { last = Math.max(last, e.getBoundingClientRect().bottom); });
           return { last: last, scrolls: root.scrollHeight > root.clientHeight + 1, below: root.scrollHeight - (b.getBoundingClientRect().bottom + root.scrollTop) }; })()`;
+        // Scrolled right to the top, the first thing in the content is on the screen. A flex
+        // column centred with justify-content spills an overflowing gate above scroll 0, where
+        // no scrolling can reach the title or the first rows (the bottom corners, 2.0).
+        const REACH = `(function () { var root = document.getElementById('profiles-gate-overlay');
+          var c = root.querySelector('.profiles-modal-content'); var f = c && c.firstElementChild;
+          if (!f) return { found: false }; root.scrollTop = 0;
+          return { found: true, first: f.getBoundingClientRect().top, top: root.getBoundingClientRect().top }; })()`;
         for (const theme of ['bonfire', 'bloom']) {
             for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
                 for (const v of VARIANTS) {
@@ -186,6 +193,9 @@ async function main() {
                             ok(where + ': in its corner', across && down, 'box ' + Math.round(m.box.l) + ',' + Math.round(m.box.t) + '-' + Math.round(m.box.r) + ',' + Math.round(m.box.b)
                                 + ' in ' + m.vw + 'x' + m.vh + (e.scrolls ? ', scrolls, last control ends ' + Math.round(e.last) : ''));
                             ok(where + ': off the title, the tiles and the buttons', m.hits.length === 0, m.hits.join(', '));
+                            const s = await c.evaluate(REACH);
+                            ok(where + ': the top of the content can be scrolled to', s.found && s.first >= s.top - 0.5,
+                                s.found ? 'first child at ' + Math.round(s.first) + ', gate top ' + Math.round(s.top) : 'no content');
                             if (!/^tv/.test(device)) {
                                 // From the screen's edge on the side and at the top or bottom it is in; at the
                                 // bottom of a gate that scrolls, from the end of the page.
