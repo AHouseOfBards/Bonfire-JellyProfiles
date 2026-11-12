@@ -104,7 +104,9 @@ function world(store, fetchAnswer) {
         settingsCalls: [],
         _setThemeSettings(prefs) { this.settingsCalls.push(prefs); this.applyTheme(prefs.theme); },
         // The logo's backing is measured in a browser by logobacking.js.
-        fitLogoBacking() {}
+        fitLogoBacking() {},
+        // The cross-fade needs a gate; measured in a browser by themefade.js.
+        fadeThemeFrom() {}
     };
     const gen = 'const BONFIRE_THEMES = ' + JSON.stringify(payload) + ';\n'
         + ['themeCss', 'servedFontName', 'gateBackground', 'customFontFaceCss', 'customThemesCss']

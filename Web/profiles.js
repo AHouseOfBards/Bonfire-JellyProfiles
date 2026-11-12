@@ -5039,11 +5039,65 @@
             if (this._themeDeferred) return;
             // Its picture, if it is a custom theme with one: once per page, so a no-op after.
             this.loadThemePhotoOf(id);
-            if (root.getAttribute('data-jpf-theme') !== id) {
+            const before = root.getAttribute('data-jpf-theme');
+            if (before !== id) {
+                // Read the old look before the attribute moves it.
+                if (before) this.fadeThemeFrom();
                 root.setAttribute('data-jpf-theme', id);
                 // A see-through logo that read on the last theme may not on this one.
                 this.fitLogoBacking();
             }
+        },
+
+        /// The length of the cross-fade between two themes (.jpf-theme-veil's transition in
+        /// styles.css), with a margin. Change the two together.
+        THEME_FADE_MS: 300,
+
+        /// A cross-fade from the theme the gate is wearing to the one about to replace it,
+        /// instead of a hard cut. Called just before data-jpf-theme changes.
+        ///
+        /// A transition on the variables cannot do this: a gradient, a pattern and a
+        /// background picture do not interpolate, and a font does not at all. So the old
+        /// look is copied as it is drawn now (the gate's background, and its pattern layer)
+        /// onto a layer that sits above the new background and under the content, and that
+        /// layer's opacity goes from 1 to 0. Opacity only, which a television does without
+        /// repainting. The text and the tiles change at once: animating the content's own
+        /// opacity replays .anim-fade-in when it ends, so it is left alone.
+        ///
+        /// Nothing happens without a gate on screen, or for anyone who asked for less
+        /// motion. The household's richer-motion setting is not asked: it governs the
+        /// decorations that move for as long as a screen is open, and this is a 0.3 second
+        /// transition that stops by itself. A second choice during the fade leaves the
+        /// first layer to finish; the page underneath is already on the second theme, so
+        /// it ends there. Run from applyTheme only, never from checkRoute.
+        fadeThemeFrom: function () {
+            const gate = document.getElementById('profiles-gate-overlay');
+            if (!gate || gate.querySelector('.jpf-theme-veil')) return;
+            try {
+                if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+                const now = window.getComputedStyle(gate);
+                const pattern = window.getComputedStyle(gate, '::before');
+                const veil = document.createElement('div');
+                veil.className = 'jpf-theme-veil';
+                veil.setAttribute('aria-hidden', 'true');
+                const paint = (el, s, tail) => {
+                    ['backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat']
+                        .forEach(k => { el.style[k] = s[k]; });
+                    if (tail) el.style.opacity = s.opacity;
+                };
+                paint(veil, now, false);
+                const deco = document.createElement('div');
+                deco.className = 'jpf-theme-veil-deco';
+                paint(deco, pattern, true);
+                veil.appendChild(deco);
+                gate.appendChild(veil);
+                // Drawn once at full strength, then let go.
+                void veil.offsetWidth;
+                veil.classList.add('is-out');
+                setTimeout(() => {
+                    if (veil.parentNode) veil.parentNode.removeChild(veil);
+                }, this.THEME_FADE_MS + 60);
+            } catch (e) { /* a cut is the fallback */ }
         },
 
         /// The stored themes: { last, users: { normalisedUserId: theme }, bg: { theme: gate

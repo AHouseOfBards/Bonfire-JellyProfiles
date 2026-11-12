@@ -2775,6 +2775,29 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-fade { transition: opacity 0.15s ease-out; }
 html.jpf-fading { transition: opacity 0.18s ease; }
 #profiles-gate-overlay.jpf-bg-fade { transition: background 0.2s ease; }
+/* The cross-fade between two themes (fadeThemeFrom in profiles.js; THEME_FADE_MS there is
+   this duration, so change the two together). The veil is a copy of the old look, above
+   the new background and under the content (z-index -1, like the pattern layer, and after
+   it in the tree), and fades out. Opacity only. Skipped for anyone who asked for less
+   motion, and the script does not draw it. The content is not animated: giving
+   .profiles-modal-content an animation here replayed .anim-fade-in when this one ended. */
+.jpf-theme-veil {
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 1;
+    -webkit-transition: opacity 0.3s ease;
+    transition: opacity 0.3s ease;
+}
+.jpf-theme-veil.is-out { opacity: 0; }
+.jpf-theme-veil-deco {
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+    .jpf-theme-veil { display: none; }
+}
 /* ── The flat look ────────────────────────────────────────────────
    On a television that cannot afford it (jpf-flat: a television browser with no
    backdrop-filter, so Chromium 75 and older; see _canBlur) the blur and the moving

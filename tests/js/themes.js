@@ -460,6 +460,9 @@ if (constants && names.every(n => methods[n])) {
             // applyTheme re-judges the logo's backing; that is measured in a browser by
             // logobacking.js, and there is no logo in this world.
             fitLogoBacking() {},
+            // ...and cross-fades from the old look when a gate is up; measured in a browser
+            // by themefade.js, and there is no gate in this world.
+            fadeThemeFrom() {},
             // applyTheme fetches the picture of a custom theme it puts on; which picture is
             // fetched, and when, is customthemes.js's. No theme here has one.
             loadThemePhotoOf() {},
