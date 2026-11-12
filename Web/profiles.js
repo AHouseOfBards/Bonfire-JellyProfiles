@@ -11341,7 +11341,7 @@
                 <p class="jpf-onboarding-text" id="onboarding-email-sent"></p>
                 <div class="bonfire-form-group">
                     <label for="onboarding-email-code">${t('accountEmail.code')}</label>
-                    <input type="text" id="onboarding-email-code" maxlength="6"inputmode="numeric" autocomplete="one-time-code" ${noFill} />
+                    <input type="text" id="onboarding-email-code" maxlength="7" inputmode="numeric" autocomplete="one-time-code" ${noFill} />
                 </div>
                 <button type="button" id="onboarding-email-other" class="jpf-text-link">${t('accountEmail.otherAddress')}</button>
             ` : `

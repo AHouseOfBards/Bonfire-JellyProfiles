@@ -157,12 +157,17 @@ function before(marker, take) {
     return at < 0 ? '' : SRC.slice(Math.max(0, at - take), at);
 }
 
-console.log('\n── r2-31-02: the code field is as long as the check ────────────────');
-{
-    const m = /id="onboarding-email-code" maxlength="(\d+)"/.exec(SRC);
-    ok('the onboarding code field has maxlength 6 (got ' + (m && m[1]) + ')', !!m && m[1] === '6');
-    ok('the check it feeds is six digits', /\^\\d\{6\}\$\/\.test\(code\)/.test(SRC));
-}
+// r2-31-02 was wrong: both handlers strip spaces before the six-digit check, and the server
+// takes "123 456" (tests/cs/email). maxlength 6 cut a pasted "123 456" to "123 45".
+console.log('\n── r2-31-02: a code pasted as "123 456" fits both code fields ──────');
+['onboarding-email-code', 'account-email-code'].forEach(id => {
+    const m = new RegExp('id="' + id + '" maxlength="(\\d+)" ').exec(SRC);
+    ok(id + ' has maxlength 7, room for one space (got ' + (m && m[1]) + ')', !!m && m[1] === '7');
+});
+ok('the onboarding handler strips spaces before the six-digit check',
+    /const code = input\.value\.replace\(\/\\s\/g, ''\);\s*if \(!\/\^\\d\{6\}\$\/\.test\(code\)\)/.test(SRC));
+ok('the account handler strips spaces before the six-digit check',
+    /const typed = codeInput\.value\.replace\(\/\\s\/g, ''\);\s*if \(!\/\^\\d\{6\}\$\/\.test\(typed\)\)/.test(SRC));
 
 console.log('\n── r2-32: header code comments and arms ────────────────────────────');
 {
