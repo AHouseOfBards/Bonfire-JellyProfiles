@@ -28,14 +28,14 @@ function bodyAfter(marker) {
     return null;
 }
 
-let bad = 0;
+let bad = 0, pass = 0;
 [
     ["document.addEventListener('usersignedout'", 'sign-out'],
     ['handleSessionExpired: function', 'session expiry']
 ].forEach(function (c) {
     const body = bodyAfter(c[0]);
     if (body === null) { bad++; console.log('FAIL ' + c[1] + ': handler not found'); return; }
-    if (body.indexOf("removeItem('" + KEY + "')") < 0) { bad++; console.log('FAIL ' + c[1] + ' does not remove the cached list'); }
+    if (body.indexOf("removeItem('" + KEY + "')") < 0) { bad++; console.log('FAIL ' + c[1] + ' does not remove the cached list'); } else { pass++; }
 });
-console.log(bad ? bad + ' failed' : 'ok: sign-out and session expiry both remove the cached list');
+console.log(bad ? bad + ' failed' : 'ok: sign-out and session expiry both remove the cached list (' + pass + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

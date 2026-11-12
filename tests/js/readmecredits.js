@@ -24,5 +24,5 @@ slugs.forEach(function (s) {
 });
 if (readme.indexOf('open font license') < 0) { bad++; console.log('FAIL README does not name the licence'); }
 if (readme.indexOf('web/themes/fonts') < 0) { bad++; console.log('FAIL README does not say where the licence texts are'); }
-console.log(bad ? bad + ' failed' : 'ok: ' + slugs.length + ' fonts credited');
+console.log(bad ? bad + ' failed' : 'ok: ' + slugs.length + ' fonts credited (' + slugs.length + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

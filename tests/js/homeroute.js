@@ -62,5 +62,5 @@ cases.forEach(function (c) {
     const got = p.isHomeRoute();
     if (got !== c[2]) { bad++; console.log('FAIL ' + c[0] + ' ' + c[1] + ' -> ' + got + ', want ' + c[2]); }
 });
-console.log(bad ? bad + ' failed' : 'ok: ' + cases.length + ' addresses classified by route segment');
+console.log(bad ? bad + ' failed' : 'ok: ' + cases.length + ' addresses classified by route segment (' + cases.length + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

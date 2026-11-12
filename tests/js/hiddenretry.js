@@ -13,8 +13,8 @@ const fs = require('fs');
 const vm = require('vm');
 const lib = require('./_lib');
 
-let bad = 0;
-function ok(name, cond) { if (!cond) { bad++; console.log('FAIL ' + name); } }
+let bad = 0, pass = 0;
+function ok(name, cond) { if (!cond) { bad++; console.log('FAIL ' + name); } else { pass++; } }
 
 const src = fs.readFileSync(lib.profilesPath(), 'utf8').replace('ProfilesPlugin.init();', 'globalThis.__PROFILES = ProfilesPlugin;');
 const store = { getItem() { return null; }, setItem() {}, removeItem() {} };
@@ -53,5 +53,5 @@ p._usersRetryDue = false;
 p.syncHiddenProfiles('#/home');
 ok('off the Users page: the retry is not raised', p._usersRetryDue === false);
 
-console.log(bad ? bad + ' failed' : 'ok: a retry cleared by checkRoute is raised again inside its wait');
+console.log(bad ? bad + ' failed' : 'ok: a retry cleared by checkRoute is raised again inside its wait (' + pass + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

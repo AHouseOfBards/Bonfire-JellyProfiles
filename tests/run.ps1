@@ -37,6 +37,11 @@ function Invoke-Harness {
         # Exit 0 with nothing said, or zero checks counted, proved nothing.
         $script:failed.Add($Label)
         Write-Host 'FAILED (asserted nothing)'
+    } elseif ($LASTEXITCODE -eq 0 -and (($text -split "`n" | Where-Object { $_.Trim() -ne '' } | Select-Object -Last 1) -notmatch '[0-9]+ passed|pass [0-9]+, fail [0-9]+|^\s*SKIPPED')) {
+        # Exit 0 without ending on a totals line: it stopped early.
+        $script:failed.Add($Label)
+        Write-Host 'FAILED (no totals line)'
+        $out | Select-Object -Last 5 | ForEach-Object { Write-Host ('        ' + $_) }
     } elseif ($LASTEXITCODE -eq 0) {
         $tail = ($out | Select-Object -Last 1)
         if ($null -ne $tail) { Write-Host ([string]$tail).Trim() } else { Write-Host 'ok' }

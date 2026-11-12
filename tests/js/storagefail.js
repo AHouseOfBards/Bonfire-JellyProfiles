@@ -15,8 +15,8 @@ const fs = require('fs');
 const lib = require('./_lib');
 const src = fs.readFileSync(lib.profilesPath(), 'utf8');
 const KEY = 'jellyfin_profiles_cached_list';
-let bad = 0;
-function check(ok, msg) { if (!ok) { bad++; console.log('FAIL ' + msg); } }
+let bad = 0, pass = 0;
+function check(ok, msg) { if (!ok) { bad++; console.log('FAIL ' + msg); } else { pass++; } }
 
 // 1. each write of the list
 const lines = src.split('\n');
@@ -57,5 +57,5 @@ STEPS.forEach(function (failing) {
     check(removed.indexOf(KEY) >= 0, 'with ' + failing + ' throwing, the cached list was not removed');
     check(self._switcherPrefs === null, 'with ' + failing + ' throwing, the in-memory preferences were kept');
 });
-console.log(bad ? bad + ' failed' : 'ok: ' + sites + ' list writes guarded; sign-out removes the list whichever step fails');
+console.log(bad ? bad + ' failed' : 'ok: ' + sites + ' list writes guarded; sign-out removes the list whichever step fails (' + pass + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

@@ -38,6 +38,15 @@ run() {                       # run <label> <command...>
             echo "FAILED (asserted nothing)"
             return
         fi
+        # And one that exits 0 without ending on a totals line stopped early: it printed
+        # some PASS lines and then fell off the end. A skip says so on its last line.
+        if ! printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | tail -1 \
+             | grep -Eq '[0-9]+ passed|pass [0-9]+, fail [0-9]+|^[[:space:]]*SKIPPED'; then
+            FAILED+=("$label")
+            echo "FAILED (no totals line)"
+            echo "$out" | sed 's/^/        /' | tail -5
+            return
+        fi
         echo "$out" | tail -1 | cut -c1-70
     else
         RAN=$((RAN + 1))
@@ -82,7 +91,7 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
     # and the newest copy on a server runs index.html for all of them. Change it in
     # Campground-Coordination and re-vendor instead. Here rather than as its own CI step so
     # the desk and the pipeline cannot disagree.
-    run "sharedcopy" sh Campground.Shared/check-shared.sh
+    run "sharedcopy" sh -c 'sh Campground.Shared/check-shared.sh && echo "1 passed, 0 failed"'
     echo
 fi
 

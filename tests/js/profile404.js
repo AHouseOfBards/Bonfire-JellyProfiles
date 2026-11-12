@@ -24,5 +24,5 @@ fs.readdirSync(dir).filter(function (f) { return /\.cs$/.test(f); }).forEach(fun
     });
 });
 if (seen < 8) { bad++; console.log('FAIL only ' + seen + ' sites found; the extractor is blind'); }
-console.log(bad ? bad + ' failed' : 'ok: ' + seen + ' sites all NotFound');
+console.log(bad ? bad + ' failed' : 'ok: ' + seen + ' sites all NotFound (' + seen + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

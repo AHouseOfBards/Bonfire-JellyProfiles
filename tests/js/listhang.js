@@ -37,8 +37,8 @@ const obj = eval('({ POLL_RETRY_MS: 30000, _listInFlight: 0, _listSentAt: 0, _li
     + method('_listPending') + ',' + method('_listPollMayRequest') + ',' + method('_requestList') + '})');
 const api = { getUrl: p => p };
 
-let bad = 0;
-function check(ok, msg) { if (!ok) { bad++; console.log('FAIL ' + msg); } }
+let bad = 0, pass = 0;
+function check(ok, msg) { if (!ok) { bad++; console.log('FAIL ' + msg); } else { pass++; } }
 
 obj._requestList(api, 't');
 check(!obj._listPollMayRequest(), 'a request just sent should hold the poll back');
@@ -49,5 +49,5 @@ for (let i = 0; i < 10; i++) {
     now += 500;
     if (obj._listPollMayRequest()) { check(false, 'the poll may send again ' + (i + 1) * 500 + ' ms after a resend'); break; }
 }
-console.log(bad ? bad + ' failed' : 'ok: a hung list request is retried once per ' + obj.POLL_RETRY_MS + ' ms, not every tick');
+console.log(bad ? bad + ' failed' : 'ok: a hung list request is retried once per ' + obj.POLL_RETRY_MS + ' ms, not every tick (' + pass + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

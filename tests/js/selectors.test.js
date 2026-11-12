@@ -271,4 +271,4 @@ if (failures.length) {
     console.log('');
     process.exit(1);
 }
-console.log('  OK');
+console.log('  ' + passed + ' passed, 0 failed');

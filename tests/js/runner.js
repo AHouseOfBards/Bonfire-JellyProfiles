@@ -39,5 +39,18 @@ check('"10 passed" is not mistaken for zero', tenpass.line !== '' && !/FAILED/.t
 const bad = run("console.log('3 passed, 1 failed'); process.exit(1);\n");
 check('a failing harness is still FAILED', /FAILED/.test(bad.line));
 
+// A harness that prints PASS lines and then stops, exiting 0, never reached its totals. The
+// line that says "passed" earlier in its output must not rescue it.
+const noTotals = run("console.log('  PASS  one'); console.log('  PASS  two');\n");
+check('PASS lines with no totals line are reported FAILED', /FAILED \(no totals line\)/.test(noTotals.line));
+const earlyTotals = run("console.log('5 passed, 0 failed'); console.log('  PASS  trailing');\n");
+check('a totals line that is not the last line does not count', /FAILED \(no totals line\)/.test(earlyTotals.line));
+const dashTotals = run("console.log('  PASS  one'); console.log('-- pass 4, fail 0');\n");
+check('"-- pass N, fail M" is a totals line', dashTotals.line !== '' && !/FAILED/.test(dashTotals.line));
+const trailingBlank = run("console.log('7 passed, 0 failed'); console.log('');\n");
+check('a blank line after the totals is ignored', trailingBlank.line !== '' && !/FAILED/.test(trailingBlank.line));
+const skipped = run("console.log('  SKIPPED  no Chrome on this machine');\n");
+check('a harness that says it was skipped is not failed', skipped.line !== '' && !/FAILED/.test(skipped.line));
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail === 0 ? 0 : 1);

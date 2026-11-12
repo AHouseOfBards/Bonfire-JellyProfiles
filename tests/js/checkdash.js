@@ -5,10 +5,10 @@ const L = require('./_lib');
 const html = fs.readFileSync(L.dashboardPath(), 'utf8');
 const m = html.match(/<script type="text\/javascript">([\s\S]*?)<\/script>/);
 if (!m) { console.error('no script block found'); process.exit(1); }
-let failed = false;
+let failed = false, checks = 0;
 try {
     new Function(m[1]);
-    console.log('dashboard script parses OK (' + m[1].split('\n').length + ' lines)');
+    checks++; console.log('dashboard script parses OK (' + m[1].split('\n').length + ' lines)');
 } catch (e) {
     console.error('SYNTAX ERROR:', e.message);
     process.exit(1);
@@ -55,7 +55,7 @@ if (dupeAttrs.length) {
     console.error('DUPLICATE attributes (the second is discarded by the browser):');
     dupeAttrs.forEach(d => console.error('  line ' + d.line + '  ' + d.names + '  ' + d.tag));
 } else {
-    console.log('no element carries the same attribute twice');
+    checks++; console.log('no element carries the same attribute twice');
 }
 
 const values = new Map();
@@ -77,7 +77,7 @@ if (repeated.length) {
         .sort((a, b) => b[1] - a[1])
         .forEach(([value, n]) => console.error('  ' + n + '×  ' + value.slice(0, 100)));
 } else {
-    console.log('no inline style value is used twice (' + total + ' single-use)');
+    checks++; console.log('no inline style value is used twice (' + total + ' single-use)');
 }
 
 // ── No client-side code may authenticate the legacy way ─────────────────────
@@ -131,7 +131,8 @@ if (authOffenders.length) {
     console.error('LEGACY AUTHORIZATION — Jellyfin 12.0 does not read these:');
     authOffenders.forEach(o => console.error('  ' + o));
 } else {
-    console.log('no client code authenticates the legacy way');
+    checks++; console.log('no client code authenticates the legacy way');
 }
 
+if (!failed) console.log(checks + ' passed, 0 failed');
 process.exit(failed ? 1 : 0);

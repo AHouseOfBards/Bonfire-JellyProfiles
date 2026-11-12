@@ -13,8 +13,8 @@ const fs = require('fs');
 const vm = require('vm');
 const lib = require('./_lib');
 
-let bad = 0;
-function ok(name, cond) { if (!cond) { bad++; console.log('FAIL ' + name); } }
+let bad = 0, pass = 0;
+function ok(name, cond) { if (!cond) { bad++; console.log('FAIL ' + name); } else { pass++; } }
 
 function make(apiClient) {
     const src = fs.readFileSync(lib.profilesPath(), 'utf8').replace('ProfilesPlugin.init();', 'globalThis.__PROFILES = ProfilesPlugin;');
@@ -54,5 +54,5 @@ info = null;
 try { info = make({ getCurrentUserId() { return null; }, _currentUser: { Name: 'maria' } }).getCachedActiveProfile(); } catch (e) { ok('named user: does not throw', false); }
 if (info) ok('named user: still uses the account name', info.name === 'maria' && info.initial === 'M');
 
-console.log(bad ? bad + ' failed' : 'ok: the fallback name is empty and a missing ApiClient is survived');
+console.log(bad ? bad + ' failed' : 'ok: the fallback name is empty and a missing ApiClient is survived (' + pass + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

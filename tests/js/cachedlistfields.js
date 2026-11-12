@@ -15,8 +15,8 @@ const vm = require('vm');
 const lib = require('./_lib');
 
 let src = fs.readFileSync(lib.profilesPath(), 'utf8');
-let bad = 0;
-function ok(name, cond) { if (!cond) { bad++; console.log('FAIL ' + name); } }
+let bad = 0, pass = 0;
+function ok(name, cond) { if (!cond) { bad++; console.log('FAIL ' + name); } else { pass++; } }
 
 // Every write site, pairwise.
 const re = /localStorage\.setItem\('jellyfin_profiles_cached_list',\s*([^;]*)\);/g;
@@ -73,5 +73,5 @@ if (typeof plugin._cacheableProfiles !== 'function') {
     ok('values survive', out.profileName === 'Kid' && out.avatarColor === '#123456' && out.transparentAvatar === true);
     ok('no device ids or tags in the output', JSON.stringify(out).indexOf('dev1') < 0 && JSON.stringify(out).indexOf('"t"') < 0);
 }
-console.log(bad ? bad + ' failed' : 'ok: the cached list holds only what the header bubble reads');
+console.log(bad ? bad + ' failed' : 'ok: the cached list holds only what the header bubble reads (' + pass + ' passed, 0 failed)');
 process.exit(bad ? 1 : 0);

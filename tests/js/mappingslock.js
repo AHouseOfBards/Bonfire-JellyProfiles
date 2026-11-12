@@ -78,6 +78,6 @@ if (require.main === module) {
     const probe = scan(tmp);
     fs.rmSync(tmp, { recursive: true, force: true });
     if (probe.length !== 1 || !/X\.cs:3/.test(probe[0])) { console.log('FAIL detector probe: ' + JSON.stringify(probe)); failed++; }
-    console.log(failed ? failed + ' failed' : 'mappingslock: ok (' + 1 + ' probe, no unlocked reads)');
+    console.log(failed ? failed + ' failed' : 'mappingslock: ok, 1 passed, 0 failed (1 probe, no unlocked reads)');
     process.exit(failed ? 1 : 0);
 }
