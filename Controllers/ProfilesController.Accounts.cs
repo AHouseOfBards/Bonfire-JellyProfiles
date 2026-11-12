@@ -535,7 +535,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     await PutBackAsync("it could not be signed out").ConfigureAwait(false);
                     return StatusCode(StatusCodes.Status500InternalServerError,
-                        "Its sessions couldn't be ended, so it wasn't made a profile. Its password was replaced. See the server log.");
+                        "Couldn't sign this account out, so it wasn't made a profile. Give it a new password.");
                 }
 
                 // 4. A profile. Its main-account row goes, with what only a main account has.
