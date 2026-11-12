@@ -496,6 +496,13 @@ else
     var kept = ((IEnumerable)normalize.Invoke(null, new object[] { typed })).Cast<object>().ToList();
     Ok("a restore keeps ten valid entries, once each, and drops the rest", kept.Count == 10
        && (string)P(kept[0], "Address") == "198.51.100.77" && ((IList)P(kept[0], "UserIds")).Count == 1);
+    // The count alone cannot tell: ten kept can be nine good ones and a repeat. Name them.
+    // (Audit, wave 4: a repeat let through still made ten, because the cap cut the tail.)
+    var keptAddresses = kept.Select(k => (string)P(k, "Address")).ToList();
+    Ok("and they are the first nine after it, with no address twice",
+       keptAddresses.SequenceEqual(new[] { "198.51.100.77" }.Concat(Enumerable.Range(1, 9).Select(i => "203.0.113." + i)))
+       && keptAddresses.Distinct().Count() == keptAddresses.Count,
+       string.Join(",", keptAddresses));
 }
 
 // ── Red team: who counts as the address ──────────────────────────────────────
@@ -521,6 +528,49 @@ TrustNone();
 for (int i = 1; i <= 15; i++) AddEntry("203.0.113." + i, HOME);
 AddEntry("198.51.100.7", HOME);
 Ok("a hand-edited file past ten entries does not read the eleventh", Asks(HOME, OFF, "198.51.100.7") == true);
+
+// ── Audit (wave 4): failing closed, driven directly ──────────────────────────
+// Each of these was a break that left this file green: the administrator lookup answering
+// "not one" when it cannot tell, and Applies trusting when its own check throws.
+Section("When it cannot tell, nobody is trusted");
+{
+    var ta = asm.GetType("Jellyfin.Profiles.Auth.TrustedAddresses", true);
+    var isAdmin = ta.GetMethod("IsAdministrator");
+    var applies = ta.GetMethod("Applies");
+    bool Adm(object users, Guid id) => (bool)isAdmin.Invoke(null, new object[] { users, id });
+    var wu = World.Create(world);
+    Ok("an administrator is one", Adm(wu, ADMIN));
+    Ok("a main account is not", !Adm(wu, HOME));
+    Ok("an account that does not exist counts as one", Adm(wu, Guid.NewGuid()));
+    Ok("no user manager at all counts as one", Adm(null, HOME));
+    var down = DispatchProxy.Create<IUserManager, ModeUsers>();
+    ((ModeUsers)(object)down).Mode = 0;
+    Ok("a lookup that throws counts as one", Adm(down, HOME));
+    var noPolicy = DispatchProxy.Create<IUserManager, ModeUsers>();
+    ((ModeUsers)(object)noPolicy).Mode = 1;
+    Ok("an account whose rights cannot be read counts as one", Adm(noPolicy, HOME));
+
+    Trust("198.51.100.7", HOME);
+    bool Applied(Func<Guid, bool> check) => (bool)applies.Invoke(null, new object[] { config, IPAddress.Parse("198.51.100.7"), HOME, HOME, check });
+    Ok("(control) a matching entry and no administrator trusts", Applied(_ => false));
+    Ok("an administrator check that throws trusts nobody", !Applied(_ => throw new InvalidOperationException("down")));
+    Ok("a household that is an administrator is never trusted", !Applied(id => id == HOME));
+
+    // Validate, without the route's own account check in front of it.
+    var validate = ta.GetMethod("Validate");
+    bool ValidateRefuses(string address, Guid[] ids)
+    {
+        var typed = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(entryType));
+        typed.Add(MakeEntry(address, ids));
+        return validate.Invoke(null, new object[] { typed, null }) != null;
+    }
+    Ok("Validate alone refuses an empty account id", ValidateRefuses("198.51.100.7", new[] { Guid.Empty }));
+    Ok("and an address for nobody", ValidateRefuses("198.51.100.7", new Guid[0]));
+    Ok("(control) and takes a real one", !ValidateRefuses("198.51.100.7", new[] { HOME }));
+    // A sign or a space in a number is not a number: int.Parse would take all of them.
+    foreach (var odd in new[] { "198.51.100.+7", "198.51.+100.7", "198.51.100.7/+24", "198.51.100.0/ 24", "198.51.100.0/2 4", "1.2.3.4.5" })
+        Ok("Validate alone refuses '" + odd + "'", ValidateRefuses(odd, new[] { HOME }));
+}
 
 // A header does not move the address: only what Jellyfin resolved counts.
 Trust("198.51.100.7", HOME);
@@ -796,6 +846,19 @@ public class DeviceStub : DispatchProxy
             return new MediaBrowser.Model.Querying.QueryResult<Jellyfin.Database.Implementations.Entities.Security.Device>(
                 new List<Jellyfin.Database.Implementations.Entities.Security.Device> { d });
         }
+        return Loose.Default(m.ReturnType);
+    }
+}
+
+/// <summary>A user manager that cannot tell: Mode 0 throws on every call, Mode 1 finds the account but has no policy for it.</summary>
+public class ModeUsers : DispatchProxy
+{
+    public int Mode;
+    protected override object Invoke(MethodInfo m, object[] args)
+    {
+        if (Mode == 0) throw new InvalidOperationException("the user store is down");
+        if (m.Name == "GetUserById") return System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(User));
+        if (m.Name == "GetUserDto") return new UserDto { Policy = null };
         return Loose.Default(m.ReturnType);
     }
 }
