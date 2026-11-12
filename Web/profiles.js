@@ -5608,7 +5608,11 @@
         /// Only the poll consults this (_listPollMayRequest): a person who saves a profile
         /// or goes back to the grid still gets the request they asked for.
         _requestList: function (apiClient, token, init) {
-            if (this._listInFlight === 0) this._listSentAt = Date.now();
+            // Stamped on every send, not only when nothing is in flight. A request that
+            // hangs is treated as lost after POLL_RETRY_MS and the poll sends another; if
+            // only the first send stamped, the stamp stayed old, _listPending stayed false
+            // and the poll sent about two requests a second for as long as the network was dead.
+            this._listSentAt = Date.now();
             this._listInFlight++;
             const done = () => { this._listInFlight = Math.max(0, this._listInFlight - 1); };
             return fetch(apiClient.getUrl('plugins/profiles/list'),
@@ -5702,7 +5706,9 @@
                 // Deliberately NOT stored in cachedProfiles: that field is the one-shot
                 // prefetch buffer, and repopulating it here made the *next* call short-circuit
                 // to data that was already stale.
-                localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
+                // Storage that is full or blocked throws here; left unguarded the catch below
+                // reported "list failed" and the profile screen never appeared on that device.
+                try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized)); } catch (e) { /* the screen does not need the copy */ }
                 return (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(normalized));
             })
             .catch(err => {
@@ -12909,7 +12915,7 @@
                     if ((this._profileCacheGen || 0) !== gen) return;
                     const normalized = this.normalizeProfiles(profiles);
                     this.cachedProfiles = normalized;
-                    localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
+                    try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized)); } catch (e) { /* full or blocked: the in-memory copy is set */ }
                     this._profilePrefetchPending = false;
 
                     // Sync sessionStorage if matches current active user
