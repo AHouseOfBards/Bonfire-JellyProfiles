@@ -4559,7 +4559,10 @@ namespace Jellyfin.Profiles.Controllers
             // ceiling for everyone together, so many addresses cannot buy unlimited guesses,
             // CPU, or map entries (R-1307).
             ip = RateLimiter.AddressKey(ip);
-            if (!RateLimiter.PanicAll.TryBegin("all") || !RateLimiter.Panic.TryBegin(ip))
+            // The address's own limit first, and the shared one only for a request that passed
+            // it. The other way round, one address sending 200 requests spent the whole
+            // server's allowance and locked the real administrator out for an hour (r2-14-01).
+            if (!RateLimiter.Panic.TryBegin(ip) || !RateLimiter.PanicAll.TryBegin("all"))
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: Emergency disable code rate limit hit from {Ip}. Someone is guessing.", ip);
