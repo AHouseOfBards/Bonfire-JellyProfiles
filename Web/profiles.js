@@ -3845,7 +3845,11 @@
                 return;
             }
             if (typeof ApiClient === 'undefined') {
-                // If ApiClient is not defined yet, wait for it
+                // If ApiClient is not defined yet, wait for it. Not forever: a page that
+                // never defines it would otherwise run this timer for as long as it stays
+                // open. 600 tries at 100 ms is about a minute.
+                this._initTries = (this._initTries || 0) + 1;
+                if (this._initTries > 600) return;
                 setTimeout(() => this.init(), 100);
                 return;
             }
@@ -3935,8 +3939,8 @@
 
             // SPA navigation. With the Campground runtime on the page, route changes come
             // from its `route` event (it listens for popstate, hashchange and viewshow) and
-            // history is wrapped only through its patch(), so a second copy of this script
-            // does not wrap twice and the brake can undo it. The runtime can be missing —
+            // history is wrapped only through its patch(), so the brake can undo it. The
+            // runtime can be missing —
             // a Content-Security-Policy blocked /Campground/runtime.js, or the brake is on —
             // and then Bonfire listens and wraps by itself, as it always did.
             const cg = window.Campground;
@@ -3970,8 +3974,15 @@
                 if (hasRuntime && typeof cg.patch === 'function') {
                     cg.patch(history, method, wrap, 'bonfire');
                 } else {
-                    // No runtime, or one older than 0.10.0, which has no patch().
-                    history[method] = wrap(history[method]);
+                    // No runtime, or one older than 0.10.0, which has no patch(). Nothing
+                    // else guards this path, so a second copy of the script, or a second
+                    // bindEvents, would wrap an already wrapped function and every
+                    // navigation would run doCheck twice. The marker says it is ours.
+                    if (!history[method] || !history[method]._bonfireWrapped) {
+                        const wrapped = wrap(history[method]);
+                        wrapped._bonfireWrapped = true;
+                        history[method] = wrapped;
+                    }
                 }
             });
 
@@ -6153,7 +6164,12 @@
             const token = masterState ? masterState.token : apiClient.accessToken();
 
             this.fetchAvatarLibrary(apiClient, token).then(library => {
-                if (document.getElementById("profiles-libart-dialog")) return;
+                // Already open: the caller is waiting on one of the two callbacks (it may be
+                // holding a button disabled until it hears), and this call will make neither.
+                if (document.getElementById("profiles-libart-dialog")) {
+                    if (typeof onCancel === 'function') onCancel();
+                    return;
+                }
 
                 const dialog = document.createElement("div");
                 dialog.id = "profiles-libart-dialog";
@@ -6793,8 +6809,15 @@
 
             const url = apiClient.getUrl('plugins/profiles/list');
             fetch(url, { headers: this.getAuthHeaders(masterState.token) })
-            .then(res => { if (!res.ok) throw new Error('fail'); return res.json(); })
-            .then(profiles => arm(profiles))
+            .then(res => {
+                // A 401 is the master token being dead, not a hiccup: end the session like
+                // every other list caller, and neither fall back to the cached list nor
+                // ask again in 30 s with a token that will be refused again.
+                if (res.status === 401) { this.handleSessionExpired(); return null; }
+                if (!res.ok) throw new Error('fail');
+                return res.json();
+            })
+            .then(profiles => { if (profiles) arm(profiles); })
             .catch(() => {
                 // One failed fetch used to leave the page without a lock for good (R-1193).
                 // Use the list the picker already holds; failing that, ask once more later.
@@ -7836,20 +7859,32 @@
             let timer = null;
             let stopped = false;
             let pending = null;
+            // The request in flight, as { pin, done }, where done settles after this
+            // function has acted on the answer. Enter waits on it rather than sending the
+            // same digits again: that was a second counted guess at the PIN.
+            let inflight = null;
+            // The screen this keypad belongs to. Anything that starts a navigation (Forgot
+            // PIN, Back, an expired session, the next screen) moves the ticket on, and the
+            // input leaving the document says the same thing. Either way this keypad is
+            // over: the timer could still fire, spend a guess, and run the switch from a
+            // screen the person had already left.
+            const ticket = this._navTicket;
+            const gone = () => stopped || !this.navIsCurrent(ticket) || !document.body.contains(pinInput);
 
             const check = () => {
                 timer = null;
+                if (gone()) { stopped = true; return; }
                 const pin = pinInput.value;
-                if (stopped || pin.length < 4 || opts.busy() || pin === pending || refused.has(pin)) return;
+                if (pin.length < 4 || opts.busy() || pin === pending || refused.has(pin)) return;
                 pending = pin;
-                opts.send(pin)
+                const request = opts.send(pin)
                     .then(res => {
                         if (pending === pin) pending = null;
                         if (res.status === 401) { this.handleSessionExpired(); return null; }
                         if (res.ok) {
                             // Typed on past it while the answer was coming: the box no longer
                             // holds a right PIN, and Enter will send what it does hold.
-                            if (!stopped && pinInput.value === pin) opts.onRight(pin);
+                            if (!gone() && pinInput.value === pin) opts.onRight(pin);
                             return null;
                         }
                         if (res.status === 429) {
@@ -7867,6 +7902,10 @@
                         // Network trouble: nothing learned. Enter still works.
                         if (pending === pin) pending = null;
                     });
+                const mine = { pin: pin, done: null };
+                const settled = () => { if (inflight === mine) inflight = null; };
+                mine.done = request.then(settled, settled);
+                inflight = mine;
             };
 
             const full = pinInput.maxLength > 0 ? pinInput.maxLength : 8;
@@ -7892,7 +7931,10 @@
                 },
                 // Enter is the person saying they are done: the pending pause has no more
                 // to tell us.
-                hold: () => { if (timer) { clearTimeout(timer); timer = null; } }
+                hold: () => { if (timer) { clearTimeout(timer); timer = null; } },
+                // A promise that settles once the check already out for this PIN has been
+                // acted on, or null when none is. Enter waits on it instead of asking again.
+                inFlight: (pin) => (inflight && inflight.pin === pin) ? inflight.done : null
             };
         },
 
@@ -7962,9 +8004,12 @@
                 onRight: (pin) => {
                     if (switchInProgress || this._switchLock) return;
                     switchInProgress = true;
-                    this.executeProfileSwitch(profileId, pin, () => {
-                        // Verify said OK but switch failed (edge case) — reset silently
-                        switchInProgress = false;
+                    this.executeProfileSwitch(profileId, pin, (msg) => {
+                        // Verify said OK and the switch was refused (limits, device,
+                        // maintenance, a network failure). Say why: the box was just
+                        // cleared by nothing, and the person is typing on a screen that
+                        // is now doing nothing.
+                        showPinError(msg);
                     });
                 },
                 onLocked: (msg) => showPinError(msg || t('pin.incorrectPin'))
@@ -7976,11 +8021,25 @@
             });
 
             // Manual submit — only place where we show an error on wrong PIN
+            let submitWaiting = false;
             const submitPin = () => {
                 if (switchInProgress || this._switchLock) return;
                 auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
+                // The same digits are already out for checking: wait for that answer, and
+                // act on it, instead of sending them a second time.
+                const waiting = auto.inFlight(pin);
+                if (waiting) {
+                    if (!submitWaiting) {
+                        submitWaiting = true;
+                        waiting.then(() => {
+                            submitWaiting = false;
+                            if (document.body.contains(pinInput) && pinInput.value === pin) submitPin();
+                        });
+                    }
+                    return;
+                }
                 // Just checked and refused: the same digits again would only spend another
                 // of the account's guesses to hear the same answer.
                 const refusal = auto.takeRefusal(pin);
@@ -8080,7 +8139,9 @@
 
             const input = content.querySelector('#jpf-main-pin-new');
             const error = content.querySelector('#main-pin-new-error');
+            let saving = false;
             const fail = (message) => {
+                saving = false;
                 error.textContent = message;
                 error.hidden = false;
                 input.value = '';
@@ -8088,9 +8149,13 @@
             };
             input.focus();
 
+            // One save at a time: Enter held down, or Enter then the button, sent the
+            // request twice, and a second success ran done() (the next screen) twice.
             const save = () => {
+                if (saving) return;
                 const pin = input.value;
                 if (!/^\d{4,8}$/.test(pin)) { fail(t('profileForm.pinLengthCreate')); return; }
+                saving = true;
                 fetch(ApiClient.getUrl('plugins/profiles/account'), {
                     method: 'POST',
                     headers: this.jsonHeaders(masterState.token),
@@ -8195,11 +8260,25 @@
                 auto.input();
             });
 
+            let submitWaiting = false;
             const submitPin = () => {
                 if (verifyInProgress || verified) return;
                 auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
+                // The same digits are already out for checking: wait for that answer
+                // instead of sending them a second time.
+                const waiting = auto.inFlight(pin);
+                if (waiting) {
+                    if (!submitWaiting) {
+                        submitWaiting = true;
+                        waiting.then(() => {
+                            submitWaiting = false;
+                            if (document.body.contains(pinInput) && pinInput.value === pin) submitPin();
+                        });
+                    }
+                    return;
+                }
                 // Just checked and refused: asking again spends another guess for the
                 // same answer.
                 const refusal = auto.takeRefusal(pin);
