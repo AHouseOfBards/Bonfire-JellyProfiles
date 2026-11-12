@@ -422,6 +422,9 @@ DeviceManagerStub.ThrowFor = null;
 Ok("a Quick Connect check that breaks refuses the authorize rather than passing it on (r2-17-02)", !qcBoom.reached && qcBoom.status == 403, Show(qcBoom));
 var qcFor = Authorize(Initiated("555555", "dev-bad"), ADMIN_TOKEN, "&userId=" + KID);
 Ok("and is judged as the profile when it authorizes for one", !qcFor.reached && qcFor.status == 403, Show(qcFor));
+// Jellyfin binds the first of a repeated userId; so must the judgement (r2-06-03).
+var qcTwice = Authorize(Initiated("555556", "dev-bad"), ADMIN_TOKEN, "&userId=" + KID + "&userId=" + Guid.NewGuid());
+Ok("a repeated userId is judged by its first value", !qcTwice.reached && qcTwice.status == 403, Show(qcTwice));
 
 allowedList.Clear();
 Ok("a profile with no list authorizes any device", Through(Authorize(Initiated("666666", "dev-bad"), KID_TOKEN)));

@@ -763,7 +763,9 @@ namespace Jellyfin.Profiles
             try
             {
                 var request = context.Request;
-                Guid target = Guid.TryParse(request.Query["userId"].ToString(), out var asked) ? asked : Guid.Empty;
+                // The first of a repeated value, which is the one Jellyfin binds. ToString() joins
+                // them with a comma, which fails to parse and left the caller to be judged instead.
+                Guid target = Guid.TryParse(request.Query["userId"].FirstOrDefault(), out var asked) ? asked : Guid.Empty;
                 if (target == Guid.Empty)
                 {
                     target = await Auth.RequestAuth.UserIdAsync(context, () =>
@@ -776,7 +778,7 @@ namespace Jellyfin.Profiles
                 if (target == Guid.Empty) return false;
 
                 var refusal = Auth.QuickConnectAuthorize.Refusal(
-                    Controllers.ProfilesBaseController.ReadConfigSnapshot(), target, request.Query["code"].ToString());
+                    Controllers.ProfilesBaseController.ReadConfigSnapshot(), target, request.Query["code"].FirstOrDefault());
                 if (refusal == null) return false;
 
                 _logger.LogInformation(
