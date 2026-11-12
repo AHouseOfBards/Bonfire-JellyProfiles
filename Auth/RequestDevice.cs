@@ -99,6 +99,21 @@ namespace Jellyfin.Profiles.Auth
             return note;
         }
 
+        /// <summary>
+        /// Whether this sign-in may make its device known. True when nothing noted otherwise.
+        /// <para>
+        /// <b>No note means a password sign-in, on purpose.</b> The middleware starts a note
+        /// only for POSTs under <c>/Users</c>. A sign-in that arrives some other way has none:
+        /// SSO signs in through its own endpoint (<c>POST /sso/OID/Auth/{provider}</c>, which
+        /// calls <c>AuthenticateDirect</c>), and that is a real identity-provider sign-in, as
+        /// good as a password for this purpose, so the device is recorded. A sign-in a PIN,
+        /// an empty box or a switch let in always starts a note and marks it, so it is the
+        /// only kind refused. Written as "not marked by PIN" so that a missing note cannot
+        /// read as "refuse".
+        /// </para>
+        /// </summary>
+        public static bool MayMakeDeviceKnown() => SignIn?.ByPin != true;
+
         /// <summary>Marks the current sign-in as one a PIN, an empty box or a switch let in.</summary>
         public static void NoteNotByPassword()
         {

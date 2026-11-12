@@ -322,7 +322,9 @@ namespace Jellyfin.Profiles.Auth
                     previousUserId == Guid.Empty ? null : previousUserId);
 
                 // A PIN, an empty box or a switch refreshes, never makes a device known.
-                var mayGrant = RequestDevice.SignIn?.ByPin != true;
+                // A sign-in with no note at all (SSO's own endpoint) counts as a password
+                // one. See RequestDevice.MayMakeDeviceKnown.
+                var mayGrant = RequestDevice.MayMakeDeviceKnown();
 
                 DeviceRegistry.RecordSightingAndSave(
                     session.DeviceId,

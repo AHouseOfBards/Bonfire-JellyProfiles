@@ -1337,6 +1337,48 @@ if (shouldDeny != null)
     devicesList.Clear();
 }
 
+// ── a sign-in with no note ───────────────────────────────────────────────────
+//
+// The middleware starts a sign-in note only for POSTs under /Users. SSO signs in through
+// its own endpoint (POST /sso/OID/Auth/{provider}), so its sign-in reaches the session
+// listener with no note at all, and that must count as a password sign-in: the device is
+// recorded. A PIN, an empty box or a switch always starts a note and marks it.
+{
+    var reqDevice = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", false);
+    var may = reqDevice?.GetMethod("MayMakeDeviceKnown", BindingFlags.Public | BindingFlags.Static);
+    var begin = reqDevice?.GetMethod("BeginSignIn", BindingFlags.Public | BindingFlags.Static);
+    var notByPw = reqDevice?.GetMethod("NoteNotByPassword", BindingFlags.Public | BindingFlags.Static);
+    Ok("the sign-in note can be asked whether a device may be made known",
+       may != null && begin != null && notByPw != null);
+
+    if (may != null && begin != null && notByPw != null)
+    {
+        // Each case on its own thread: the note is an AsyncLocal, and the harness's own
+        // flow must not carry one into the next case.
+        bool InFreshFlow(Func<bool> body)
+        {
+            bool result = false;
+            var t = new System.Threading.Thread(() => result = body());
+            t.Start();
+            t.Join();
+            return result;
+        }
+
+        Ok("a sign-in with no note at all (SSO's own endpoint) may make a device known",
+           InFreshFlow(() => (bool)may.Invoke(null, null)));
+        Ok("a password sign-in under /Users, noted and unmarked, may",
+           InFreshFlow(() => { begin.Invoke(null, new object[] { false }); return (bool)may.Invoke(null, null); }));
+        Ok("a sign-in a PIN let in may not",
+           !InFreshFlow(() => { begin.Invoke(null, new object[] { false }); notByPw.Invoke(null, null); return (bool)may.Invoke(null, null); }));
+        Ok("nor one that started as a switch",
+           !InFreshFlow(() => { begin.Invoke(null, new object[] { true }); return (bool)may.Invoke(null, null); }));
+
+        var listenerText = File.ReadAllText(Path.Combine(RepoRoot(), "Auth", "BonfireSessionListener.cs"));
+        Ok("the session listener asks it, rather than reading the note itself",
+           listenerText.Contains("RequestDevice.MayMakeDeviceKnown()") && !listenerText.Contains("SignIn?.ByPin"));
+    }
+}
+
 Console.WriteLine();
 Console.WriteLine("── The way Jellyfin calls it (1.6.3.3) ────────────────────────");
 
