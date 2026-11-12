@@ -5440,6 +5440,23 @@
             });
         },
 
+        // What goes into the localStorage copy of the profile list. Its one reader is
+        // getCachedActiveProfile, which builds the header bubble from these six fields, so
+        // device ids, tags and library lists have no business in a store that outlives the
+        // session on a shared browser. Keep this in step with that reader.
+        _cacheableProfiles: function (profiles) {
+            return (profiles || []).map(function (p) {
+                return {
+                    profileUserId: p.profileUserId,
+                    profileName: p.profileName,
+                    avatarColor: p.avatarColor,
+                    avatarInitial: p.avatarInitial,
+                    profileImage: p.profileImage,
+                    transparentAvatar: p.transparentAvatar
+                };
+            });
+        },
+
         getCachedActiveProfile: function () {
             const activeInfoStr = this._sessionGet('jellyfin_profiles_active_info');
             if (activeInfoStr) {
@@ -5713,7 +5730,7 @@
                 // to data that was already stale.
                 // Storage that is full or blocked throws here; left unguarded the catch below
                 // reported "list failed" and the profile screen never appeared on that device.
-                try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized)); } catch (e) { /* the screen does not need the copy */ }
+                try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(this._cacheableProfiles(normalized))); } catch (e) { /* the screen does not need the copy */ }
                 return (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(normalized));
             })
             .catch(err => {
@@ -12920,7 +12937,7 @@
                     if ((this._profileCacheGen || 0) !== gen) return;
                     const normalized = this.normalizeProfiles(profiles);
                     this.cachedProfiles = normalized;
-                    try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized)); } catch (e) { /* full or blocked: the in-memory copy is set */ }
+                    try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(this._cacheableProfiles(normalized))); } catch (e) { /* full or blocked: the in-memory copy is set */ }
                     this._profilePrefetchPending = false;
 
                     // Sync sessionStorage if matches current active user
