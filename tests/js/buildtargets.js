@@ -198,6 +198,44 @@ const notWired = projects.filter(name => {
 });
 ok('and every one of them reads $(BonfireTfm)', notWired.length === 0, notWired.join(', '));
 
+console.log('\n── a release runs the whole suite before it builds anything ────');
+
+// release.yml built, packaged and published on a tag with no test run at all: CI had
+// passed on the commit, but a tag can be cut from a commit nobody ran CI on, and the
+// workflow has no way to know. Every step that produces or publishes something has to come
+// after every step that can say no.
+{
+    const rsteps = releaseCode.split(/\n\s*- (?=name:|uses:|run:)/);
+    const idx = re => rsteps.findIndex(s => re.test(s));
+    const gated = s => /^\s*(if|continue-on-error):/m.test(s);
+    const gates = [
+        ['tests/run.sh (the same command CI runs)', /^\s*run:\s*bash tests\/run\.sh\s*$/m],
+        ['tests/run.sh cs10', /^\s*run:\s*bash tests\/run\.sh cs10\s*$/m],
+        ['node Web/i18n/validate.js', /^\s*run:\s*node Web\/i18n\/validate\.js\s*$/m]
+    ];
+    const producers = [
+        ['the build', /dotnet build/],
+        ['the packaging step', /zip .*Jellyfin\.Profiles\.zip/],
+        ['the manifest push', /git push origin/],
+        ['the GitHub release', /action-gh-release/]
+    ];
+    // Pairwise, one gate and one producer at a time: "the tests come first" as a single
+    // aggregate would pass with one gate in the right place and two missing.
+    gates.forEach(([gname, gre]) => {
+        const gi = idx(gre);
+        ok('release.yml runs ' + gname, gi !== -1);
+        ok('and that step is not gated by an if: or allowed to fail',
+           gi !== -1 && !gated(rsteps[gi]));
+        producers.forEach(([pname, pre]) => {
+            const pi = idx(pre);
+            ok(gname + ' runs before ' + pname, gi !== -1 && pi !== -1 && gi < pi,
+               'gate step ' + gi + ', ' + pname + ' step ' + pi);
+        });
+    });
+    ok('release.yml installs Node, which validate.js and the JS harnesses need',
+       /setup-node/.test(releaseCode));
+}
+
 console.log('');
 if (fails.length) {
     fails.forEach(f => console.log('   - ' + f));

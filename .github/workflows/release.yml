@@ -28,6 +28,25 @@ jobs:
             9.0.x
             10.0.x
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The same three commands ci.yml runs, ahead of anything that builds, packages or
+      # publishes. A tag can be cut from a commit CI never saw, or from one whose CI run
+      # was red and ignored; before this, nothing here would have noticed. Any failure
+      # stops the release before an artefact exists. tests/js/buildtargets.js fails if
+      # these steps go missing, lose their place, or are made optional.
+      - name: Run the test suite
+        run: bash tests/run.sh
+
+      - name: Run the C# harnesses against the .NET 10 build
+        run: bash tests/run.sh cs10
+
+      - name: Validate translations
+        run: node Web/i18n/validate.js
+
       - name: Build (Release)
         run: dotnet build -c Release
 
