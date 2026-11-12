@@ -800,8 +800,6 @@
   "admin.themes.p.colour": "Renk olmalı: #rrggbb ya da #rrggbbaa.",
   "admin.themes.p.type": "Yanlış türde değer.",
   "admin.themes.p.unknown": "Bir tema ayarı değil.",
-  "admin.themes.p.red": "Kırmızı bir renk olmalı.",
-  "admin.themes.p.amber": "Kehribar bir renk olmalı.",
   "admin.themes.p.font": "Listeden bir yazı tipi seçin veya Yazı tipleri altından ekleyin.",
   "admin.themes.p.pattern": "Listeden bir desen seçin.",
   "admin.themes.p.address": "Tema başka dosyalara ya da sitelere bağlantı veremez.",

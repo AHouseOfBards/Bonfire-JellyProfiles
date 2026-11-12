@@ -800,8 +800,6 @@
   "admin.themes.p.colour": "Ha de ser un color: #rrggbb o #rrggbbaa.",
   "admin.themes.p.type": "Tipus de valor incorrecte.",
   "admin.themes.p.unknown": "No és un paràmetre de tema.",
-  "admin.themes.p.red": "Ha de ser un color vermell.",
-  "admin.themes.p.amber": "Ha de ser un color ambre.",
   "admin.themes.p.font": "Tria un tipus de lletra de la llista, o afegeix-ne un a Tipus de lletra.",
   "admin.themes.p.pattern": "Tria un motiu de la llista.",
   "admin.themes.p.address": "Un tema no pot enllaçar a altres fitxers o llocs.",

@@ -126,7 +126,17 @@ Ok("a custom theme with no contrast anywhere passes: text on its surface, its ac
    badProblems.Count == 0, string.Join("; ", badProblems.Select(p => p.Path + " " + p.Code + " " + p.Detail)));
 Ok("while the built-ins are still held to contrast: the same colours on a built-in fail",
    ThemeCatalog.Validate(bad).Any(p => p.Code == "contrast"));
-// Everything that is not contrast still applies.
+// Nor the hue rule (the owner, 2026-11-12): a custom theme's error colour may be blue and its
+// warning green. The built-ins still must read as red and amber.
+var hues = Custom("cool-alerts");
+hues["colors"]!["danger"] = "#3366ff";
+hues["colors"]!["warning"] = "#33cc33";
+var hueProblems = ThemeCatalog.ValidateCustom(hues, plain);
+Ok("a custom theme with a blue error colour and a green warning passes",
+   hueProblems.Count == 0, string.Join("; ", hueProblems.Select(p => p.Path + " " + p.Code + " " + p.Detail)));
+Ok("while a built-in with the same colours fails on hue",
+   ThemeCatalog.Validate(hues).Count(p => p.Code == "hue") == 2);
+// Everything that is not contrast or hue still applies.
 JsonObject SetId(JsonObject t, string id) { var c = t.DeepClone().AsObject(); c["id"] = id; return c; }
 var broken = Custom("broken");
 broken["sparkle"] = true;

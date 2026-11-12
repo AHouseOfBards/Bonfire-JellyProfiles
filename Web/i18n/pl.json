@@ -800,8 +800,6 @@
   "admin.themes.p.colour": "Musi być kolorem: #rrggbb lub #rrggbbaa.",
   "admin.themes.p.type": "Zły typ wartości.",
   "admin.themes.p.unknown": "To nie jest ustawienie motywu.",
-  "admin.themes.p.red": "Musi być kolorem czerwonym.",
-  "admin.themes.p.amber": "Musi być kolorem bursztynowym.",
   "admin.themes.p.font": "Wybierz czcionkę z listy lub dodaj ją w sekcji Czcionki.",
   "admin.themes.p.pattern": "Wybierz wzór z listy.",
   "admin.themes.p.address": "Motyw nie może odwoływać się do innych plików ani stron.",

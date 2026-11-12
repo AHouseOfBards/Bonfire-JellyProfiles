@@ -800,8 +800,6 @@
   "admin.themes.p.colour": "Doit être une couleur : #rrggbb ou #rrggbbaa.",
   "admin.themes.p.type": "Type de valeur incorrect.",
   "admin.themes.p.unknown": "Ce n'est pas un réglage de thème.",
-  "admin.themes.p.red": "Doit être une couleur rouge.",
-  "admin.themes.p.amber": "Doit être une couleur ambre.",
   "admin.themes.p.font": "Choisissez une police dans la liste, ou ajoutez-en une dans Polices.",
   "admin.themes.p.pattern": "Choisissez un motif dans la liste.",
   "admin.themes.p.address": "Un thème ne peut pas pointer vers d'autres fichiers ou sites.",

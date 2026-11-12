@@ -2411,8 +2411,6 @@
                 'admin.themes.p.colour': 'Must be a color: #rrggbb or #rrggbbaa.',
                 'admin.themes.p.type': 'Wrong type of value.',
                 'admin.themes.p.unknown': 'Not a theme setting.',
-                'admin.themes.p.red': 'Must be a red color.',
-                'admin.themes.p.amber': 'Must be an amber color.',
                 'admin.themes.p.font': 'Choose a font from the list, or add one under Fonts.',
                 'admin.themes.p.pattern': 'Choose a pattern from the list.',
                 'admin.themes.p.address': 'Themes can\'t link to other files or sites.',
@@ -5081,7 +5079,6 @@
                     case 'missing': return path === 'name' ? t('admin.themes.p.nameText') : t('admin.themes.p.missing');
                     case 'type': return /colour/.test(detail) ? t('admin.themes.p.colour') : t('admin.themes.p.type');
                     case 'unknown': return t('admin.themes.p.unknown');
-                    case 'hue': return path === 'colors.warning' ? t('admin.themes.p.amber') : t('admin.themes.p.red');
                     case 'font': return t('admin.themes.p.font');
                     case 'pattern': return t('admin.themes.p.pattern');
                     case 'address': return t('admin.themes.p.address');

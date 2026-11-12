@@ -31,8 +31,9 @@ namespace Jellyfin.Profiles.Configuration
     /// <para>
     /// Contrast is a rule for the built-ins only, which are ours. The owner's decision
     /// (2026-11-12): "There should be no restrictions on custom made themes", so a theme an
-    /// administrator made is never refused for its contrast, and the settings page does not
-    /// warn about it either. Everything else here still applies to it.
+    /// administrator made is never refused for its contrast or for the hue of its error and
+    /// warning colours, and the settings page does not warn about either. Everything else
+    /// here (shape, types, ranges, fonts, pictures, no addresses) still applies to it.
     /// </para>
     /// <para>
     /// Contrast is checked pair by pair against every colour the background has, the fill and
@@ -85,7 +86,7 @@ namespace Jellyfin.Profiles.Configuration
         /// Every problem with <paramref name="node"/>, or none. <paramref name="fonts"/> and
         /// <paramref name="patterns"/> are the font families and pattern pictures Bonfire
         /// holds; a theme may only name those. <paramref name="contrast"/> false leaves out the
-        /// contrast rules, for a theme an administrator made.
+        /// colour rules (contrast and the red and amber hues), for a theme an administrator made.
         /// </summary>
         public static IReadOnlyList<ThemeProblem> Validate(JsonNode? node, IEnumerable<string> fonts, IEnumerable<string> patterns, bool contrast = true)
         {
@@ -407,15 +408,16 @@ namespace Jellyfin.Profiles.Configuration
                     if (c != null) all[f] = c.Value;
                 }
 
-                // Red and amber, so an error never reads as anything else. Tunable within the
-                // band, not removable.
-                if (all.TryGetValue("danger", out var danger))
+                // Red and amber, so an error never reads as anything else: a rule for the
+                // built-ins, like contrast. A custom theme may use any colour (the owner,
+                // 2026-11-12, "no restrictions on custom made themes").
+                if (_contrast && all.TryGetValue("danger", out var danger))
                 {
                     var (h, s) = HueOf(danger);
                     if (!((h <= 20 || h >= 340) && s >= 0.4)) Add("colors.danger", "hue", "Must read as red.");
                 }
 
-                if (all.TryGetValue("warning", out var warning))
+                if (_contrast && all.TryGetValue("warning", out var warning))
                 {
                     var (h, s) = HueOf(warning);
                     if (!(h >= 25 && h <= 50 && s >= 0.4)) Add("colors.warning", "hue", "Must read as amber.");

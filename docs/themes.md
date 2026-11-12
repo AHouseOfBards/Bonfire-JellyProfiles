@@ -93,8 +93,8 @@ size a desktop browser draws them; a TV app scales them the way it scales everyt
 | `danger` | Errors and things that delete. |
 | `warning` | Warnings. |
 
-Every field is required. `danger` and `warning` can be tuned to suit the theme, but must
-still read as red and amber: the validator checks their hue.
+Every field is required. In a custom theme, `danger` and `warning` can be any colour. The
+built-in themes keep them red and amber.
 
 Tints of the accent (8% to 60%) aren't in the file. Mix `accent` with transparency
 yourself.

@@ -800,8 +800,6 @@
   "admin.themes.p.colour": "Debe ser un color: #rrggbb o #rrggbbaa.",
   "admin.themes.p.type": "Tipo de valor incorrecto.",
   "admin.themes.p.unknown": "No es un ajuste de tema.",
-  "admin.themes.p.red": "Debe ser un color rojo.",
-  "admin.themes.p.amber": "Debe ser un color ámbar.",
   "admin.themes.p.font": "Elige una fuente de la lista, o añade una en Fuentes.",
   "admin.themes.p.pattern": "Elige un motivo de la lista.",
   "admin.themes.p.address": "Un tema no puede enlazar a otros archivos o sitios.",

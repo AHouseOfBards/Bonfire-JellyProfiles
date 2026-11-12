@@ -275,6 +275,11 @@ console.log('\n── Problems are said in the page\'s language ─────�
         // The page said "Contrast 2.10:1 on …. Needs 4.5:1." in every language; it has no
         // contrast sentence now, in any language, and no warning on a background picture.
         const dash = L.readDashboard();
+        // Nor a hue sentence: the red and amber rule is the built-ins' only (2026-11-12).
+        ok('the editor has no hue sentence, in any language',
+           !/admin\.themes\.p\.(red|amber)|case 'hue'/.test(dash)
+           && fs.readdirSync(L.i18nDir()).filter(f => f.endsWith('.json'))
+               .every(f => !/admin\.themes\.p\.(red|amber)/.test(fs.readFileSync(path.join(L.i18nDir(), f), 'utf8'))));
         ok('the editor has no contrast sentence and no picture warning, in any language',
            !/admin\.themes\.p\.contrast|admin\.themes\.photoFaint|case 'contrast'/.test(dash)
            && fs.readdirSync(L.i18nDir()).filter(f => /\.json$/.test(f))
@@ -290,11 +295,15 @@ console.log('\n── Problems are said in the page\'s language ─────�
         const codes = Array.from(new Set((cs.match(/(?:Add|ThemeProblem)\([^;]*?,\s*"([a-z]+)",\s*(?:"|Ratio|\$")/g) || [])
             .map(m => /,\s*"([a-z]+)",\s*(?:"|Ratio|\$")/.exec(m)[1])));
         ok('the server\'s problem codes were found (' + codes.join(', ') + ')', codes.length >= 10);
-        // Contrast is a built-in's rule only, and the page edits custom themes: the server
-        // checks those with contrast: false, so the code never reaches it.
+        // Contrast and hue are a built-in's rules only, and the page edits custom themes: the
+        // server checks those with contrast: false, which leaves both out, so neither code
+        // reaches the page. The hue rule must sit behind the same flag.
         ok('the server leaves contrast out for a custom theme',
            /ValidateCustom\([\s\S]*?ThemeValidator\.Validate\([^;]*contrast: false\)/.test(cs));
-        const unsaid = codes.filter(c => c !== 'contrast' && fns.themeProblemText({ path: 'x', code: c, detail: 'SERVER-DETAIL' }) === 'SERVER-DETAIL');
+        ok('and the hue rule sits behind the same flag',
+           (cs.match(/"hue"/g) || []).length === 2
+           && /_contrast && all\.TryGetValue\("danger"/.test(cs) && /_contrast && all\.TryGetValue\("warning"/.test(cs));
+        const unsaid = codes.filter(c => c !== 'contrast' && c !== 'hue' && fns.themeProblemText({ path: 'x', code: c, detail: 'SERVER-DETAIL' }) === 'SERVER-DETAIL');
         ok('every other one has a sentence of the page\'s own', unsaid.length === 0, unsaid.join(', '));
         ok('an unknown code shows the server\'s detail', fns.themeProblemText({ code: 'zzz', detail: 'As sent.' }) === 'As sent.');
     }
