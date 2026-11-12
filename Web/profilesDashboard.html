@@ -6062,6 +6062,10 @@
                     loadThemes(page);
                     refreshClientThemes();
                 }, function (err) {
+                    // Back to what the server still has, as the Turn on Bonfire switch does.
+                    // Only the select: a full renderLogo would also wipe unsaved text.
+                    const saved = ((page._themes && page._themes.data && page._themes.data.logo) || {}).corners;
+                    page.querySelector('#logoCorners').value = saved === 'square' ? 'square' : 'rounded';
                     readThemeError(err, 'admin.logo.err.save', page._themes && page._themes.data).then(function (e) { say(e.message, false); });
                 });
             }

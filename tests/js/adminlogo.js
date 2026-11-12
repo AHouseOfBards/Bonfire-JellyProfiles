@@ -132,6 +132,18 @@ const settle = () => new Promise(r => setImmediate(r)).then(() => new Promise(r 
     w.api.saveLogoCorners(w.page);
     await settle();
     ok('a refusal is shown', w.state.statuses[0] && w.state.statuses[0].good === false);
+    // And the select goes back to what the server still has, both ways round, as the
+    // "Turn on Bonfire" switch does. It used to stay on the value that was not saved.
+    const back = [];
+    for (const [saved, chosen] of [['rounded', 'square'], ['square', 'rounded'], [undefined, 'square']]) {
+        w = world({ logo: saved ? { corners: saved } : {} });
+        w.els['#logoCorners'].value = chosen;
+        w.replyWith(() => Promise.reject(refusal(500, '', '')));
+        w.api.saveLogoCorners(w.page);
+        await settle();
+        if (w.els['#logoCorners'].value !== (saved || 'rounded')) back.push(saved + ': ' + w.els['#logoCorners'].value);
+    }
+    ok('a failed save puts the select back to the saved corners', back.length === 0, back.join('; '));
 
     console.log('\n── Text and alt text ───────────────────────────────────────────');
     w = world({});
