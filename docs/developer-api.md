@@ -2679,4 +2679,4 @@ Recent switches: the newest 1,000, and none older than 90 days.
 
 **Authorisation:** administrator.
 
-Deletes the whole switch log, in memory and on disk. No body. There is no undo.
+Deletes the whole switch log, in memory and on disk. No body. There is no undo. Returns 500 if the file could not be written; the log is then unchanged.

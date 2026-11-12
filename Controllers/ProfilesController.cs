@@ -5877,8 +5877,8 @@ namespace Jellyfin.Profiles.Controllers
             var adminError = RequireAdministrator("clear the audit log");
             if (adminError != null) return adminError;
 
-            ClearAuditLog();
-            return Ok();
+            // 500 when the file could not be written: the log is still there.
+            return ClearAuditLog() ? Ok() : StatusCode(StatusCodes.Status500InternalServerError);
         }
 
     }

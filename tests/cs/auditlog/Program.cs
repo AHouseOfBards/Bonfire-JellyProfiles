@@ -165,6 +165,52 @@ try
     Ok("clearing empties what the dashboard sees", clear != null && Shown(ac) == 0);
     Ok("and the file, at once", clear != null && Count(aged) == 0);
 
+    Console.WriteLine();
+    Console.WriteLine("── A failed read is not cached and never overwritten (r2-08-02) ──");
+
+    // A file another process holds open fails to read with an IOException, not a
+    // JsonException. That read as empty, was cached, and the next switch wrote a
+    // one-entry log over the intact file.
+    var locked = Path.Combine(dir, "locked.json");
+    var original = "[" + Entry("keep", DateTime.UtcNow) + "," + Entry("keep2", DateTime.UtcNow) + "]";
+    File.WriteAllText(locked, original);
+    pathField.SetValue(null, locked);
+    cacheField.SetValue(null, null);
+    var lc = NewController();
+    using (var hold = new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+    {
+        record.Invoke(lc, new object[] { "main", "during" });
+        Thread.Sleep(300);
+    }
+    Thread.Sleep(100);
+    Ok("a failed read does not overwrite the log", File.ReadAllText(locked) == original);
+    Ok("and is not cached as an empty log", cacheField.GetValue(null) == null);
+    Ok("the next read, once the file is free, sees the real entries", Shown(lc) == 2);
+
+    Console.WriteLine();
+    Console.WriteLine("── A write is atomic and Clear sees a failure (r2-08-03) ──────");
+
+    var roDir = Path.Combine(dir, "blocked");
+    Directory.CreateDirectory(roDir);
+    var roPath = Path.Combine(roDir, "audit_log.json");
+    File.WriteAllText(roPath, original);
+    pathField.SetValue(null, roPath);
+    cacheField.SetValue(null, null);
+    var cc = NewController();
+    Shown(cc);
+    // The destination is a held-open file, so replacing it fails.
+    object clearResult;
+    using (var hold = new FileStream(roPath, FileMode.Open, FileAccess.Read, FileShare.None))
+    {
+        clearResult = clear.Invoke(cc, null);
+    }
+    Ok("Clear reports failure when the file could not be written", clearResult is bool b && !b);
+    Ok("the file is untouched, with no partial or temp file left", File.ReadAllText(roPath) == original
+        && Directory.GetFiles(roDir).Length == 1);
+    Ok("and the dashboard still shows the entries it could not delete", Shown(cc) == 2);
+    clearResult = clear.Invoke(cc, null);
+    Ok("Clear reports success when it worked", clearResult is bool ok2 && ok2 && Count(roPath) == 0);
+
     // With no plugin instance there is no data folder. The log used to go to a file in the
     // system temp folder, a copy of usernames and addresses nobody would think to look for.
     var fallback = Path.Combine(Path.GetTempPath(), "bonfire_audit_log_fallback.json");

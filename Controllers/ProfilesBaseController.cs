@@ -1057,12 +1057,16 @@ namespace Jellyfin.Profiles.Controllers
         /// Empties the log, in memory and on disk, at once. The route behind the
         /// dashboard's delete button; it checks the caller is an administrator.
         /// </summary>
-        protected void ClearAuditLog()
+        protected bool ClearAuditLog()
         {
             lock (AuditLogLock)
             {
-                _auditCache = new List<AuditLogEntry>();
-                WriteAuditLogs(_auditCache);
+                // The in-memory log is emptied only once the file is, so a failed write is
+                // reported and the dashboard keeps showing what is still on disk.
+                var empty = new List<AuditLogEntry>();
+                if (!WriteAuditLogs(empty)) return false;
+                _auditCache = empty;
+                return true;
             }
         }
 
@@ -1100,8 +1104,14 @@ namespace Jellyfin.Profiles.Controllers
         private static List<AuditLogEntry>? _auditCache;
 
         /// <summary>Reads the audit log from disk. Prefer <see cref="GetAuditLogs"/>, which caches.</summary>
-        protected List<AuditLogEntry> ReadAuditLogs()
+        protected List<AuditLogEntry> ReadAuditLogs() => TryReadAuditLogs(out _);
+
+        /// <param name="failed">True when the file exists but could not be read (locked, no
+        /// permission). Such a result is empty only because the read failed, so it must
+        /// not be cached or written back: the next switch would replace the intact log.</param>
+        private List<AuditLogEntry> TryReadAuditLogs(out bool failed)
         {
+            failed = false;
             try
             {
                 var path = GetAuditLogPath();
@@ -1122,24 +1132,29 @@ namespace Jellyfin.Profiles.Controllers
                 catch (Exception moveEx)
                 {
                     _logger.LogError(moveEx, "ProfilesPlugin: Could not move the damaged audit log aside.");
+                    failed = true;
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "ProfilesPlugin: Failed to read audit log.");
+                failed = true;
             }
             return new List<AuditLogEntry>();
         }
 
-        /// <summary>Audit entries, loading from disk only on the first call. Caller must hold AuditLogLock.</summary>
+        /// <summary>
+        /// Audit entries, loading from disk only on the first call. Caller must hold AuditLogLock.
+        /// When the read failed the list is returned but not cached, so the next call tries
+        /// the file again; <c>_auditCache</c> stays null and nothing is written meanwhile.
+        /// </summary>
         private List<AuditLogEntry> GetAuditLogsLocked()
         {
-            if (_auditCache == null)
-            {
-                _auditCache = ReadAuditLogs();
-                PruneAuditLogByAge(_auditCache);
-            }
-            return _auditCache;
+            if (_auditCache != null) return _auditCache;
+            var loaded = TryReadAuditLogs(out var failed);
+            PruneAuditLogByAge(loaded);
+            if (!failed) _auditCache = loaded;
+            return loaded;
         }
 
         /// <summary>Snapshot of the audit log for read-only callers (the admin dashboard).</summary>
@@ -1155,19 +1170,30 @@ namespace Jellyfin.Profiles.Controllers
             }
         }
 
-        protected void WriteAuditLogs(List<AuditLogEntry> logs)
+        /// <summary>
+        /// Writes the log through a temp file and a move, so a crash or a full disk leaves
+        /// the old file whole. False when the write failed; true also when there is no
+        /// data folder (the log is memory-only then, by design).
+        /// </summary>
+        protected bool WriteAuditLogs(List<AuditLogEntry> logs)
         {
+            string? temp = null;
             try
             {
                 var path = GetAuditLogPath();
-                if (path == null) return;
+                if (path == null) return true;
+                temp = path + ".tmp";
                 System.IO.File.WriteAllText(
-                    path,
+                    temp,
                     JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = false }));
+                System.IO.File.Move(temp, path, true);
+                return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "ProfilesPlugin: Failed to write audit log.");
+                try { if (temp != null) System.IO.File.Delete(temp); } catch { }
+                return false;
             }
         }
 
@@ -1181,7 +1207,6 @@ namespace Jellyfin.Profiles.Controllers
             static string Cap(string value) => value.Length > 128 ? value.Substring(0, 128) : value;
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
 
-            List<AuditLogEntry> snapshot;
             lock (AuditLogLock)
             {
                 var logs = GetAuditLogsLocked();
@@ -1204,9 +1229,14 @@ namespace Jellyfin.Profiles.Controllers
                                       .Take(1000)
                                       .OrderBy(l => l.Timestamp)
                                       .ToList();
-                    logs = _auditCache;
                 }
-                snapshot = new List<AuditLogEntry>(logs);
+                // The read failed and nothing is cached: persisting now would replace the
+                // intact file with this one entry. The switch itself is not held up.
+                if (_auditCache == null)
+                {
+                    _logger.LogError("ProfilesPlugin: Audit log could not be read; this switch was not recorded.");
+                    return;
+                }
             }
 
             // Persist off the request thread. Serialising and writing the whole file used to
@@ -1223,10 +1253,10 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     lock (AuditLogLock)
                     {
-                        // The log as it stands now, not the copy taken when this was queued:
+                        // The log as it stands now, not a copy taken when this was queued:
                         // two writes can take the lock in either order, and the older copy
                         // going last left the file without the newest entry.
-                        WriteAuditLogs(_auditCache ?? snapshot);
+                        if (_auditCache != null) WriteAuditLogs(_auditCache);
                     }
                 }
                 catch (Exception ex)
