@@ -108,7 +108,7 @@ const ADMIN = {
     activity: { basic: ['auditClear', 'auditDelete', 'auditDownload', 'auditFilter', 'auditFrom', 'auditTo'], more: [] },
     troubleshoot: {
         basic: ['copyReportBtn', 'reportText'],
-        more: ['exportConfigBtn', 'faqOpenClientScript', 'importConfigBtn', 'importConfigFile']
+        more: ['exportConfigBtn', 'exportIncludePins', 'faqOpenClientScript', 'importConfigBtn', 'importConfigFile']
     }
 };
 

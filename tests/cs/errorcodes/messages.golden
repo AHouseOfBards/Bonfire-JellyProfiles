@@ -37,6 +37,7 @@ BadRequest|image_invalid|That image could not be read, or it is larger than the 
 BadRequest|image_invalid|That image is too large to import.
 BadRequest|image_invalid|That logo is larger than 1 MB.
 BadRequest|image_not_found|That picture is no longer available.
+BadRequest|invalid_request|A device another household has used can't be merged.
 BadRequest|invalid_request|A name is required.
 BadRequest|invalid_request|Both devices are required.
 BadRequest|invalid_request|Both devices must be ones this account has used.
@@ -123,8 +124,8 @@ NotFound|user_not_found|Target user not found.
 NotFound|user_not_found|Underlying system user missing.
 NotFound|user_not_found|User not found.
 StatusCode|invalid_request| Please try again .
-StatusCode|invalid_request|Its password couldn't be changed, so it wasn't made a profile. See the server log.
 StatusCode|invalid_request|Couldn't sign this account out, so it wasn't made a profile. Give it a new password.
+StatusCode|invalid_request|Its password couldn't be changed, so it wasn't made a profile. See the server log.
 StatusCode|invalid_request|Profile could not be fully deleted. The account has been disabled. Retry deletion after restarting Jellyfin.
 StatusCode|invalid_request|This server can't rename accounts from here. Leave the name blank and rename it in Dashboard → Users.
 StatusCode|invalid_request|Too many attempts. Try again in an hour, or restart Jellyfin.
