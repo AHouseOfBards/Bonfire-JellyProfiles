@@ -127,8 +127,25 @@ if (plugin != null)
         // changes — and the question is whether the values arrived.
         var replacement = Activator.CreateInstance(cfgType);
         cfgType.GetProperty("MaxProfilesPerUser").SetValue(replacement, 13);
+        // Two more things the override promises that nothing here read: that it persists
+        // what it just copied, exactly once, and that it tells subscribers. Dropping
+        // either stayed green, because the stub serializer and the event were never looked at.
+        var changedCalls = 0;
+        // In Jellyfin's BasePlugin it is a delegate property, not an event.
+        var changedProp = pluginType.GetProperty("ConfigurationChanged", Any);
+        Ok("the plugin exposes ConfigurationChanged", changedProp != null);
+        if (changedProp != null)
+        {
+            var handler = (EventHandler<MediaBrowser.Model.Plugins.BasePluginConfiguration>)((s, c) => changedCalls++);
+            var existing = (EventHandler<MediaBrowser.Model.Plugins.BasePluginConfiguration>)changedProp.GetValue(plugin);
+            changedProp.SetValue(plugin, (EventHandler<MediaBrowser.Model.Plugins.BasePluginConfiguration>)Delegate.Combine(existing, handler));
+        }
+        var savesBefore = StubXml.Saves;
         update.Invoke(plugin, new[] { replacement });
         var after = configProp.GetValue(plugin);
+        Ok("UpdateConfiguration writes the configuration to disk, once (" + (StubXml.Saves - savesBefore) + ")",
+           StubXml.Saves - savesBefore == 1);
+        Ok("and raises ConfigurationChanged, once (" + changedCalls + ")", changedCalls == 1);
 
         Ok("after UpdateConfiguration, Plugin.Instance.Configuration is the SAME object "
            + "(so a reference read before the lock is never an orphan)",
@@ -415,6 +432,25 @@ foreach (var path in sources)
 
 Ok("the scan actually found locks (" + sites + " sites) — a regex that matches nothing "
    + "would otherwise pass this whole section", sites >= 20);
+
+// `lock (x)` is one spelling of taking a monitor. Monitor.Enter(Configuration) and a
+// Synchronized method are others, and the scan above never saw them, so the orphaned-
+// monitor defect could come back in a form this section could not read.
+var otherMonitors = new List<string>();
+var monitorRx = new Regex(@"\bMonitor\s*\.\s*(Try)?Enter\b|MethodImplOptions\s*\.\s*Synchronized", RegexOptions.Compiled);
+foreach (var path in sources)
+{
+    var lines = File.ReadAllLines(path);
+    for (var i = 0; i < lines.Length; i++)
+    {
+        if (lines[i].TrimStart().StartsWith("//")) continue;
+        if (monitorRx.IsMatch(lines[i]))
+            otherMonitors.Add(path.Substring(RepoRoot().Length).TrimStart(Path.DirectorySeparatorChar) + ":" + (i + 1));
+    }
+}
+Ok("nothing in the plugin takes a monitor any way but lock (...), where this section can see it"
+   + (otherMonitors.Count == 0 ? "" : ": " + string.Join(", ", otherMonitors)),
+   otherMonitors.Count == 0);
 
 // What makes the shared allowances above safe. If a copy of the library ever reaches into
 // Bonfire, its locks have to be judged like Bonfire's own.
@@ -748,7 +784,8 @@ sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
 sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
 {
     public void SerializeToStream(object obj, Stream stream) { }
-    public void SerializeToFile(object obj, string file) { }
+    public static int Saves;
+    public void SerializeToFile(object obj, string file) { System.Threading.Interlocked.Increment(ref Saves); }
     public object DeserializeFromFile(Type type, string file)
         => throw new FileNotFoundException("stub serializer", file);
     public object DeserializeFromStream(Type type, Stream stream)
