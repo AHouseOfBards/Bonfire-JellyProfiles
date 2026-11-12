@@ -14,23 +14,6 @@ using Jellyfin.Profiles.Controllers;
 namespace Jellyfin.Profiles
 {
     /// <summary>
-    /// Arguments of <c>getSignInPolicy</c>. The answer is about the server, not the user (the
-    /// setting is one switch), so the user is only context.
-    /// </summary>
-    internal sealed record SignInPolicyQuery(Guid? UserId);
-
-    /// <summary>
-    /// What Bonfire's sign-in lets through, for a plugin that puts Bonfire on the internet
-    /// (Trailhead). Added to <c>campground.household.v1</c> at minor 1 beside
-    /// <c>SharingGroup</c>; the same shape is proposed for Campground.Shared, and this copy goes
-    /// when the library has it.
-    /// </summary>
-    /// <param name="PinLoginFromAnywhere">A profile with no PIN, or one limited to some devices,
-    /// can be opened from outside the home network by PIN login on another app. False when that
-    /// login is off altogether.</param>
-    internal sealed record SignInPolicy(bool PinLoginFromAnywhere);
-
-    /// <summary>
     /// What Bonfire offers the other Campground plugins on this server:
     /// <c>campground.household.v1</c> (minor 1) and <c>campground.device.v1</c>, and the events
     /// that go with the household one. Design: Campground-Coordination design/bonfire/campground.md.
@@ -59,26 +42,21 @@ namespace Jellyfin.Profiles
 
         internal const int DeviceMinor = 0;
 
-        internal const string GetSignInPolicyOp = "getSignInPolicy";
-
         /// <summary>
         /// Offers both capabilities. <paramref name="nameOf"/> is the Jellyfin username of an
         /// account, or null; it must not block (Jellyfin's user cache is in memory).
         /// </summary>
         internal static void Provide(Func<Guid, string?> nameOf)
         {
-            var household = new CapabilityHost()
-                .On<HouseholdQuery, Household?>(
-                    HouseholdClient.GetHouseholdOp,
-                    (q, ct) => Task.FromResult(Plugin.IsOff
-                        ? null
-                        : BuildHousehold(ProfilesBaseController.ReadConfigSnapshot(), q.UserId, nameOf)))
-                .On<SignInPolicyQuery, SignInPolicy?>(
-                    GetSignInPolicyOp,
-                    (q, ct) => Task.FromResult(Plugin.IsOff
-                        ? null
-                        : BuildSignInPolicy(ProfilesBaseController.ReadConfigSnapshot())));
-            Capabilities.Provide(CapabilityNames.Household, PluginIds.Bonfire, HouseholdMinor, household.Build());
+            HouseholdClient.Provide(
+                PluginIds.Bonfire,
+                HouseholdMinor,
+                (userId, ct) => Task.FromResult(Plugin.IsOff
+                    ? null
+                    : BuildHousehold(ProfilesBaseController.ReadConfigSnapshot(), userId, nameOf)),
+                (userId, ct) => Task.FromResult(Plugin.IsOff
+                    ? null
+                    : BuildSignInPolicy(ProfilesBaseController.ReadConfigSnapshot())));
 
             DeviceClient.Provide(
                 PluginIds.Bonfire,
