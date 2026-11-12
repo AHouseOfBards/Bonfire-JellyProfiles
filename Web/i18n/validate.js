@@ -17,6 +17,66 @@ const path = require('path');
 const HERE = __dirname;
 const PROFILES_JS = path.join(HERE, '..', 'profiles.js');
 
+// ── Reading a catalogue's entries ───────────────────────────────────────────
+// 'key': 'value' is the common shape, but a value may be written in double quotes (any
+// English string with an apostrophe), split across lines as 'a ' + 'b', or be a template
+// literal. A single-literal regex read the first piece of a split value and dropped the
+// rest, or skipped the entry, and the translation check then passed on half a string. So
+// each value is read whole: every literal in a + chain, with escapes decoded. An entry
+// whose value is anything else (a call, a variable, a template with ${}) fails the run,
+// because an entry that cannot be read whole cannot be checked.
+function decodeEscapes(s) {
+    return s.replace(/\\(u\{([0-9a-fA-F]+)\}|u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2})|\r?\n|[\s\S])/g, function (m, g, cp, u4, x2) {
+        if (cp) return String.fromCodePoint(parseInt(cp, 16));
+        if (u4) return String.fromCharCode(parseInt(u4, 16));
+        if (x2) return String.fromCharCode(parseInt(x2, 16));
+        if (/^\r?\n$/.test(g)) return '';
+        switch (g) {
+            case 'n': return '\n';
+            case 't': return '\t';
+            case 'r': return '\r';
+            case 'b': return '\b';
+            case 'f': return '\f';
+            case 'v': return '\v';
+            case '0': return '\0';
+            default: return g;
+        }
+    });
+}
+
+function readEntries(body, label) {
+    const out = {};
+    const keyRe = /'([^']+)':\s*/g;
+    let m;
+    while ((m = keyRe.exec(body)) !== null) {
+        let i = keyRe.lastIndex;
+        let value = '';
+        for (;;) {
+            const q = body[i];
+            if (q !== "'" && q !== '"' && q !== '`') {
+                fail(label + ': "' + m[1] + '" is not a string literal (or a + chain of them), so it cannot be checked.');
+            }
+            let j = i + 1;
+            while (j < body.length && body[j] !== q) {
+                if (body[j] === '\\') j++;
+                else if (q === '`' && body[j] === '$' && body[j + 1] === '{') {
+                    fail(label + ': "' + m[1] + '" is a template with ${}, so it cannot be checked.');
+                }
+                j++;
+            }
+            if (j >= body.length) fail(label + ': "' + m[1] + '" has an unterminated string.');
+            value += decodeEscapes(body.slice(i + 1, j));
+            i = j + 1;
+            const next = /^\s*\+\s*/.exec(body.slice(i));
+            if (!next) break;
+            i += next[0].length;
+        }
+        out[m[1]] = value;
+        keyRe.lastIndex = i;
+    }
+    return out;
+}
+
 // ── The English catalogue ───────────────────────────────────────────────────
 // EN_STRINGS in profiles.js is the single source of truth for what keys exist.
 // Read out of the file rather than duplicated here, so this cannot drift from it.
@@ -32,15 +92,7 @@ function readEnglish() {
     const body = src.slice(start, end);
     const out = {};
 
-    // 'key': 'value',  — and 'key': "value", which is how any English string containing
-    // an apostrophe is written ("Who's Watching?"). Missing the double-quoted form made
-    // every one of those look like a key the translation had invented.
-    const re = /'([^']+)':\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g;
-    let m;
-    while ((m = re.exec(body)) !== null) {
-        const raw = m[2] !== undefined ? m[2] : m[3];
-        out[m[1]] = raw.replace(/\\(['"\\])/g, '$1');
-    }
+    Object.assign(out, readEntries(body, 'EN_STRINGS'));
     if (Object.keys(out).length === 0) fail('Parsed EN_STRINGS but found no keys.');
     return out;
 }
@@ -134,13 +186,7 @@ function readAdminScript(html) {
     const end = html.indexOf('\n            };', start);
     if (end === -1) fail('Could not find the end of ADMIN_EN in profilesDashboard.html.');
     const body = html.slice(start, end);
-    const out = {};
-    const re = /'([^']+)':\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g;
-    let m;
-    while ((m = re.exec(body)) !== null) {
-        const raw = m[2] !== undefined ? m[2] : m[3];
-        out[m[1]] = raw.replace(/\\(['"\\])/g, '$1');
-    }
+    const out = readEntries(body, 'ADMIN_EN');
     return out;
 }
 
