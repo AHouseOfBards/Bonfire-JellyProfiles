@@ -296,6 +296,27 @@ if (unrestricted != null)
     ((IList)cfgType.GetProperty("Mappings").GetValue(openCfg)).Add(Mapping(child, master));
     var openNone = (IList)unrestricted.Invoke(null, new object[] { openCfg, new[] { "tv" } });
     Ok("a profile that was never restricted cannot be widened", openNone.Count == 0);
+
+    // Added by the test audit: when a household forgets a device, only that household's
+    // profiles are named. Dropping the filter made one household's forget refuse over
+    // another household's restrictions, naming profiles it has no business seeing (R-1048).
+    var householdWise = M("HouseholdProfilesLeftUnrestrictedBy");
+    if (householdWise != null)
+    {
+        var master2 = Guid.NewGuid();
+        var child2 = Guid.NewGuid();
+        var twoHouses = Activator.CreateInstance(cfgType);
+        var twoMaps = (IList)cfgType.GetProperty("Mappings").GetValue(twoHouses);
+        twoMaps.Add(Mapping(child, master, "shared-tv"));
+        twoMaps.Add(Mapping(child2, master2, "shared-tv"));
+        var mine = (IList)householdWise.Invoke(null, new object[] { twoHouses, new[] { "shared-tv" }, (Guid?)master });
+        Ok("forgetting a device names only the forgetting household's profiles",
+           mine.Count == 1 && (Guid)mine[0] == child);
+        var theirs = (IList)householdWise.Invoke(null, new object[] { twoHouses, new[] { "shared-tv" }, (Guid?)master2 });
+        Ok("and the other household's, from the other side", theirs.Count == 1 && (Guid)theirs[0] == child2);
+        var everyone = (IList)householdWise.Invoke(null, new object[] { twoHouses, new[] { "shared-tv" }, (Guid?)null });
+        Ok("with no household named, every household's is", everyone.Count == 2);
+    }
 }
 
 // ── Merging is the answer to duplicates, and must not widen either ──────────
@@ -553,6 +574,14 @@ Console.WriteLine("── One television, several ids (1.6.3.3) ─────�
        Check(kids, "aaaabbbbccccdddd", known, maps) != "Allowed");
     Ok("a derivation over an account outside the household is not the same television",
        Check(Mapping(KIDS, HOUSE, Sha1(TV + "+" + OTHER)), TV, known, maps) != "Allowed");
+    // The same, with the outsider actually on the server: a master of another household
+    // whose row is in the very list the check builds "the household" from. Counting every
+    // account as a member let a television derived over a stranger's id count as this one.
+    var withStranger = Maps(kids, Mapping(HOUSE, HOUSE), Mapping(OTHER, OTHER));
+    Ok("a derivation over another household's real master is still not the same television",
+       Check(Mapping(KIDS, HOUSE, Sha1(TV + "+" + OTHER)), TV, known, withStranger) != "Allowed");
+    Ok("while one over this household's master is",
+       Check(Mapping(KIDS, HOUSE, Sha1(TV + "+" + HOUSE)), TV, known, withStranger) == "Allowed");
     Ok("a Roku-shaped suffix is not enough when the bare id was never recorded",
        Check(Mapping(KIDS, HOUSE, "77777777-aaaa-4bbb-8ccc-ddddeeeeffffBard_kids"),
              "77777777-aaaa-4bbb-8ccc-ddddeeeeffff", known, maps) != "Allowed");
