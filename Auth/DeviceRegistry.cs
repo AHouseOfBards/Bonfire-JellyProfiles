@@ -44,9 +44,11 @@ namespace Jellyfin.Profiles.Auth
     /// populated exclusively by the one client that had no use for it. See
     /// <see cref="BonfireSessionListener"/>, which is the writer that fixes that.</para>
     ///
-    /// <para><b>Not a security boundary.</b> A device id is client-supplied. Forging one
-    /// reveals a household's profile <i>names</i> against a baseline of nothing; entry still
-    /// needs the PIN, and library and rating enforcement is server-side regardless.</para>
+    /// <para><b>Not a security boundary, but not nothing.</b> A device id is client-supplied.
+    /// Forging one reveals a household's profile <i>names</i> and makes the forger eligible to
+    /// try that household's PINs from there (the device list and the PIN tries both key on
+    /// it). Entry still needs the PIN, which is rate-limited, and library and rating
+    /// enforcement is server-side regardless.</para>
     /// </summary>
     public static class DeviceRegistry
     {
