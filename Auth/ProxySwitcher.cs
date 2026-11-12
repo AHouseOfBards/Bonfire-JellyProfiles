@@ -1203,6 +1203,7 @@ namespace Jellyfin.Profiles.Auth
             if (profileId == session.MasterId)
             {
                 await LeaveAsync(session, services, logger).ConfigureAwait(false);
+                CloseSockets(session);
                 session.Acting = new ActingAs(profileId, session.MasterToken);
                 return null;
             }
@@ -1294,6 +1295,10 @@ namespace Jellyfin.Profiles.Auth
             }
 
             await LeaveAsync(session, services, logger).ConfigureAwait(false);
+            // LeaveAsync awaits the sign-out with Acting null, and a handshake that finished in
+            // that gap was listed for "no profile". Close it here, with no await before Acting is
+            // set: a handshake after this sees the new Acting, and one begun for another is aborted.
+            CloseSockets(session);
             session.Acting = new ActingAs(profileId, result.AccessToken);
             ChildTokens[session.MasterToken] = session;
             ChildTokens[result.AccessToken] = session;

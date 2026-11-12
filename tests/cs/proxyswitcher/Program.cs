@@ -702,6 +702,45 @@ Child();
        accepted.State + " " + left + " kept");
 }
 
+// A connection accepted in the gap while the picker swaps profiles must not outlive the swap (r2-05-01):
+// it is listed with the rewrite for "no profile", and entering a profile never closed it.
+{
+    var sessType = switcher.GetNestedType("ProxySession", BindingFlags.NonPublic);
+    var actType = switcher.GetNestedType("ActingAs", BindingFlags.NonPublic);
+    var svcType = switcher.GetNestedType("Services", BindingFlags.NonPublic);
+    var sess = Activator.CreateInstance(sessType);
+    var masterId = Guid.NewGuid();
+    sessType.GetField("MasterId").SetValue(sess, masterId);
+    sessType.GetField("MasterToken").SetValue(sess, "master-token-gap");
+    sessType.GetField("Acting").SetValue(sess, Activator.CreateInstance(actType, new object[] { KIDS, "kid-token-gap" }));
+    var table = (System.Collections.IDictionary)sessType.GetField("Sockets").GetValue(sess);
+    var hctx = new DefaultHttpContext();
+    hctx.Request.Method = "GET";
+    hctx.Request.Headers["Upgrade"] = "websocket";
+    hctx.Request.Headers["Sec-WebSocket-Version"] = "13";
+    hctx.Request.Headers["Sec-WebSocket-Key"] = Convert.ToBase64String(new byte[16]);
+    hctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpUpgradeFeature>(new UpgradeStub());
+    WebSocket accepted = null;
+    int during = -1;
+    SessionManagerStub.DuringLogout = t =>
+    {
+        if (t != "kid-token-gap") return;
+        SessionManagerStub.DuringLogout = null;
+        // The sign-out is in flight: Acting is null, so a handshake begun now is for "no profile".
+        switcher.GetMethod("InstallSocket", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { hctx, sess, null });
+        var f = hctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpWebSocketFeature>();
+        accepted = f.AcceptAsync(new Microsoft.AspNetCore.Http.WebSocketAcceptContext()).GetAwaiter().GetResult();
+        during = table.Count;
+    };
+    var svc = Activator.CreateInstance(svcType, new object[] { new GapProvider(sessions) });
+    var enter = switcher.GetMethod("EnterAsync", BindingFlags.Static | BindingFlags.NonPublic);
+    ((Task)enter.Invoke(null, new object[] { hctx, sess, masterId, null, svc, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance })).GetAwaiter().GetResult();
+    SessionManagerStub.DuringLogout = null;
+    Ok("a connection accepted during the swap is closed once the profile is entered",
+       during == 1 && table.Count == 0 && accepted != null && accepted.State != WebSocketState.Open,
+       during + " listed in the gap, " + table.Count + " after, " + (accepted == null ? "none accepted" : accepted.State.ToString()));
+}
+
 // A flood of keypad tiles must not drop the folders still on screen (r2-04-03).
 {
     var sessType = switcher.GetNestedType("ProxySession", BindingFlags.NonPublic);
@@ -1563,6 +1602,13 @@ public class NetworkStub : DispatchProxy
         var text = args[0]?.ToString() ?? string.Empty;
         return text == "127.0.0.1" || text.StartsWith("192.168.", StringComparison.Ordinal);
     }
+}
+
+public sealed class GapProvider : IServiceProvider
+{
+    private readonly ISessionManager _s;
+    public GapProvider(ISessionManager s) { _s = s; }
+    public object GetService(Type t) => t == typeof(ISessionManager) ? _s : null;
 }
 
 public sealed class UpgradeStub : Microsoft.AspNetCore.Http.Features.IHttpUpgradeFeature
