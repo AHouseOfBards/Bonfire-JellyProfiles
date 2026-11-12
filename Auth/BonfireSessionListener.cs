@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -90,6 +91,7 @@ namespace Jellyfin.Profiles.Auth
             _sessionManager.SessionStarted += OnSessionStarted;
             _sessionManager.SessionActivity += OnSessionActivity;
             _sessionManager.SessionEnded += OnSessionEnded;
+            _sessionManager.PlaybackStart += OnPlaybackStart;
 
             // Said out loud on purpose. Without it, "no profiles appeared" cannot be told
             // apart from "the listener never started", and those have completely different
@@ -106,8 +108,73 @@ namespace Jellyfin.Profiles.Auth
             _sessionManager.SessionStarted -= OnSessionStarted;
             _sessionManager.SessionActivity -= OnSessionActivity;
             _sessionManager.SessionEnded -= OnSessionEnded;
+            _sessionManager.PlaybackStart -= OnPlaybackStart;
             _accountOnSession.Clear();
+            _playerNoted.Clear();
+            _stopping.Cancel();
             return Task.CompletedTask;
+        }
+
+        /// <summary>Sessions whose device has been noted as a player, so that is done once.</summary>
+        private readonly ConcurrentDictionary<string, bool> _playerNoted = new(StringComparer.Ordinal);
+
+        private readonly CancellationTokenSource _stopping = new();
+
+        private static bool ShowsPlayback(SessionInfo session)
+            => DeviceRegistry.ReportsPlayback(session.PlayableMediaTypes?.Count ?? 0, session.SupportsMediaControl);
+
+        /// <summary>
+        /// Notes <paramref name="session"/>'s device as a player or, after the grace, as a
+        /// service (see KnownDevice.CanPlay). The Roku id without the account's name is the
+        /// other row that television makes.
+        /// </summary>
+        private void NoteDevice(SessionInfo session, bool canPlay)
+        {
+            DeviceRegistry.NotePlayerAndSave(session.DeviceId, canPlay);
+            var bare = DeviceRegistry.BareDeviceIdFor(session.DeviceId, session.UserName);
+            if (bare != null) DeviceRegistry.NotePlayerAndSave(bare, canPlay);
+        }
+
+        /// <summary>
+        /// A sign-in has had <see cref="DeviceRegistry.PlayerGrace"/> to show it can play. Apps
+        /// post their capabilities just after signing in; a service never does. Judged on the
+        /// session object, which Jellyfin updates in place, so it is right even if the
+        /// session has since gone.
+        /// </summary>
+        private void JudgeAfterGrace(SessionInfo session)
+        {
+            var stop = _stopping.Token;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(DeviceRegistry.PlayerGrace, stop).ConfigureAwait(false);
+                    var plays = ShowsPlayback(session);
+                    if (plays) _playerNoted[session.Id] = true;
+                    NoteDevice(session, plays);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "ProfilesPlugin: could not tell whether a device can play.");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Playing something is the one proof an app that never posts capabilities gives.
+        /// Raised per play, not per request.
+        /// </summary>
+        private void OnPlaybackStart(object? sender, PlaybackProgressEventArgs e)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(e?.DeviceId)) DeviceRegistry.NotePlayerAndSave(e.DeviceId, true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: could not note a device that started playing.");
+            }
         }
 
         private void OnSessionStarted(object? sender, SessionEventArgs e)
@@ -129,6 +196,13 @@ namespace Jellyfin.Profiles.Auth
                 var session = e?.SessionInfo;
                 if (session == null || string.IsNullOrEmpty(session.Id)) return;
                 var now = session.UserId;
+
+                // Capabilities that arrived after the grace: a dictionary lookup and two reads.
+                if (!_playerNoted.ContainsKey(session.Id) && ShowsPlayback(session))
+                {
+                    _playerNoted[session.Id] = true;
+                    NoteDevice(session, true);
+                }
 
                 // First sighting: a session that was open before the plugin started. Only
                 // remembered — acting on it would run a sign-in for every open session at
@@ -162,7 +236,11 @@ namespace Jellyfin.Profiles.Auth
         private void OnSessionEnded(object? sender, SessionEventArgs e)
         {
             var id = e?.SessionInfo?.Id;
-            if (!string.IsNullOrEmpty(id)) _accountOnSession.TryRemove(id, out _);
+            if (!string.IsNullOrEmpty(id))
+            {
+                _accountOnSession.TryRemove(id, out _);
+                _playerNoted.TryRemove(id, out _);
+            }
         }
 
         private void Remember(SessionInfo session)
@@ -270,6 +348,10 @@ namespace Jellyfin.Profiles.Auth
                 // never reassigns a row another household owns, so a coincidental strip
                 // cannot take a device away from anyone.
                 var bare = DeviceRegistry.BareDeviceIdFor(session.DeviceId, session.UserName);
+
+                // Whether this is somebody's player or a service signing in as them.
+                if (!string.IsNullOrEmpty(session.Id)) JudgeAfterGrace(session);
+
                 if (bare != null)
                 {
                     DeviceRegistry.RecordSightingAndSave(

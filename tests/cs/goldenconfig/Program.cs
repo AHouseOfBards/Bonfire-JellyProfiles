@@ -247,6 +247,35 @@ if (files.Count > 0)
     }
 }
 
+// KnownDevice.CanPlay is new: null until a session shows whether the device plays. A file from
+// before it must load with null on every device (and so list them all), write no element for
+// it, and give back a true and a false that a later file carries.
+Console.WriteLine();
+Console.WriteLine("── Whether a device can play ───────────────────────────────────────");
+if (files.Count > 0)
+{
+    var devType = cfgType.Assembly.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
+    var canPlay = devType.GetProperty("CanPlay");
+    Ok("a device has a CanPlay", canPlay != null);
+    if (canPlay != null)
+    {
+        var golden = File.ReadAllText(files[0]);
+        Ok("the file from before it has none", !golden.Contains("CanPlay"));
+        var old = Read(golden);
+        var rows = ((IEnumerable)cfgType.GetProperty("KnownDevices").GetValue(old)).Cast<object>().ToList();
+        Ok("it loads with CanPlay unknown on every device", rows.Count > 0 && rows.All(d => canPlay.GetValue(d) == null), rows.Count + " devices");
+        Ok("and writing it back adds no CanPlay element", !Write(old).Contains("CanPlay"));
+
+        var withFlags = golden.Replace("</KnownDevice>", "<CanPlay>false</CanPlay></KnownDevice>");
+        var loaded = Read(withFlags);
+        var back = ((IEnumerable)cfgType.GetProperty("KnownDevices").GetValue(loaded)).Cast<object>().ToList();
+        Ok("a file that has it gives the value back", back.All(d => Equals(canPlay.GetValue(d), false)));
+        canPlay.SetValue(back[0], true);
+        var again = ((IEnumerable)cfgType.GetProperty("KnownDevices").GetValue(Read(Write(loaded)))).Cast<object>().ToList();
+        Ok("and a true and a false survive a write and a read", Equals(canPlay.GetValue(again[0]), true) && Equals(canPlay.GetValue(again[1]), false));
+    }
+}
+
 // Settings cut before 2.0. A file written by 1.6, 1.7 or a 1.9 beta still carries them, with
 // whatever value the household had chosen. Each must load, leave every other value exactly as
 // it was, and be gone from the next save. The golden file is the baseline; each case turns it

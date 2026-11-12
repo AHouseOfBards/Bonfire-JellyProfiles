@@ -945,6 +945,63 @@ namespace Jellyfin.Profiles.Auth
             }
         }
 
+        /// <summary>How long a session may be signed in without showing it can play before its device is called a service.</summary>
+        public static readonly TimeSpan PlayerGrace = TimeSpan.FromSeconds(60);
+
+        /// <summary>
+        /// Whether a session's reported capabilities are those of a player. Jellyfin keeps them
+        /// in memory per session, and they are empty at SessionStarted: an app posts them a
+        /// moment after it signs in, so this is asked after <see cref="PlayerGrace"/>, not at
+        /// the sign-in.
+        /// </summary>
+        public static bool ReportsPlayback(int playableMediaTypes, bool supportsMediaControl)
+            => playableMediaTypes > 0 || supportsMediaControl;
+
+        /// <summary>
+        /// Records what a session showed about <paramref name="deviceId"/>. True is sticky;
+        /// false only fills in a device nothing has been learned about. Returns true when
+        /// something changed. <b>Caller holds <see cref="ProfilesBaseController.ConfigLock"/>.</b>
+        /// </summary>
+        public static bool NotePlayer(PluginConfiguration? config, string? deviceId, bool canPlay)
+        {
+            var id = deviceId?.Trim();
+            if (config?.KnownDevices == null || string.IsNullOrEmpty(id)) return false;
+
+            var row = Row(config.KnownDevices, id);
+            if (row == null) return false;
+
+            if (canPlay)
+            {
+                if (row.CanPlay == true) return false;
+                row.CanPlay = true;
+                return true;
+            }
+
+            if (row.CanPlay != null) return false;
+            row.CanPlay = false;
+            return true;
+        }
+
+        /// <summary><see cref="NotePlayer"/>, taking the lock and saving as the plugin does.</summary>
+        public static void NotePlayerAndSave(string? deviceId, bool canPlay)
+        {
+            lock (ProfilesBaseController.ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return;
+                if (NotePlayer(config, deviceId, canPlay)) Plugin.Instance?.SaveConfiguration();
+            }
+        }
+
+        /// <summary>
+        /// Whether a device row belongs in a household's device list: a player, one nothing is
+        /// known about yet, or one a profile is already restricted to. The last is never
+        /// dropped, because the edit form rebuilds the whitelist from what it was shown.
+        /// </summary>
+        public static bool IsListedFor(KnownDevice device, ISet<string> whitelistedDeviceIds)
+            => device.CanPlay != false
+               || (whitelistedDeviceIds?.Contains(device.DeviceId) ?? false);
+
         /// <summary>
         /// Whether Bonfire runs this account's household at all — that is, whether it owns
         /// sub-profiles or is one.

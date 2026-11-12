@@ -1823,6 +1823,8 @@ namespace Jellyfin.Profiles.Controllers
             if (string.IsNullOrWhiteSpace(target.Client) && !string.IsNullOrWhiteSpace(source.Client))
                 target.Client = source.Client;
             if (target.MasterUserId == Guid.Empty) target.MasterUserId = source.MasterUserId;
+            // One television seen under two ids plays if either did.
+            if (source.CanPlay == true || (target.CanPlay == null && source.CanPlay != null)) target.CanPlay = source.CanPlay;
             // Every household that used either id still owns the one left (R-1050).
             target.Owners = Auth.DeviceRegistry.AddOwners(target.Owners,
                 new[] { target.MasterUserId, source.MasterUserId }.Concat(source.Owners ?? new List<Guid>()).ToArray());
@@ -2108,6 +2110,9 @@ namespace Jellyfin.Profiles.Controllers
                             || (whitelistedDeviceIds.Contains(d.DeviceId)
                                 && d.MasterUserId == Guid.Empty
                                 && !(d.Owners?.Count > 0)))
+                // A service that signed in as a user is not somebody's device (see
+                // KnownDevice.CanPlay), unless a profile is already restricted to it.
+                .Where(d => Auth.DeviceRegistry.IsListedFor(d, whitelistedDeviceIds))
                 .GroupBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.OrderByDescending(d => d.LastSeen).First())
                 .OrderByDescending(d => d.LastSeen)

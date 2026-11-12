@@ -470,6 +470,25 @@ namespace Jellyfin.Profiles.Configuration
         /// </para>
         /// </summary>
         public bool NameIsCustom { get; set; }
+
+        /// <summary>
+        /// Whether this device can play media, learned from what its sessions report: true
+        /// once one has posted playable media types or media control, or has played
+        /// something; false once a session has been signed in for a minute and done neither;
+        /// null until then, which counts as a player. A service that signs in as a user
+        /// (jfa-go's account page, for one) is a row here, but not somebody's television, and
+        /// listing it hides the devices a household can actually restrict a profile to.
+        /// <para>
+        /// A true never goes back to false: a server restart empties every session's
+        /// capabilities until the app reconnects, and a quiet minute then proves nothing.
+        /// A device already on a whitelist is listed whatever this says
+        /// (<see cref="Auth.DeviceRegistry.IsListedFor"/>), so a restriction is never dropped.
+        /// </para>
+        /// </summary>
+        public bool? CanPlay { get; set; }
+
+        /// <summary>Unknown is no element, rather than an xsi:nil one on every device in the file.</summary>
+        public bool ShouldSerializeCanPlay() => CanPlay.HasValue;
     }
 
     public class BonfireGroup

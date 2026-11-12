@@ -374,6 +374,77 @@ Console.WriteLine("── One device that got a new id is one row ────�
 }
 
 Console.WriteLine();
+Console.WriteLine("── A service that signs in as a user is not a device ────────────");
+{
+    var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", true);
+    var sight = registry.GetMethod("RecordSighting", Any);
+    var notePlayer = registry.GetMethod("NotePlayer", Any);
+    var reports = registry.GetMethod("ReportsPlayback", Any);
+    var scope = baseCtl.GetMethod("ScopeDevicesToHousehold", Any);
+    var canPlayProp = deviceType.GetProperty("CanPlay");
+    var master = Guid.NewGuid();
+    var t0 = new DateTime(2030, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+    Ok("a device records whether it can play, and the registry can be told", canPlayProp != null && notePlayer != null && reports != null);
+    Ok("the device list is scoped by a rule that can see it", scope != null);
+
+    if (canPlayProp != null && notePlayer != null && reports != null && scope != null)
+    {
+        var cfg = Activator.CreateInstance(cfgType);
+        var known = (IList)cfgType.GetProperty("KnownDevices").GetValue(cfg);
+        void See(string id, string name, string client)
+            => sight.Invoke(null, new object[] { cfg, id, name, client, master, t0, null, true });
+        bool Note(string id, bool plays) => (bool)notePlayer.Invoke(null, new object[] { cfg, id, plays });
+        bool? CanPlay(string id)
+            => (bool?)canPlayProp.GetValue(known.Cast<object>().First(d => (string)deviceType.GetProperty("DeviceId").GetValue(d) == id));
+        List<string> Listed(params string[] whitelisted)
+        {
+            var set = new HashSet<string>(whitelisted, StringComparer.OrdinalIgnoreCase);
+            var rows = (IEnumerable)scope.Invoke(null, new object[] { known, master, set });
+            return rows.Cast<object>().Select(d => (string)deviceType.GetProperty("DeviceId").GetValue(d)).ToList();
+        }
+        bool Reports(int types, bool control) => (bool)reports.Invoke(null, new object[] { types, control });
+
+        // jfa-go: Client and Device "jfa-go" for the service, Device and id "auth" for the
+        // connection that signs a user in. Neither ever posts capabilities.
+        See("jfa-go", "jfa-go", "jfa-go");
+        See("auth", "auth", "jfa-go");
+        See("tv-1", "Living Room", "Jellyfin Android TV");
+        See("late-1", "Phone", "Streamyfin");
+        See("kept-1", "Old script", "jfa-go");
+
+        Ok("a device nothing is known about is listed", Listed().Contains("jfa-go") && CanPlay("jfa-go") == null);
+
+        Note("tv-1", Reports(1, false));
+        Note("jfa-go", Reports(0, false));
+        Note("auth", Reports(0, false));
+        Note("kept-1", Reports(0, false));
+        Ok("capabilities with playable media types, or media control, mean a player",
+           Reports(1, false) && Reports(0, true) && !Reports(0, false));
+
+        var shown = Listed("kept-1");
+        Ok("jfa-go's service connection is off the list", !shown.Contains("jfa-go"));
+        Ok("jfa-go's account-page sign-in is off the list", !shown.Contains("auth"));
+        Ok("a real player stays on it", shown.Contains("tv-1"));
+        Ok("a device nothing is known about yet stays on it", shown.Contains("late-1"));
+        Ok("a service row a profile is restricted to stays on it", shown.Contains("kept-1"));
+        Ok("and without the whitelist it goes", !Listed().Contains("kept-1"));
+
+        // Capabilities that arrive late, and a true that nothing takes back.
+        Note("late-1", false);
+        Ok("a player judged too early is off the list", !Listed().Contains("late-1"));
+        Ok("then it posts capabilities and is on it again", Note("late-1", true) && Listed().Contains("late-1") && CanPlay("late-1") == true);
+        Ok("a later quiet minute does not demote it", !Note("late-1", false) && CanPlay("late-1") == true);
+        Ok("noting a device nobody recorded changes nothing", !Note("never-seen", true) && known.Count == 5);
+    }
+
+    var listener = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Auth", "BonfireSessionListener.cs"));
+    Ok("the listener judges a session after the grace, hears late capabilities, and counts a playback",
+       listener.Contains("JudgeAfterGrace(session)") && listener.Contains("ShowsPlayback(session)")
+       && listener.Contains("PlaybackStart += OnPlaybackStart"));
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     Console.WriteLine("  Failures:");
