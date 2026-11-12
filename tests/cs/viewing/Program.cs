@@ -660,6 +660,12 @@ libStub.Items[item] = MediaType.Video;
 Ok("PlaybackInfo for a song is let through", Check("/Items/" + song + "/PlaybackInfo", KID) == null);
 var unknownItem = Guid.NewGuid();
 Ok("one the library can't find is judged as video", Code(Check("/Items/" + unknownItem + "/PlaybackInfo", KID)) == "outside_viewing_hours");
+// Found, but of no media type (a folder): that is not music or a book, so it is still judged as
+// video. Only a type that is known and is not video is let through.
+var untyped = Guid.NewGuid();
+libStub.Items[untyped] = MediaType.Unknown;
+Ok("one the library knows, with no media type, is judged as video too", Code(Check("/Items/" + untyped + "/PlaybackInfo", KID)) == "outside_viewing_hours");
+Ok("and so is a download of it", Code(Check("/Items/" + untyped + "/Download", KID)) == "outside_viewing_hours");
 
 Ok("outside the hours, a download of a film is refused", Code(Check("/Items/" + item + "/Download", KID)) == "outside_viewing_hours");
 Ok("and so is the file route", Code(Check("/Items/" + item + "/File", KID)) == "outside_viewing_hours");
@@ -667,6 +673,9 @@ Ok("a download of a song is let through", Check("/Items/" + song + "/Download", 
 Ok("a download the library can't find is judged as video", Code(Check("/Items/" + unknownItem + "/Download", KID)) == "outside_viewing_hours");
 Ok("a download by a profile with no limits is let through", Check("/Items/" + item + "/Download", KID2) == null);
 Ok("PlaybackInfo with a trailing slash is refused", Code(Check("/Items/" + item + "/PlaybackInfo/", KID)) == "outside_viewing_hours");
+// The film Kid started at 16:00 is in the gate's record, but outside hours no grace was ever set,
+// so asking for its PlaybackInfo again is not a stream finishing: it is a new start.
+Ok("PlaybackInfo of what it started earlier is refused when no grace was set", Code(Check("/Items/" + film + "/PlaybackInfo", KID)) == "outside_viewing_hours");
 
 stub.Sessions.Add(SessionStub.Make("kid-tv", KID, item, deviceId: "dev-kid"));
 Ok("a download is not 'what is playing': it goes on no grace", Code(Check("/Items/" + item + "/Download", KID)) == "outside_viewing_hours");
@@ -681,6 +690,46 @@ stub.Sessions.Add(forgedSession);
 Ok("an item the app only says it is playing is refused", Code(Check("/Videos/" + forgedItem + "/hls1/main/3.ts", KID)) == "outside_viewing_hours");
 Ok("and so is its main stream", Code(Check("/Videos/" + forgedItem + "/stream.mkv", KID)) == "outside_viewing_hours");
 stub.Sessions.Remove(forgedSession);
+
+// Who is in the index at all (Audit, wave 4). The gate asks it first, so a wrong member means
+// either a profile never limited or an account that was never meant to be.
+{
+    bool Indexed(Guid g) => ((System.Collections.IDictionary)Static(tracker, "Index")).Contains(g);
+    var mainRow = Mapping(MAIN);
+    var kid2Row = Mapping(KID2);
+    var hoursOnly = Rules(true, 0, null);   // no window: always outside hours
+    mapType.GetProperty("Viewing").SetValue(mainRow, hoursOnly);
+    Fresh();
+    Ok("the main account is never limited, whatever its own row says", !Indexed(MAIN)
+       && Check("/Items/" + item + "/PlaybackInfo", MAIN) == null);
+    mapType.GetProperty("Viewing").SetValue(mainRow, null);
+
+    mapType.GetProperty("Viewing").SetValue(kid2Row, Rules(false, 0, null));
+    Fresh();
+    Ok("a profile whose rules limit nothing is not in the index", !Indexed(KID2) && Indexed(KID));
+    mapType.GetProperty("Viewing").SetValue(kid2Row, null);
+
+    // Off for everyone: the emergency code, or turned off on the Status tab.
+    config.GetType().GetProperty("BonfireOn").SetValue(config, false);
+    Fresh();
+    Ok("turned off, nobody is limited: the index is empty and the gate lets the stream through",
+       !Indexed(KID) && Check("/Videos/" + item + "/stream.mkv", KID) == null);
+    config.GetType().GetProperty("BonfireOn").SetValue(config, true);
+    Fresh();
+    Ok("and turned back on, they are again", Indexed(KID) && Code(Check("/Videos/" + item + "/stream.mkv", KID)) == "outside_viewing_hours");
+
+    // Yesterday's minutes are not today's.
+    var DAYK = Guid.NewGuid(); world.Add(DAYK, "Parent_day");
+    Map(DAYK, MAIN, "Daily");
+    mapType.GetProperty("Viewing").SetValue(Mapping(DAYK), Rules(false, 60, null));
+    Fresh();
+    Static(tracker, "AddSeconds", DAYK, "2026-11-03", 7200.0);
+    Ok("two hours watched yesterday do not count against a 60-minute limit today", Check("/Videos/" + item + "/stream.mkv", DAYK) == null);
+    Static(tracker, "AddSeconds", DAYK, "2026-11-04", 3700.0);
+    Ok("and the same today does", Code(Check("/Videos/" + item + "/stream.mkv", DAYK)) == "daily_limit_reached");
+    mappings.Remove(Mapping(DAYK));
+    Fresh();
+}
 
 // The record is bounded and expires, in memory.
 var record = asm.GetType("Jellyfin.Profiles.Auth.PlaybackRecord");
@@ -1224,7 +1273,9 @@ public class LibraryStub : DispatchProxy
         if (m.Name == "GetItemById" && args.Length == 1 && args[0] is Guid id)
         {
             if (!Items.TryGetValue(id, out var type)) return null;
-            var t = type == MediaType.Audio ? typeof(MediaBrowser.Controller.Entities.Audio.Audio) : typeof(MediaBrowser.Controller.Entities.Movies.Movie);
+            var t = type == MediaType.Audio ? typeof(MediaBrowser.Controller.Entities.Audio.Audio)
+                : type == MediaType.Unknown ? typeof(MediaBrowser.Controller.Entities.Folder)
+                : typeof(MediaBrowser.Controller.Entities.Movies.Movie);
             return System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t);
         }
         throw new NotSupportedException("ILibraryManager." + m.Name + " is not modelled");
