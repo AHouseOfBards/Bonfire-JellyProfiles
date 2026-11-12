@@ -398,22 +398,7 @@ namespace Jellyfin.Profiles.Controllers
         // server refuses it.
 
         /// <summary>
-        /// Decides whether a switch into <paramref name="targetMapping"/>'s account from a
-        /// linked Bonfire may skip its PIN, and whether the switch must be refused outright.
-        /// </summary>
-        /// <param name="targetMapping">The mapping of the account being entered, or null if it has none.</param>
-        /// <param name="isLocal">Whether Jellyfin classified the request's source address as local.</param>
-        /// <returns>
-        /// HouseholdLanBypass — the owner opted in and the client really is local, so no PIN
-        /// is asked for. BlockedUnprotected — the account has no PIN and no opt-in, so it is
-        /// not reachable through a shared Bonfire at all.
-        /// </returns>
-        protected internal static (bool HouseholdLanBypass, bool BlockedUnprotected) EvaluateCrossAccountSwitch(
-            ProfileMapping? targetMapping, bool isLocal)
-            => EvaluateCrossHouseholdEntry(targetMapping?.PinHash, targetMapping, isLocal);
-
-        /// <summary>
-        /// The same rule for anything in another household: its master or one of its
+        /// The rule for entering anything in another household: its master or one of its
         /// sub-profiles. The PIN is the target's own; the consent is always the owning
         /// master's.
         /// </summary>

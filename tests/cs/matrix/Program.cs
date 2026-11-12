@@ -37,8 +37,8 @@ var mappingType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", 
 var locType = asm.GetType("Jellyfin.Profiles.Configuration.SwitcherLocations", true);
 
 const BindingFlags Flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
-var evaluate = baseType.GetMethod("EvaluateCrossAccountSwitch", Flags)
-    ?? throw new Exception("EvaluateCrossAccountSwitch not found");
+var evaluate = baseType.GetMethod("EvaluateCrossHouseholdEntry", Flags)
+    ?? throw new Exception("EvaluateCrossHouseholdEntry not found");
 var canSkip = baseType.GetMethod("CanSkipPin", Flags)
     ?? throw new Exception("CanSkipPin not found");
 var resolve = locType.GetMethod("Resolve", Flags)
@@ -67,7 +67,10 @@ object MakePrefMapping(string legacyMode, bool? ask, string location)
 
 (bool bypass, bool blocked) Evaluate(object mapping, bool isLocal)
 {
-    var t = evaluate.Invoke(null, new object[] { mapping, isLocal });
+    // The rule /switch really calls: the PIN is the target's own, the consent the owner's.
+    // Here one row is both, a master entered directly.
+    var pinHash = mapping == null ? null : (string)mappingType.GetProperty("PinHash").GetValue(mapping);
+    var t = evaluate.Invoke(null, new object[] { pinHash, mapping, isLocal });
     var ty = t.GetType();
     // ValueTuple exposes Item1/Item2 as fields, not properties.
     return ((bool)ty.GetField("Item1").GetValue(t), (bool)ty.GetField("Item2").GetValue(t));
