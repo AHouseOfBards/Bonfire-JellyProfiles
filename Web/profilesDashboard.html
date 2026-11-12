@@ -3608,9 +3608,9 @@
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                // Revoked on the next tick: revoking synchronously after click() cancels the
-                // download in some browsers before they have read the blob.
-                setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+                // Revoked ten seconds on, in all three exports: a timeout of 0 still runs
+                // before some browsers have read the blob, and the download is then cancelled.
+                setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
             }
 
             function bindAuditControls(page) {
@@ -3773,7 +3773,7 @@
                             document.body.appendChild(a);
                             a.click();
                             document.body.removeChild(a);
-                            setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+                            setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
                             box.innerHTML = '<span class="jpf-dim">' + escapeHtml(t('admin.backup.exported')) + '</span>';
                         }, function () {
                             Dashboard.hideLoadingMsg();
@@ -5681,6 +5681,7 @@
                 document.removeEventListener('keydown', st.onKey, true);
                 window.removeEventListener('scroll', st.onMove, true);
                 window.removeEventListener('resize', st.onMove);
+                if (st.dragOff) st.dragOff();
                 const active = document.activeElement;
                 const wasInside = !active || active === document.body || st.pop.contains(active);
                 if (st.pop.parentNode) st.pop.parentNode.removeChild(st.pop);
@@ -5700,8 +5701,8 @@
                 pop.setAttribute('aria-label', t('admin.themes.pickDialog'));
                 pop.innerHTML = '<div class="jpf-te-pop-presets" role="group" aria-label="' + escapeHtml(t('admin.themes.pickPresets')) + '">' +
                     presets.map(function (h) {
-                        return '<button type="button" class="jpf-te-pre" tabindex="-1" data-hex="' + h + '" aria-label="' + h + '" title="' + h +
-                            '" style="background:' + h + '"></button>';
+                        return '<button type="button" class="jpf-te-pre" tabindex="-1" data-hex="' + escapeHtml(h) + '" aria-label="' + escapeHtml(h) + '" title="' + escapeHtml(h) +
+                            '" style="background:' + escapeHtml(h) + '"></button>';
                     }).join('') + '</div>' +
                     '<div class="jpf-te-sv" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-label="' + escapeHtml(t('admin.themes.pickShade')) +
                     '"><span class="jpf-te-knob"></span></div>' +
@@ -5780,7 +5781,16 @@
                         el.focus();
                         at(e.clientX, e.clientY);
                         const move = function (m) { at(m.clientX, m.clientY); };
-                        const up = function () { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+                        // closeColorPopup calls st.dragOff: an Escape or an outside click
+                        // mid-drag closes the popup with the button still down, and the
+                        // mouseup may land after it, so the listeners would outlive it.
+                        const up = function () {
+                            document.removeEventListener('mousemove', move);
+                            document.removeEventListener('mouseup', up);
+                            if (st.dragOff === up) st.dragOff = null;
+                        };
+                        if (st.dragOff) st.dragOff();
+                        st.dragOff = up;
                         document.addEventListener('mousemove', move);
                         document.addEventListener('mouseup', up);
                     });
@@ -5945,12 +5955,24 @@
 
             /// The real picker sizes its tiles to the screen and balances its rows by script
             /// (fitGateToScreen); the view runs the same function, through the preview API.
-            function fitThemeExpanded(page) {
+            /// `onlyIfResized`: from the scroll and resize handler, which fires in bursts while
+            /// the person scrolls. A scroll moves the view but does not change the size it
+            /// is fitted to, so the fit is skipped unless the window or the view's box is a
+            /// different size from the last fit. The size is read before the fit changes it.
+            function fitThemeExpanded(page, onlyIfResized) {
                 const x = page._themeExpand;
                 const api = window.BonfireThemePreview;
                 if (!x || !api || typeof api.fit !== 'function') return;
                 const gate = x.wrap.querySelector('#teExpandGate');
-                if (gate) api.fit(gate);
+                if (!gate) return;
+                if (onlyIfResized) {
+                    const r = gate.getBoundingClientRect();
+                    const key = [window.innerWidth, window.innerHeight, Math.round(r.width), Math.round(r.height)].join('x');
+                    if (key === x.fitKey) return;
+                }
+                api.fit(gate);
+                const after = gate.getBoundingClientRect();
+                x.fitKey = [window.innerWidth, window.innerHeight, Math.round(after.width), Math.round(after.height)].join('x');
             }
 
             function closeThemeExpanded(page, restoreFocus) {
@@ -5997,7 +6019,7 @@
                 x.onMove = function () {
                     if (x.queued) return;
                     x.queued = true;
-                    (window.requestAnimationFrame || window.setTimeout)(function () { x.queued = false; positionThemeExpanded(page); fitThemeExpanded(page); });
+                    (window.requestAnimationFrame || window.setTimeout)(function () { x.queued = false; positionThemeExpanded(page); fitThemeExpanded(page, true); });
                 };
                 document.addEventListener('keydown', x.onKey, true);
                 window.addEventListener('scroll', x.onMove, true);
@@ -6083,9 +6105,11 @@
 
             function teControl(page, kind, path, opt, disabled) {
                 const id = 'teList' + (page._teListN = (page._teListN || 0) + 1);
-                const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '" data-key="' + path + '"' + (disabled ? ' disabled' : '');
+                // Paths and option values are constants today; escaped so a later one with a
+                // quote in it cannot break out of its attribute.
+                const attrs = ' id="' + id + '" data-path="' + escapeHtml(path) + '" data-kind="' + kind + '" data-key="' + escapeHtml(path) + '"' + (disabled ? ' disabled' : '');
                 if (kind === 'color') {
-                    return '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + path + '" aria-haspopup="dialog" aria-label="' +
+                    return '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + escapeHtml(path) + '" aria-haspopup="dialog" aria-label="' +
                         escapeHtml(t('admin.themes.pickFor', { name: path })) + '"></button>' +
                         '<input type="text" class="emby-input jpf-te-input"' + attrs + ' spellcheck="false" maxlength="9" /></span>';
                 }
@@ -6368,17 +6392,17 @@
                 let n = 0;
                 const openGroups = themeOpenGroups();
                 box.innerHTML = themeFieldList().map(function (group, g) {
-                    return '<details class="jpf-te-group" data-group="' + group[0] + '"' + (openGroups.indexOf(group[0]) !== -1 ? ' open' : '') + '><summary>' +
+                    return '<details class="jpf-te-group" data-group="' + escapeHtml(group[0]) + '"' + (openGroups.indexOf(group[0]) !== -1 ? ' open' : '') + '><summary>' +
                         escapeHtml(t(group[0])) + '<span class="jpf-te-gcount"></span></summary>' +
                         '<div class="jpf-te-gtools jpf-hidden"><button type="button" class="jpf-te-lbtn" data-reset-group="1">' + escapeHtml(t('admin.themes.resetGroup')) + '</button></div>' +
                         group[1].map(function (f) {
                             const path = f[0], kind = f[1], opt = f[2];
                             const search = escapeHtml((themeFieldName(path) + ' ' + path).toLowerCase());
-                            if (kind === 'photo') return '<div class="jpf-te-field jpf-te-adv jpf-te-photo" data-paths="' + path + '" data-search="' + search + '">' + themePhotoControlHtml() + themeRowMarksHtml(path) + '</div>';
+                            if (kind === 'photo') return '<div class="jpf-te-field jpf-te-adv jpf-te-photo" data-paths="' + escapeHtml(path) + '" data-search="' + search + '">' + themePhotoControlHtml() + themeRowMarksHtml(path) + '</div>';
                             const id = 'teField' + (n++);
-                            const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '"';
+                            const attrs = ' id="' + id + '" data-path="' + escapeHtml(path) + '" data-kind="' + kind + '"';
                             const colourPair = function (p, a) {
-                                return '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + p + '" aria-haspopup="dialog" aria-label="' + escapeHtml(t('admin.themes.pickFor', { name: themeFieldName(path) })) + '"></button>' +
+                                return '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + escapeHtml(p) + '" aria-haspopup="dialog" aria-label="' + escapeHtml(t('admin.themes.pickFor', { name: themeFieldName(path) })) + '"></button>' +
                                     '<input type="text" class="emby-input jpf-te-input"' + a + ' spellcheck="false" maxlength="9" /></span>';
                             };
                             let control, hint;
@@ -6391,7 +6415,7 @@
                                 hint = t('admin.themes.hint.range', { min: opt[0], max: opt[1] });
                             } else if (kind === 'choice' || kind === 'font') {
                                 control = '<select class="emby-select emby-select-withcolor jpf-te-input"' + attrs + '><option value="">—</option>' +
-                                    (opt || []).map(function (v) { return '<option value="' + v + '">' + v + '</option>'; }).join('') + '</select>';
+                                    (opt || []).map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('') + '</select>';
                                 hint = kind === 'font' ? t('admin.themes.hint.font') : '';
                             } else if (kind === 'shadow') {
                                 // One box per key of ThemeValidator.Shadow, each writing its own
@@ -6399,7 +6423,7 @@
                                 const box = function (k, key, min, max, step) {
                                     const sid = id + k;
                                     return '<label class="jpf-te-sub" for="' + sid + '"><span>' + escapeHtml(t(key)) + '</span>' +
-                                        '<input type="number" class="emby-input jpf-te-input" id="' + sid + '" data-path="' + path + '.' + k + '" data-kind="number"' +
+                                        '<input type="number" class="emby-input jpf-te-input" id="' + sid + '" data-path="' + escapeHtml(path + '.' + k) + '" data-kind="number"' +
                                         ' min="' + min + '" max="' + max + '" step="' + step + '" /></label>';
                                 };
                                 control = '<div class="jpf-te-shadow">' +
@@ -6408,12 +6432,12 @@
                                     box('blur', 'admin.themes.shadow.blur', 0, 100, 1) + box('spread', 'admin.themes.shadow.spread', -50, 50, 1) +
                                     box('opacity', 'admin.themes.shadow.opacity', 0, 1, 0.05) +
                                     '<label class="jpf-te-sub jpf-te-sub-color" for="' + id + 'color"><span>' + escapeHtml(t('admin.themes.shadow.color')) + '</span>' +
-                                    colourPair(path + '.color', ' id="' + id + 'color" data-path="' + path + '.color" data-kind="color"') + '</label></div>';
+                                    colourPair(path + '.color', ' id="' + id + 'color" data-path="' + escapeHtml(path + '.color') + '" data-kind="color"') + '</label></div>';
                                 hint = t('admin.themes.hint.shadow');
                             } else {
                                 // The cards stand in front of the box; Edit as JSON swaps them (renderThemeLists).
-                                control = '<div class="jpf-te-cards" data-list="' + path + '"></div>' +
-                                    '<button type="button" class="jpf-te-lbtn jpf-te-jsonbtn" data-list-act="json" data-list="' + path + '"></button>' +
+                                control = '<div class="jpf-te-cards" data-list="' + escapeHtml(path) + '"></div>' +
+                                    '<button type="button" class="jpf-te-lbtn jpf-te-jsonbtn" data-list-act="json" data-list="' + escapeHtml(path) + '"></button>' +
                                     '<textarea class="emby-textarea jpf-te-input jpf-te-json jpf-hidden"' + attrs + ' rows="3" spellcheck="false"></textarea>';
                                 // A short example of the list's shape. Code, not words, so not translated.
                                 const example = path === 'decorations'
@@ -6424,7 +6448,7 @@
                                 hint = { html: hint };
                             }
                             const hintHtml = typeof hint === 'object' ? hint.html : escapeHtml(hint);
-                            return '<div class="jpf-te-field jpf-te-adv" data-paths="' + path + '" data-search="' + search + '">' +
+                            return '<div class="jpf-te-field jpf-te-adv" data-paths="' + escapeHtml(path) + '" data-search="' + search + '">' +
                                 '<label class="jpf-te-adv-label" for="' + id + '"><span class="jpf-te-adv-name">' + escapeHtml(themeFieldName(path)) +
                                 '</span><code>' + path + '</code></label>' + control +
                                 (hintHtml ? '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div>' : '') + themeRowMarksHtml(path) + '</div>';
@@ -7182,7 +7206,7 @@
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+                setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
             }
 
             /// A file that did not save, made ready for the editor: a custom theme's name is
