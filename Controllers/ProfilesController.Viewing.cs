@@ -36,7 +36,10 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>The main account a user belongs to: its own id for a main account.</summary>
         private static Guid HouseholdOf(PluginConfiguration config, Guid userId)
         {
-            var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == userId);
+            // Through MappingIn: the account-link routes hand this the live configuration, and
+            // a profile being created or deleted meanwhile is "Collection was modified" on an
+            // unlocked walk (r2-11-02c).
+            var row = MappingIn(config, userId);
             return row != null && row.MasterUserId != Guid.Empty ? row.MasterUserId : userId;
         }
 

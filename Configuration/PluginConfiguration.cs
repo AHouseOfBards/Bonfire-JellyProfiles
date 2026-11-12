@@ -100,7 +100,8 @@ namespace Jellyfin.Profiles.Configuration
         /// </para>
         /// <para>
         /// The lists are copied, and so is each mapping, because a profile's
-        /// <see cref="ProfileMapping.AllowedDeviceIds"/> is edited in place too. Everything
+        /// <see cref="ProfileMapping.AllowedDeviceIds"/> is edited in place too, and each
+        /// Bonfire group, whose member list is. Everything
         /// else is a value or an immutable string and is shared.
         /// </para>
         /// </summary>
@@ -110,7 +111,7 @@ namespace Jellyfin.Profiles.Configuration
             copy.Mappings = Mappings?.Select(m => m.CopyForReading()).ToList() ?? new List<ProfileMapping>();
             copy.KnownDevices = KnownDevices?.ToList() ?? new List<KnownDevice>();
             copy.ServiceFingerprints = ServiceFingerprints?.ToList() ?? new List<string>();
-            copy.BonfireGroups = BonfireGroups?.ToList() ?? new List<BonfireGroup>();
+            copy.BonfireGroups = BonfireGroups?.Select(g => g?.Copy()!).ToList() ?? new List<BonfireGroup>();
             copy.LinkedAccounts = LinkedAccounts?.Select(l => l.Copy()).ToList() ?? new List<LinkedAccount>();
             copy.HouseholdsSeenLocally = HouseholdsSeenLocally?.ToList() ?? new List<Guid>();
             copy.CrossHouseholdEntries = CrossHouseholdEntries?.Select(e => e.Copy()).ToList() ?? new List<CrossHouseholdEntry>();
@@ -541,6 +542,19 @@ namespace Jellyfin.Profiles.Configuration
         public string BonfireCode { get; set; } = string.Empty; // 6-character alphanumeric code
         public Guid OwnerUserId { get; set; }
         public List<Guid> MemberUserIds { get; set; } = new List<Guid>();
+
+        /// <summary>
+        /// A copy for <see cref="PluginConfiguration.SnapshotForReading"/>. The member list is
+        /// edited in place when someone joins or leaves, so a snapshot that shared it could be
+        /// enumerated while that happened.
+        /// </summary>
+        public BonfireGroup Copy() => new BonfireGroup
+        {
+            GroupId = GroupId,
+            BonfireCode = BonfireCode,
+            OwnerUserId = OwnerUserId,
+            MemberUserIds = MemberUserIds?.ToList() ?? new List<Guid>(),
+        };
     }
 
     /// <summary>

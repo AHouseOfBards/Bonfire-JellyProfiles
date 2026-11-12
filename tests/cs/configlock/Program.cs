@@ -638,6 +638,27 @@ Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02)
     // The account-email routes' main-account check read the live list unlocked (r2-11-02c).
     WaitsForLock("RequireMainAccount (the email routes' main-account check)", "RequireMainAccount",
         new object[] { cfg, (Guid?)someone, null }, profilesCtl, instance: true);
+    // The account-link routes call this with the live configuration (r2-11-02c, second pass).
+    WaitsForLock("HouseholdOf (the account-link routes' main-account check)", "HouseholdOf",
+        new object[] { cfg, someone }, profilesCtl);
+
+    // A snapshot is read with no lock, so nothing in it may be a list the live configuration
+    // edits in place. A Bonfire's member list is (join, leave, kick): the snapshot used to
+    // share the group, and a reader walking it met the edit.
+    var groupT = asm.GetType("Jellyfin.Profiles.Configuration.BonfireGroup", true);
+    var groups = (System.Collections.IList)cfgType.GetProperty("BonfireGroups").GetValue(cfg);
+    var liveGroup = Activator.CreateInstance(groupT);
+    var liveMembers = (System.Collections.IList)groupT.GetProperty("MemberUserIds").GetValue(liveGroup);
+    liveMembers.Add(Guid.NewGuid());
+    groups.Add(liveGroup);
+    var snap = cfgType.GetMethod("SnapshotForReading").Invoke(cfg, null);
+    var snapGroups = (System.Collections.IList)cfgType.GetProperty("BonfireGroups").GetValue(snap);
+    var snapMembers = (System.Collections.IList)groupT.GetProperty("MemberUserIds").GetValue(snapGroups[0]);
+    liveMembers.Add(Guid.NewGuid());
+    Ok("a snapshot's Bonfire member list is its own: a member added to the live group is not in it "
+       + "(snapshot " + snapMembers.Count + ", live " + liveMembers.Count + ")",
+       snapGroups.Count == 1 && !ReferenceEquals(snapGroups[0], liveGroup)
+       && !ReferenceEquals(snapMembers, liveMembers) && snapMembers.Count == 1 && liveMembers.Count == 2);
 }
 
 Console.WriteLine();
