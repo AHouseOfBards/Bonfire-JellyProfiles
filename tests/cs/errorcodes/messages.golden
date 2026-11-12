@@ -65,6 +65,7 @@ BadRequest|invalid_request|That account does not exist.
 BadRequest|invalid_request|That file does not look like a Bonfire configuration — it has none of the expected sections. Nothing was changed.
 BadRequest|invalid_request|That folder could not be read: 
 BadRequest|invalid_request|That image could not be saved.
+BadRequest|invalid_request|That isn't a Getting started item.
 BadRequest|invalid_request|That path is not valid.
 BadRequest|invalid_request|That theme isn't valid.
 BadRequest|invalid_request|The code is too long.

@@ -496,8 +496,9 @@
     #profilesConfigurationPage .jpf-te-side .jpf-te-preview-primary,
     #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-button { font-size: 0.85rem; padding: 6px 16px; }
     /* A phone has no room beside the form: the preview is a short strip along the top,
-       name and tiles only, with Expand on it for the full picker. */
-    @media (max-width: 47.99em) {
+       name and tiles only, with Expand on it for the full picker. Tablet and below, on the
+       page's one scale (tests/js/breakpoints.js). */
+    @media (max-width: 899px) {
         #profilesConfigurationPage .jpf-te-side { flex: 1 1 100%; min-width: 0; }
         #profilesConfigurationPage .jpf-te-side .jpf-theme-preview {
             flex-direction: row; justify-content: flex-start; gap: 12px; padding: 8px 7.5em 8px 12px;
