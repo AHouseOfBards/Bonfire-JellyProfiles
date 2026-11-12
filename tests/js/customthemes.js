@@ -50,7 +50,7 @@ function method(name) {
 }
 
 const FUNCS = ['readCustomThemes', 'offeredThemes', 'offeredChoice', 'themeNameText', 'customFontFaceCss', 'customThemesCss'];
-const METHODS = ['restoreCustomThemes', 'loadCustomThemes', 'useCustomThemes', 'applyCustomThemesCss', 'applyTheme', 'drawLogo', 'loadThemePhoto'];
+const METHODS = ['restoreCustomThemes', 'loadCustomThemes', 'useCustomThemes', 'applyCustomThemesCss', 'applyTheme', 'drawLogo', 'loadThemePhoto', 'loadThemePhotoOf'];
 console.log('\n── The pieces are in the client ──────────────────────────────');
 FUNCS.forEach(n => ok(n + ' is in profiles.js', new RegExp('function\\s+' + n + '\\s*\\(').test(SRC)));
 METHODS.forEach(n => ok(n + ' is a method', !!method(n)));
@@ -444,10 +444,15 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
         // The loader: marks <html> only when the picture loads, through pluginUrl.
         const made = [];
         global.Image = function () { made.push(this); };
-        const w = world({}, { themes: [withPic(PIC, 0.8)], fonts: [], hidden: [] });
+        // Two custom themes with pictures, the page wearing one. Every custom theme's picture
+        // used to be fetched on every page load, forty on a TV to show one.
+        const PIC2 = 'd'.repeat(32) + '.png';
+        const other = Object.assign(withPic(PIC2, 0.8), { id: 'other', name: { text: 'My other' } });
+        const w = world({}, { themes: [withPic(PIC, 0.8), other], fonts: [], hidden: [] });
         w.addSheet();
+        w.obj.applyTheme('photo');
         await w.obj.loadCustomThemes();
-        ok('the themes\' pictures are fetched when their CSS goes in', made.length === 1 && made[0].src === '/plugins/profiles/themes/backgrounds/' + PIC, made.map(m => m.src).join());
+        ok('of two custom themes with pictures, only the one in use is fetched', made.length === 1 && made[0].src === '/plugins/profiles/themes/backgrounds/' + PIC, made.map(m => m.src).join());
         ok('and nothing is marked before it loads', !w.attrs['data-jpf-photos']);
         made[0].onload();
         ok('once it loads, <html> names it', w.attrs['data-jpf-photos'] === PIC, w.attrs['data-jpf-photos']);
@@ -460,6 +465,11 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
         ok('and is tried again the next time', made.length === 3);
         w.obj.loadThemePhoto('../evil.png');
         ok('a bad name is never fetched', made.length === 3);
+        w.obj.applyTheme('other');
+        ok('the other theme\'s picture is fetched when it is put on', made.length === 4 && made[3].src === '/plugins/profiles/themes/backgrounds/' + PIC2, made.map(m => m.src).join());
+        w.obj.applyTheme('bonfire');
+        w.obj.applyTheme('photo');
+        ok('and nothing is fetched twice', made.length === 4, made.length + ' fetched');
         delete global.Image;
     }
 

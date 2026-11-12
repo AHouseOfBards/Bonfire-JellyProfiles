@@ -4490,6 +4490,10 @@
                         if (!one) return;
                         css += one;
                         ids[id] = themeListId(id);
+                        // The client fetches only the picture of the theme in use, so each
+                        // card asks for its own, as the editor does.
+                        const photo = getThemePath(b.theme, 'background.image.file');
+                        if (typeof photo === 'string' && typeof api.photo === 'function') api.photo(photo);
                     });
                 }
                 let style = document.getElementById('jpfThemeListCss');

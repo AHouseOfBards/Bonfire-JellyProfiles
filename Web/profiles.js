@@ -5008,6 +5008,8 @@
             // Kept as asked, so a custom theme that arrives after this is put on then.
             this._wantedTheme = String(theme || '').toLowerCase();
             const id = normalizeTheme(theme);
+            // Its picture, if it is a custom theme with one: once per page, so a no-op after.
+            this.loadThemePhotoOf(id);
             if (root.getAttribute('data-jpf-theme') !== id) {
                 root.setAttribute('data-jpf-theme', id);
                 // A see-through logo that read on the last theme may not on this one.
@@ -5154,10 +5156,14 @@
             const select = document.getElementById(prefix + '-theme-select');
             const preview = document.getElementById(prefix + '-theme-preview');
             if (!select || !preview) return;
+            // The preview wears the chosen theme, picture and all, and only the theme the
+            // page wears has its picture fetched up front (applyCustomThemesCss).
+            this.loadThemePhotoOf(preview.getAttribute('data-jpf-theme'));
             select.addEventListener('change', () => {
                 const settings = this._themeSettings;
                 const id = select.value ? normalizeTheme(select.value)
                     : (settings ? settings.defaultTheme : 'bonfire');
+                this.loadThemePhotoOf(id);
                 preview.setAttribute('data-jpf-theme', id);
                 const name = preview.querySelector('.jpf-theme-preview-name');
                 if (name) name.textContent = themeNameText(id);
@@ -13437,7 +13443,18 @@
                 document.head.appendChild(style);
             }
             if (style.textContent !== css) style.textContent = css;
-            CUSTOM_THEMES.themes.forEach(c => this.loadThemePhoto(c && c.background && c.background.image && c.background.image.file));
+            // Only the picture of the theme the page wears. Every custom theme's used to be
+            // fetched here, so with forty themes every device, a TV included, downloaded
+            // forty pictures on every page load to show one. applyTheme and the profile
+            // form's picker fetch the others when they are put on; the dashboard's lists and
+            // editor ask through BonfireThemePreview.photo.
+            this.loadThemePhotoOf(document.documentElement.getAttribute('data-jpf-theme'));
+        },
+
+        /// The background picture of one custom theme, if it has one. Nothing for a built-in.
+        loadThemePhotoOf: function (id) {
+            const c = customTheme(String(id || ''));
+            this.loadThemePhoto(c && c.background && c.background.image && c.background.image.file);
         },
 
         /// Fetches a custom theme's background picture and, once it has loaded, adds its name
