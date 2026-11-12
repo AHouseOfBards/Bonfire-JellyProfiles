@@ -464,7 +464,8 @@ body.profiles-no-scroll, html.profiles-no-scroll {
     height: 100% !important;
 }
 
-/* Hide loaders behind overlay */
+/* Hide loaders behind overlay. The two wildcards also match Bonfire's own spinner, which
+   the gate draws while a screen loads, so it is named out of them. */
 body.profiles-no-scroll .docloader,
 body.profiles-no-scroll .mainLoader,
 body.profiles-no-scroll .loadingSpinner,
@@ -472,8 +473,8 @@ body.profiles-no-scroll .spinner,
 body.profiles-no-scroll .view-loader,
 body.profiles-no-scroll paper-spinner,
 body.profiles-no-scroll paper-spinner-lite,
-body.profiles-no-scroll [class*="loader"],
-body.profiles-no-scroll [class*="spinner"],
+body.profiles-no-scroll [class*="loader"]:not(.profiles-loading-spinner),
+body.profiles-no-scroll [class*="spinner"]:not(.profiles-loading-spinner),
 body.profiles-no-scroll [id*="loader"],
 body.profiles-no-scroll [id*="spinner"] {
     display: none !important;
@@ -2040,6 +2041,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-device-delete-btn:hover {
     background: var(--jpf-danger-a15);
 }
+/* One focus rule. A second one at the same specificity used to win with !important
+   over nothing but its twin. No outline:none: the tint alone is not findable on a
+   television. */
 .jpf-device-delete-btn:focus {
     background: var(--jpf-danger-a25);
     outline: 2px solid var(--jpf-danger);
@@ -2293,11 +2297,6 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-bottom: 8px;
 }
 .jpf-device-list .jpf-device-dropdown-item:last-child { border-bottom: 0; }
-/* Was a second .jpf-device-delete-btn:focus at the same specificity as the block above,
-   winning with !important over nothing but its own twin. Folded into one rule, at
-   the value that was actually applying. outline:none is gone with it — a focused
-   control has to be findable, and the tint alone is not that on a television. */
-
 /* ── The Chromium 53 floor ────────────────────────────────────────
    webOS 4.x (2018 and 2019 LG sets) is Chromium 53 and stays there; webOS 5
    (68) and Tizen 6.0 (76) are above it, so what holds on 53 holds on them.
@@ -2382,7 +2381,10 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .jpf-theme-match > * + * { margin-top: var(--jpf-gap); }
 .jpf-no-flex-gap .jpf-theme-match-actions > * { margin: 0 6px 8px; }
 .jpf-no-flex-gap .jpf-choice > * + * { margin-left: 12px; }
-.jpf-no-flex-gap .jpf-actions > * + * { margin-left: 12px; }
+/* .jpf-actions wraps, so a leading-edge margin on every item but the first indented the
+   second row. Margin on both sides and underneath instead, the way the other wrapping rows
+   below do: 6 + 6 is the 12px gap, and 12px under stands in for the row gap. */
+.jpf-no-flex-gap .jpf-actions > * { margin: 0 6px 12px; }
 .jpf-no-flex-gap .jpf-theme-option > * + * { margin-top: 8px; }
 .jpf-no-flex-gap .jpf-theme-option-label > * + * { margin-left: 6px; }
 .jpf-no-flex-gap .jpf-library-checklist > * + * { margin-top: 0.5rem; }
@@ -2522,9 +2524,10 @@ body.profiles-no-scroll [id*="spinner"] {
    and every other television browser below 79, which drop clamp() — sizing the television with the one
    feature the television cannot parse would be the same mistake twice.
 
-   It is last in the sheet and every selector carries .jpf-tv, so it
-   outranks the rules it overrides on both specificity and order. A
-   rule that is present but outranked has shipped here before. */
+   Every selector here carries .jpf-tv and comes after the rules it overrides,
+   so it outranks them on both specificity and order. The one exception is the
+   keyboard focus ring further down, which has no .jpf-tv and wins by order
+   alone. A rule that is present but outranked has shipped here before. */
 .jpf-tv, .jpf-tv body {
     /* Declared on body too, because the base tokens at the top of this
        sheet are set on the selector list :root, body — and a
@@ -2654,8 +2657,11 @@ body.profiles-no-scroll [id*="spinner"] {
    "outline: none" and showed focus as a change of fill, which for the primary button is
    #ffb347 to #ffc773: the same as hovering, and not a mark anyone can find. After every
    rule that removes the outline, with the same specificity or more, so it wins by
-   order; the television block below is higher still and thickens it. The pill's
-   selector carries its id and class because its own focus rule does. */
+   order; the television list below is higher still and thickens it. The pill's
+   selector carries its id and class because its own focus rule does. The tag
+   chip's remove button is here for the same reason: its own :focus rule says
+   outline: none. */
+.jpf-tag-chip-remove:focus,
 .profiles-btn:focus,
 .jpf-color-dot:focus,
 .jpf-avatar-library-item:focus,
@@ -2677,6 +2683,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv .jpf-devices-dropdown-trigger:focus,
 .jpf-tv #jpf-profile-pin-input:focus, .jpf-tv #jpf-master-pin-input:focus, .jpf-tv #jpf-main-pin-new:focus,
 .jpf-tv #jpf-pin-reset-new:focus, .jpf-tv #jpf-pin-reset-code:focus,
+.jpf-tv #onboarding-email:focus, .jpf-tv #onboarding-email-code:focus, .jpf-tv #onboarding-profile-name:focus,
+.jpf-tv .jpf-tag-chip-remove:focus,
 .jpf-tv #profiles-floating-bubble:focus,
 .jpf-tv .jpf-profile-section :focus,
 .jpf-tv .profiles-btn:focus,

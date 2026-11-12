@@ -8043,7 +8043,7 @@
                 const required = !!(features && (features.requireMainPin || features.RequireMainPin));
                 if (required) this.promptSetMainPin(profiles, true, then);
                 else then();
-            });
+            }, () => then());
         },
 
         /// Forgets the main PIN typed for a single act on the gate. Manage Profiles keeps it:
@@ -11341,7 +11341,7 @@
                 <p class="jpf-onboarding-text" id="onboarding-email-sent"></p>
                 <div class="bonfire-form-group">
                     <label for="onboarding-email-code">${t('accountEmail.code')}</label>
-                    <input type="text" id="onboarding-email-code" maxlength="7" inputmode="numeric" autocomplete="one-time-code" ${noFill} />
+                    <input type="text" id="onboarding-email-code" maxlength="6"inputmode="numeric" autocomplete="one-time-code" ${noFill} />
                 </div>
                 <button type="button" id="onboarding-email-other" class="jpf-text-link">${t('accountEmail.otherAddress')}</button>
             ` : `
@@ -11367,9 +11367,11 @@
                 const confirm = () => {
                     const code = input.value.replace(/\s/g, '');
                     if (!/^\d{6}$/.test(code)) { this._onboardingError(content, t('accountEmail.codeInvalid')); input.focus(); return; }
-                    if (busy) return;
-                    busy = true;
+                    // The guard goes inside the callback, as the switcher step's does: set
+                    // before, a main PIN prompt that was cancelled left this step dead.
                     this.withMainPin(this.currentProfiles, () => {
+                        if (busy) return;
+                        busy = true;
                         this._emailCall('account/email/confirm', { code: code })
                             .then(() => next(), err => fail(this._failText(err, err.message)));
                     });
@@ -11386,9 +11388,9 @@
             const send = () => {
                 const address = input.value.trim();
                 if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(address)) { this._onboardingError(content, t('accountEmail.invalid')); input.focus(); return; }
-                if (busy) return;
-                busy = true;
                 this.withMainPin(this.currentProfiles, () => {
+                    if (busy) return;
+                    busy = true;
                     this._emailCall('account/email', { address: address })
                         .then(reply => this._onboardingEmail(next, skip, this._field(reply, 'pendingAddress') || address),
                               err => fail(this._failText(err, err.message), address));
@@ -11415,9 +11417,9 @@
             const create = () => {
                 const name = input.value.trim();
                 if (!name) { this._onboardingError(content, t('profileForm.nameRequired')); input.focus(); return; }
-                if (busy) return;
-                busy = true;
                 this.withMainPin(this.currentProfiles, () => {
+                    if (busy) return;
+                    busy = true;
                     const masterState = this.readMasterState();
                     fetch(ApiClient.getUrl('plugins/profiles/create'), {
                         method: 'POST',
@@ -12913,10 +12915,7 @@
                 // forever, having already established there is nothing to find.
                 const geoNow = Date.now();
                 const geoStale = !this._geoSearchedAt || geoNow - this._geoSearchedAt >= 3000;
-                if (!this._geoAnchor && (geoStale || this._fallbackPosDirty)) {
-                    this._geoSearchedAt = geoNow;
-                    this._geoAnchor = this._findGeometricHeaderAnchor();
-                } else if (this._fallbackPosDirty) {
+                if ((!this._geoAnchor && geoStale) || this._fallbackPosDirty) {
                     this._geoSearchedAt = geoNow;
                     this._geoAnchor = this._findGeometricHeaderAnchor();
                 }
@@ -12934,9 +12933,7 @@
                         bubble = null;
                     }
                     if (bubble) {
-                        if (!document.contains(bubble)) {
-                            bubble.remove(); bubble = null;
-                        } else if (!anchor.parentElement.contains(bubble)) {
+                        if (!document.contains(bubble) || !anchor.parentElement.contains(bubble)) {
                             bubble.remove(); bubble = null;
                         }
                     }
@@ -13064,19 +13061,6 @@
 
         // ── Header-container detection ───────────────────────────────────────────
 
-        /**
-         * The container the floating switcher button is placed in.
-         *
-         * Cached, because this is reached from evaluateFloatingBubbleVisibility on every
-         * route tick while a profile is active — which is essentially always — and the
-         * header is built once per page. It was re-running the entire search twice a
-         * second to arrive at the same answer: six document queries on a stock install and
-         * ten on a theme where nothing matched, two of them full-document walks.
-         * tests/js/routetick.js measures it.
-         *
-         * The cache is invalidated by the element leaving the document, which is what
-         * React rebuilding the header looks like from out here.
-         */
         /// True when an element is actually laid out — not merely present in the document.
         ///
         /// getClientRects() is empty for anything inside a display:none subtree, and unlike
@@ -13121,6 +13105,19 @@
                 && Date.now() - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
         },
 
+        /**
+         * The container the floating switcher button is placed in.
+         *
+         * Cached, because this is reached from evaluateFloatingBubbleVisibility on every
+         * route tick while a profile is active — which is essentially always — and the
+         * header is built once per page. It was re-running the entire search twice a
+         * second to arrive at the same answer: six document queries on a stock install and
+         * ten on a theme where nothing matched, two of them full-document walks.
+         * tests/js/routetick.js measures it.
+         *
+         * The cache is invalidated by the element leaving the document, which is what
+         * React rebuilding the header looks like from out here.
+         */
         _findHeaderContainer: function () {
             const cachedNow = Date.now();
             if (this._headerContainer && document.contains(this._headerContainer)) {
@@ -13200,17 +13197,6 @@
             const byClass = document.querySelector('.headerRight');
             if (this._isLaidOut(byClass)) return byClass;
 
-            // Strategy B: the parent of a header button. A theme that renames the
-            // container usually keeps Jellyfin's own buttons inside it.
-            //
-            // .headerButton rather than [class*="headerButton"]: every header button
-            // upstream carries the bare class alongside its specific one
-            // (headerCastButton castButton headerButton headerButtonRight), so the plain
-            // class selector matches exactly the same elements while letting the engine
-            // use the class index instead of walking the document. .btnCurrentUser,
-            // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
-            // also tried here and none of them exists upstream either — the cast button
-            // is .headerCastButton.
             // Strategy A2: the modern toolbar's user-menu button.
             //
             // Named, not geometric, and that is the point. The first attempt at the modern
@@ -13232,6 +13218,17 @@
                 return modernUserBtn.parentElement;
             }
 
+            // Strategy B: the parent of a header button. A theme that renames the
+            // container usually keeps Jellyfin's own buttons inside it.
+            //
+            // .headerButton rather than [class*="headerButton"]: every header button
+            // upstream carries the bare class alongside its specific one
+            // (headerCastButton castButton headerButton headerButtonRight), so the plain
+            // class selector matches exactly the same elements while letting the engine
+            // use the class index instead of walking the document. .btnCurrentUser,
+            // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
+            // also tried here and none of them exists upstream either — the cast button
+            // is .headerCastButton.
             //
             // Every match is considered, not just the first: on the modern layout the
             // hidden legacy header supplies the first .headerButton in document order, and
