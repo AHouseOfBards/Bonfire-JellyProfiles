@@ -46,6 +46,7 @@
   "avatar.positionYourPicture": "Avatarınızı konumlandırın",
   "avatar.dragOrArrows": "Taşımak için sürükleyin veya okları kullanın. Kaydırıcı yakınlaştırır. Bitince Tamam'a basın.",
   "avatar.usePicture": "Avatarı kullan",
+  "avatar.cropFailed": "Bu görsel kullanılamıyor. Başka birini deneyin.",
   "avatar.fromThisServer": "Bu sunucudan",
   "avatar.fromThisDevice": "Bu cihazdan",
   "avatar.uploadPicture": "Avatar yükle",

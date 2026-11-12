@@ -1225,7 +1225,7 @@
         'avatar.positionYourPicture': 'Position your avatar',
         'avatar.dragOrArrows': 'Drag or use arrows to move. Slider zooms. Press OK when done.',
         'avatar.usePicture': 'Use avatar',
-        'avatar.cropFailed': 'That picture can\'t be used. Try another.',
+        'avatar.cropFailed': 'That image can\'t be used. Try another.',
         'avatar.fromThisServer': 'From this server',
         'avatar.fromThisDevice': 'From this device',
         'avatar.uploadPicture': 'Upload an avatar',

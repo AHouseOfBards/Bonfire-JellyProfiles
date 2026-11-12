@@ -46,6 +46,7 @@
   "avatar.positionYourPicture": "Coloca tu avatar",
   "avatar.dragOrArrows": "Arrastra o usa las flechas para mover. El control deslizante amplía. Pulsa Aceptar al terminar.",
   "avatar.usePicture": "Usar este avatar",
+  "avatar.cropFailed": "No se puede usar esta imagen. Prueba con otra.",
   "avatar.fromThisServer": "De este servidor",
   "avatar.fromThisDevice": "De este dispositivo",
   "avatar.uploadPicture": "Subir un avatar",

@@ -46,6 +46,7 @@
   "avatar.positionYourPicture": "Positionnez votre avatar",
   "avatar.dragOrArrows": "Faites glisser ou utilisez les flèches pour déplacer. Le curseur zoome. Appuyez sur OK une fois terminé.",
   "avatar.usePicture": "Utiliser cet avatar",
+  "avatar.cropFailed": "Cette image ne peut pas être utilisée. Essayez-en une autre.",
   "avatar.fromThisServer": "Depuis ce serveur",
   "avatar.fromThisDevice": "Depuis cet appareil",
   "avatar.uploadPicture": "Importer un avatar",

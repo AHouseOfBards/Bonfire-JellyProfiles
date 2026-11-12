@@ -46,6 +46,7 @@
   "avatar.positionYourPicture": "Dopasuj swój awatar",
   "avatar.dragOrArrows": "Przeciągnij lub użyj strzałek, aby przesunąć. Suwak powiększa. Naciśnij OK na koniec.",
   "avatar.usePicture": "Użyj tego awatara",
+  "avatar.cropFailed": "Nie można użyć tego obrazu. Spróbuj innego.",
   "avatar.fromThisServer": "Z tego serwera",
   "avatar.fromThisDevice": "Z tego urządzenia",
   "avatar.uploadPicture": "Prześlij awatar",

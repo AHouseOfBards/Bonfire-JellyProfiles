@@ -56,6 +56,7 @@ BadRequest|invalid_request|Missing file.
 BadRequest|invalid_request|Missing library.
 BadRequest|invalid_request|Missing request body.
 BadRequest|invalid_request|No account was named.
+BadRequest|invalid_request|No code was sent.
 BadRequest|invalid_request|No configuration in the request body.
 BadRequest|invalid_request|No folder there. Check the path as the server sees it.
 BadRequest|invalid_request|No settings were sent.
@@ -71,6 +72,7 @@ BadRequest|invalid_request|That folder could not be read:
 BadRequest|invalid_request|That image could not be saved.
 BadRequest|invalid_request|That isn't a Getting started item.
 BadRequest|invalid_request|That path is not valid.
+BadRequest|invalid_request|That profile cannot see that library.
 BadRequest|invalid_request|That theme isn't valid.
 BadRequest|invalid_request|The code is too long.
 BadRequest|invalid_request|The code must be at least {MinPanicCodeLength} characters.

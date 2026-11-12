@@ -295,8 +295,11 @@ if (typeof P._alphaProfile !== 'function') {
 console.log();
 console.log('── #23  Wiring ────────────────────────────────────────────────');
 
+// The crop error fix moved the call out of the try block, so the result is built first and
+// handed over after the dialog closes. Either shape must carry the cutout to onDone.
 ok('the crop dialog reports what it detected',
-    src.indexOf('onDone({ image: image, thumb: thumb, cutout: cutout });') !== -1);
+    src.indexOf('onDone({ image: image, thumb: thumb, cutout: cutout });') !== -1 ||
+    /result = \{ image: image, thumb: thumb, cutout: cutout \};[\s\S]{0,400}?onDone\(result\);/.test(src));
 ok('detection reads the cropped result, not the source',
     /const cutout = this\._alphaProfile\(thumbCanvas\)\.cutout;/.test(src));
 ok('the picker exposes the choice', /transparent: state\.transparent/.test(src));

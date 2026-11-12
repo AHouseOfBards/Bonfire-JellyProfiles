@@ -46,6 +46,7 @@
   "avatar.positionYourPicture": "Posiciona el teu avatar",
   "avatar.dragOrArrows": "Arrossega o fes servir les fletxes per moure. El control lliscant amplia. Prem D'acord quan acabis.",
   "avatar.usePicture": "Usa aquest avatar",
+  "avatar.cropFailed": "No es pot fer servir aquesta imatge. Prova'n una altra.",
   "avatar.fromThisServer": "Des d'aquest servidor",
   "avatar.fromThisDevice": "Des d'aquest dispositiu",
   "avatar.uploadPicture": "Puja un avatar",
