@@ -41,11 +41,23 @@ namespace Campground.Shared.Storage
 
         private static readonly JsonSerializerOptions Indented = new(CampgroundRegistry.Json) { WriteIndented = true };
 
-        private readonly object _gate = new();
+        // Temp files older than this are left over from a crash; a younger one may be a writer still at work.
+        private static readonly TimeSpan OrphanAge = TimeSpan.FromHours(1);
+
+        private readonly object _gate;
         private readonly IReadOnlyList<Migration> _migrations;
 
         internal AtomicJsonFile(string path, int currentVersion = 1, IReadOnlyList<Migration>? migrations = null, long maxBytes = DefaultMaxBytes)
         {
+            // Every plugin compiles its own copy of this class, so a lock held in a static would not be shared.
+            // The registry holds one plain object per file, which every copy in the process finds.
+            var key = Path.GetFullPath(path);
+            if (!OperatingSystem.IsLinux())
+            {
+                key = key.ToUpperInvariant();
+            }
+
+            _gate = CampgroundRegistry.Section("atomicfile.locks").GetOrAdd(key, _ => new object());
             FilePath = path;
             CurrentVersion = currentVersion;
             MaxBytes = maxBytes;
@@ -62,42 +74,98 @@ namespace Campground.Shared.Storage
         internal T? Load<T>()
             where T : class
         {
-            var node = LoadNode();
-            return node?.Deserialize<T>(CampgroundRegistry.Json);
+            // A main file that parses but doesn't fit T is as unusable as a corrupt one: try the backup.
+            JsonException? failed = null;
+            foreach (var candidate in new[] { FilePath, FilePath + ".bak" })
+            {
+                var node = ReadCandidate(candidate);
+                if (node == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    return node.Deserialize<T>(CampgroundRegistry.Json);
+                }
+                catch (JsonException ex)
+                {
+                    failed = ex;
+                }
+            }
+
+            return failed == null ? null : throw failed;
         }
 
         /// <summary>Loads as a JSON object (migrated), or null.</summary>
         internal JsonObject? LoadNode()
         {
+            foreach (var candidate in new[] { FilePath, FilePath + ".bak" })
+            {
+                if (ReadCandidate(candidate) is { } node)
+                {
+                    return node;
+                }
+            }
+
+            return null;
+        }
+
+        // The file as a migrated object, or null when it is missing or isn't a JSON object.
+        private JsonObject? ReadCandidate(string candidate)
+        {
             lock (_gate)
             {
-                foreach (var candidate in new[] { FilePath, FilePath + ".bak" })
+                if (!File.Exists(candidate))
                 {
-                    if (!File.Exists(candidate))
-                    {
-                        continue;
-                    }
-
-                    var info = new FileInfo(candidate);
-                    if (info.Length > MaxBytes)
-                    {
-                        throw new StorageLimitException($"{candidate} is {info.Length} bytes; the limit is {MaxBytes}.");
-                    }
-
-                    try
-                    {
-                        if (JsonNode.Parse(File.ReadAllText(candidate)) is JsonObject obj)
-                        {
-                            return Migrate(obj);
-                        }
-                    }
-                    catch (JsonException)
-                    {
-                        // Try the backup.
-                    }
+                    return null;
                 }
 
-                return null;
+                var info = new FileInfo(candidate);
+                if (info.Length > MaxBytes)
+                {
+                    throw new StorageLimitException($"{candidate} is {info.Length} bytes; the limit is {MaxBytes}.");
+                }
+
+                try
+                {
+                    return JsonNode.Parse(File.ReadAllText(candidate)) is JsonObject obj ? Migrate(obj) : null;
+                }
+                catch (JsonException)
+                {
+                    return null;
+                }
+            }
+        }
+
+        private bool MainFileParses()
+        {
+            try
+            {
+                return File.Exists(FilePath) && JsonNode.Parse(File.ReadAllText(FilePath)) is JsonObject;
+            }
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
+        private void RemoveOrphans(string dir)
+        {
+            try
+            {
+                var prefix = "." + Path.GetFileName(FilePath) + ".";
+                foreach (var f in Directory.EnumerateFiles(dir, prefix + "*.tmp"))
+                {
+                    if (DateTime.UtcNow - File.GetLastWriteTimeUtc(f) > OrphanAge)
+                    {
+                        File.Delete(f);
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Clean-up only: a file somebody else holds is left for the next save.
             }
         }
 
@@ -132,14 +200,17 @@ namespace Campground.Shared.Storage
                         fs.Flush(flushToDisk: true);
                     }
 
-                    if (File.Exists(FilePath))
+                    if (File.Exists(FilePath) && MainFileParses())
                     {
                         ReplaceWithRetry(temp, FilePath, FilePath + ".bak");
                     }
                     else
                     {
-                        File.Move(temp, FilePath);
+                        // No main file, or one that is corrupt: keep the .bak as it is rather than copy the bad file over it.
+                        File.Move(temp, FilePath, overwrite: true);
                     }
+
+                    RemoveOrphans(dir);
                 }
                 finally
                 {

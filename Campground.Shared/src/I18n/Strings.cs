@@ -31,7 +31,14 @@ namespace Campground.Shared.I18n
 
         private readonly Dictionary<string, IReadOnlyDictionary<string, string>> _tables;
 
-        private Strings(Dictionary<string, IReadOnlyDictionary<string, string>> tables) => _tables = tables;
+        private readonly List<StringProblem> _parseProblems;
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IReadOnlyDictionary<string, string>> _merged = new(StringComparer.OrdinalIgnoreCase);
+
+        private Strings(Dictionary<string, IReadOnlyDictionary<string, string>> tables, List<StringProblem> parseProblems)
+        {
+            _tables = tables;
+            _parseProblems = parseProblems;
+        }
 
         /// <summary>Languages present.</summary>
         internal IReadOnlyCollection<string> Languages => _tables.Keys;
@@ -40,6 +47,7 @@ namespace Campground.Shared.I18n
         internal static Strings Load(Assembly assembly, string prefix)
         {
             var tables = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+            var problems = new List<StringProblem>();
             foreach (var name in assembly.GetManifestResourceNames())
             {
                 if (!name.StartsWith(prefix + ".", StringComparison.Ordinal) || !name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
@@ -50,18 +58,25 @@ namespace Campground.Shared.I18n
                 var lang = name.Substring(prefix.Length + 1, name.Length - prefix.Length - 6);
                 using var stream = assembly.GetManifestResourceStream(name)!;
                 using var reader = new StreamReader(stream);
-                tables[lang] = Parse(reader.ReadToEnd());
+                tables[lang] = Parse(lang, reader.ReadToEnd(), problems);
             }
 
-            return new Strings(tables);
+            return new Strings(tables, problems);
         }
 
         /// <summary>Builds from in-memory JSON tables (tests, tools).</summary>
         internal static Strings FromJson(IReadOnlyDictionary<string, string> jsonByLanguage)
-            => new(jsonByLanguage.ToDictionary(p => p.Key, p => Parse(p.Value), StringComparer.OrdinalIgnoreCase));
+        {
+            var problems = new List<StringProblem>();
+            var tables = jsonByLanguage.ToDictionary(p => p.Key, p => Parse(p.Key, p.Value, problems), StringComparer.OrdinalIgnoreCase);
+            return new Strings(tables, problems);
+        }
 
-        /// <summary>The table for a language with fallbacks merged in (for sending to the browser).</summary>
+        /// <summary>The table for a language with fallbacks merged in (for sending to the browser). Built once per language.</summary>
         internal IReadOnlyDictionary<string, string> TableFor(string? language)
+            => _merged.GetOrAdd(language ?? string.Empty, _ => BuildTable(language));
+
+        private IReadOnlyDictionary<string, string> BuildTable(string? language)
         {
             var merged = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var lang in Chain(language).Reverse())
@@ -104,7 +119,7 @@ namespace Campground.Shared.I18n
         /// </summary>
         internal IReadOnlyList<StringProblem> Validate()
         {
-            var problems = new List<StringProblem>();
+            var problems = new List<StringProblem>(_parseProblems);
             if (!_tables.TryGetValue(Fallback, out var en))
             {
                 problems.Add(new StringProblem(Fallback, "*", "There is no English table."));
@@ -163,14 +178,25 @@ namespace Campground.Shared.I18n
         private static HashSet<string> Names(string s)
             => Placeholder.Matches(s).Select(m => m.Groups[1].Value).ToHashSet(StringComparer.Ordinal);
 
-        private static IReadOnlyDictionary<string, string> Parse(string json)
+        // A value that isn't a string is left out of the table and a repeated key keeps the last value; both are
+        // reported by Validate so a bad translation file doesn't just lose text.
+        private static IReadOnlyDictionary<string, string> Parse(string language, string json, List<StringProblem> problems)
         {
             var result = new Dictionary<string, string>(StringComparer.Ordinal);
             using var doc = JsonDocument.Parse(json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
             foreach (var p in doc.RootElement.EnumerateObject())
             {
-                if (p.Value.ValueKind == JsonValueKind.String)
+                if (p.Value.ValueKind != JsonValueKind.String)
                 {
+                    problems.Add(new StringProblem(language, p.Name, "value is not a string"));
+                }
+                else
+                {
+                    if (result.ContainsKey(p.Name))
+                    {
+                        problems.Add(new StringProblem(language, p.Name, "duplicate key"));
+                    }
+
                     result[p.Name] = p.Value.GetString()!;
                 }
             }

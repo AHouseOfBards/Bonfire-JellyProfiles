@@ -41,10 +41,25 @@ namespace Campground.Shared.Storage
         /// <summary>True once a root is set.</summary>
         internal static bool IsInitialized => CampgroundRegistry.Section(StateSection).ContainsKey("root");
 
+        // Windows won't make a folder called con, nul, com1 and so on, with or without an extension. Refused on every
+        // OS so a data folder can be copied between them.
+        private static bool IsReservedName(string id)
+        {
+            var dot = id.IndexOf('.');
+            var stem = (dot < 0 ? id : id.Substring(0, dot)).TrimEnd().ToUpperInvariant();
+            if (stem is "CON" or "PRN" or "AUX" or "NUL")
+            {
+                return true;
+            }
+
+            return stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal) || stem.StartsWith("LPT", StringComparison.Ordinal))
+                   && stem[3] >= '1' && stem[3] <= '9';
+        }
+
         /// <summary>A plugin's own folder (created on demand).</summary>
         internal static string ForPlugin(string pluginId)
         {
-            if (pluginId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || pluginId.Contains("..", StringComparison.Ordinal))
+            if (pluginId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || pluginId.Contains("..", StringComparison.Ordinal) || IsReservedName(pluginId))
             {
                 throw new ArgumentException("Invalid plugin id.", nameof(pluginId));
             }

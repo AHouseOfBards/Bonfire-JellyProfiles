@@ -214,7 +214,14 @@ namespace Campground.Shared.Injection
             context.Response.Headers[HeaderNames.Pragma] = "no-cache";
             context.Response.Headers[HeaderNames.Expires] = "0";
             InjectionCoordinator.RecordServed();
-            await context.Response.Body.WriteAsync(bytes, context.RequestAborted).ConfigureAwait(false);
+            try
+            {
+                await context.Response.Body.WriteAsync(bytes, context.RequestAborted).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // The client went away mid-write. Not a failure.
+            }
         }
 
         // Cheap test first: this runs on every request in the server.
@@ -320,7 +327,14 @@ namespace Campground.Shared.Injection
         {
             if (!context.Response.HasStarted && produced.Length > 0)
             {
-                await context.Response.Body.WriteAsync(produced, context.RequestAborted).ConfigureAwait(false);
+                try
+                {
+                    await context.Response.Body.WriteAsync(produced, context.RequestAborted).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // The client went away mid-write. Not a failure.
+                }
             }
         }
 

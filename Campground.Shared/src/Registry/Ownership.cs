@@ -244,7 +244,10 @@ namespace Campground.Shared.Registry
             => string.IsNullOrWhiteSpace(id) ? string.Empty : id.Replace("-", string.Empty).Trim().ToLowerInvariant();
 
         // True when path is the root or sits inside it, at a folder boundary ("shelves-old" is not under "shelves").
-        // Either slash style. Case matters on Linux and not on Windows, like the file system. Paths aren't resolved:
+        // Either slash style. Case matters everywhere except Windows, so a macOS path
+        // (usually case-insensitive) compares as different when only the case differs. That's
+        // deliberate: no match is the outcome the owner can correct by registering the path as the disk spells it.
+        // Paths aren't resolved:
         // a ".." in either is the caller's to have cleaned, and an empty root never matches.
         private static bool IsUnder(string path, string root)
         {

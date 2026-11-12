@@ -49,10 +49,15 @@ namespace Campground.Shared.Contracts
         internal static void Provide(string pluginId, int minor, Func<AccountQuery, CancellationToken, Task<List<ExternalAccount>>> list)
             => Capabilities.Provide(CapabilityNames.Accounts, pluginId, minor, new CapabilityHost().On(ListOp, list).Build());
 
-        /// <summary>Filters a full account list the way the contract requires.</summary>
+        /// <summary>
+        /// Filters a full account list the way the contract requires. A query with no user gets nothing: it used to
+        /// get every household's accounts and the user ids bound to them.
+        /// </summary>
         internal static List<ExternalAccount> Filter(IEnumerable<ExternalAccount> all, AccountQuery q)
-            => all.Where(a => (q.Service == null || string.Equals(a.Service, q.Service, StringComparison.OrdinalIgnoreCase))
-                              && (q.UserId == null || CanUse(a, q.UserId.Value)))
-                  .ToList();
+            => q.UserId is not { } userId
+                ? new List<ExternalAccount>()
+                : all.Where(a => (q.Service == null || string.Equals(a.Service, q.Service, StringComparison.OrdinalIgnoreCase))
+                                 && CanUse(a, userId))
+                     .ToList();
     }
 }

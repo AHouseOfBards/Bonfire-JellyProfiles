@@ -24,14 +24,14 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '0.13.0';
+  var VERSION = '0.15.0';
   if (root.Campground && root.Campground.version && compare(root.Campground.version, VERSION) >= 0) {
     return;
   }
 
   var STORAGE_KEY = 'campground.emergency';
-  var listeners = {};
-  var plugins = {};
+  var listeners = Object.create(null);
+  var plugins = Object.create(null);
   var readyQueue = [];
   var apiReady = false;
 
@@ -76,7 +76,7 @@
       storageSet(STORAGE_KEY, v === 'on' ? null : v);
     }
     var stored = storageGet(STORAGE_KEY) || '';
-    var state = { all: false, plugins: {} };
+    var state = { all: false, plugins: Object.create(null) };
     if (stored === 'off') {
       state.all = true;
     } else if (stored.indexOf('off:') === 0) {
@@ -154,11 +154,23 @@
       var c = apiClient();
       if (c || tries > 600) {
         root.clearInterval(timer);
-        if (!c) { return; }
+        if (!c) {
+          log('pollApi', new Error('Jellyfin ApiClient never appeared; ready() callbacks will not run.'));
+          return;
+        }
         apiReady = true;
         var q = readyQueue.splice(0, readyQueue.length);
         q.forEach(function (fn) { safe('ready', function () { fn(c); }); });
-        emit('user', { userId: safe('user', function () { return c.getCurrentUserId(); }) });
+        var lastUser = safe('user', function () { return c.getCurrentUserId(); });
+        emit('user', { userId: lastUser });
+        // Signing in or out, or switching profile, does not reload the page. Keep watching for a new user.
+        root.setInterval(function () {
+          var now = safe('user', function () { var a = apiClient(); return a ? a.getCurrentUserId() : undefined; });
+          if (now !== lastUser) {
+            lastUser = now;
+            emit('user', { userId: now });
+          }
+        }, 1000);
       }
     }, 100);
   }
@@ -179,6 +191,8 @@
     if (body !== undefined && typeof body !== 'string' && !(body instanceof root.FormData)) {
       body = JSON.stringify(body);
       headers['Content-Type'] = options.contentType || 'application/json';
+    } else if (typeof body === 'string' && options.contentType) {
+      headers['Content-Type'] = options.contentType;
     }
     if (options.headers) {
       Object.keys(options.headers).forEach(function (k) { headers[k] = options.headers[k]; });
@@ -189,7 +203,10 @@
           var err = new Error('HTTP ' + r.status);
           err.status = r.status;
           err.retryAfter = r.headers.get('Retry-After');
-          throw err;
+          // The server's explanation (a plugin's error message) rides on the error as text.
+          return Promise.resolve().then(function () { return r.text(); }).then(
+            function (text) { err.body = text; throw err; },
+            function () { throw err; });
         }
         var type = r.headers.get('Content-Type') || '';
         return r.status === 204 ? null : (type.indexOf('json') !== -1 ? r.json() : r.text());
@@ -395,7 +412,7 @@
       if (captures[i].target === target && captures[i].name === name) { cap = captures[i]; break; }
     }
     if (!cap) {
-      cap = { target: target, name: name, fired: {}, waiting: [], armed: false, timer: null, value: undefined, had: false };
+      cap = { target: target, name: name, fired: Object.create(null), waiting: [], armed: false, timer: null, value: undefined, had: false };
       captures.push(cap);
     }
     if (cap.fired[id] || cap.waiting.some(function (w) { return w.id === id; })) { return true; }

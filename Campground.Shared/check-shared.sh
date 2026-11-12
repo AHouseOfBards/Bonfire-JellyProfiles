@@ -18,9 +18,9 @@ echo "$listed" | while read -r f h; do
   [ "$actual" = "$h" ] || { echo "changed: $f"; exit 1; }
 done || fail=1
 
-# Files present but not in the manifest.
-(cd "$dir" && find src web -type f | LC_ALL=C sort) | while read -r f; do
-  echo "$listed" | grep -q "^$f " || { echo "not in manifest: $f"; exit 1; }
+# Files present but not in the manifest: anywhere in the folder, matched as whole names (a "." is not a wildcard).
+(cd "$dir" && find . -type f ! -path ./campground-shared.json | sed 's|^\./||' | LC_ALL=C sort) | while read -r f; do
+  echo "$listed" | awk -v f="$f" '$1 == f { found = 1 } END { exit !found }' || { echo "not in manifest: $f"; exit 1; }
 done || fail=1
 
 if [ $fail -ne 0 ]; then

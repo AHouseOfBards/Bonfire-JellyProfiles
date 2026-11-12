@@ -34,8 +34,11 @@ namespace Campground.Shared.Contracts
         internal static string KeyForSeries(IReadOnlyDictionary<string, string>? seriesProviderIds, string? path)
             => "series:" + KeyFor(seriesProviderIds, path);
 
-        /// <summary>Key for an episode: the series' identity plus season and episode numbers.</summary>
-        internal static string KeyForEpisode(IReadOnlyDictionary<string, string>? seriesProviderIds, int? season, int? episode, string? path)
+        /// <summary>
+        /// Key for an episode: the series' identity plus season and episode numbers. Pass <paramref name="endEpisode"/>
+        /// for a file that holds several episodes, so it doesn't share a key with its first one.
+        /// </summary>
+        internal static string KeyForEpisode(IReadOnlyDictionary<string, string>? seriesProviderIds, int? season, int? episode, string? path, int? endEpisode = null)
         {
             var series = FirstProviderId(seriesProviderIds);
             if (series == null || season == null || episode == null)
@@ -43,7 +46,8 @@ namespace Campground.Shared.Contracts
                 return PathKey(path);
             }
 
-            return $"{series}:s{season.Value}e{episode.Value}";
+            var key = $"{series}:s{season.Value}e{episode.Value}";
+            return endEpisode is { } end && end > episode.Value ? key + "-e" + end : key;
         }
 
         private static string? FirstProviderId(IReadOnlyDictionary<string, string>? ids)

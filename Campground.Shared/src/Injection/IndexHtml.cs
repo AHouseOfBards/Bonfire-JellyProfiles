@@ -93,10 +93,6 @@ namespace Campground.Shared.Injection
         }
 
         /// <summary>
-        /// True when the document has somewhere to put fragments: a &lt;head&gt; or a &lt;/body&gt;. Tells
-        /// "nothing to do" apart from "nowhere to do it" when <see cref="Apply"/> returns false.
-        /// </summary>
-        /// <summary>
         /// Same as <see cref="Apply(string, string?, IReadOnlyList{ScriptRegistration}, ValueTuple{string, string}?, out string)"/>,
         /// but with <paramref name="asFiles"/> the runtime and every head snippet go in as
         /// <c>&lt;script src&gt;</c> tags the middleware answers (0.10.0, issue #20 M1). A Content-Security-Policy
@@ -166,13 +162,20 @@ namespace Campground.Shared.Injection
         private static string HeadFileTag(string headId, string body, string? baseUrl)
             => $"<script id=\"{headId}\" src=\"{JellyfinNetworkSettings.NormalizeBaseUrl(baseUrl)}{HeadPathPrefix}{Uri.EscapeDataString(headId)}.js?v={ContentVersion(body)}\"></script>";
 
+        /// <summary>
+        /// True when the document has somewhere to put fragments: a &lt;head&gt; or a &lt;/body&gt;. Tells
+        /// "nothing to do" apart from "nowhere to do it" when <c>Apply</c> returns false.
+        /// </summary>
         internal static bool HasAnchors(string html)
             => Regex.IsMatch(html, "<head[^>]*>", RegexOptions.IgnoreCase)
                || html.IndexOf("</body>", StringComparison.OrdinalIgnoreCase) != -1;
 
-        /// <summary>True when every fragment is present and current (nothing to do).</summary>
-        internal static bool IsCurrent(string html, string? baseUrl, IReadOnlyList<ScriptRegistration> tags, (string Version, string Script)? runtime)
-            => !Apply(html, baseUrl, tags, runtime, out _);
+        /// <summary>
+        /// True when every fragment is present and current (nothing to do). Pass <paramref name="asFiles"/> to ask
+        /// about the form the middleware serves.
+        /// </summary>
+        internal static bool IsCurrent(string html, string? baseUrl, IReadOnlyList<ScriptRegistration> tags, (string Version, string Script)? runtime, bool asFiles = false)
+            => !Apply(html, baseUrl, tags, runtime, asFiles, out _);
 
         /// <summary>Removes every fragment for the given registrations (and the runtime).</summary>
         internal static bool Remove(string html, IReadOnlyList<ScriptRegistration> tags, out string result)
