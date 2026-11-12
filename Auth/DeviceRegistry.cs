@@ -831,6 +831,17 @@ namespace Jellyfin.Profiles.Auth
         {
             if (config?.KnownDevices == null || householdId == Guid.Empty) return 0;
 
+            // The cheap test first (R2-02-03). This runs under ConfigLock on a write, and what
+            // follows hashes every row against every recent sign-in screen on the server. No
+            // two of this household's rows share a name and app, no pair can be one device.
+            var sameLabel = config.KnownDevices
+                .Where(d => d.OwnedBy(householdId) && !string.IsNullOrWhiteSpace(d.DeviceId)
+                            && !ProfilesBaseController.IsPlaceholderDeviceName(d.DeviceName)
+                            && !string.IsNullOrWhiteSpace(d.Client))
+                .GroupBy(d => d.DeviceName.Trim().ToLowerInvariant() + "\0" + d.Client.Trim().ToLowerInvariant())
+                .Any(g => g.Count() > 1);
+            if (!sameLabel) return 0;
+
             var members = HouseholdMembers(config).ToList();
             var names = HouseholdNames(config).ToList();
             var screens = RecentSignInScreens();
