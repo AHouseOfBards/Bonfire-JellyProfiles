@@ -1,0 +1,20 @@
+<Project DefaultTargets="BuildAll">
+  <!-- Builds every C# harness in one parallel pass, so tests/run.sh does not restore and
+       build 54 projects one after another through `dotnet run`. It is plain MSBuild: no
+       extra SDK to fetch, and the harnesses stay ordinary projects that still build alone.
+
+       Restore and build are separate targets, each run by its own `dotnet msbuild`
+       invocation (see tests/run.sh): restore has to finish and be re-read before a build
+       can see its assets file. BonfireTfm and Configuration arrive as global properties and
+       flow into every project, so restore and build agree on the framework. -->
+  <ItemGroup>
+    <Harness Include="$(MSBuildThisFileDirectory)*/*.csproj" />
+  </ItemGroup>
+  <Target Name="RestoreAll">
+    <MSBuild Projects="@(Harness)" Targets="Restore" BuildInParallel="true"
+             Properties="MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" />
+  </Target>
+  <Target Name="BuildAll">
+    <MSBuild Projects="@(Harness)" Targets="Build" BuildInParallel="true" />
+  </Target>
+</Project>
