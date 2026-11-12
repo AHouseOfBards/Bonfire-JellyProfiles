@@ -512,8 +512,6 @@
   "admin.themes.advanced": "Gelişmiş",
   "admin.themes.startFrom": "Başlangıç",
   "admin.themes.name": "Ad",
-  "admin.themes.id": "Kimlik",
-  "admin.themes.idHint": "Küçük harf, rakam ve kısa çizgi. Kaydedildikten sonra değiştirilemez.",
   "admin.themes.accent": "Vurgu",
   "admin.themes.bgTop": "Arka plan, üst",
   "admin.themes.bgBottom": "Arka plan, alt",

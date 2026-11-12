@@ -1194,17 +1194,13 @@
                                 <label class="selectLabel" for="teBase" data-i18n="admin.themes.startFrom">Start from</label>
                                 <select is="emby-select" id="teBase"></select>
                             </div>
-                            <div class="inputContainer jpf-te-field" data-paths="name">
+                            <div class="inputContainer jpf-te-field" data-paths="name id">
                                 <label class="inputLabel" for="teName" data-i18n="admin.themes.name">Name</label>
                                 <input is="emby-input" type="text" id="teName" maxlength="40" autocomplete="off" />
                             </div>
-                            <!-- Filled in from the name until it is typed in, so Simple does
-                                 not show it; Advanced does, for whoever wants a particular one. -->
-                            <div class="inputContainer jpf-te-field" data-paths="id" id="teIdBox">
-                                <label class="inputLabel" for="teId" data-i18n="admin.themes.id">ID</label>
-                                <input is="emby-input" type="text" id="teId" maxlength="40" autocomplete="off" spellcheck="false" />
-                                <div class="fieldDescription" data-i18n="admin.themes.idHint">Lowercase letters, digits and hyphens. Can't change once saved.</div>
-                            </div>
+                            <!-- No Id box: a new theme's id is made from its name (themeSlug,
+                                 uniqueThemeId) and is fixed once saved. Advanced showed one to type
+                                 over; the owner removed it in 1.9.0.4-beta. -->
                             <div class="jpf-te-simple" id="teSimple">
                                 <div class="jpf-te-colors">
                                     <label class="jpf-te-color jpf-te-field" data-paths="colors.accent colors.accentFocus colors.onAccent colors.ring parts.button2.focus">
@@ -4892,7 +4888,7 @@
             function openThemeEditor(page, draft, mode, baseKey) {
                 const editor = page.querySelector('#themeEditor');
                 const ed = {
-                    mode: mode, draft: draft, view: 'simple', idTouched: mode === 'edit',
+                    mode: mode, draft: draft, view: 'simple',
                     seq: 0, timer: null, problems: [], jsonErrors: {},
                     revision: typeof draft.revision === 'number' ? draft.revision : 0
                 };
@@ -4907,9 +4903,6 @@
                 const fromKey = bases.some(function (b) { return b.key === baseKey; }) ? baseKey : '';
                 fillSelect(page.querySelector('#teBase'), (fromKey ? [] : [['', '—']]).concat(bases.map(function (b) { return [b.key, b.name]; })), fromKey);
                 page.querySelector('#teName').value = typeof nameText === 'string' ? nameText : '';
-                const idInput = page.querySelector('#teId');
-                idInput.value = typeof draft.id === 'string' ? draft.id : '';
-                idInput.readOnly = mode === 'edit';
 
                 const patterns = themePatterns(page);
                 // The four Bonfire ships, by name; one a newer server adds shows as its name.
@@ -5563,7 +5556,6 @@
                 ed.view = view === 'advanced' ? 'advanced' : 'simple';
                 page.querySelector('#teSimple').classList.toggle('jpf-hidden', ed.view !== 'simple');
                 page.querySelector('#teAdvanced').classList.toggle('jpf-hidden', ed.view !== 'advanced');
-                page.querySelector('#teIdBox').classList.toggle('jpf-hidden', ed.view !== 'advanced');
                 page.querySelectorAll('#themeEditor .jpf-te-mode').forEach(function (b) {
                     const on = b.getAttribute('data-view') === ed.view;
                     b.classList.toggle('is-active', on);
@@ -5586,14 +5578,8 @@
                 }
                 if (el.id === 'teName') {
                     draft.name = { text: el.value.trim() };
-                    if (!ed.idTouched) {
-                        draft.id = uniqueThemeId(themeSlug(el.value), takenThemeIds(page));
-                        page.querySelector('#teId').value = draft.id;
-                    }
-                } else if (el.id === 'teId') {
-                    if (ed.mode === 'edit') return false;
-                    ed.idTouched = true;
-                    draft.id = el.value.trim();
+                    // A saved theme keeps its id; a new one's follows the name.
+                    if (ed.mode !== 'edit') draft.id = uniqueThemeId(themeSlug(el.value), takenThemeIds(page));
                 } else if (el.id === 'teBase') {
                     const base = themeBases(page).filter(function (b) { return b.key === el.value; })[0];
                     if (!base) return false;

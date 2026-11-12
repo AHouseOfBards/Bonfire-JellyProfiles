@@ -7,7 +7,8 @@
  *   1. the preview sat under every control, so a change near the top could not be seen
  *      without scrolling, and in Advanced it was about 1,000 px down;
  *   2. "Start from" read "—" on a new theme, which is in fact a copy of Bonfire;
- *   3. the Id box was shown in Simple, though it fills itself in from the name.
+ *   3. the Id box was shown in Simple, though it fills itself in from the name. Since
+ *      1.9.0.4-beta there is no Id box at all: the id is always made from the name.
  *
  * Measured, not read from the source: where the preview is when the last control is on
  * screen, what the select shows, and whether the Id box is displayed.
@@ -72,11 +73,18 @@ async function main() {
         const base = await c.evaluate("(function(){var s=document.getElementById('teBase'); var o=s.options[s.selectedIndex]; return { value: s.value, text: o ? o.textContent : '' };})()");
         ok('a new theme says it starts from Bonfire', base.value === 'b:bonfire' && /Bonfire/.test(base.text), JSON.stringify(base));
 
-        // 3. The Id fills itself in; Simple does not show the box, Advanced does.
-        ok('Simple does not show the Id box', (await c.evaluate(SHOWN('teId'))) === false);
+        // 3. No Id box anywhere (owner, 1.9.0.4-beta): the id is made from the name, unique
+        // among themes, and fixed once saved. It was shown in Advanced to be typed over.
+        const DRAFT_ID = "document.getElementById('profilesConfigurationPage')._themeEditor.draft.id";
+        ok('the editor has no Id box', (await c.evaluate("!document.getElementById('teId') && !document.querySelector('#themeEditor [data-paths=id], #themeEditor [data-path=id]')")) === true);
         await c.evaluate("(function(){var n=document.getElementById('teName'); n.value='Movie Night'; n.dispatchEvent(new Event('input',{bubbles:true}));})()");
         await wait(200);
-        ok('the id still comes from the name', (await c.evaluate("document.getElementById('teId').value")) === 'movie-night');
+        ok('the id still comes from the name', (await c.evaluate(DRAFT_ID)) === 'movie-night');
+        await c.evaluate("(function(){var n=document.getElementById('teName'); n.value='Bonfire'; n.dispatchEvent(new Event('input',{bubbles:true}));})()");
+        await wait(200);
+        ok('and is kept unique among themes', (await c.evaluate(DRAFT_ID)) === 'bonfire-2');
+        await c.evaluate("(function(){var n=document.getElementById('teName'); n.value='Movie Night'; n.dispatchEvent(new Event('input',{bubbles:true}));})()");
+        await wait(200);
 
         // 1. The preview is on screen while the last control is.
         const simple = await c.evaluate(PREVIEW_WITH('#tePattern'));
@@ -84,7 +92,7 @@ async function main() {
 
         await c.evaluate("document.querySelector('#themeEditor .jpf-te-mode[data-view=advanced]').click()");
         await wait(500);
-        ok('Advanced shows the Id box', (await c.evaluate(SHOWN('teId'))) === true);
+        ok('Advanced has no Id box either', (await c.evaluate("!document.querySelector('#teAdvancedFields [data-path=id]') && !document.getElementById('teId')")) === true);
         await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function(d){ d.open = true; })");
         await wait(300);
         const adv = await c.evaluate(PREVIEW_WITH('#teAdvancedFields > :last-child'));

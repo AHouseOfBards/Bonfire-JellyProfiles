@@ -103,7 +103,7 @@ function frenchStrings() {
 console.log('\n── The Themes section is on the page ───────────────────────────');
 {
     const ids = ['jpfThemes', 'themesBuiltIn', 'themesCustom', 'themesFonts', 'themeNew', 'themeImport', 'themeImportFile',
-        'themeEditor', 'teName', 'teId', 'teBase', 'teAccent', 'teBg1', 'teBg2', 'teText', 'teFont', 'teAvatar', 'teButton',
+        'themeEditor', 'teName', 'teBase', 'teAccent', 'teBg1', 'teBg2', 'teText', 'teFont', 'teAvatar', 'teButton',
         'tePattern', 'teAdvancedFields', 'tePreview', 'teProblems', 'teSave', 'teCancel',
         'fontChoose', 'fontFile', 'fontFamily', 'fontFallback', 'fontRights', 'fontUpload'];
     const missing = ids.filter(id => markup.indexOf('id="' + id + '"') === -1);

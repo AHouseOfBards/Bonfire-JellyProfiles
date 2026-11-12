@@ -501,8 +501,6 @@
   "admin.themes.advanced": "Zaawansowany",
   "admin.themes.startFrom": "Zacznij od",
   "admin.themes.name": "Nazwa",
-  "admin.themes.id": "Identyfikator",
-  "admin.themes.idHint": "Małe litery, cyfry i łączniki. Po zapisaniu nie można zmienić.",
   "admin.themes.accent": "Akcent",
   "admin.themes.bgTop": "Tło, u góry",
   "admin.themes.bgBottom": "Tło, u dołu",

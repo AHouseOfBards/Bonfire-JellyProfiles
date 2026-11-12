@@ -501,8 +501,6 @@
   "admin.themes.advanced": "Avanzado",
   "admin.themes.startFrom": "Partir de",
   "admin.themes.name": "Nombre",
-  "admin.themes.id": "Identificador",
-  "admin.themes.idHint": "Minúsculas, dígitos y guiones. No se puede cambiar una vez guardado.",
   "admin.themes.accent": "Acento",
   "admin.themes.bgTop": "Fondo, arriba",
   "admin.themes.bgBottom": "Fondo, abajo",

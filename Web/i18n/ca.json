@@ -501,8 +501,6 @@
   "admin.themes.advanced": "Avançat",
   "admin.themes.startFrom": "Parteix de",
   "admin.themes.name": "Nom",
-  "admin.themes.id": "Identificador",
-  "admin.themes.idHint": "Minúscules, xifres i guions. No es pot canviar un cop desat.",
   "admin.themes.accent": "Accent",
   "admin.themes.bgTop": "Fons, a dalt",
   "admin.themes.bgBottom": "Fons, a baix",

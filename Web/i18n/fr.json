@@ -501,8 +501,6 @@
   "admin.themes.advanced": "Avancé",
   "admin.themes.startFrom": "Partir de",
   "admin.themes.name": "Nom",
-  "admin.themes.id": "Identifiant",
-  "admin.themes.idHint": "Minuscules, chiffres et tirets. Non modifiable une fois enregistré.",
   "admin.themes.accent": "Accent",
   "admin.themes.bgTop": "Fond, en haut",
   "admin.themes.bgBottom": "Fond, en bas",
