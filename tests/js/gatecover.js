@@ -363,9 +363,16 @@ function makePage(opts) {
 async function coldStart(opts) {
     opts = opts || {};
     const page = makePage(opts);
-    const seen = { visibleAt: [], coverMaxMs: 0, coverFrom: null, everCovered: false, coverThemes: [] };
+    const seen = { visibleAt: [], coverMaxMs: 0, coverFrom: null, everCovered: false, coverThemes: [],
+                   gateShownAt: null, gateShownWithoutThemes: false };
     const sample = t => {
         if (page.homeVisible()) seen.visibleAt.push(t);
+        // The gate on screen (inline opacity cleared) before the custom themes' block is in.
+        const gate = page.byId['profiles-gate-overlay'];
+        if (gate && gate.style.opacity !== '0') {
+            if (seen.gateShownAt === null) seen.gateShownAt = t;
+            if (opts.customThemes && !page.byId['jpf-themes-custom']) seen.gateShownWithoutThemes = true;
+        }
         const c = page.html.getAttribute('data-jpf-cover') !== null;
         if (c) {
             // Every theme the cover wore while it was up, in order, without repeats.
@@ -613,6 +620,39 @@ console.log('\n── 4. The cover always comes down ─────────
     ok('a theme an administrator made is on the cover from the first frame to the last, never Bonfire',
         seen.everCovered && seen.coverThemes.length === 1 && seen.coverThemes[0] === 'mine',
         'the cover wore: ' + seen.coverThemes.join(' -> '));
+}
+{
+    // The same device, but the profile list comes back before the custom themes do. The
+    // gate used to fade in at once, drawn in Bonfire's own colours with the household's
+    // block not yet in the page. It now waits for that answer.
+    const mine = JSON.parse(fs.readFileSync(path.join(L.ROOT, 'Web', 'themes', 'harvest.json'), 'utf8'));
+    mine.id = 'mine';
+    mine.name = { text: 'Mine' };
+    const storage = baseStorage({ jellyfin_profiles_theme: JSON.stringify({
+        last: 'mine', users: { [MASTER.replace(/-/g, '')]: 'mine' },
+        bg: { mine: 'linear-gradient(180deg, #203040 0%, #203040 100%)' } }) });
+    const base = { storage, serverPrefs: { theme: 'mine', defaultTheme: 'bonfire' }, runFor: 3200 };
+    const answered = await coldStart(Object.assign({}, base, {
+        customThemes: { themes: [mine], fonts: [], hidden: [] },
+        server: { preferences: 50, custom: 900, list: 300 } }));
+    ok('the gate is not drawn before the household\'s custom theme has arrived',
+        answered.seen.gateShownAt !== null && !answered.seen.gateShownWithoutThemes,
+        'gate shown at ' + answered.seen.gateShownAt + ' ms, before the themes: ' + answered.seen.gateShownWithoutThemes);
+    ok('and it appears once the theme answer is in', answered.seen.gateShownAt !== null && answered.seen.gateShownAt >= 900 && answered.seen.gateShownAt < 1200,
+        'gate shown at ' + answered.seen.gateShownAt);
+
+    // The themes request never answers: Bonfire, after a short wait, not a blank screen.
+    const hung = await coldStart(Object.assign({}, base, {
+        customThemes: { themes: [mine], fonts: [], hidden: [] },
+        server: { preferences: 50, custom: null, list: 300 } }));
+    ok('a themes request that never answers still shows the gate, within the cover\'s own limit',
+        hung.seen.gateShownAt !== null && hung.seen.gateShownAt < 2600,
+        'gate shown at ' + hung.seen.gateShownAt);
+
+    // No custom theme: no wait.
+    const plain = await coldStart({ storage: baseStorage(), server: { preferences: 50, list: 300 }, runFor: 1500 });
+    ok('a household on a built-in theme gets its gate with no added delay',
+        plain.seen.gateShownAt !== null && plain.seen.gateShownAt < 700, 'gate shown at ' + plain.seen.gateShownAt);
 }
 {
     // Token expired: jellyfin-web goes to the sign-in page instead of home.

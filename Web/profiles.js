@@ -4417,6 +4417,10 @@
         /// a margin. Change the two together.
         GATE_FADE_MS: 260,
 
+        /// The longest the gate waits for the household's custom theme to arrive. Under
+        /// GATE_COVER_MS (3 s), so the startup cover is still up when it ends.
+        GATE_THEME_WAIT_MS: 2000,
+
         /// Notes a cover the head script put up, or puts one up when a page that has no
         /// head script — the Tizen package — is heading for the gate. The second case is
         /// late by construction (the package's own page has been showing for a while) but
@@ -5060,6 +5064,8 @@
             // the plain cover), and useCustomThemes applies it then, Bonfire included.
             this._themeDeferred = !!this._wantedTheme && id !== this._wantedTheme && !this._customThemesAnswered;
             if (this._themeDeferred) return;
+            // A gate held back for this answer (see the fade-in in showProfileOverlay).
+            if (this._gateThemeHold) this._gateThemeHold();
             // Its picture, if it is a custom theme with one: once per page, so a no-op after.
             this.loadThemePhotoOf(id);
             const before = root.getAttribute('data-jpf-theme');
@@ -5788,7 +5794,7 @@
 
             // Two rAF calls: first lets the browser paint with opacity:0 (compositing
             // layer created silently), second begins the CSS opacity transition.
-            requestAnimationFrame(() => requestAnimationFrame(() => {
+            const fadeIn = () => {
                 overlay.style.opacity = ''; // CSS transition takes over
                 // The startup cover comes down once the fade has finished and the gate is
                 // opaque — dropping it at the start of the fade showed home through a
@@ -5798,6 +5804,19 @@
                     this._coverHeldForGate = true;
                     setTimeout(() => this._dropCover(), this.GATE_FADE_MS);
                 }
+            };
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                // The household's theme is an administrator's own and its block has not
+                // arrived (applyTheme is waiting for themes?part=custom): the gate would
+                // fade in wearing Bonfire. Held, still at opacity 0 under the startup cover,
+                // until applyTheme puts the theme on; and after GATE_THEME_WAIT_MS, with
+                // Bonfire, so a request that never answers cannot leave a blank screen.
+                // No custom theme, no wait: _themeDeferred is false.
+                if (!this._themeDeferred) { fadeIn(); return; }
+                let done = false;
+                const release = () => { if (done) return; done = true; this._gateThemeHold = null; fadeIn(); };
+                this._gateThemeHold = release;
+                setTimeout(() => { if (!done) this._customThemesSettled(); release(); }, this.GATE_THEME_WAIT_MS);
             }));
 
             // Auto-focus the first interactive element so TV/keyboard users
