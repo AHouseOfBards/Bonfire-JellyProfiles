@@ -2122,7 +2122,10 @@
             select.focus();
         },
 
-        showConfirmDialog: function (title, message, onConfirm, onCancel) {
+        /// Title and message are text and are escaped here, so a caller never has to
+        /// remember to (r2-24-03). A caller whose message is markup it built itself passes
+        /// `asHtml` true, and then escapes whatever it interpolates into it.
+        showConfirmDialog: function (title, message, onConfirm, onCancel, asHtml) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-confirm-dialog';
             dialog.classList.add('jpf-trap-surface', 'jpf-fade');
@@ -2150,8 +2153,8 @@
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
-                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${asHtml ? title : escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${asHtml ? message : escapeHtml(message)}</p>
                     <div class="jpf-actions">
                         <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
                         <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
@@ -2207,7 +2210,10 @@
             });
         },
 
-        showAlert: function (title, message, onClose) {
+        /// Escapes title and message like showConfirmDialog; `asHtml` is the same opt-in.
+        /// The OK button answers once: Enter held down, or a second click during the
+        /// fade, no longer runs onClose twice (r2-24-02).
+        showAlert: function (title, message, onClose, asHtml) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-alert-dialog';
             dialog.classList.add('jpf-trap-surface', 'jpf-fade');
@@ -2235,8 +2241,8 @@
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
-                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${asHtml ? title : escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${asHtml ? message : escapeHtml(message)}</p>
                     <div style="display: flex; justify-content: center;">
                         <button id="dialog-close-btn" class="profiles-btn btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">${t('common.ok')}</button>
                     </div>
@@ -2257,7 +2263,10 @@
 
             const closeBtn = dialog.querySelector('#dialog-close-btn');
 
+            let closed = false;
             closeBtn.addEventListener('click', () => {
+                if (closed) return;
+                closed = true;
                 closeDialog();
                 if (typeof onClose === 'function') onClose();
             });
@@ -2694,7 +2703,7 @@
                 { label: t('viewing.ask'), primary: true, run: () => {
                     this._limitsCall(profile.profileUserId, 'ask', {})
                         .then(() => this.showAlert(t('viewing.askedTitle'), t('viewing.askedBody'), refresh))
-                        .catch(err => this.showAlert(t('viewing.timeUpTitle'), escapeHtml(this._failText(err, err.message))));
+                        .catch(err => this.showAlert(t('viewing.timeUpTitle'), this._failText(err, err.message)));
                 } },
                 { label: t('viewing.giveTime'), run: () => {
                     this.withMainPin(this.currentProfiles, () => this.chooseMoreTime(profile, refresh));
@@ -2710,7 +2719,7 @@
             this.showSelectDialog(t('viewing.giveTitle', { name: profile.profileName }), t('viewing.giveBody'), options, (minutes) => {
                 this._limitsCall(profile.profileUserId, 'grant', { minutes: parseInt(minutes, 10), masterPin: this.masterPin })
                     .then(() => { this._dropGatePin(); done(); })
-                    .catch(err => { this._dropGatePin(); this.showAlert(t('errors.error'), escapeHtml(this._failText(err, err.message)), done); });
+                    .catch(err => { this._dropGatePin(); this.showAlert(t('errors.error'), this._failText(err, err.message), done); });
             }, () => this._dropGatePin());
         },
 
@@ -2805,8 +2814,8 @@
                 this.showConfirmDialog(
                     t('profileForm.copyTitle'),
                     t('profileForm.copyConfirm', {
-                        source: escapeHtml(source ? source.profileName : ''),
-                        target: escapeHtml(profile.profileName)
+                        source: source ? source.profileName : '',
+                        target: profile.profileName
                     }),
                     () => {
                         fetch(apiClient.getUrl('plugins/profiles/copy-rules'), {
@@ -2823,7 +2832,7 @@
                             if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                             this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                         })
-                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.savingProfile')))));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.savingProfile'))));
                     });
             });
         },
@@ -7080,7 +7089,7 @@
             const grant = (minutes) => {
                 this._limitsCall(req.profileId, 'grant', { minutes: minutes, masterPin: this.masterPin })
                     .then(() => { this._dropGatePin(); refresh(); })
-                    .catch(err => { this._dropGatePin(); this.showAlert(t('errors.error'), escapeHtml(this._failText(err, err.message)), refresh); });
+                    .catch(err => { this._dropGatePin(); this.showAlert(t('errors.error'), this._failText(err, err.message), refresh); });
             };
             const drop = () => this._dropGatePin();
             const no = { label: t('viewing.decline'), run: () => grant(0) };
@@ -7589,7 +7598,7 @@
                     this._syncMasterFromProfiles(masterProfile);
                     if (!this.isSignedInAsMaster()) {
                         this.showAlert(t('settings.title'),
-                            t('settings.needsMain', { name: escapeHtml(masterProfile ? masterProfile.profileName : '') }));
+                            t('settings.needsMain', { name: masterProfile ? masterProfile.profileName : '' }));
                         return;
                     }
                     this.withMainPin(profiles, () => this.showSettingsMenu());
@@ -7651,7 +7660,7 @@
                         // opens the master first, like any other switch.
                         if (!this.isSignedInAsMaster()) {
                             this.showAlert(t('switcher.manageTitle'),
-                                t('switcher.manageNeedsMaster', { name: escapeHtml(masterProfile ? masterProfile.profileName : '') }));
+                                t('switcher.manageNeedsMaster', { name: masterProfile ? masterProfile.profileName : '' }));
                             return;
                         }
 
@@ -8451,7 +8460,7 @@
                 // No household to act for: nothing was sent. Saying nothing left a PIN
                 // screen that took its digits and then did nothing (R-1207).
                 if (typeof onError === 'function') onError(t('switcher.failedBody'));
-                else this.showAlert(t('switcher.failedTitle'), escapeHtml(t('switcher.failedBody')));
+                else this.showAlert(t('switcher.failedTitle'), t('switcher.failedBody'));
                 return;
             }
 
@@ -8576,7 +8585,7 @@
                     this.isManageMode = false;
                     this.interceptHomeAndShowProfiles();
                     this.showAlert(t('switcher.failedTitle'),
-                        escapeHtml(this._failText(err, t('switcher.failedBody'))));
+                        this._failText(err, t('switcher.failedBody')));
                 }
             });
         },
@@ -9856,7 +9865,7 @@
                         // its id. A failure here must not look like a failed create.
                         const id = created && (created.profileUserId || created.ProfileUserId);
                         const saveLimits = () => viewingEditor.save(id).catch(err => {
-                            this.showAlert(t('errors.error'), escapeHtml(this._hoursFailText(err)));
+                            this.showAlert(t('errors.error'), this._hoursFailText(err));
                         });
                         // The first profile is when a main PIN starts to matter: from now on
                         // the main account is the way past that profile's restrictions.
@@ -9897,7 +9906,7 @@
                 // As Edit does: a failed read of the lists the form is built from used to
                 // leave the Add button doing nothing at all (R-1215).
                 if (!this.navIsCurrent(ticket)) return;
-                this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.loadProfileDetails'))));
+                this.showAlert(t('errors.error'), this._failText(err, t('errors.loadProfileDetails')));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
             });
         },
@@ -10381,20 +10390,20 @@
                         return artworkEditor.save(profile.profileUserId)
                             // The profile is saved by now: a failure here is the hours only.
                             .then(() => viewingEditor.save().catch(err => {
-                                this.showAlert(t('errors.error'), escapeHtml(this._hoursFailText(err)));
+                                this.showAlert(t('errors.error'), this._hoursFailText(err));
                             }))
                             .then(() => {
                                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
                             });
                     })
-                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.savingProfile')))));
+                    .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.savingProfile'))));
                 });
 
                 // Delete handler
                 const delBtn = document.getElementById('edit-delete-btn');
                 if (delBtn) {
                     delBtn.addEventListener('click', () => {
-                        this.showConfirmDialog(t('profileForm.deleteProfile'), t(profile.keepAccountOnDelete ? 'profileForm.deleteConfirmKept' : 'profileForm.deleteConfirmMessage', { name: escapeHtml(profile.profileName) }), () => {
+                        this.showConfirmDialog(t('profileForm.deleteProfile'), t(profile.keepAccountOnDelete ? 'profileForm.deleteConfirmKept' : 'profileForm.deleteConfirmMessage', { name: profile.profileName }), () => {
                             this.executeProfileDeletion(profile.profileUserId);
                         });
                     });
@@ -10413,7 +10422,7 @@
             })
             .catch(err => {
                 if (err && err.handled) return;
-                this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.loadProfileDetails'))));
+                this.showAlert(t('errors.error'), this._failText(err, t('errors.loadProfileDetails')));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
             });
         },
@@ -10595,7 +10604,7 @@
                             const st = this.readMasterState();
                             if (st) this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, true);
                         })
-                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.couldNotSaveThat')))));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.couldNotSaveThat'))));
                 } },
                 { label: t('common.cancel') }
             ]);
@@ -10937,10 +10946,10 @@
                     // opened on, and the server says which profiles: forgetting it would
                     // empty their list, and an empty list means "any device". That reason
                     // is shown, not a generic failure.
-                    this.showAlert(t('errors.error'), escapeHtml(refusalText(res)) || t(failKey));
+                    this.showAlert(t('errors.error'), refusalText(res) || t(failKey));
                     return null;
                 })
-                .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
+                .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
             };
 
             content.querySelectorAll('.device-delete-btn').forEach(btn => {
@@ -11030,7 +11039,7 @@
                             () => deviceAction('merge-duplicates?apply=true', null, 'errors.failedMergeDevice'));
                     })
                     .catch(err => this.showAlert(t('errors.error'),
-                        escapeHtml(this._failText(err, t('errors.generic')))));
+                        this._failText(err, t('errors.generic'))));
                 });
             }
         },
@@ -11868,7 +11877,7 @@
                 if (!res.ok) throw new Error(t('errors.failedDeleteProfile'));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
             })
-            .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.deletingProfile')))));
+            .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.deletingProfile'))));
         },
 
         loadBonfireStatus: function (content, apiClient, masterToken) {
@@ -12077,7 +12086,7 @@
                             if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedKick'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
                     });
                 });
             });
@@ -12097,7 +12106,7 @@
                             if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedNewCode'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
                     });
                 });
             }
@@ -12115,7 +12124,7 @@
                             if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedDeleteGroup'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
                     });
                 });
             }
@@ -12133,7 +12142,7 @@
                             if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedLeaveGroup'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('errors.generic')))));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
                     });
                 });
             }
@@ -12160,7 +12169,7 @@
                         generateBtn.disabled = false;
                         generateBtn.textContent = t('bonfire.generateJoinCode');
                         if (hadFocus) generateBtn.focus();
-                        this.showAlert(t('errors.error'), escapeHtml(this._failText(err, t('bonfire.failedGenerateCode'))));
+                        this.showAlert(t('errors.error'), this._failText(err, t('bonfire.failedGenerateCode')));
                     });
                 });
             }
@@ -12348,7 +12357,8 @@
                         t('bonfire.allowHouseholdTitle'),
                         t('bonfire.allowHouseholdBody') + adminLine,
                         () => { lanConfirmPending = false; saveSettings(); },
-                        () => { lanConfirmPending = false; lanBypassCb.checked = lastSaved.lanBypass; }
+                        () => { lanConfirmPending = false; lanBypassCb.checked = lastSaved.lanBypass; },
+                        true // adminLine is markup built above from translations only
                     );
                 });
             }

@@ -289,6 +289,7 @@ console.log('\n── The Bonfire panel names other people ───────
         sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
         navigator: { userAgent: 'Mozilla/5.0', language: 'en' },
         setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {},
+        requestAnimationFrame() {},
         fetch: () => Promise.resolve({ ok: true, text: () => Promise.resolve('') }),
         document: {
             addEventListener() {}, removeEventListener() {},
@@ -334,7 +335,21 @@ console.log('\n── The Bonfire panel names other people ───────
     // routes are driven instead: the server's answer is a hostile message, and what reaches
     // showAlert is what is checked.
     const alerts = [];
-    plugin.showAlert = function (title, message) { alerts.push(String(message)); };
+    // r2-24-03: the dialog now escapes what it is given, so what is checked is what the real
+    // showAlert writes into the page, not what the caller handed it.
+    const realAlert = plugin.showAlert;
+    plugin.showAlert = function (title, message, onClose, asHtml) {
+        let written = '';
+        const el = { style: {}, classList: { add() {}, remove() {}, contains: () => false },
+            set innerHTML(v) { written = v; }, get innerHTML() { return written; },
+            addEventListener() {}, setAttribute() {}, getAttribute: () => null, appendChild() {}, remove() {}, focus() {},
+            querySelector: () => ({ addEventListener() {}, focus() {}, setAttribute() {}, getAttribute: () => null, style: {} }),
+            querySelectorAll: () => [] };
+        const was = sandbox.document.createElement;
+        sandbox.document.createElement = () => el;
+        try { realAlert.call(plugin, title, message, onClose, asHtml); } finally { sandbox.document.createElement = was; }
+        alerts.push(written);
+    };
     plugin._limitsCall = function () { return Promise.reject(new Error(EVIL)); };
     const dialogs = [];
     plugin.showActionsDialog = function (title, body, actions) { dialogs.push(actions); };
