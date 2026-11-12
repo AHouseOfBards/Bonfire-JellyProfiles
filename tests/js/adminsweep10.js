@@ -38,6 +38,15 @@ const opt = n => (has(n) ? fn(n) : '');
 // A throw in a success handler is now an unhandled rejection, which a browser logs. Here
 // that is the behaviour under test, not a crash.
 process.on('unhandledRejection', () => {});
+// Set on the last line. Anything that ends the process earlier, however it gets there, is a
+// harness that did not finish and must not exit 0.
+let reachedEnd = false;
+process.on('exit', code => {
+    if (!reachedEnd && code === 0) {
+        console.log('FAIL  the harness stopped before its end');
+        process.exitCode = 1;
+    }
+});
 const tick = () => new Promise(r => setTimeout(r, 0));
 
 const T = 'const t = function (k) { return k; };\n';
@@ -383,8 +392,12 @@ function pageOf(map) {
         function fill(draftFont, draftPattern) {
             const sels = { '#teFont': mkSel(['Fraunces']), '#tePattern': mkSel(['', 'leaves']), '#teAvatar': mkSel(), '#teButton': mkSel(), '#teAccent': mkSel(), '#teBg1': mkSel(), '#teBg2': mkSel(), '#teText': mkSel() };
             const page = { _themeEditor: { view: 'simple', draft: {} }, querySelector: s => sels[s] || mkSel(), querySelectorAll: () => [] };
-            const f = new Function('document', 'simpleThemeValues', 'themeFonts', T + fn('fillThemeEditor') + 'return fillThemeEditor;')(
-                { createElement: () => ({}) }, () => ({ accent: '#000000', bg1: '#000000', bg2: '#000000', text: '#ffffff', font: draftFont, avatar: 'circle', button: 'pill', pattern: draftPattern }), () => []);
+            // fillThemeEditor also draws the photo box and the swatches, and tests a pattern
+            // name against PATTERN_FILE: the real setSwatch and PATTERN_FILE, and a photo sync
+            // that does nothing (this section is about the font and pattern boxes).
+            const f = new Function('document', 'simpleThemeValues', 'themeFonts', 'syncThemePhoto',
+                T + 'const PATTERN_FILE = /^[0-9a-f]{32}\\.(png|webp)$/;\n' + fn('setSwatch') + fn('fillThemeEditor') + 'return fillThemeEditor;')(
+                { createElement: () => ({}) }, () => ({ accent: '#000000', bg1: '#000000', bg2: '#000000', text: '#ffffff', font: draftFont, avatar: 'circle', button: 'pill', pattern: draftPattern }), () => [], () => {});
             f(page);
             return sels;
         }
@@ -418,6 +431,12 @@ function pageOf(map) {
         ok('a first draw does not', d.first === 0);
     }
 
+    reachedEnd = true;
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
-})();
+})().catch(e => {
+    // The handler above swallows rejections on purpose, and this one was swallowed with it:
+    // a section threw, the rest never ran, and the harness exited 0 with no totals.
+    console.log('FAIL  the harness stopped before its end: ' + (e && e.stack || e));
+    process.exit(1);
+});
