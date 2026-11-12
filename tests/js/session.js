@@ -86,7 +86,7 @@ function load(localData, sessionData, opts) {
     vm.createContext(sandbox);
     new vm.Script(src, { filename: 'profiles.js' }).runInContext(sandbox);
 
-    return { plugin: sandbox.__PROFILES, localStorage, sessionStorage };
+    return { plugin: sandbox.__PROFILES, localStorage, sessionStorage, sandbox };
 }
 
 const ACTIVE = 'jellyfin_profiles_active_token';
@@ -188,6 +188,96 @@ ok('the value is still readable within the page',
 ok('and it still reached the mirror',
     typeof noSession.localStorage.data['jpf-persist-' + ACTIVE] === 'string');
 
+console.log();
+console.log('── What the audit found the section above could not see ────────');
+
+// A mirror that is an object but carries no timestamp. Without the type check the age
+// arithmetic is NaN, NaN > limit is false, and the mirror is believed forever.
+const noStamp = Object.assign({}, cold);
+noStamp['jpf-persist-' + ACTIVE] = JSON.stringify({ v: 'token-with-no-stamp' });
+noStamp[SWITCHING] = '1';
+ok('a mirror with a value and no timestamp is not trusted',
+    load(noStamp, {}).plugin.isProfileSessionActive() === false);
+
+// The window has two edges and the section above only probed one of them. A reload takes
+// seconds, so a mirror a few seconds old must be believed; a limit tightened to a second or
+// to nothing signs everyone out on a slow television and every test above still passes.
+const fresh = Object.assign({}, cold);
+fresh['jpf-persist-' + ACTIVE] = JSON.stringify({ v: 'token-30s', t: Date.now() - 30000 });
+fresh[SWITCHING] = '1';
+ok('a mirror thirty seconds old is still believed mid-reload',
+    load(fresh, {}).plugin._sessionGet(ACTIVE) === 'token-30s');
+const aged = Object.assign({}, cold);
+aged['jpf-persist-' + ACTIVE] = JSON.stringify({ v: 'token-65s', t: Date.now() - 65000 });
+aged[SWITCHING] = '1';
+ok('and one sixty-five seconds old is not',
+    load(aged, {}).plugin._sessionGet(ACTIVE) === null);
+
+// Where a recovered marker is kept. Memory is the only place it can live on a runtime with
+// no sessionStorage, and the flag that justified believing the mirror is cleared by the
+// reveal - after which the mirror is no longer read at all.
+const lostFlag = load(carried, {}, { sessionBroken: true });
+ok('a recovered marker is read once', lostFlag.plugin.isProfileSessionActive() === true);
+delete lostFlag.localStorage.data[SWITCHING];
+lostFlag.sandbox.__jpSwitching = 0;
+ok('and survives the reveal clearing the switching flag, with no sessionStorage to fall back on',
+    lostFlag.plugin.isProfileSessionActive() === true);
+
+// One storage read per page, not one per call. isProfileSessionActive runs on a 500 ms poll.
+const counted = load({}, { [ACTIVE]: 'token-counted' });
+let sessionReads = 0;
+const realGet = counted.sessionStorage.getItem;
+counted.sessionStorage.getItem = k => { sessionReads++; return realGet(k); };
+for (let i = 0; i < 25; i++) counted.plugin.isProfileSessionActive();
+ok('twenty-five checks read sessionStorage once (' + sessionReads + ')', sessionReads === 1);
+
+// A sessionStorage that throws on read, with a mirror waiting: the read has to be caught
+// or the poll throws on every tick.
+const throwsOnRead = Object.assign({}, carried);
+let readThrow = null, readValue = null;
+try { readValue = load(throwsOnRead, {}, { sessionBroken: true }).plugin._sessionGet(ACTIVE); }
+catch (e) { readThrow = e; }
+ok('a sessionStorage that throws on read does not throw out of _sessionGet',
+    readThrow === null, readThrow && readThrow.message);
+ok('and the mirror is still recovered through it', readValue === 'token-for-kids-profile');
+let writeThrow = null;
+try { load({}, {}, { sessionBroken: true }).plugin._sessionSet(ACTIVE, 'x'); }
+catch (e) { writeThrow = e; }
+ok('nor does one that throws on write', writeThrow === null, writeThrow && writeThrow.message);
+
+// Sign-out is clearProfileSession, not _sessionRemove: it has to take both keys with it.
+const both = load({}, {});
+both.plugin._sessionSet(ACTIVE, 'token-a');
+both.plugin._sessionSet('jellyfin_profiles_active_info', '{"name":"Kid"}');
+both.plugin.clearProfileSession();
+ok('clearProfileSession removes the marker from every tier',
+    both.plugin._sessionGet(ACTIVE) === null && both.sessionStorage.data[ACTIVE] === undefined
+        && both.localStorage.data['jpf-persist-' + ACTIVE] === undefined);
+ok('and the profile info with it',
+    both.plugin._sessionGet('jellyfin_profiles_active_info') === null
+        && both.sessionStorage.data['jellyfin_profiles_active_info'] === undefined
+        && both.localStorage.data['jpf-persist-jellyfin_profiles_active_info'] === undefined);
+
+// The reveal, run rather than read. The structural checks below find the right lines; this
+// finds whether they do the right thing. Both copies of the flag go when the reload it was
+// raised for has landed, neither while another reload is in flight.
+function reveal(reloading) {
+    const pg = load({ [SWITCHING]: '1' }, {});
+    pg.sandbox.__jpSwitching = 1;
+    pg.sandbox.document.documentElement.style.opacity = '0';
+    pg.plugin._viewShowFired = true;
+    pg.plugin._reloading = reloading;
+    pg.plugin._revealPage();
+    return pg;
+}
+const landed = reveal(false);
+ok('the reveal removes the switching flag from localStorage',
+    landed.localStorage.data[SWITCHING] === undefined);
+ok('and clears the window global the mirror reads', !landed.sandbox.__jpSwitching);
+const inFlight = reveal(true);
+ok('but with another reload in flight it removes neither',
+    inFlight.localStorage.data[SWITCHING] === '1' && !!inFlight.sandbox.__jpSwitching);
+
 // ── The revert loop, and why there is no backstop for it any more ─────────────
 //
 // This section used to drive _revertReloadAllowed, the guard that stopped the
@@ -219,6 +309,12 @@ ok('there is at least one reload of our own', reloadSites.length > 0);
 ok('every reload we perform marks itself',
     reloadSites.every(i => text.lastIndexOf('this._reloading = true;', i) > i - 400
         && text.lastIndexOf('this._reloading = true;', i) !== -1));
+// The flag the mirror depends on has to be up before the reload starts, at every site.
+ok('every reload we perform raises the switching flag first',
+    reloadSites.every(i => {
+        const at = text.lastIndexOf('localStorage.setItem(this.config.switchingKey', i);
+        return at !== -1 && at > i - 600;
+    }));
 const revealAt = text.indexOf('this._pageRevealed = true;');
 const clearAt = text.indexOf('removeItem(this.config.switchingKey)', revealAt);
 ok('the reveal clears the switching flag',
