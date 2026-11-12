@@ -271,6 +271,9 @@ namespace Jellyfin.Profiles.Controllers
             if (profile == null) return NotFound("Profile not found.");
             var mainId = profile.MasterUserId;
             if (HouseholdOf(config, caller.Value) != mainId) return Unauthorized(OtherHouseholdMessage);
+            // One ask per profile every ten minutes, sent to the parent in the profile's name:
+            // a sibling must not spend it. The profile itself or its main account.
+            if (caller.Value != profileId && caller.Value != mainId) return Unauthorized(OtherHouseholdMessage);
             if (profile.Viewing == null || !profile.Viewing.IsLimited) return BadRequest(NotLimitedMessage);
 
             if (!ViewingTracker.Ask(profileId, ViewingTracker.Now()))

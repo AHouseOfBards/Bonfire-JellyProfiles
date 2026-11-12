@@ -306,6 +306,29 @@ r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Sib\
 Ok("a rename onto an existing profile's account is refused", r.status == 400, r.status + " " + r.message);
 Ok("and the picture sent with it was not saved", OnDisk() == diskBefore, diskBefore + " -> " + OnDisk());
 
+// ── r2-15-06: the re-check is under the lock, before anything is written ─────
+Console.WriteLine();
+Console.WriteLine("── /me: the row is re-checked under the lock before the picture ──");
+{
+    var diskStart = OnDisk();
+    var imageStart = Image(kidRow);
+    // Someone else deletes the profile's row after the route has read it and before it writes.
+    var hit = false;
+    world.OnGetUserById = id =>
+    {
+        if (id != KID || hit) return;
+        hit = true;
+        mappings.Remove(kidRow);
+    };
+    var gone = Call("UpdateOwnProfile", "{\"profileImage\":\"" + Png(321) + "\"}", KID);
+    world.OnGetUserById = null;
+    Ok("the row went missing mid-call (the setup took)", hit);
+    Ok("the call is a 404", gone.status == 404, gone.status + " " + gone.message);
+    Ok("and no picture was written for a profile that no longer exists", OnDisk() == diskStart, diskStart + " -> " + OnDisk());
+    mappings.Add(kidRow);
+    Set(kidRow, "ProfileImage", imageStart);
+}
+
 // ── P2-705: a new PIN ends the lock the old one was guessed into ─────────────
 Console.WriteLine();
 Console.WriteLine("── /update: a new PIN starts the guess count again (P2-705) ──────");
@@ -335,6 +358,7 @@ public class World
     public Dictionary<Guid, User> Users = new();
     public Dictionary<Guid, UserPolicy> Policies = new();
     public List<Guid> Libraries = new();
+    public Action<Guid> OnGetUserById;
 
     public void Add(Guid id, string name, UserPolicy policy)
     {
@@ -379,6 +403,7 @@ public class WorldProxy : DispatchProxy
         switch (m.Name)
         {
             case "GetUserById":
+                W.OnGetUserById?.Invoke((Guid)args[0]);
                 return W.Users.TryGetValue((Guid)args[0], out var u) ? u : null;
             case "GetUserByName":
                 return W.Users.Values.FirstOrDefault(x => string.Equals(x.Username, (string)args[0], StringComparison.OrdinalIgnoreCase));

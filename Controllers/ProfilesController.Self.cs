@@ -56,18 +56,29 @@ namespace Jellyfin.Profiles.Controllers
                 var nameError = ValidateProfileName(request.ProfileName);
                 if (nameError != null) return BadRequest(nameError);
                 newName = request.ProfileName.Trim();
-
-                if (!string.Equals(mapping.ProfileName, newName, StringComparison.OrdinalIgnoreCase))
-                {
-                    var takenError = ValidateProfileNameFree(_userManager, newName, callerId.Value);
-                    if (takenError != null) return BadRequest(takenError);
-                }
-
                 newUsername = $"{mainUser.Username}_{newName.Replace(" ", "")}";
-                if (!string.Equals(user.Username, newUsername, StringComparison.OrdinalIgnoreCase)
-                    && GetAllUsers().Any(u => u.Id != user.Id && string.Equals(u.Username, newUsername, StringComparison.OrdinalIgnoreCase)))
+            }
+
+            // The row's existence and the free-name checks are read under the lock, before the
+            // rename or the picture is written: outside it, a delete or a rename by someone
+            // else between the check and the write left this call writing over their result.
+            lock (ConfigLock)
+            {
+                var current = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);
+                if (current == null) return NotFound("Profile not found.");
+                if (newName != null)
                 {
-                    return BadRequest("A profile with this name already exists.");
+                    if (!string.Equals(current.ProfileName, newName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var takenError = ValidateProfileNameFree(_userManager, newName, callerId.Value);
+                        if (takenError != null) return BadRequest(takenError);
+                    }
+
+                    if (!string.Equals(user.Username, newUsername, StringComparison.OrdinalIgnoreCase)
+                        && GetAllUsers().Any(u => u.Id != user.Id && string.Equals(u.Username, newUsername, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return BadRequest("A profile with this name already exists.");
+                    }
                 }
             }
 

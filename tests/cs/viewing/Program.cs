@@ -573,8 +573,11 @@ stub.Sessions.Add(SessionStub.Make("other-tv", OTHER, null));
 var mailsBefore = Mails();
 r = Call("AskForViewingTime", OTHER, null, KID);
 Ok("another household cannot ask for Kid", Refused(r), r.status.ToString());
-r = Call("AskForViewingTime", KID, null, KID2);
+r = Call("AskForViewingTime", KID2, null, KID2);
 Ok("nor for a profile with no limits", r.status == 400, r.status.ToString());
+r = Call("AskForViewingTime", KID2, null, KID);
+Ok("a sibling cannot spend Kid's ask (r2-16-06)", Refused(r), r.status.ToString());
+Ok("and the parent was not messaged in Kid's name", !stub.Messages.Any(m => m.session == "parent-phone"));
 r = Call("AskForViewingTime", KID, null, KID);
 Ok("Kid can ask", r.status == 200 && Get(r.value, "AskedUtc") != null, r.status + " " + r.value);
 Ok("the parent's open app is told", stub.Messages.Any(m => m.session == "parent-phone" && m.text.Contains("Kid")),
