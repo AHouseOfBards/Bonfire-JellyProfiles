@@ -201,6 +201,18 @@ Console.WriteLine("── It cannot trigger itself ─────────�
     Raise(MAIN);
     Settle();
     Ok("a later change is not swallowed by the earlier ones", Reads(KID) == 1);
+
+    // r2-04-03a: a change that arrives after the last "anything more?" check, before the run
+    // is forgotten, used to be marked "again" and then forgotten with the run. The hook is
+    // called at exactly that point.
+    Reset();
+    var hookField = listenerType.GetField("AfterPasses", BindingFlags.Static | BindingFlags.NonPublic);
+    var fired = 0;
+    hookField?.SetValue(null, (Action)(() => { if (fired++ == 0) Raise(MAIN); }));
+    Raise(MAIN);
+    Settle();
+    hookField?.SetValue(null, null);
+    Ok("a change landing as a run ends is passed on, not lost (" + Reads(KID) + " passes)", Reads(KID) == 2);
 }
 
 hosted.StopAsync(CancellationToken.None).GetAwaiter().GetResult();

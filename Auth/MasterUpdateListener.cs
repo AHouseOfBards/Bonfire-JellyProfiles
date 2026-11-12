@@ -95,11 +95,15 @@ namespace Jellyfin.Profiles.Auth
                     _passes[id] = Pass.Running;
                 }
 
-                _ = Configuration.BackgroundWork.Run(async stopping =>
+                try
                 {
+                    _ = Configuration.BackgroundWork.Run(async stopping =>
+                {
+                    var forgotten = false;
                     try
                     {
-                        await RunPassesAsync(id).ConfigureAwait(false);
+                        forgotten = await RunPassesAsync(id).ConfigureAwait(false);
+                        AfterPasses?.Invoke();
                     }
                     catch (OperationCanceledException)
                     {
@@ -115,9 +119,20 @@ namespace Jellyfin.Profiles.Auth
                     }
                     finally
                     {
-                        lock (PassLock) _passes.Remove(id);
+                        // Normally RunPassesAsync forgot the run itself, under the lock that
+                        // decided there was nothing more to do; forgetting it again here could
+                        // erase a newer run's marker.
+                        if (!forgotten) lock (PassLock) _passes.Remove(id);
                     }
                 });
+                }
+                catch (Exception ex)
+                {
+                    // Starting the work threw: nothing will ever end this run, so it is not
+                    // left marked as running (every later change would be dropped).
+                    lock (PassLock) _passes.Remove(id);
+                    _logger.LogError(ex, "ProfilesPlugin: could not start passing a change to account {UserId} on to its profiles.", id);
+                }
             }
             catch (Exception ex)
             {
@@ -126,10 +141,17 @@ namespace Jellyfin.Profiles.Auth
             }
         }
 
-        private async Task RunPassesAsync(Guid master)
+        /// <summary>For the harness: called when the passes are done, before the caller's clean-up.</summary>
+        internal static Action? AfterPasses = null;
+
+        /// <summary>
+        /// True when the run was forgotten here, in the same lock that found nothing more to
+        /// do, so a change cannot arrive in between and be marked "again" for a run that is over.
+        /// </summary>
+        private async Task<bool> RunPassesAsync(Guid master)
         {
             var libraryManager = _services?.GetService(typeof(ILibraryManager)) as ILibraryManager;
-            if (libraryManager == null) return;
+            if (libraryManager == null) return false;
 
             while (true)
             {
@@ -161,7 +183,12 @@ namespace Jellyfin.Profiles.Auth
 
                 lock (PassLock)
                 {
-                    if (!_passes.TryGetValue(master, out var state) || state != Pass.Again) return;
+                    if (!_passes.TryGetValue(master, out var state) || state != Pass.Again)
+                    {
+                        _passes.Remove(master);
+                        return true;
+                    }
+
                     _passes[master] = Pass.Last;
                 }
             }
