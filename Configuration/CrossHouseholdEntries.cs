@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Profiles.Configuration
 {
@@ -59,7 +60,7 @@ namespace Jellyfin.Profiles.Configuration
         /// Notes an entry; one per (device, account), the newest kept. The caller holds
         /// ConfigLock and saves. False if the device id is empty, which /switch never sends.
         /// </summary>
-        public static bool Record(PluginConfiguration config, Guid enteredBy, Guid profileUserId, string deviceId, bool withoutPin, DateTime nowUtc)
+        public static bool Record(PluginConfiguration config, Guid enteredBy, Guid profileUserId, string deviceId, bool withoutPin, DateTime nowUtc, ILogger? logger = null)
         {
             if (string.IsNullOrEmpty(deviceId) || profileUserId == Guid.Empty) return false;
             config.CrossHouseholdEntries ??= new List<CrossHouseholdEntry>();
@@ -73,7 +74,16 @@ namespace Jellyfin.Profiles.Configuration
                 EnteredUtc = nowUtc,
                 WithoutPin = withoutPin,
             });
-            while (config.CrossHouseholdEntries.Count > Max) config.CrossHouseholdEntries.RemoveAt(0);
+            // The dropped entry is the record that a device came in from another household, so
+            // it can no longer be signed out when that door is taken away. Said once per drop.
+            while (config.CrossHouseholdEntries.Count > Max)
+            {
+                var dropped = config.CrossHouseholdEntries[0];
+                config.CrossHouseholdEntries.RemoveAt(0);
+                logger?.LogWarning(
+                    "ProfilesPlugin: More than {Max} cross-household sign-ins are recorded, so the oldest was dropped: device {DeviceId} in profile {ProfileId}. That device can no longer be signed out when its access is removed.",
+                    Max, dropped.DeviceId, dropped.ProfileUserId);
+            }
             return true;
         }
     }

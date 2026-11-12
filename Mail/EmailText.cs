@@ -71,6 +71,8 @@ namespace Jellyfin.Profiles.Mail
             ["notice.asked"] = "{name} asked for more time. To answer, open Bonfire, choose Manage profiles, then {name}.",
         };
 
+        private static readonly System.Text.RegularExpressions.Regex Placeholder = new(@"\{([^{}]+)\}", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
         private static readonly ConcurrentDictionary<string, JsonObject?> Loaded = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>The text for <paramref name="key"/> in <paramref name="language"/>, with
@@ -80,7 +82,9 @@ namespace Jellyfin.Profiles.Mail
             var text = Translated(key, language) ?? (En.TryGetValue(key, out var en) ? en : key);
             if (values != null)
             {
-                foreach (var pair in values) text = text.Replace("{" + pair.Key + "}", pair.Value, StringComparison.Ordinal);
+                // One pass over the template. Replacing each key in turn would also replace a
+                // placeholder that a value carries in, such as a profile named "{minutes}".
+                text = Placeholder.Replace(text, m => values.TryGetValue(m.Groups[1].Value, out var v) ? v : m.Value);
             }
             return text;
         }

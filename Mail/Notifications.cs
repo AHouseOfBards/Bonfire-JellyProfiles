@@ -26,6 +26,9 @@ namespace Jellyfin.Profiles.Mail
 
         private static readonly ConcurrentDictionary<string, DateTime> LastSent = new();
 
+        /// <summary>For the harness: runs between the quiet-period check and the stamp.</summary>
+        internal static Action? BetweenCheckAndStamp = null;
+
         /// <summary>New-device notices one account may get in one quiet period.</summary>
         internal const int DeviceNoticesPerPeriod = 5;
 
@@ -109,10 +112,16 @@ namespace Jellyfin.Profiles.Mail
 
             var key = subject + ":" + mainId.ToString("N");
             var now = DateTime.UtcNow;
-            if (LastSent.TryGetValue(key, out var last) && now - last < Quiet) return;
-            if (kind == "device" && !TakeDeviceBudget(mainId, now)) return;
-            LastSent[key] = now;
-            if (LastSent.Count > 5000) LastSent.Clear();
+            // One step: two TVs failing a PIN together both read "not sent yet" when the check
+            // and the stamp were separate, and the owner got two mails.
+            lock (BudgetLock)
+            {
+                if (LastSent.TryGetValue(key, out var last) && now - last < Quiet) return;
+                if (kind == "device" && !TakeDeviceBudget(mainId, now)) return;
+                BetweenCheckAndStamp?.Invoke();
+                LastSent[key] = now;
+                if (LastSent.Count > 5000) LastSent.Clear();
+            }
 
             var settings = config.Email;
             var mailSubject = EmailText.Get(subjectKey, account.Language, values);

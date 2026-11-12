@@ -1059,7 +1059,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     var live = Plugin.Instance?.Configuration;
                     var withoutPin = !string.IsNullOrEmpty(pinHashToCheck) && householdLanBypass;
-                    if (live != null && CrossHouseholdEntries.Record(live, callerMasterUserId, targetUser.Id, authRequest.DeviceId, withoutPin, DateTime.UtcNow))
+                    if (live != null && CrossHouseholdEntries.Record(live, callerMasterUserId, targetUser.Id, authRequest.DeviceId, withoutPin, DateTime.UtcNow, _logger))
                         Plugin.Instance?.SaveConfiguration();
                 }
             }

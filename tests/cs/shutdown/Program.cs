@@ -70,6 +70,22 @@ if (bw != null)
     Task Run(Func<CancellationToken, Task> work) => (Task)run.Invoke(null, new object[] { work });
     Task Stop() => (Task)stop.Invoke(null, new object[] { CancellationToken.None });
 
+    // r2-18-05: work that throws is logged when it ends, even though the caller dropped the task.
+    var logField = bw.GetField("Log", flags);
+    var cap = new CaptureLog();
+    Ok("BackgroundWork has somewhere to log a failure", logField != null);
+    if (logField != null)
+    {
+        logField.SetValue(null, cap);
+        var failing = Run(_ => throw new InvalidOperationException("boom-from-work"));
+        try { failing.Wait(); } catch (AggregateException) { }
+        var until = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < until && cap.Lines.Count == 0) Thread.Sleep(20);
+        logField.SetValue(null, null);
+        Ok("a failed task is logged", cap.Lines.Count == 1 && cap.Lines[0].Contains("Background work failed"), string.Join("|", cap.Lines));
+        Ok("with the exception attached", cap.Errors.Count == 1 && cap.Errors[0] != null && cap.Errors[0].Message.Contains("boom-from-work"));
+    }
+
     // Work that waits on the token, as the picker sweep and the second pass do.
     var sawCancel = false;
     var waiting = Run(async t =>
@@ -173,3 +189,15 @@ if (fails.Count > 0)
 }
 Console.WriteLine(pass + " passed, 0 failed");
 return 0;
+
+sealed class CaptureLog : Microsoft.Extensions.Logging.ILogger
+{
+    public readonly List<string> Lines = new();
+    public readonly List<Exception> Errors = new();
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+    {
+        lock (Lines) { Lines.Add(formatter(state, exception)); Errors.Add(exception); }
+    }
+}

@@ -728,6 +728,27 @@ var entries = (IList)cfgType.GetProperty("CrossHouseholdEntries").GetValue(confi
 entries.Add(entry);
 SessionStub.SignedOut.Clear();
 
+// r2-18-03: the list is trimmed past its trimLog, and the entry it loses is said, not dropped silently.
+{
+    var listType = asm.GetType("Jellyfin.Profiles.Configuration.CrossHouseholdEntries", true);
+    var recordEntry = listType.GetMethod("Record");
+    var max = (int)listType.GetField("Max").GetRawConstantValue();
+    var scratch = Activator.CreateInstance(cfgType);
+    var trimLog = new CaptureLog();
+    var takesLogger = recordEntry.GetParameters().Length == 7;
+    Ok("Record takes a logger", takesLogger);
+    if (takesLogger)
+    {
+        for (var i = 0; i < max; i++)
+            recordEntry.Invoke(null, new object[] { scratch, OTHER, Guid.NewGuid(), "dev-" + i, false, DateTime.UtcNow, trimLog });
+        Ok("nothing is said while the list fits", trimLog.Lines.Count == 0, string.Join("|", trimLog.Lines));
+        recordEntry.Invoke(null, new object[] { scratch, OTHER, Guid.NewGuid(), "dev-over", false, DateTime.UtcNow, trimLog });
+        var keptEntries = (IList)cfgType.GetProperty("CrossHouseholdEntries").GetValue(scratch);
+        Ok("one past the trimLog drops the oldest", keptEntries.Count == max);
+        Ok("and says which device lost its recordEntry", trimLog.Lines.Count == 1 && trimLog.Lines[0].Contains("dev-0"), string.Join("|", trimLog.Lines));
+    }
+}
+
 // One failure then success: tried again, so it still succeeds. The revoke is logged only
 // when it works, so the ordering check below still means what it says.
 int revokeFailures = 1;
@@ -924,6 +945,17 @@ try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 
 // ── A modelled Jellyfin ────────────────────────────────────────────────────
+
+public sealed class CaptureLog : Microsoft.Extensions.Logging.ILogger
+{
+    public readonly List<string> Lines = new();
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+    {
+        lock (Lines) Lines.Add(formatter(state, exception));
+    }
+}
 
 public class World
 {

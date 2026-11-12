@@ -546,6 +546,29 @@ onSend = null;
 notesType.GetMethod("PinLocked", Any).Invoke(null, new object[] { KID4, "Fourth", null });
 Ok("the next event is mailed after a failed send (R-1058)", Sent() == before + 1 && Last().Body.Contains("Fourth"), (Sent() - before) + "");
 
+// Two TVs failing the same profile's PIN together are one notice (r2-18-02). The quiet-period
+// check and the set were two steps, so both got in. The window is nanoseconds wide, so the
+// harness holds each thread in it until the other has arrived, for up to a second: both
+// arrive when nothing excludes them, and only one can when the two steps are one.
+{
+    var RaceKid = Guid.NewGuid(); Map(RaceKid, OTHER, "Race");
+    var arrived = 0;
+    var both = new System.Threading.ManualResetEventSlim(false);
+    var hook = notesType.GetField("BetweenCheckAndStamp", Any);
+    hook.SetValue(null, (Action)(() =>
+    {
+        if (System.Threading.Interlocked.Increment(ref arrived) >= 2) both.Set();
+        both.Wait(1000);
+    }));
+    before = Sent();
+    var pinLocked = notesType.GetMethod("PinLocked", Any);
+    var racers = Enumerable.Range(0, 2).Select(_ => Task.Run(() => pinLocked.Invoke(null, new object[] { RaceKid, "Race", null }))).ToArray();
+    Task.WaitAll(racers, 10000);
+    hook.SetValue(null, null);
+    var got = Sent() - before;
+    Ok("two TVs locking one profile's PIN together send one mail (r2-18-02)", got == 1, got + " mails");
+}
+
 // The main PIN locked through a real route: wrong PINs until it refuses.
 before = Sent();
 var locked = false;
@@ -717,6 +740,13 @@ var loadedBefore = loaded.Count;
 var textGet = emailTextType.GetMethod("Get", Any);
 for (var i = 0; i < 40; i++) textGet.Invoke(null, new object[] { "email.test.subject", "zq" + i, null });
 Ok("40 languages that don't exist leave nothing cached", loaded.Count == loadedBefore, loadedBefore + " -> " + loaded.Count);
+
+// r2-18-04: placeholders are filled in one pass; a value that looks like one is left as written.
+{
+    var filled = (string)textGet.Invoke(null, new object[] { "email.limitReached.body", null,
+        new Dictionary<string, string> { ["name"] = "{minutes}", ["minutes"] = "45" } });
+    Ok("a name that reads {minutes} is not filled in a second time", filled.Contains("{minutes} has reached today's limit of 45 min"), filled);
+}
 
 // R-1067: 465 speaks TLS from the first byte whatever the security setting says.
 r = Admin("UpdateEmailSettings", B(("Host", "smtp.example.com"), ("Port", (int?)465), ("Security", "none")));

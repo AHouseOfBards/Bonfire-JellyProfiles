@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Profiles.Configuration
 {
@@ -36,6 +37,9 @@ namespace Jellyfin.Profiles.Configuration
         private static readonly CancellationTokenSource Stopping = new();
         private static readonly ConcurrentDictionary<Task, byte> Running = new();
 
+        /// <summary>Set by <see cref="Stopper"/> when the host starts; where a failed task is logged.</summary>
+        internal static ILogger? Log = null;
+
         /// <summary>Cancelled when the server stops.</summary>
         internal static CancellationToken Token => Stopping.Token;
 
@@ -52,8 +56,18 @@ namespace Jellyfin.Profiles.Configuration
             var token = Stopping.Token;
             var task = Task.Run(() => work(token));
             Running[task] = 0;
-            // Removed when it ends, so the set holds only what is still running.
-            task.ContinueWith(t => Running.TryRemove(t, out _), TaskScheduler.Default);
+            // Removed when it ends, so the set holds only what is still running. A failure is
+            // read here and logged: most callers drop the task, and an unread failure is lost.
+            task.ContinueWith(
+                t =>
+                {
+                    Running.TryRemove(t, out _);
+                    if (t.IsFaulted)
+                    {
+                        Log?.LogWarning(t.Exception?.GetBaseException(), "ProfilesPlugin: Background work failed.");
+                    }
+                },
+                TaskScheduler.Default);
             return task;
         }
 
@@ -64,7 +78,7 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>
         /// Cancels the token and waits for running work, up to <see cref="StopWait"/> or until
         /// <paramref name="cancellationToken"/> (the host's own shutdown timeout) gives up.
-        /// Never throws: a task that failed has already logged why.
+        /// Never throws: a task that failed was logged when it ended.
         /// </summary>
         internal static async Task StopAsync(CancellationToken cancellationToken)
         {
@@ -90,6 +104,8 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         internal sealed class Stopper : IHostedService
         {
+            public Stopper(ILogger<Stopper> logger) => BackgroundWork.Log = logger;
+
             public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
             public Task StopAsync(CancellationToken cancellationToken) => BackgroundWork.StopAsync(cancellationToken);
