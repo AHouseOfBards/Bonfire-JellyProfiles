@@ -712,7 +712,7 @@
   "admin.themes.photoDim": "Karartma",
   "admin.themes.photoUploading": "Yükleniyor…",
   "admin.themes.photoFailed": "Görsel yüklenemedi.",
-  "admin.themes.photoFaint": "Metin zor okunuyor. Daha çok karartın.",
+  "admin.themes.photoFaint": "Metin bu görselde zor okunuyor. Daha çok karartın.",
   "admin.themes.importedNoPhoto": "{name} içe aktarıldı. Tema dosyaları arka plan görselini içermez; düzenleyicide yükleyin.",
   "admin.themes.p.size": "Çok büyük. Bir tema en fazla 64 KB olabilir.",
   "admin.themes.p.taken": "Bu kimliği yerleşik bir tema kullanıyor.",

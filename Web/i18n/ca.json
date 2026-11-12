@@ -701,7 +701,7 @@
   "admin.themes.photoDim": "Enfosquiment",
   "admin.themes.photoUploading": "S'està pujant…",
   "admin.themes.photoFailed": "La imatge no s'ha pogut pujar.",
-  "admin.themes.photoFaint": "El text costa de llegir. Enfosqueix-la més.",
+  "admin.themes.photoFaint": "El text costa de llegir en aquesta imatge. Enfosqueix-la més.",
   "admin.themes.importedNoPhoto": "{name} importat. Els fitxers de tema no porten la imatge de fons; puja-la a l'editor.",
   "admin.themes.p.size": "Massa gran. Un tema ocupa com a màxim 64 KB.",
   "admin.themes.p.taken": "Un tema integrat usa aquest identificador.",

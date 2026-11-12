@@ -701,7 +701,7 @@
   "admin.themes.photoDim": "Oscurecer",
   "admin.themes.photoUploading": "Subiendo…",
   "admin.themes.photoFailed": "La imagen no se subió.",
-  "admin.themes.photoFaint": "El texto cuesta de leer. Oscurécela más.",
+  "admin.themes.photoFaint": "El texto cuesta de leer en esta imagen. Oscurécela más.",
   "admin.themes.importedNoPhoto": "{name} importado. Los archivos de tema no llevan la imagen de fondo; súbela en el editor.",
   "admin.themes.p.size": "Demasiado grande. Un tema ocupa como mucho 64 KB.",
   "admin.themes.p.taken": "Un tema integrado usa este identificador.",

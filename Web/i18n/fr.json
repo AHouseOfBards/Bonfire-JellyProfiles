@@ -701,7 +701,7 @@
   "admin.themes.photoDim": "Assombrir",
   "admin.themes.photoUploading": "Envoi…",
   "admin.themes.photoFailed": "L'image n'a pas été envoyée.",
-  "admin.themes.photoFaint": "Le texte se lit mal dessus. Assombrissez-la.",
+  "admin.themes.photoFaint": "Le texte se lit mal sur cette image. Assombrissez-la.",
   "admin.themes.importedNoPhoto": "{name} importé. Les fichiers de thème ne contiennent pas l'image de fond ; envoyez-la dans l'éditeur.",
   "admin.themes.p.size": "Trop volumineux. Un thème fait 64 Ko au plus.",
   "admin.themes.p.taken": "Un thème intégré utilise cet identifiant.",
