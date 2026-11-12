@@ -1847,8 +1847,8 @@
                 'admin.status.avatarsMany': '{count} profile avatars are missing from disk.',
                 'admin.status.orphansOne': '1 leftover record points at a deleted account.',
                 'admin.status.orphansMany': '{count} leftover records point at deleted accounts.',
-                'admin.status.orphanImagesOne': '1 background image isn\'t used by any theme.',
-                'admin.status.orphanImagesMany': '{count} background images aren\'t used by any theme.',
+                'admin.status.orphanImagesOne': '1 theme picture isn\'t used by any theme.',
+                'admin.status.orphanImagesMany': '{count} theme pictures aren\'t used by any theme.',
                 'admin.status.maintenance': 'The server is closed for maintenance. Only administrators can use it.',
                 'admin.status.panicUsed': 'Bonfire was switched off with the emergency code. Restart Jellyfin to turn it back on.',
                 'admin.status.checkIt': 'Check it',
@@ -1928,11 +1928,11 @@
                 'admin.orphans.deadGroup': 'Bonfire {code}: its owner was deleted',
                 'admin.orphans.deadMembersOne': '1 Bonfire membership naming a deleted account',
                 'admin.orphans.deadMembersMany': '{count} Bonfire memberships naming deleted accounts',
-                'admin.orphans.imagesOne': '1 background image no theme uses',
-                'admin.orphans.imagesMany': '{count} background images no theme uses',
+                'admin.orphans.imagesOne': '1 theme picture no theme uses',
+                'admin.orphans.imagesMany': '{count} theme pictures no theme uses',
                 'admin.orphans.removeOne': 'Remove',
                 'admin.orphans.removeMany': 'Remove all {count}',
-                'admin.orphans.removed': 'Removed. Profile records: {profiles}. Bonfires: {groups}. Memberships: {members}. Background images: {images}. Devices were left alone.',
+                'admin.orphans.removed': 'Removed. Profile records: {profiles}. Bonfires: {groups}. Memberships: {members}. Theme pictures: {images}. Devices were left alone.',
                 'admin.orphans.cleanupFailed': 'Cleanup failed.',
                 'admin.orphans.scanFailed': 'Scan failed.',
 
@@ -2146,6 +2146,11 @@
                 'admin.themes.deco.frost': 'Frost',
                 'admin.themes.deco.twinkle': 'Twinkle',
                 'admin.themes.deco.image': 'Picture',
+                'admin.themes.deco.upload': 'Upload picture',
+                'admin.themes.deco.uploadHint': 'PNG or WebP, up to 2 MB.',
+                'admin.themes.deco.yourPicture': 'Your picture',
+                'admin.themes.deco.yourPictureN': 'Your picture {n}',
+                'admin.themes.deco.err.type': 'Choose a PNG or WebP image.',
                 'admin.themes.deco.size': 'Size',
                 'admin.themes.deco.drift': 'Drift',
                 'admin.themes.deco.seconds': 'Seconds per cycle',
@@ -5612,6 +5617,23 @@
                 frost: 'admin.themes.deco.frost', twinkle: 'admin.themes.deco.twinkle'
             };
 
+            // The name an uploaded pattern picture is stored under: a hash and its extension.
+            const PATTERN_FILE = /^[0-9a-f]{32}\.(png|webp)$/;
+            // Not JPEG: a tile with no transparency would hide the theme under it.
+            const PATTERN_TYPES = ['image/png', 'image/webp'];
+
+            /// The Upload control beside a pattern's picture list. The file input has no
+            /// data-path, so the editor's generic change handler leaves it alone.
+            function patternUploadHtml(page, path) {
+                const ed = page._themeEditor;
+                const note = ed && ed.patternNote && ed.patternNote.path === path ? ed.patternNote : null;
+                const busy = !!(ed && ed.patternBusy);
+                return '<button type="button" class="jpf-te-lbtn" data-pattern-act="' + escapeHtml(path) + '" data-key="pup-' + escapeHtml(path) + '"' + (busy ? ' disabled' : '') + '>' +
+                    escapeHtml(t('admin.themes.deco.upload')) + '</button>' +
+                    '<input type="file" class="jpf-te-pattern-file jpf-hidden" accept="image/png,image/webp" tabindex="-1" aria-hidden="true" />' +
+                    '<span class="fieldDescription jpf-te-pattern-note">' + escapeHtml(note ? note.text : (busy && ed.patternBusy === path ? t('admin.themes.photoUploading') : t('admin.themes.deco.uploadHint'))) + '</span>';
+            }
+
             function themeDecoDefault(name, patterns) {
                 if (name === 'pattern' || name === 'pattern2') {
                     return { name: name, image: patterns[0] || '', size: name === 'pattern' ? 240 : 120, drift: 'none' };
@@ -5667,7 +5689,11 @@
                         ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" /><output class="jpf-te-val" for="' + id + '"></output></span>';
                 }
                 return '<select class="emby-select emby-select-withcolor jpf-te-input"' + attrs + '>' +
-                    opt.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('') + '</select>';
+                    // An entry is a value, or [value, label] where the value is no name for a person.
+                    opt.map(function (v) {
+                        const pair = Array.isArray(v) ? v : [v, v];
+                        return '<option value="' + escapeHtml(pair[0]) + '">' + escapeHtml(pair[1]) + '</option>';
+                    }).join('') + '</select>';
             }
 
             function teRow(labelKey, control, vars) {
@@ -5691,9 +5717,22 @@
                     let body = '';
                     if (on && (name === 'pattern' || name === 'pattern2')) {
                         const images = patterns.slice();
+                        // The pictures uploaded in this editor and the ones any pattern in the
+                        // theme names, so each card can pick the other's.
+                        const mine = (page._themeEditor && page._themeEditor.patternFiles) || [];
+                        const uploads = mine.slice();
+                        list.forEach(function (d) {
+                            if (d && typeof d.image === 'string' && PATTERN_FILE.test(d.image) && uploads.indexOf(d.image) === -1) uploads.push(d.image);
+                        });
+                        uploads.forEach(function (f) { if (images.indexOf(f) === -1) images.push(f); });
                         if (typeof list[i].image === 'string' && list[i].image && images.indexOf(list[i].image) === -1) images.push(list[i].image);
+                        const choices = images.map(function (f) {
+                            const at = uploads.indexOf(f);
+                            if (!PATTERN_FILE.test(f)) return f;
+                            return [f, t(uploads.length > 1 ? 'admin.themes.deco.yourPictureN' : 'admin.themes.deco.yourPicture', { n: at + 1 })];
+                        });
                         const drifting = list[i].drift === 'down';
-                        body = teRow('admin.themes.deco.image', teControl(page, 'choice', p + 'image', images)) +
+                        body = teRow('admin.themes.deco.image', teControl(page, 'choice', p + 'image', choices) + patternUploadHtml(page, p + 'image')) +
                             teRow('admin.themes.deco.size', teControl(page, 'number', p + 'size', [16, 1024, 1])) +
                             teRow('admin.themes.deco.opacity', teControl(page, 'number', p + 'opacity', [0.1, 1, 0.05])) +
                             teRow('admin.themes.deco.drift', teControl(page, 'choice', p + 'drift', ['none', 'down'])) +
@@ -5950,7 +5989,7 @@
                     if (v.pattern && !Array.prototype.some.call(pattern.options, function (o) { return o.value === v.pattern; })) {
                         const extra = document.createElement('option');
                         extra.value = v.pattern;
-                        extra.textContent = v.pattern;
+                        extra.textContent = PATTERN_FILE.test(v.pattern) ? t('admin.themes.deco.yourPicture') : v.pattern;
                         pattern.appendChild(extra);
                     }
                     pattern.value = v.pattern;
@@ -6350,6 +6389,45 @@
                         if (page._themeEditor !== ed) return;
                         ed.photoError = e.message;
                         syncThemePhoto(page);
+                    });
+                });
+            }
+
+            /// Uploads a pattern picture and makes the card that asked for it use it. Stored
+            /// by content on the server; the theme names it when it is saved, and one no saved
+            /// theme names is deleted (docs/themes.md, "Pattern pictures").
+            function uploadThemePattern(page, path, file) {
+                const ed = page._themeEditor;
+                if (!ed || ed.patternBusy) return;
+                const refuse = function (text) {
+                    ed.patternNote = { path: path, text: text };
+                    rebuildThemeLists(page);
+                };
+                ed.patternNote = null;
+                if (PATTERN_TYPES.indexOf(file.type) === -1) { refuse(t('admin.themes.deco.err.type')); return; }
+                if (file.size > 2 * 1048576) { refuse(t('admin.logo.err.size', { mb: 2 })); return; }
+                ed.patternBusy = path;
+                rebuildThemeLists(page);
+                fetch(ApiClient.getUrl('plugins/profiles/admin/themes/patterns'), {
+                    method: 'POST',
+                    headers: { 'Authorization': authorizationHeader(), 'Content-Type': file.type },
+                    body: file
+                }).then(function (res) {
+                    if (!res.ok) return Promise.reject(res);
+                    return res.json();
+                }).then(function (res) {
+                    ed.patternBusy = null;
+                    if (page._themeEditor !== ed || !res || typeof res.file !== 'string') return;
+                    ed.patternFiles = ed.patternFiles || [];
+                    if (ed.patternFiles.indexOf(res.file) === -1) ed.patternFiles.push(res.file);
+                    setThemePath(ed.draft, path, res.file);
+                    rebuildThemeLists(page);
+                    themeDraftChanged(page, true);
+                }, function (err) {
+                    ed.patternBusy = null;
+                    readThemeError(err, 'admin.themes.photoFailed', page._themes && page._themes.data).then(function (e) {
+                        if (page._themeEditor !== ed) return;
+                        refuse(e.message);
                     });
                 });
             }
@@ -6767,6 +6845,15 @@
                     if (listBtn && page._themeEditor) { if (!listBtn.disabled) themeListAction(page, listBtn); return; }
                     const swatch = e.target.closest ? e.target.closest('.jpf-te-sw') : null;
                     if (swatch) { openColorPopup(page, swatch); return; }
+                    const upload = e.target.closest ? e.target.closest('[data-pattern-act]') : null;
+                    if (upload && page._themeEditor) {
+                        if (upload.disabled) return;
+                        const chooser = upload.parentNode.querySelector('.jpf-te-pattern-file');
+                        chooser.setAttribute('data-for', upload.getAttribute('data-pattern-act'));
+                        chooser.value = '';
+                        chooser.click();
+                        return;
+                    }
                     const act = e.target.closest && e.target.closest('[data-photo-act]');
                     if (!act || !page._themeEditor) return;
                     if (act.getAttribute('data-photo-act') === 'remove') {
@@ -6780,6 +6867,11 @@
                     file.click();
                 });
                 editor.addEventListener('change', function (e) {
+                    if (e.target.classList && e.target.classList.contains('jpf-te-pattern-file')) {
+                        const picked = e.target.files && e.target.files[0];
+                        if (picked) uploadThemePattern(page, e.target.getAttribute('data-for'), picked);
+                        return;
+                    }
                     if (!e.target.classList || !e.target.classList.contains('jpf-te-photo-file')) return;
                     const chosen = e.target.files && e.target.files[0];
                     if (chosen) uploadThemePhoto(page, chosen);

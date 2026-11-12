@@ -261,8 +261,12 @@ Bonfire ships ten: `blossoms`, `bubbles`, `confetti`, `embers`, `hearts`, `leave
 `moons`, `snow`, `stars` and `waves`. An administrator can also upload their own for a
 custom theme: PNG or WebP, up to 2 MB, 16 to 1024 pixels a side, not animated. SVG is not
 accepted, because it can carry script. An uploaded picture is named by a hash and
-`.png` or `.webp`, and that name goes in `image` where a built-in name would. An app draws
-it from `/plugins/profiles/themes/pattern-files/<image>`. It's removed when no theme uses it.
+`.png` or `.webp`, and that name goes in `image` where a built-in name would, for `pattern`
+and `pattern2` alike. An app draws it from `/plugins/profiles/themes/pattern-files/<image>`.
+It's removed when no theme uses it.
+
+In the editor, each pattern card has an Upload button beside its picture list. The picture
+is then listed as "Your picture" and selected, and the preview draws it.
 
 Every decoration also has to:
 

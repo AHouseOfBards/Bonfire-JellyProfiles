@@ -617,21 +617,21 @@
         const focusScale = num(g(theme.focus, 'scale'), 1);
         const panels = g(theme.layout, 'households') === 'panels';
         const pattern = deco('pattern');
-        const patternImage = pattern && typeof pattern.image === 'string' && patterns
-            && typeof patterns[pattern.image] === 'string' && /^data:image\/svg\+xml,[^"\\]*$/.test(patterns[pattern.image])
-            ? patterns[pattern.image]
+        // The picture a pattern layer draws, for the first pattern and the second alike.
+        const patternPicture = d => d && typeof d.image === 'string' && patterns
+            && typeof patterns[d.image] === 'string' && /^data:image\/svg\+xml,[^"\\]*$/.test(patterns[d.image])
+            ? patterns[d.image]
             // An uploaded picture is named by a hash and served; the built-in ones travel inline.
-            : (pattern && /^[0-9a-f]{32}\.(png|webp)$/.test(String(pattern.image || ''))
-                ? String(typeof pluginUrl === 'function' ? pluginUrl('/plugins/profiles/themes/pattern-files/' + pattern.image) : '/plugins/profiles/themes/pattern-files/' + pattern.image).replace(/["\\\n\r]/g, '')
+            : (d && /^[0-9a-f]{32}\.(png|webp)$/.test(String(d.image || ''))
+                ? String(typeof pluginUrl === 'function' ? pluginUrl('/plugins/profiles/themes/pattern-files/' + d.image) : '/plugins/profiles/themes/pattern-files/' + d.image).replace(/["\\\n\r]/g, '')
                 : null);
+        const patternImage = patternPicture(pattern);
         const patternSize = pattern ? num(pattern.size, 240) : 240;
         // A second pattern, drawn above the first (::after, where the first is ::before). Only a
         // theme that has one gets any of its rules or variables, so every theme without it is
         // written exactly as before. It needs the first: the validator says so, and so does this.
         const pattern2 = patternImage ? deco('pattern2') : null;
-        const pattern2Image = pattern2 && typeof pattern2.image === 'string' && patterns
-            && typeof patterns[pattern2.image] === 'string' && /^data:image\/svg\+xml,[^"\\]*$/.test(patterns[pattern2.image])
-            ? patterns[pattern2.image] : null;
+        const pattern2Image = patternPicture(pattern2);
         const pattern2Size = pattern2Image ? num(pattern2.size, 240) : 240;
         // 0.1 to 1, and 1 (today's look) writes nothing.
         const layerOpacity = d => (d && typeof d.opacity === 'number' && d.opacity >= 0.1 && d.opacity < 1 ? d.opacity : 1);

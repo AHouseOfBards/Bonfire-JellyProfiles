@@ -262,6 +262,31 @@ Ok("a theme names a new upload", File.Exists(Stored(file3)));
 var del = Call(As(true), "DeleteCustomTheme", "other");
 Ok("deleting the theme deletes its picture", Status(del) == 204 && !File.Exists(Stored(file3)), Status(del).ToString());
 
+// ── The second pattern ──────────────────────────────────────────────────────
+JsonObject WithSecond(string id, string first, string second)
+{
+    var t = Custom(id, first);
+    t["decorations"]!.AsArray().Add(new JsonObject { ["name"] = "pattern2", ["image"] = second, ["size"] = 120, ["drift"] = "none" });
+    return t;
+}
+JsonObject NoRevision(JsonObject t) { t.Remove("revision"); return t; }
+var file5 = (string)Body(Call(As(true, Png(200, 200, salt: 5)), "UploadThemePattern"))?["file"];
+Ok("FilesOf finds the second pattern's upload", ThemePattern.FilesOf(WithSecond("two", "snow", file5)).SequenceEqual(new[] { file5 }));
+var two = Call(As(true), "SaveCustomTheme", "two", Json(NoRevision(WithSecond("two", "snow", file5))));
+Ok("a theme whose second pattern is an upload is saved", Status(two) == 200, Body(two)?.ToJsonString());
+File.SetLastWriteTimeUtc(Stored(file5), DateTime.UtcNow - ThemeBackground.UnusedGrace - TimeSpan.FromMinutes(5));
+Ok("the second pattern's picture counts as used", ThemePattern.Named(live).Contains(file5) && !ThemePattern.Unused(live).Contains(file5));
+var twoGone = Call(As(true), "SaveCustomTheme", "two", Json(Save("two", "snow")));
+Ok("saving the second pattern away deletes its file", Status(twoGone) == 200 && !File.Exists(Stored(file5)));
+var file6 = (string)Body(Call(As(true, Png(210, 210, salt: 6)), "UploadThemePattern"))?["file"];
+Call(As(true), "SaveCustomTheme", "two", Json(NoRevision(WithSecond("two", "snow", file6))));
+Call(As(true), "DeleteCustomTheme", "two");
+Ok("deleting the theme deletes the second pattern's file", !File.Exists(Stored(file6)));
+var lost = WithSecond("lost", new string('e', 32) + ".png", new string('f', 32) + ".png");
+Ok("DropMissing takes out a missing second pattern", ThemePattern.DropMissing(lost)
+   && !lost["decorations"]!.AsArray().Any(d => (string)d!["name"]! is "pattern" or "pattern2"));
+Ok("and the theme is valid without them", !Problems(lost).Any(), string.Join(";", Problems(lost).Select(p => p.Path + " " + p.Code)));
+
 // ── Never saved ─────────────────────────────────────────────────────────────
 var stray = (string)Body(Call(As(true, Png(100, 100, salt: 4)), "UploadThemePattern"))?["file"];
 Ok("an upload no theme names is not offered for cleanup within the hour", !ThemePattern.Unused(live).Contains(stray));

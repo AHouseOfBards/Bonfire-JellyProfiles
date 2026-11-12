@@ -97,9 +97,41 @@ namespace Jellyfin.Profiles.Configuration
             return null;
         }
 
+        /// <summary>
+        /// Every uploaded picture a theme file names, from its pattern and its second pattern.
+        /// FileOf alone looked at the first, so a picture uploaded for the second counted as
+        /// unused and was deleted by the next save or cleanup.
+        /// </summary>
+        public static List<string> FilesOf(JsonNode? theme)
+        {
+            var found = new List<string>();
+            if (theme?["decorations"] is not JsonArray list) return found;
+            foreach (var d in list)
+            {
+                if (d is JsonObject o && o["name"] is JsonValue n && n.TryGetValue<string>(out var name) && (name == "pattern" || name == "pattern2")
+                    && o["image"] is JsonValue v && v.TryGetValue<string>(out var f) && IsFileName(f) && !found.Contains(f)) found.Add(f);
+            }
+
+            return found;
+        }
+
+        /// <summary>FilesOf for a stored theme's text; none when it does not parse.</summary>
+        public static List<string> FilesOf(string? json)
+        {
+            if (string.IsNullOrEmpty(json)) return new List<string>();
+            try
+            {
+                return FilesOf(JsonNode.Parse(json));
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return new List<string>();
+            }
+        }
+
         /// <summary>Every uploaded picture the configuration's custom themes name.</summary>
         public static HashSet<string> Named(PluginConfiguration config) =>
-            config.CustomThemes.Select(c => FileOf(c.Json)).Where(f => f != null).Select(f => f!).ToHashSet(StringComparer.Ordinal);
+            config.CustomThemes.SelectMany(c => FilesOf(c.Json)).ToHashSet(StringComparer.Ordinal);
 
         /// <summary>True when <paramref name="file"/> is a stored picture's name and its file is here.</summary>
         public static bool Exists(string? file) =>
@@ -156,11 +188,20 @@ namespace Jellyfin.Profiles.Configuration
             var dropped = false;
             for (var i = list.Count - 1; i >= 0; i--)
             {
-                if (list[i] is not JsonObject o || o["name"] is not JsonValue n || !n.TryGetValue<string>(out var name) || name != "pattern") continue;
+                if (list[i] is not JsonObject o || o["name"] is not JsonValue n || !n.TryGetValue<string>(out var name) || (name != "pattern" && name != "pattern2")) continue;
                 if (o["image"] is JsonValue v && v.TryGetValue<string>(out var f) && IsFileName(f) && !Exists(f))
                 {
                     list.RemoveAt(i);
                     dropped = true;
+                }
+            }
+
+            // A second pattern and a twinkle are drawn on the first; without it they are not valid.
+            if (dropped && !list.Any(x => x is JsonObject p && p["name"] is JsonValue pn && pn.TryGetValue<string>(out var s) && s == "pattern"))
+            {
+                for (var i = list.Count - 1; i >= 0; i--)
+                {
+                    if (list[i] is JsonObject o && o["name"] is JsonValue n && n.TryGetValue<string>(out var name) && (name == "pattern2" || name == "twinkle")) list.RemoveAt(i);
                 }
             }
 

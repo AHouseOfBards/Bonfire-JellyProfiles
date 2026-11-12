@@ -41,6 +41,20 @@ const hash = 'a'.repeat(32);
 ['../' + hash + '.png', hash + '.png"', 'a'.repeat(31) + '.png', 'A'.repeat(32) + '.png', hash + '.png\n'].forEach(n => {
     ok('a name that is not a stored picture\'s draws nothing: ' + JSON.stringify(n), deco_of(gen.themeCss(deco(n), patterns)) === 'none');
 });
+// A second pattern's upload is drawn too; it was only ever looked up among the built-in ones.
+function second(image) {
+    const t = deco('snow');
+    t.decorations.push({ name: 'pattern2', image: image, size: 120, drift: 'none' });
+    return t;
+}
+const var2 = css => { const m = /--jpf-deco2:\s*([^;]*);/.exec(css); return m ? m[1] : null; };
+['.png', '.webp'].forEach(ext => {
+    const got = var2(gen.themeCss(second(hash + ext), patterns));
+    ok('an uploaded second pattern (' + ext + ') is drawn from the pattern route',
+        got === 'url("/plugins/profiles/themes/pattern-files/' + hash + ext + '")', String(got));
+});
+ok('a second pattern naming a path draws nothing', var2(gen.themeCss(second('../' + hash + '.png'), patterns)) === null);
+ok('a built-in second pattern still draws inline', /^url\("data:image\/svg\+xml,/.test(var2(gen.themeCss(second('stars'), patterns)) || ''));
 ok('a built-in name still draws inline', /^url\("data:image\/svg\+xml,/.test(deco_of(gen.themeCss(deco('snow'), patterns)) || ''));
 
 const NAMES = ['blossoms', 'bubbles', 'confetti', 'embers', 'hearts', 'leaves', 'moons', 'snow', 'stars', 'waves'];

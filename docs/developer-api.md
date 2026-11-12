@@ -2517,8 +2517,9 @@ against the profile limit. `?apply=false`, the default, only reports:
 
 `?apply=true` removes them and returns
 `{ "applied": true, "removedMappings": 1, "removedGroups": 0, "removedMembers": 0, "removedImages": 0 }`.
-`unusedImages` in the report, and `removedImages` here, count theme background images no
-custom theme names (uploaded in an editor that was closed without saving).
+`unusedImages` in the report, and `removedImages` here, count theme pictures (background
+images and uploaded pattern pictures) no custom theme names, uploaded in an editor that
+was closed without saving.
 There's no undo. Devices are never removed by this.
 
 ### `GET /plugins/profiles/admin/sessions`

@@ -470,8 +470,8 @@ namespace Jellyfin.Profiles.Controllers
                 var image = ThemeBackground.FileOf(node);
                 if (problems.Count == 0 && image != null && !ThemeBackground.Exists(image))
                     problems.Add(new ThemeProblem("background.image.file", "image", "Upload the image again."));
-                var patternFile = ThemePattern.FileOf(node);
-                if (problems.Count == 0 && patternFile != null && !ThemePattern.Exists(patternFile))
+                var patternFiles = ThemePattern.FilesOf(node);
+                if (problems.Count == 0 && patternFiles.Any(f => !ThemePattern.Exists(f)))
                     problems.Add(new ThemeProblem("decorations", "image", "Upload the pattern picture again."));
                 if (problems.Count > 0)
                 {
@@ -499,7 +499,7 @@ namespace Jellyfin.Profiles.Controllers
                 var before = ThemeBackground.FileOf(existing?.Json);
                 var oldJson = existing?.Json;
                 CustomTheme? added = null;
-                var patternBefore = ThemePattern.FileOf(existing?.Json);
+                var patternsBefore = ThemePattern.FilesOf(existing?.Json);
                 if (existing != null) existing.Json = json;
                 else config.CustomThemes.Add(added = new CustomTheme { Id = id, Json = json });
                 try
@@ -515,7 +515,7 @@ namespace Jellyfin.Profiles.Controllers
                 // After the save, so a save that throws leaves the old picture where the
                 // configuration still names it.
                 if (before != image) DropUnusedBackground(before, config);
-                if (patternBefore != patternFile) DropUnusedPattern(patternBefore, config);
+                foreach (var gone in patternsBefore.Where(f => !patternFiles.Contains(f))) DropUnusedPattern(gone, config);
                 return Ok(new { id, created = existing == null });
             }
         }
@@ -551,7 +551,7 @@ namespace Jellyfin.Profiles.Controllers
                     throw;
                 }
                 DropUnusedBackground(ThemeBackground.FileOf(existing.Json), config);
-                DropUnusedPattern(ThemePattern.FileOf(existing.Json), config);
+                foreach (var gone in ThemePattern.FilesOf(existing.Json)) DropUnusedPattern(gone, config);
             }
 
             return NoContent();

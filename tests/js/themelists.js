@@ -88,6 +88,59 @@ async function main() {
         await ev(CLICK(on('pattern')));
         ok('and back on, it is what it was', (await draft('decorations.0.size')) === 100);
 
+        // 2b. Uploading a picture for a pattern.
+        const HASH = 'ab'.repeat(16) + '.png', HASH2 = 'cd'.repeat(16) + '.webp';
+        const upBtn = p => Q(`#teAdvancedFields [data-pattern-act="${p}"]`);
+        const select = p => path(p);
+        const optionOf = (p, v) => `([].slice.call(${select(p)}.options).filter(function (o) { return o.value === ${JSON.stringify(v)}; })[0] || null)`;
+        // What the page sends is recorded; the reply is whatever the test says.
+        await ev(`(function(){ window.__patternPosts = []; window.__patternReply = null; var f = window.fetch;
+            window.fetch = function (u, o) { if (/admin\\/themes\\/patterns/.test(String(u))) { window.__patternPosts.push({ type: o.headers['Content-Type'], size: o.body.size }); return Promise.resolve(window.__patternReply); } return f.apply(this, arguments); }; })()`);
+        const choose = (p, type, size) => ev(`(function(){ var b = ${upBtn(p)}; var i = b.parentNode.querySelector('.jpf-te-pattern-file'); i.setAttribute('data-for', ${JSON.stringify(p)});
+            var dt = new DataTransfer(); dt.items.add(new File([new Uint8Array(${size || 10})], 'x', { type: ${JSON.stringify(type)} })); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+        const note = p => ev(`${upBtn(p)}.parentNode.querySelector('.jpf-te-pattern-note').textContent`);
+        ok('each pattern card has an Upload control beside the picture list', (await ev(`!!${upBtn('decorations.0.image')} && !!${upBtn('decorations.0.image')}.parentNode.querySelector('.jpf-te-pattern-file')`)) === true);
+        const hint = await note('decorations.0.image');
+        ok('with a short hint saying what it takes', /PNG or WebP/.test(hint), hint);
+        ok('the file chooser takes PNG and WebP only', (await ev(`${upBtn('decorations.0.image')}.parentNode.querySelector('.jpf-te-pattern-file').accept`)) === 'image/png,image/webp');
+        const before = await draft('decorations.0.image');
+        await choose('decorations.0.image', 'image/jpeg');
+        await wait(100);
+        ok('a JPEG is refused on the page, and nothing is sent', (await ev('window.__patternPosts.length')) === 0 && (await draft('decorations.0.image')) === before);
+        ok('with the reason under the card', /PNG or WebP/.test(await note('decorations.0.image')) && (await note('decorations.0.image')) !== hint, await note('decorations.0.image'));
+        await choose('decorations.0.image', 'image/png', 2 * 1048576 + 1);
+        await wait(100);
+        ok('a picture over 2 MB is refused on the page too', (await ev('window.__patternPosts.length')) === 0 && /2 MB/.test(await note('decorations.0.image')), await note('decorations.0.image'));
+        await ev(`window.__patternReply = new Response('Use a PNG or WebP image.', { status: 400 })`);
+        await choose('decorations.0.image', 'image/png');
+        await wait(300);
+        ok('a refusal from the server is shown, and the draft is untouched', (await ev('window.__patternPosts.length')) === 1 && (await draft('decorations.0.image')) === before
+            && (await note('decorations.0.image')) !== hint);
+        await ev(`window.__patternReply = new Response(JSON.stringify({ file: ${JSON.stringify(HASH)} }), { status: 200, headers: { 'Content-Type': 'application/json' } })`);
+        await choose('decorations.0.image', 'image/png');
+        await wait(300);
+        ok('an upload is sent as the file itself, with its type', (await ev('window.__patternPosts.length')) === 2 && (await ev('window.__patternPosts[1].type')) === 'image/png');
+        ok('and the pattern then names the stored file', (await draft('decorations.0.image')) === HASH, await draft('decorations.0.image'));
+        ok('the list offers it, selected, as "Your picture"', (await ev(`${select('decorations.0.image')}.value`)) === HASH
+            && (await ev(`${optionOf('decorations.0.image', HASH)}.textContent`)) === 'Your picture');
+        ok('and the picture name is not shown as a file name anywhere in the card', (await ev(`${Q('#teAdvancedFields [data-list="decorations"]')}.textContent.indexOf(${JSON.stringify(HASH)})`)) === -1);
+        await ev(CLICK(on('pattern2')));
+        ok('the second pattern can pick the first one\'s upload', (await ev(`!!${optionOf('decorations.1.image', HASH)}`)) === true);
+        await ev(`window.__patternReply = new Response(JSON.stringify({ file: ${JSON.stringify(HASH2)} }), { status: 200, headers: { 'Content-Type': 'application/json' } })`);
+        await choose('decorations.1.image', 'image/webp');
+        await wait(300);
+        ok('the second pattern takes its own upload', (await draft('decorations.1.image')) === HASH2 && (await draft('decorations.0.image')) === HASH);
+        ok('two uploads are told apart', (await ev(`${optionOf('decorations.0.image', HASH)}.textContent`)) !== (await ev(`${optionOf('decorations.0.image', HASH2)}.textContent`)));
+        await ev(CLICK(on('pattern2'))); // off again
+        // A theme that already names an uploaded file shows it selected when opened.
+        await ev(CLICK(Q('#teAdvancedFields .jpf-te-jsonbtn[data-list="decorations"]')));
+        await ev(SET(path('decorations'), JSON.stringify([{ name: 'pattern', image: 'ef'.repeat(16) + '.png', size: 240, drift: 'none' }])));
+        await ev(CLICK(Q('#teAdvancedFields .jpf-te-jsonbtn[data-list="decorations"]')));
+        ok('a theme naming an uploaded file shows it selected', (await ev(`${select('decorations.0.image')}.value`)) === 'ef'.repeat(16) + '.png'
+            && (await ev(`${select('decorations.0.image')}.selectedOptions[0].textContent`)).indexOf('Your picture') === 0);
+        await ev(CLICK(on('pattern'))); await ev(CLICK(on('pattern')));
+        await ev(SET(path('decorations.0.size'), '100'));
+
         // 3. Rings.
         await ev(CLICK(on('rings')));
         const ri = (await draft('decorations')).length - 1;
