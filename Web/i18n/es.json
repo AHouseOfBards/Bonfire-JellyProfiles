@@ -1379,5 +1379,12 @@
   "admin.themes.fileDownload": "Descargar archivo del tema",
   "admin.themes.fileLoad": "Cargar archivo de tema",
   "admin.themes.fileTooBig": "Ese archivo supera los 256 KB.",
-  "admin.themes.deco.missing": "Falta la imagen"
+  "admin.themes.deco.missing": "Falta la imagen",
+  "admin.themes.changed": "Cambiado",
+  "admin.themes.reset": "Restablecer",
+  "admin.themes.resetFor": "Restablecer {name}",
+  "admin.themes.resetGroup": "Restablecer el grupo",
+  "admin.themes.nChanged": "{n} cambiados",
+  "admin.themes.baseTitle": "Partir de otro tema",
+  "admin.themes.baseConfirm": "Esto reemplaza tus cambios por el aspecto de ese tema."
 }

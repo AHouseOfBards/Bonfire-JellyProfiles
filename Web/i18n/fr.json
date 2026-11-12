@@ -1379,5 +1379,12 @@
   "admin.themes.fileDownload": "Télécharger le fichier du thème",
   "admin.themes.fileLoad": "Charger un fichier de thème",
   "admin.themes.fileTooBig": "Ce fichier dépasse 256 Ko.",
-  "admin.themes.deco.missing": "Image manquante"
+  "admin.themes.deco.missing": "Image manquante",
+  "admin.themes.changed": "Modifié",
+  "admin.themes.reset": "Rétablir",
+  "admin.themes.resetFor": "Rétablir {name}",
+  "admin.themes.resetGroup": "Rétablir le groupe",
+  "admin.themes.nChanged": "{n} modifiés",
+  "admin.themes.baseTitle": "Partir d'un autre thème",
+  "admin.themes.baseConfirm": "Cela remplace vos modifications par l'aspect de ce thème."
 }

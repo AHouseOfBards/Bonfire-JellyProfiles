@@ -1379,5 +1379,12 @@
   "admin.themes.fileDownload": "Pobierz plik motywu",
   "admin.themes.fileLoad": "Wczytaj plik motywu",
   "admin.themes.fileTooBig": "Ten plik ma ponad 256 KB.",
-  "admin.themes.deco.missing": "Brak obrazu"
+  "admin.themes.deco.missing": "Brak obrazu",
+  "admin.themes.changed": "Zmieniono",
+  "admin.themes.reset": "Przywróć",
+  "admin.themes.resetFor": "Przywróć: {name}",
+  "admin.themes.resetGroup": "Przywróć grupę",
+  "admin.themes.nChanged": "Zmieniono: {n}",
+  "admin.themes.baseTitle": "Zacznij od innego motywu",
+  "admin.themes.baseConfirm": "To zastąpi Twoje zmiany wyglądem tego motywu."
 }

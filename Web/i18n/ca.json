@@ -1379,5 +1379,12 @@
   "admin.themes.fileDownload": "Baixa el fitxer del tema",
   "admin.themes.fileLoad": "Carrega un fitxer de tema",
   "admin.themes.fileTooBig": "Aquest fitxer supera els 256 KB.",
-  "admin.themes.deco.missing": "Falta la imatge"
+  "admin.themes.deco.missing": "Falta la imatge",
+  "admin.themes.changed": "Canviat",
+  "admin.themes.reset": "Restableix",
+  "admin.themes.resetFor": "Restableix {name}",
+  "admin.themes.resetGroup": "Restableix el grup",
+  "admin.themes.nChanged": "{n} canviats",
+  "admin.themes.baseTitle": "Parteix d'un altre tema",
+  "admin.themes.baseConfirm": "Això substitueix els teus canvis per l'aspecte d'aquell tema."
 }

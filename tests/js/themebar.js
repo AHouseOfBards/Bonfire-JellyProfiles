@@ -250,6 +250,75 @@ async function main() {
         await ev("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = true; })");
         await ev(frame);
 
+        // 6. Changed markers and reset (2026-11-12, round 2).
+        const ROWS = "'#teAdvancedFields .jpf-te-adv'";
+        const CHANGED = "document.querySelectorAll('#teAdvancedFields .jpf-te-adv.is-changed').length";
+        const SLIDERS = '#teAdvancedFields .jpf-te-adv > .jpf-te-pair input[type="range"][data-path]';
+        const slide = (n, v) => ev(`(function(){ var e = document.querySelectorAll(${JSON.stringify(SLIDERS)})[${n}]; e.value = ${JSON.stringify(String(v))}; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+        ok('a theme as it opened has no changed rows and no counts', (await ev(CHANGED)) === 0 && (await ev("[].slice.call(document.querySelectorAll('#teAdvancedFields .jpf-te-gcount')).every(function (g) { return g.textContent === ''; })")) === true);
+        const orig = await ev(DRAFTJ);
+        const g0 = await ev(`document.querySelectorAll(${JSON.stringify(SLIDERS)})[0].closest('details').getAttribute('data-group')`);
+        const first = await ev(`document.querySelectorAll(${JSON.stringify(SLIDERS)})[0].value`);
+        await slide(0, Number(await ev(`document.querySelectorAll(${JSON.stringify(SLIDERS)})[0].max`)));
+        await wait(100);
+        const mk = await ev(`(function(){ var r = document.querySelectorAll(${JSON.stringify(SLIDERS)})[0].closest('.jpf-te-adv'); var g = r.closest('details'); var d = r.querySelector('.jpf-te-dot');
+            return { changed: r.classList.contains('is-changed'), dot: getComputedStyle(d).display !== 'none' && d.getBoundingClientRect().width > 0, reset: r.querySelector('.jpf-te-reset').getBoundingClientRect().width > 0,
+              count: g.querySelector('.jpf-te-gcount').textContent, tools: !g.querySelector('.jpf-te-gtools').classList.contains('jpf-hidden'), others: document.querySelectorAll('#teAdvancedFields .jpf-te-adv.is-changed').length }; })()`);
+        ok('a changed row shows a dot and its own reset', mk.changed && mk.dot && mk.reset && mk.others === 1, JSON.stringify(mk));
+        ok('its group header says "1 changed" and offers Reset group', mk.count === '1 changed' && mk.tools, JSON.stringify(mk));
+        const dChanged = await ev(DRAFTJ);
+        const depthA = await ev(DEPTH);
+        await ev(CLICK(`document.querySelectorAll(${JSON.stringify(SLIDERS)})[0].closest('.jpf-te-adv').querySelector('.jpf-te-reset')`));
+        await wait(150);
+        ok('Reset puts the one value back', (await ev(DRAFTJ)) === orig && (await ev(CHANGED)) === 0 && (await ev(`document.querySelectorAll(${JSON.stringify(SLIDERS)})[0].value`)) === first);
+        ok('and is one undo step', (await ev(DEPTH)) === depthA + 1);
+        await ev(CLICK(Q('#teUndo')));
+        ok('Undo brings the change back, marked', (await ev(DRAFTJ)) === dChanged && (await ev(CHANGED)) === 1);
+        await ev(CLICK(Q('#teUndo')));
+        // A value put back by hand is not changed any more.
+        await slide(0, Number(first));
+        await wait(100);
+        ok('a value put back by hand clears its mark', (await ev(CHANGED)) === 0);
+        // Reset group, over two rows of one group.
+        const two = await ev(`(function(){ var s = [].slice.call(document.querySelectorAll(${JSON.stringify(SLIDERS)})); var by = {}; s.forEach(function (e, i) { var g = e.closest('details').getAttribute('data-group'); (by[g] = by[g] || []).push(i); });
+            var k = Object.keys(by).filter(function (g) { return by[g].length >= 2; })[0]; return k ? by[k].slice(0, 2).concat([k]) : null; })()`);
+        ok('the test found a group with two sliders', !!two);
+        await slide(two[0], Number(await ev(`document.querySelectorAll(${JSON.stringify(SLIDERS)})[${two[0]}].max`)));
+        await slide(two[1], Number(await ev(`document.querySelectorAll(${JSON.stringify(SLIDERS)})[${two[1]}].max`)));
+        await wait(100);
+        const cnt = await ev(`document.querySelector('#teAdvancedFields details[data-group="${two[2]}"] .jpf-te-gcount').textContent`);
+        ok('two changes in a group read "2 changed"', cnt === '2 changed', cnt + ' ' + JSON.stringify(two));
+        const depthB = await ev(DEPTH);
+        await ev(CLICK(`document.querySelector('#teAdvancedFields details[data-group="${two[2]}"] [data-reset-group]')`));
+        await wait(150);
+        ok('Reset group puts every changed value in the group back', (await ev(DRAFTJ)) === orig && (await ev(CHANGED)) === 0);
+        ok('as one undo step', (await ev(DEPTH)) === depthB + 1);
+        await ev(CLICK(Q('#teUndo')));
+        ok('which Undo takes back whole', (await ev(CHANGED)) === 2);
+        await ev(CLICK(Q('#teUndo')));
+        await ev(CLICK(Q('#teUndo')));
+        // Changing Start from asks first when there are edits.
+        await ev("window.__confirms = []; window.__answer = false; Dashboard.confirm = function (m, t, cb) { window.__confirms.push(m); cb(window.__answer); }; 0");
+        const baseOpts = await ev("[].slice.call(document.getElementById('teBase').options).map(function (o) { return o.value; })");
+        const baseWas = await ev("document.getElementById('teBase').value");
+        const other = baseOpts.filter(v => v && v !== baseWas)[0];
+        await slide(0, Number(await ev(`document.querySelectorAll(${JSON.stringify(SLIDERS)})[0].max`)));
+        const edited = await ev(DRAFTJ);
+        await ev(SET(Q('#teBase'), other, 'change'));
+        await wait(200);
+        ok('changing Start from with edits asks first', (await ev('window.__confirms.length')) === 1);
+        ok('and Cancel leaves the draft and the choice as they were', (await ev(DRAFTJ)) === edited && (await ev("document.getElementById('teBase').value")) === baseWas, baseOpts.join() + ' | was ' + baseWas + ' | now ' + await ev("document.getElementById('teBase').value"));
+        await ev("window.__answer = true; 0");
+        await ev(SET(Q('#teBase'), other, 'change'));
+        await wait(300);
+        ok('OK takes the new theme, and nothing is marked changed against it', (await ev(DRAFTJ)) !== edited && (await ev(CHANGED)) === 0);
+        const nBefore = await ev('window.__confirms.length');
+        const third = baseOpts.filter(v => v && v !== other)[0];
+        ok('the test found a third starting theme', !!third, baseOpts.join());
+        await ev(SET(Q('#teBase'), third, 'change'));
+        await wait(200);
+        ok('with no edits it does not ask', (await ev('window.__confirms.length')) === nBefore && (await ev("document.getElementById('teBase').value")) === third);
+
         // 3. At 480 px the bar still fits, with the rare buttons behind the "..." menu.
         await c.page('Emulation.setDeviceMetricsOverride', { width: 480, height: 800, deviceScaleFactor: 1, mobile: false });
         await wait(300);

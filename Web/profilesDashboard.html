@@ -644,6 +644,16 @@
         display: grid; grid-template-columns: minmax(0, 1fr);
         align-items: center; gap: 4px 12px; padding: 6px 0;
     }
+    #profilesConfigurationPage .jpf-te-adv { position: relative; }
+    /* A changed row: a dot and a Reset at its top right, and room for them beside the name. */
+    #profilesConfigurationPage .jpf-te-marks { display: none; position: absolute; top: 6px; right: 0; align-items: center; gap: 6px; }
+    #profilesConfigurationPage .jpf-te-adv.is-changed > .jpf-te-marks { display: inline-flex; }
+    #profilesConfigurationPage .jpf-te-adv.is-changed > .jpf-te-adv-label { padding-right: 6em; }
+    #profilesConfigurationPage .jpf-te-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--jpf-accent); display: inline-block; }
+    #profilesConfigurationPage .jpf-te-reset { padding: 1px 8px; font-size: 0.8rem; }
+    #profilesConfigurationPage .jpf-te-gcount { margin-left: 0.6em; font-weight: 400; font-size: 0.85rem; opacity: 0.75; }
+    #profilesConfigurationPage .jpf-te-gtools { margin: 0 0 4px; }
+    #profilesConfigurationPage .jpf-te-gtools.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-te-adv .jpf-te-msg { grid-column: 1; }
     /* Each Advanced field says how it is filled, under its control. */
     #profilesConfigurationPage .jpf-te-adv .jpf-te-hint { grid-column: 1; margin: 0 0 4px; padding: 0; }
@@ -2296,6 +2306,13 @@
                 'admin.themes.deco.uploadHint': 'PNG or WebP, up to 2 MB.',
                 'admin.themes.deco.yourPicture': 'Your picture',
                 'admin.themes.deco.missing': 'Missing picture',
+                'admin.themes.changed': 'Changed',
+                'admin.themes.reset': 'Reset',
+                'admin.themes.resetFor': 'Reset {name}',
+                'admin.themes.resetGroup': 'Reset group',
+                'admin.themes.nChanged': '{n} changed',
+                'admin.themes.baseTitle': 'Start from another theme',
+                'admin.themes.baseConfirm': 'This replaces your changes with that theme\'s look.',
                 'admin.themes.fileTooBig': 'That file is over 256 KB.',
                 'admin.themes.deco.yourPictureN': 'Your picture {n}',
                 'admin.themes.deco.err.type': 'Choose a PNG or WebP image.',
@@ -5291,7 +5308,9 @@
                 const ed = {
                     mode: mode, draft: draft, view: 'simple',
                     seq: 0, timer: null, problems: [], jsonErrors: {},
-                    revision: typeof draft.revision === 'number' ? draft.revision : 0
+                    revision: typeof draft.revision === 'number' ? draft.revision : 0,
+                    // What "changed" is measured from: the theme as it opened.
+                    origin: JSON.parse(JSON.stringify(draft)), baseKey: ''
                 };
                 page._themeEditor = ed;
                 themeHistoryInit(ed);
@@ -5311,6 +5330,7 @@
                 const bases = themeBases(page);
                 page.querySelector('#teBaseBox').classList.toggle('jpf-hidden', mode !== 'new' || !bases.length);
                 const fromKey = bases.some(function (b) { return b.key === baseKey; }) ? baseKey : '';
+                ed.baseKey = fromKey;
                 fillSelect(page.querySelector('#teBase'), (fromKey ? [] : [['', '—']]).concat(bases.map(function (b) { return [b.key, b.name]; })), fromKey);
                 page.querySelector('#teName').value = typeof nameText === 'string' ? nameText : '';
 
@@ -6197,6 +6217,70 @@
                 if (/^decorations\.\d+\.image$/.test(path)) rebuildThemeLists(page);
             }
 
+            // ── Changed values and reset ──────────────────────────────────────────
+            // ed.origin is the theme the editor opened on, or the one "Start from" last put
+            // in. A row is changed when any path it owns differs from that; the compare is by
+            // value, so putting a value back by hand clears its mark.
+            function themeValueKey(v) {
+                // An absent list and an empty one are the same theme.
+                return v === undefined || (Array.isArray(v) && !v.length) ? '' : JSON.stringify(v);
+            }
+
+            function themeRowChanged(ed, row) {
+                return (row.getAttribute('data-paths') || '').split(' ').some(function (p) {
+                    return p && themeValueKey(getThemePath(ed.draft, p)) !== themeValueKey(getThemePath(ed.origin, p));
+                });
+            }
+
+            /// Whether the draft differs from where it started, apart from what the form
+            /// above the fields holds (name, id) and what Bonfire keeps itself.
+            function themeDraftEdited(ed) {
+                const strip = function (o) {
+                    const c = JSON.parse(JSON.stringify(o || {}));
+                    ['id', 'name', 'revision', 'aliases', 'schema'].forEach(function (k) { delete c[k]; });
+                    return JSON.stringify(c);
+                };
+                return strip(ed.draft) !== strip(ed.origin);
+            }
+
+            function themeRowMarksHtml(path) {
+                const name = themeFieldName(path);
+                return '<span class="jpf-te-marks"><span class="jpf-te-dot" title="' + escapeHtml(t('admin.themes.changed')) + '" aria-label="' + escapeHtml(t('admin.themes.changed')) + '" role="img"></span>' +
+                    '<button type="button" class="jpf-te-lbtn jpf-te-reset" data-reset="1" aria-label="' + escapeHtml(t('admin.themes.resetFor', { name: name })) + '">' + escapeHtml(t('admin.themes.reset')) + '</button></span>';
+            }
+
+            /// The dots, the "N changed" on each group and Reset group, from the draft.
+            function themeChangeMarks(page) {
+                const ed = page._themeEditor;
+                if (!ed || !ed.origin || ed.view !== 'advanced') return;
+                Array.prototype.forEach.call(page.querySelectorAll('#teAdvancedFields details.jpf-te-group'), function (g) {
+                    let n = 0;
+                    Array.prototype.forEach.call(g.querySelectorAll('.jpf-te-adv'), function (row) {
+                        const changed = themeRowChanged(ed, row);
+                        row.classList.toggle('is-changed', changed);
+                        if (changed) n++;
+                    });
+                    g.querySelector('.jpf-te-gcount').textContent = n ? t('admin.themes.nChanged', { n: n }) : '';
+                    g.querySelector('.jpf-te-gtools').classList.toggle('jpf-hidden', !n);
+                });
+            }
+
+            /// Puts each given row's values back to the origin's: one undo step.
+            function resetThemeRows(page, rows) {
+                const ed = page._themeEditor;
+                if (!ed || !ed.origin) return;
+                rows.forEach(function (row) {
+                    (row.getAttribute('data-paths') || '').split(' ').forEach(function (p) {
+                        if (!p) return;
+                        const v = getThemePath(ed.origin, p);
+                        setThemePath(ed.draft, p, v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
+                    });
+                });
+                closeColorPopup(page, false);
+                fillThemeEditor(page);
+                themeDraftChanged(page, true);
+            }
+
             /// Advanced's fields, built once: they are the same for every theme.
             function buildThemeAdvanced(page) {
                 const simplePhoto = page.querySelector('#teSimplePhoto');
@@ -6208,11 +6292,12 @@
                 const openGroups = themeOpenGroups();
                 box.innerHTML = themeFieldList().map(function (group, g) {
                     return '<details class="jpf-te-group" data-group="' + group[0] + '"' + (openGroups.indexOf(group[0]) !== -1 ? ' open' : '') + '><summary>' +
-                        escapeHtml(t(group[0])) + '</summary>' +
+                        escapeHtml(t(group[0])) + '<span class="jpf-te-gcount"></span></summary>' +
+                        '<div class="jpf-te-gtools jpf-hidden"><button type="button" class="jpf-te-lbtn" data-reset-group="1">' + escapeHtml(t('admin.themes.resetGroup')) + '</button></div>' +
                         group[1].map(function (f) {
                             const path = f[0], kind = f[1], opt = f[2];
                             const search = escapeHtml((themeFieldName(path) + ' ' + path).toLowerCase());
-                            if (kind === 'photo') return '<div class="jpf-te-field jpf-te-adv jpf-te-photo" data-paths="' + path + '" data-search="' + search + '">' + themePhotoControlHtml() + '</div>';
+                            if (kind === 'photo') return '<div class="jpf-te-field jpf-te-adv jpf-te-photo" data-paths="' + path + '" data-search="' + search + '">' + themePhotoControlHtml() + themeRowMarksHtml(path) + '</div>';
                             const id = 'teField' + (n++);
                             const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '"';
                             const colourPair = function (p, a) {
@@ -6265,7 +6350,7 @@
                             return '<div class="jpf-te-field jpf-te-adv" data-paths="' + path + '" data-search="' + search + '">' +
                                 '<label class="jpf-te-adv-label" for="' + id + '"><span class="jpf-te-adv-name">' + escapeHtml(themeFieldName(path)) +
                                 '</span><code>' + path + '</code></label>' + control +
-                                (hintHtml ? '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div>' : '') + '</div>';
+                                (hintHtml ? '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div>' : '') + themeRowMarksHtml(path) + '</div>';
                         }).join('') + '</details>';
                 }).join('');
                 // Which groups are open is remembered per viewer. A toggle does not bubble, so
@@ -6275,6 +6360,17 @@
                     if (box.dataset.searching) return;
                     themeSaveOpenGroups(box);
                 }, true);
+                box.addEventListener('click', function (e) {
+                    const b = e.target.closest ? e.target.closest('[data-reset], [data-reset-group]') : null;
+                    if (!b) return;
+                    if (b.hasAttribute('data-reset-group')) {
+                        resetThemeRows(page, Array.prototype.filter.call(b.closest('details').querySelectorAll('.jpf-te-adv'), function (r) {
+                            return page._themeEditor && themeRowChanged(page._themeEditor, r);
+                        }));
+                    } else {
+                        resetThemeRows(page, [b.closest('.jpf-te-adv')]);
+                    }
+                });
                 const search = page.querySelector('#teSearch');
                 search.addEventListener('input', function () { themeFilterAdvanced(page); });
                 search.addEventListener('keydown', function (e) {
@@ -6452,11 +6548,25 @@
                     const base = themeBases(page).filter(function (b) { return b.key === el.value; })[0];
                     if (!base) return false;
                     // A new look under the name and id already typed.
-                    const keep = { id: draft.id, name: draft.name };
-                    ed.draft = newThemeDraft(base.theme, '', []);
-                    ed.draft.id = keep.id;
-                    ed.draft.name = keep.name;
-                    fillThemeEditor(page);
+                    const apply = function () {
+                        const keep = { id: ed.draft.id, name: ed.draft.name };
+                        ed.draft = newThemeDraft(base.theme, '', []);
+                        ed.draft.id = keep.id;
+                        ed.draft.name = keep.name;
+                        // The new theme is what "changed" is measured from now.
+                        ed.origin = JSON.parse(JSON.stringify(ed.draft));
+                        ed.baseKey = el.value;
+                        fillThemeEditor(page);
+                    };
+                    // Edits made on the old look would be lost without a word.
+                    if (themeDraftEdited(ed)) {
+                        Dashboard.confirm(t('admin.themes.baseConfirm'), t('admin.themes.baseTitle'), function (yes) {
+                            if (page._themeEditor !== ed) return;
+                            if (yes) { apply(); themeDraftChanged(page, true); } else el.value = ed.baseKey;
+                        });
+                        return false;
+                    }
+                    apply();
                 } else if (el.getAttribute('data-deco-on')) {
                     toggleThemeDeco(page, el.getAttribute('data-deco-on'), el.checked);
                     rebuildThemeLists(page);
@@ -6581,6 +6691,7 @@
                     count.classList.toggle('is-ok', problems.length === 0);
                 }
                 syncThemePhoto(page);
+                themeChangeMarks(page);
             }
 
             /// The bar's count: to the first field with a problem. Simple has only some of the

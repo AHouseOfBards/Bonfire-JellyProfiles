@@ -1379,5 +1379,12 @@
   "admin.themes.fileDownload": "Tema dosyasını indir",
   "admin.themes.fileLoad": "Tema dosyası yükle",
   "admin.themes.fileTooBig": "Bu dosya 256 KB'tan büyük.",
-  "admin.themes.deco.missing": "Resim eksik"
+  "admin.themes.deco.missing": "Resim eksik",
+  "admin.themes.changed": "Değişti",
+  "admin.themes.reset": "Sıfırla",
+  "admin.themes.resetFor": "{name} değerini sıfırla",
+  "admin.themes.resetGroup": "Grubu sıfırla",
+  "admin.themes.nChanged": "{n} değişti",
+  "admin.themes.baseTitle": "Başka bir temadan başla",
+  "admin.themes.baseConfirm": "Bu, değişikliklerinizi o temanın görünümüyle değiştirir."
 }
