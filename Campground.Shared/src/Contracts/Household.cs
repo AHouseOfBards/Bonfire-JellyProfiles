@@ -64,10 +64,38 @@ namespace Campground.Shared.Contracts
     /// <summary>Arguments of <c>getHousehold</c>.</summary>
     internal sealed record HouseholdQuery(Guid UserId);
 
+    /// <summary>Arguments of <c>getSignInPolicy</c>. The answer is about the server; the user is context.</summary>
+    internal sealed record SignInPolicyQuery(Guid? UserId);
+
+    /// <summary>
+    /// What Bonfire's sign-in lets through (minor 1), asked by a plugin that exposes Bonfire to the internet
+    /// (Trailhead, Coordination #31).
+    /// </summary>
+    /// <param name="PinLoginFromAnywhere">True when Bonfire's sign-in on other apps also works from outside the home
+    /// network for two kinds of profile: one with no PIN, which then opens with no PIN at all, and one limited to some
+    /// devices, which then trusts the device id the app sends, and anyone can copy that. A profile with a PIN and no
+    /// device list is the same either way: it always asks for its PIN. False when PIN login on other apps is off.</param>
+    internal sealed record SignInPolicy(bool PinLoginFromAnywhere);
+
     /// <summary>Calls <c>campground.household.v1</c> (provided by Bonfire).</summary>
     internal static class HouseholdClient
     {
         internal const string GetHouseholdOp = "getHousehold";
+
+        /// <summary>The operation that reports <see cref="SignInPolicy"/>.</summary>
+        internal const string GetSignInPolicyOp = "getSignInPolicy";
+
+        /// <summary>The capability minor that added <see cref="GetSignInPolicyOp"/>, with <c>SharingGroup</c>.</summary>
+        internal const int SignInPolicyMinor = 1;
+
+        /// <summary>
+        /// Bonfire's sign-in policy, or null when Bonfire is missing, too old to have the operation, disabled or
+        /// slow. Fail open: a caller that gets null must act as though it doesn't know, not as though PIN login
+        /// is off.
+        /// </summary>
+        internal static Task<SignInPolicy?> GetSignInPolicyAsync(Guid? userId = null, CancellationToken ct = default)
+            => Capabilities.TryInvokeAsync<SignInPolicy>(
+                CapabilityNames.Household, GetSignInPolicyOp, new SignInPolicyQuery(userId), SignInPolicyMinor, ct: ct);
 
         /// <summary>The user's household, or a household of one when Bonfire is missing or slow.</summary>
         internal static async Task<Household> GetAsync(Guid userId, string? fallbackName = null, CancellationToken ct = default, int minMinor = 0)
@@ -84,5 +112,20 @@ namespace Campground.Shared.Contracts
                 pluginId,
                 minor,
                 new CapabilityHost().On<HouseholdQuery, Household?>(GetHouseholdOp, (q, ct) => getHousehold(q.UserId, ct)).Build());
+
+        /// <summary>For the provider: offers the capability with <see cref="GetSignInPolicyOp"/> too.</summary>
+        internal static void Provide(
+            string pluginId,
+            int minor,
+            Func<Guid, CancellationToken, Task<Household?>> getHousehold,
+            Func<Guid?, CancellationToken, Task<SignInPolicy?>> getSignInPolicy)
+            => Capabilities.Provide(
+                CapabilityNames.Household,
+                pluginId,
+                minor,
+                new CapabilityHost()
+                    .On<HouseholdQuery, Household?>(GetHouseholdOp, (q, ct) => getHousehold(q.UserId, ct))
+                    .On<SignInPolicyQuery, SignInPolicy?>(GetSignInPolicyOp, (q, ct) => getSignInPolicy(q.UserId, ct))
+                    .Build());
     }
 }
