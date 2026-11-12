@@ -18,7 +18,7 @@ function ok(name, cond, detail) {
 }
 
 const script = L.dashboardScript(fs.readFileSync(process.argv[2] || L.dashboardPath(), 'utf8'));
-const src = ['escapeHtml', 'renderOrphans'].map(n => L.extractFunction(script, n)).join('\n');
+const src = ['escapeHtml', 'orphanReasonText', 'renderOrphans'].map(n => L.extractFunction(script, n)).join('\n');
 
 function run(ajaxOutcome) {
     const calls = { status: 0, mappings: 0 };

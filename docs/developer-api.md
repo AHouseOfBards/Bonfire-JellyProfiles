@@ -2508,7 +2508,7 @@ against the profile limit. `?apply=false`, the default, only reports:
 ```json
 {
   "applied": false,
-  "orphans": [{ "profileUserId": "a90f11cb-…", "masterUserId": "5f2c8a11-…", "profileName": "Sam", "reason": "the profile's Jellyfin user was deleted" }],
+  "orphans": [{ "profileUserId": "a90f11cb-…", "masterUserId": "5f2c8a11-…", "profileName": "Sam", "reason": "the profile's Jellyfin user was deleted", "reasonCode": "profile_deleted" }],
   "deadGroups": [],
   "deadMembers": [],
   "unusedImages": 0

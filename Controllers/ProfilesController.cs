@@ -1450,9 +1450,12 @@ namespace Jellyfin.Profiles.Controllers
                         profileUserId = m.ProfileUserId,
                         masterUserId = m.MasterUserId,
                         profileName = m.ProfileName,
+                        // The English line is for API callers; the dashboard maps the code to
+                        // its own language and never shows this one.
                         reason = !Exists(m.ProfileUserId)
                             ? "the profile's Jellyfin user was deleted"
-                            : "the master account was deleted"
+                            : "the master account was deleted",
+                        reasonCode = !Exists(m.ProfileUserId) ? "profile_deleted" : "master_deleted"
                     })
                     .ToList();
 

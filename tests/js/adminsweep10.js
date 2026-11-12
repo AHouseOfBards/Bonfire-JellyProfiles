@@ -180,7 +180,7 @@ function pageOf(map) {
         const named = await run({ name: '  Fox  .png' });
         ok('the display name is trimmed', named.sent.length === 1 && JSON.parse(named.sent[0].data).displayName === 'Fox', named.sent[0] && named.sent[0].data);
         const blank = await run({ name: '   .png' });
-        ok('a blank name falls back to Avatar', blank.sent.length === 1 && JSON.parse(blank.sent[0].data).displayName === 'Avatar');
+        ok('a blank name falls back to the translated default name', blank.sent.length === 1 && JSON.parse(blank.sent[0].data).displayName === 'admin.avatars.defaultName');
         const refused = await run({ name: 'a.png' }, { status: 400, headers: { get: h => h === 'X-Bonfire-Error' ? 'image_invalid' : null } });
         ok('the server\'s own reason is shown when it gave one', refused.error && refused.error.message === 'admin.err.imageInvalid', refused.error && refused.error.message);
         const plain = await run({ name: 'a.png' }, { status: 500, headers: { get: () => null } });

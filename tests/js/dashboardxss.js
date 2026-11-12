@@ -117,7 +117,7 @@ console.log('\n── The signed-in sessions list ──────────
 
 console.log('\n── The orphan scan ─────────────────────────────────────────────');
 {
-    const render = dashboardFns(['escapeHtml', 'renderOrphans'], 'renderOrphans(arg1, arg2)');
+    const render = dashboardFns(['escapeHtml', 'orphanReasonText', 'renderOrphans'], 'renderOrphans(arg1, arg2)');
     ok('renderOrphans can be run', render !== null);
     if (render) {
         // renderOrphans binds its apply button after rendering.

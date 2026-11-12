@@ -986,7 +986,7 @@
                 </div>
             </div>
             <div class="jpf-hidden jpf-note jpf-note-error" id="injectionWarningContainer">
-                <strong class="jpf-note-title" style="color:#ff8787;"><span aria-hidden="true">⚠️ </span><span data-i18n="admin.banner.failTitle">The client script isn't loading</span></strong>
+                <strong class="jpf-note-title" style="color:var(--jpf-bad);"><span aria-hidden="true">⚠️ </span><span data-i18n="admin.banner.failTitle">The client script isn't loading</span></strong>
                 <!-- Written by renderInjectionStatus, which knows whether the file is involved. -->
                 <span id="injectionFailureHeadline"></span>
                 <div class="jpf-hidden jpf-note-detail" id="injectionFailureReason"></div>
@@ -1519,7 +1519,7 @@
                         <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" data-i18n="admin.avatars.upload">Upload avatars</button>
                         <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" data-i18n="admin.avatars.uploadFolder">Upload a folder</button>
                     </div>
-                    <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
+                    <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif" />
                     <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
                     <div class="fieldDescription" data-i18n="admin.avatars.uploadHint">JPEG, PNG, WebP or GIF.</div>
                     <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
@@ -2058,6 +2058,10 @@
                 'admin.orphans.foundOne': 'Found 1 record pointing at a deleted account:',
                 'admin.orphans.foundMany': 'Found {count} records pointing at deleted accounts:',
                 'admin.orphans.unnamed': '(unnamed profile)',
+                'admin.orphans.reasonProfile': 'the profile\'s Jellyfin user was deleted',
+                'admin.orphans.reasonMaster': 'the main account was deleted',
+                'admin.avatars.defaultName': 'Avatar',
+                'admin.avatars.zeroSize': 'That image has no size. Choose another.',
                 'admin.orphans.deadGroup': 'Bonfire {code}: its owner was deleted',
                 'admin.orphans.deadMembersOne': '1 Bonfire membership naming a deleted account',
                 'admin.orphans.deadMembersMany': '{count} Bonfire memberships naming deleted accounts',
@@ -2517,8 +2521,9 @@
             function t(key, vars) {
                 let str = (adminStrings && adminStrings[key]) || ADMIN_EN[key] || key;
                 if (vars) {
-                    Object.keys(vars).forEach(function (k) {
-                        str = str.split('{' + k + '}').join(vars[k]);
+                    // One pass: a value that itself holds {x} must not be filled again.
+                    str = str.replace(/\{(\w+)\}/g, function (whole, k) {
+                        return Object.prototype.hasOwnProperty.call(vars, k) ? vars[k] : whole;
                     });
                 }
                 return str;
@@ -3000,6 +3005,13 @@
             // Two calls on purpose. The first is a dry run that only reports; the second
             // deletes. This removes configuration and there is no undo, so the
             // administrator sees the list and confirms it before anything goes.
+            /// The server's reasonCode in the page's language. A code this page does not know
+            /// (a newer server) shows the server's own English line, which is better than blank.
+            function orphanReasonText(o) {
+                const keys = { profile_deleted: 'admin.orphans.reasonProfile', master_deleted: 'admin.orphans.reasonMaster' };
+                return Object.prototype.hasOwnProperty.call(keys, o.reasonCode) ? t(keys[o.reasonCode]) : String(o.reason || '');
+            }
+
             function renderOrphans(page, data) {
                 const box = page.querySelector('#orphansResult');
                 const records = data.orphans.length + data.deadGroups.length + data.deadMembers.length;
@@ -3013,7 +3025,7 @@
                 const found = !records ? '' : records === 1 ? t('admin.orphans.foundOne') : t('admin.orphans.foundMany', { count: records });
                 let html = (found ? '<div style="margin-bottom:8px;">' + escapeHtml(found) + '</div>' : '') + '<ul style="margin:0 0 12px 1.2em;">';
                 data.orphans.forEach(function (o) {
-                    html += '<li>' + escapeHtml(o.profileName || t('admin.orphans.unnamed')) + ' — ' + escapeHtml(o.reason) + '</li>';
+                    html += '<li>' + escapeHtml(o.profileName || t('admin.orphans.unnamed')) + ' — ' + escapeHtml(orphanReasonText(o)) + '</li>';
                 });
                 data.deadGroups.forEach(function (g) {
                     html += '<li>' + escapeHtml(t('admin.orphans.deadGroup', { code: g.code })) + '</li>';
@@ -3170,7 +3182,6 @@
                     // before the redraw, or a PIN reset on Households wipes them (r2-35-01).
                     page._trusted = collectTrusted(page);
                     renderTrusted(page);
-                    renderGettingStarted(page);
                     renderInjectionStatus(page, result);
 
                     const masterContainer = page.querySelector('#masterUsersList');
@@ -3937,6 +3948,9 @@
             // positioning one picture, so this stays automatic — end users get the crop
             // editor when they choose one.
             function squareToDataUrl(img, size, preferPng, jpegQuality) {
+                // An image that decodes as 0x0 would give a zero-size source rectangle, and
+                // drawImage throws on that with a message nobody can act on.
+                if (!(img.width > 0 && img.height > 0)) throw new Error(t('admin.avatars.zeroSize'));
                 const canvas = document.createElement('canvas');
                 canvas.width = size;
                 canvas.height = size;
@@ -4066,11 +4080,11 @@
                                     thumb: squareToDataUrl(img, spec.thumb, preferPng, spec.jpeg),
                                     // Filename without its extension is a reasonable default
                                     // label, and the admin can rename the file to change it.
-                                    displayName: (file.name || '').replace(/\.[^.]+$/, '').trim() || 'Avatar'
+                                    displayName: (file.name || '').replace(/\.[^.]+$/, '').trim() || t('admin.avatars.defaultName')
                                 });
                             } catch (e) {
                                 console.error('Avatar resize failed:', e);
-                                reject(new Error(t('admin.avatars.resizeFailed')));
+                                reject(new Error(!(img.width > 0 && img.height > 0) ? t('admin.avatars.zeroSize') : t('admin.avatars.resizeFailed')));
                                 return;
                             }
 
@@ -4323,18 +4337,6 @@
                 return ends ? t('admin.ann.until', { when: formatWhen(ends) }) : t('admin.ann.untilDeleted');
             }
 
-            // The sentence for each code a Bonfire route sends in X-Bonfire-Error
-            // (Controllers/ErrorCodes.cs), in the page's language. A code not here, or a server
-            // too old to send one, shows the fallback of whatever was being done: the response
-            // body is English and is never shown. The codes the household screens meet
-            // are in profiles.js's ERROR_KEYS.
-            //
-            // The theme, font and logo codes are here too. image_invalid is the avatar's; the
-            // logo's own is passed by readThemeError.
-            ///
-            /// The map is inside refusalMessage, not beside it: the harnesses lift these
-            /// functions by name, and a const would be left behind.
-            ///
             /// The code a refused response carries, or ''. `err` is the Response the page's
             /// calls reject with; anything else has none.
             function refusalCode(err) {
@@ -4343,6 +4345,18 @@
             }
 
             /// The sentence for a refused response, or '' when its code has none.
+            ///
+            /// The map has a sentence for each code a Bonfire route sends in X-Bonfire-Error
+            /// (Controllers/ErrorCodes.cs), in the page's language. A code not here, or a server
+            /// too old to send one, shows the fallback of whatever was being done: the response
+            /// body is English and is never shown. The codes the household screens meet
+            /// are in profiles.js's ERROR_KEYS.
+            ///
+            /// The theme, font and logo codes are here too. image_invalid is the avatar's; the
+            /// logo's own is passed by readThemeError.
+            ///
+            /// The map is inside this function, not beside it: the harnesses lift these
+            /// functions by name, and a const would be left behind.
             function refusalMessage(err, vars, overrides) {
                 const ERROR_KEYS = {
                 admin_only: 'admin.err.adminOnly', forbidden: 'admin.err.forbidden',
@@ -4856,7 +4870,7 @@
                         : (themeRgb(getThemePath(draft, 'colors.panel')) ? getThemePath(draft, 'colors.panel').slice(0, 7) : '#000000');
                     const away = themeContrast(ground, '#ffffff') >= themeContrast(ground, '#000000') ? '#ffffff' : '#000000';
                     let ring = themeMix(hex, away, 0.5);
-                    [0.65, 0.8, 0.95].forEach(function (t) { if (themeContrast(ring, ground) < 3) ring = themeMix(hex, away, t); });
+                    [0.65, 0.8, 0.95].forEach(function (mix) { if (themeContrast(ring, ground) < 3) ring = themeMix(hex, away, mix); });
                     setIf('colors.ring', ring);
                 } else if (control === 'bg1' || control === 'bg2') {
                     if (!themeRgb(hex)) return;
@@ -5226,11 +5240,16 @@
                 // The catalogue is the public list: the built-ins' files to start from, the
                 // fonts with their fallbacks, and the pattern names. It can fail on its own.
                 const catalog = ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/themes')).then(null, function () { return null; });
+                // Saves and deletes call this again while an earlier load may still be out;
+                // only the latest request's answer is drawn.
+                const seq = page._themesSeq = (page._themesSeq || 0) + 1;
                 Promise.all([ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/themes')), catalog]).then(function (both) {
+                    if (seq !== page._themesSeq) return;
                     page._themes = { data: both[0] || {}, catalog: both[1] };
                     showThemeStatus(page, '#themesLoadError', '', false);
                     renderThemes(page);
                 }, function () {
+                    if (seq !== page._themesSeq) return;
                     showThemeStatus(page, '#themesLoadError', t('admin.themes.loadFailed'), false);
                 });
             }
@@ -8944,7 +8963,7 @@
                         // subtitle file and bury the real result.
                         const all = Array.prototype.slice.call(e.target.files || []);
                         const images = all.filter(function (f) {
-                            return /^image\//i.test(f.type || '') || /\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(f.name || '');
+                            return /^image\/(jpeg|png|webp|gif)$/i.test(f.type || '') || /\.(jpe?g|png|webp|gif)$/i.test(f.name || '');
                         });
                         folderInput.value = '';
                         if (!images.length) {
