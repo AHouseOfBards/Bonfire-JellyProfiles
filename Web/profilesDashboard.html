@@ -742,9 +742,17 @@
     #profilesConfigurationPage .jpf-actions {
         display: flex;
         align-items: center;
+        justify-content: flex-start;   /* never space-between: a secondary action stays beside the control it belongs to */
         gap: 10px;
         flex-wrap: wrap;
     }
+    /* A secondary action with its own hint under it, beside the primary one. */
+    #profilesConfigurationPage .jpf-actions > .jpf-action-hint { align-self: flex-start; }
+    /* jellyfin-web gives every .emby-button a 0.3em margin all round, which indents the
+       first button of a row a few pixels from the text above it. Spacing between buttons is
+       the gap on the row, so the left margin goes and every row starts on the content edge. */
+    #profilesConfigurationPage [is="emby-button"],
+    #profilesConfigurationPage [is="emby-linkbutton"] { margin-left: 0; }
     #profilesConfigurationPage .jpf-avatar-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
@@ -1348,9 +1356,11 @@
                 </div>
                 <div class="buttonContainer jpf-actions">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
-                    <button is="emby-button" type="button" class="raised jpf-narrow" id="onboardingShowAgain" data-i18n="admin.onboarding.showAgain">Show again to everyone</button>
+                    <div class="jpf-action-hint">
+                        <button is="emby-button" type="button" class="raised jpf-narrow" id="onboardingShowAgain" data-i18n="admin.onboarding.showAgain">Show again to everyone</button>
+                        <div class="fieldDescription" data-i18n="admin.onboarding.showAgainHint">Every main account sees it on its next visit.</div>
+                    </div>
                 </div>
-                <div class="fieldDescription" data-i18n="admin.onboarding.showAgainHint">Every main account sees it on its next visit.</div>
 
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.switcher.title">Switcher</h2>

@@ -67,7 +67,7 @@ const MEASURE = `(function () {
   }
   var again = panel.querySelector('#onboardingShowAgain');
   if (again) {
-    var save = again.parentNode.querySelector('.jpf-save-settings');
+    var save = again.closest('.jpf-actions').querySelector('.jpf-save-settings');
     out.onboarding = { between: Math.round(r(again).left - r(save).right) };
   }
   return out;

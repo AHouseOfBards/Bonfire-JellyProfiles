@@ -48,7 +48,19 @@ const MEASURE = "(function(){"
     + "});"
     + "var wide=[];[].forEach.call(panel.querySelectorAll('*'),function(e){if(!ROW.test(e.className)||!e.parentElement)return;"
     + "var r=e.getBoundingClientRect(),p=e.parentElement.getBoundingClientRect();if(!r.width)return;if(r.right>p.right+0.5)wide.push({row:name(e),by:Math.round(r.right-p.right)});});"
-    + "return {seen:seen,bad:bad,wide:wide,sw:document.documentElement.scrollWidth,cw:document.documentElement.clientWidth};})()";
+    + "var lead=[],gaps=[];var pcs=getComputedStyle(panel);var panelLeft=panel.getBoundingClientRect().left+parseFloat(pcs.paddingLeft)+parseFloat(pcs.borderLeftWidth);"
+    + "[].forEach.call(panel.querySelectorAll('button,a.button-link,a.raised,[is=\"emby-button\"]'),function(b){"
+    + "var br=b.getBoundingClientRect();if(!br.width||!br.height)return;var p=b.parentElement,cs=getComputedStyle(p);"
+    + "if(/center|space|flex-end|end|right/.test(cs.justifyContent)||cs.textAlign==='center'||cs.textAlign==='right'||cs.display==='grid'||p.closest('.jpf-te-preview-actions,.jpf-ann-buttons,[role=\"dialog\"]'))return;"
+    + "var prev=b.previousElementSibling;while(prev&&!prev.getBoundingClientRect().width)prev=prev.previousElementSibling;"
+    + "if(prev){var pr=prev.getBoundingClientRect();if(pr.bottom>br.top+1&&pr.right<=br.left+0.5)return;}"
+    + "var left=p.getBoundingClientRect().left+parseFloat(cs.paddingLeft)+parseFloat(cs.borderLeftWidth);"
+    + "lead.push({btn:name(b),off:Math.round((br.left-left)*10)/10});"
+    + "if(p.parentElement===panel)lead.push({btn:name(b)+' (its block)',off:Math.round((p.getBoundingClientRect().left-panelLeft)*10)/10});});"
+    + "[].forEach.call(panel.querySelectorAll('.jpf-actions,.buttonContainer'),function(row){var k=[].filter.call(row.children,function(e){return e.getBoundingClientRect().width>0;});"
+    + "for(var i=1;i<k.length;i++){var a=k[i-1].getBoundingClientRect(),c=k[i].getBoundingClientRect();if(c.top<a.bottom-1&&c.left>=a.right-0.5)gaps.push({row:name(row),gap:Math.round(c.left-a.right)});}});"
+    + "var sa=document.getElementById('onboardingShowAgain'),hint=null;if(sa){var n=sa.nextElementSibling;hint=n?(function(r){return {l:r.left,t:r.top};})(n.getBoundingClientRect()):null;sa=sa.getBoundingClientRect();sa={l:sa.left,b:sa.bottom};}"
+    + "return {lead:lead,gaps:gaps,showAgain:sa,showAgainHint:hint,seen:seen,bad:bad,wide:wide,sw:document.documentElement.scrollWidth,cw:document.documentElement.clientWidth};})()";
 
 async function main() {
     try { chrome.findChrome(); } catch (e) {
@@ -71,6 +83,12 @@ async function main() {
                 ok(tag + ': buttons were measured (' + m.seen + ')', m.seen > 0);
                 m.bad.forEach(b => ok(tag + ': ' + b.btn + ' is inside ' + b.of, false, b.why + ' by ' + b.by + 'px'));
                 m.wide.forEach(w => ok(tag + ': ' + w.row + ' is no wider than its list', false, 'by ' + w.by + 'px'));
+                m.lead.forEach(l => ok(tag + ': ' + l.btn + ' starts at its content edge', Math.abs(l.off) < 0.5, l.off + 'px'));
+                m.gaps.forEach(g => ok(tag + ': buttons in ' + g.row + ' sit together', g.gap <= 40, g.gap + 'px apart'));
+                if (m.showAgain && m.showAgain.b > 0) {
+                    ok(tag + ': "Show again" has its hint under it, at its left edge',
+                        m.showAgainHint && Math.abs(m.showAgainHint.l - m.showAgain.l) < 1 && m.showAgainHint.t >= m.showAgain.b - 1, JSON.stringify([m.showAgain, m.showAgainHint]));
+                }
                 ok(tag + ': the page does not scroll sideways', m.sw <= m.cw + 1, m.sw + ' in ' + m.cw);
                 if (!m.bad.length && !m.wide.length) ok(tag + ': every button is inside its row', true);
             }

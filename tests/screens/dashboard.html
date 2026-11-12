@@ -29,6 +29,11 @@
     input[type=checkbox] { width: 1.2em; height: 1.2em; margin: 0 0.6em 0 0; vertical-align: middle; accent-color: var(--accent); }
     button { font: inherit; color: inherit; background: #303030; border: 0; border-radius: 0.2em; padding: 0.9em 1em; cursor: pointer; }
     button.button-submit { background: var(--accent); color: #fff; }
+    /* jellyfin-web's .emby-button and .button-link (src/elements/emby-button/emby-button.scss): the
+       0.3em margin is what indents a row's first button from the text above it. */
+    [is=emby-button]:not([hidden]) { display: inline-flex; align-items: center; box-sizing: border-box; margin: 0.3em; line-height: 1.35; }
+    [is=emby-linkbutton] { margin: 0.3em; }
+    .button-link { margin: 0; padding: 0; }
     a { color: var(--accent); }
     /* jellyfin-web's light theme: src/themes/light/theme.scss and themes.ts `light`. */
     html[data-theme=light], html[data-theme=light] body { background: #f2f2f2; color: rgba(0, 0, 0, 0.87); }
