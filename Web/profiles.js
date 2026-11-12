@@ -6320,6 +6320,12 @@
             if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
             const userId = ApiClient.getCurrentUserId();
             if (!userId) return;
+            // checkRoute asks on every tick while the rules have not arrived. Without these
+            // two a route that hangs or fails was asked twice a second and the requests
+            // stacked: one at a time, and longer between tries after each failure.
+            if (this._libraryArtLoading) return;
+            if (Date.now() < (this._libraryArtRetryAt || 0)) return;
+            this._libraryArtLoading = true;
 
             fetch(ApiClient.getUrl('plugins/profiles/library-artwork'), {
                 cache: 'no-store',
@@ -6328,6 +6334,8 @@
             .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
             .then(entries => {
                 const list = Array.isArray(entries) ? entries : [];
+                this._libraryArtLoading = false;
+                this._libraryArtFailures = 0;
                 this._libraryArtLoaded = true;
                 this.cacheLibraryArtwork(userId, list);
                 this.applyLibraryArtwork(list);
@@ -6335,6 +6343,11 @@
             .catch(() => {
                 // Server unreachable, or a server older than this build. Leave whatever the
                 // cache already applied rather than dropping back to Jellyfin's artwork.
+                this._libraryArtLoading = false;
+                this._libraryArtFailures = (this._libraryArtFailures || 0) + 1;
+                // 5 s, 10 s, 20 s ... capped at 5 minutes; still tried again, later.
+                const wait = Math.min(300000, 5000 * Math.pow(2, Math.min(this._libraryArtFailures - 1, 6)));
+                this._libraryArtRetryAt = Date.now() + wait;
             });
         },
 
