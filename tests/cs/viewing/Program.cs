@@ -1080,6 +1080,22 @@ Ok("and read back after a restart", Used(KID2) == 5, Used(KID2).ToString());
     Ok("the file holds the newer state, not the older one written last (" + secsBack + " s)", secsBack == 150, secsBack.ToString());
     Static(tracker, "Forget", KID2);
     Static(tracker, "Save", new object[] { null });
+
+    // r2-07-04: a write that fails with anything at all does not throw ("Never throws") and
+    // leaves the change to be written by the next save.
+    Static(tracker, "Reset");
+    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow), 77.0);
+    hook.SetValue(null, (Action)(() => throw new ArgumentException("bad path")));
+    var threw = false;
+    try { Static(tracker, "Save", new object[] { null }); } catch { threw = true; }
+    hook.SetValue(null, null);
+    Ok("a save that fails with an unexpected exception does not throw (r2-07-04)", !threw);
+    Static(tracker, "Save", new object[] { null });
+    Static(tracker, "Reset");
+    var secsKept = (double)Get(Static(tracker, "EntryFor", KID2), "Seconds");
+    Ok("and the next save still writes the change", secsKept == 77, secsKept.ToString());
+    Static(tracker, "Forget", KID2);
+    Static(tracker, "Save", new object[] { null });
 }
 
 // Switching a profile's rules off forgets what it watched before yesterday: nothing reads it, and

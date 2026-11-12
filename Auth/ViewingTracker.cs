@@ -407,8 +407,10 @@ namespace Jellyfin.Profiles.Auth
                     File.WriteAllText(temp, json);
                     File.Move(temp, path, true);
                 }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                catch (Exception ex)
                 {
+                    // Any exception, not a list of two: Save is documented never to throw, and a bad
+                    // data path (NotSupported, Argument) is as much a failed write as a locked file.
                     logger?.LogWarning("ProfilesPlugin: couldn't save viewing time: {Reason}", ex.Message);
                     lock (UsageLock) _dirty = true;
                 }
