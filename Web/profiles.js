@@ -71,6 +71,26 @@
         };
     }
 
+    // The device list's placeholder names arrive in English with a code beside them
+    // (nameCode / clientCode), so they can be said in the viewer's language. A name
+    // that was disambiguated keeps its " (hint)" tail after the English.
+    var DEVICE_CODE_EN = {
+        unrecognised: ['profileForm.deviceUnrecognised', 'Unrecognised device'],
+        previouslyAllowed: ['profileForm.devicePreviouslyAllowed', 'Previously allowed device'],
+        notSeenRecently: ['profileForm.deviceNotSeenRecently', 'Not seen recently']
+    };
+    function deviceListName(dev) {
+        var name = dev.deviceName || dev.DeviceName;
+        var code = DEVICE_CODE_EN[dev.nameCode || dev.NameCode];
+        if (code && name && name.indexOf(code[1]) === 0) return t(code[0]) + name.slice(code[1].length);
+        return name || t('profileForm.unknownDevice');
+    }
+    function deviceListClient(dev) {
+        var code = DEVICE_CODE_EN[dev.clientCode || dev.ClientCode];
+        if (code) return t(code[0]);
+        return dev.client || dev.Client || t('profileForm.unknownClient');
+    }
+
     function escapeHtml(str) {
         // 0 is a value, not an absence: a count of none must draw as "0" (R-1176).
         if (!str && str !== 0) return '';
@@ -1231,6 +1251,9 @@
         'profileForm.devicesUnchanged': 'Devices unchanged',
         'profileForm.devicesHint': 'None selected means any device.',
         'profileForm.unknownDevice': 'Unknown device',
+        'profileForm.deviceUnrecognised': 'Unrecognised device',
+        'profileForm.devicePreviouslyAllowed': 'Previously allowed device',
+        'profileForm.deviceNotSeenRecently': 'Not seen recently',
         'profileForm.noTags': 'No tags. This filter is off.',
         'profileForm.unknownClient': 'Unknown client',
         'profileForm.unknown': 'Unknown',
@@ -3326,8 +3349,8 @@
             const items = (devices && devices.length > 0)
                 ? devices.map(dev => {
                     const deviceId = dev.deviceId || dev.DeviceId || '';
-                    const deviceName = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
-                    const client = dev.client || dev.Client || t('profileForm.unknownClient');
+                    const deviceName = deviceListName(dev);
+                    const client = deviceListClient(dev);
                     const lastSeen = dev.lastSeen || dev.LastSeen;
                     const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
                     // Year 1 is what an unset DateTime serialises to; showing "01/01/0001"
@@ -10650,8 +10673,8 @@
         _renderAccountDevices: function (content, devices, masterState) {
             const deviceRow = (dev) => {
                 const id = dev.deviceId || dev.DeviceId || '';
-                const name = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
-                const client = dev.client || dev.Client || t('profileForm.unknownClient');
+                const name = deviceListName(dev);
+                const client = deviceListClient(dev);
                 const seen = dev.lastSeen || dev.LastSeen;
                 const seenDate = seen ? new Date(seen) : null;
                 // Year 1 is an unset DateTime; see renderDeviceDropdown.

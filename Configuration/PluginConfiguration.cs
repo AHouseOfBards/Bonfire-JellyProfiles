@@ -397,6 +397,20 @@ namespace Jellyfin.Profiles.Configuration
         public DateTime FirstSeen { get; set; }
 
         /// <summary>
+        /// Set only on the device list the API returns, never stored: names the English
+        /// placeholder in <see cref="DeviceName"/> ("unrecognised", "previouslyAllowed") so
+        /// the client can translate it. The English is still sent for older clients.
+        /// </summary>
+        [System.Xml.Serialization.XmlIgnore]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? NameCode { get; set; }
+
+        /// <summary>As <see cref="NameCode"/>, for <see cref="Client"/> ("notSeenRecently").</summary>
+        [System.Xml.Serialization.XmlIgnore]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? ClientCode { get; set; }
+
+        /// <summary>
         /// Master account this device was last seen on. Used to scope the device picker so one
         /// household never sees another's hardware.
         /// <para>

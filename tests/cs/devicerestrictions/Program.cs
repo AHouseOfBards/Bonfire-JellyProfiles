@@ -450,6 +450,37 @@ if (disambiguate != null)
        && (string)deviceType.GetProperty("DeviceName").GetValue(returned[1])
           != (string)deviceType.GetProperty("DeviceName").GetValue(returned[2]));
 
+    // The English placeholders are labelled with a code so the client can translate them.
+    string? Code(object d, string prop) => (string?)deviceType.GetProperty(prop)?.GetValue(d);
+    var coded = (IList)disambiguate.Invoke(null, new object[] { KnownList(Device("llllll22", "", "", master)) });
+    Ok("an unrecognised device carries a code beside its English name",
+       Code(coded[0], "NameCode") == "unrecognised"
+       && (string)deviceType.GetProperty("DeviceName").GetValue(coded[0]) == "Unrecognised device");
+    var named = (IList)disambiguate.Invoke(null, new object[] { KnownList(Device("mmmmmm33", "Chrome", "Web", master)) });
+    Ok("a device with a real name carries no code", Code(named[0], "NameCode") == null);
+
+    var scopeFn = M("ScopeDevicesToHousehold");
+    if (scopeFn != null)
+    {
+        var orphans = (IEnumerable)scopeFn.Invoke(null, new object[]
+        {
+            Activator.CreateInstance(typeof(List<>).MakeGenericType(deviceType)),
+            master,
+            new HashSet<string>(new[] { "forgotten-id" }, StringComparer.OrdinalIgnoreCase),
+        });
+        var orphanList = new List<object>();
+        foreach (var o in orphans) orphanList.Add(o);
+        var out2 = (IList)disambiguate.Invoke(null, new object[] { KnownList(orphanList.ToArray()) });
+        Ok("a whitelisted device with no record is returned", out2.Count == 1);
+        if (out2.Count == 1)
+        {
+            Ok("its name and client each carry a code, the English kept",
+               Code(out2[0], "NameCode") == "previouslyAllowed" && Code(out2[0], "ClientCode") == "notSeenRecently"
+               && (string)deviceType.GetProperty("DeviceName").GetValue(out2[0]) == "Previously allowed device"
+               && (string)deviceType.GetProperty("Client").GetValue(out2[0]) == "Not seen recently");
+        }
+    }
+
     var blank = Labels(Device("hhhhhh88", "", "", master));
     Ok("a device with neither name nor client still says something",
        !string.IsNullOrWhiteSpace(blank[0]));

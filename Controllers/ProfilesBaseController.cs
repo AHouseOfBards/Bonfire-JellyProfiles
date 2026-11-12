@@ -1961,12 +1961,24 @@ namespace Jellyfin.Profiles.Controllers
 
             foreach (var d in devices)
             {
+                // The row ScopeDevicesToHousehold makes for a whitelisted device with no
+                // record left. The English stays for older clients; the codes let the
+                // client say it in the viewer's language.
+                if (d.LastSeen == DateTime.MinValue
+                    && d.DeviceName == "Previously allowed device" && d.Client == "Not seen recently")
+                {
+                    d.NameCode = "previouslyAllowed";
+                    d.ClientCode = "notSeenRecently";
+                    continue;
+                }
+
                 if (!IsPlaceholderDeviceName(d.DeviceName)) continue;
 
                 d.DeviceName = !string.IsNullOrWhiteSpace(d.Client)
                                && !string.Equals(d.Client.Trim(), "Unknown Client", StringComparison.OrdinalIgnoreCase)
                     ? d.Client.Trim()
                     : "Unrecognised device";
+                if (d.DeviceName == "Unrecognised device") d.NameCode = "unrecognised";
             }
 
             var byLabel = devices

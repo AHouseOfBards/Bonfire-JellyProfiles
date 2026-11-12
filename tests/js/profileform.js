@@ -42,7 +42,7 @@ if (src.split(INIT).length - 1 !== 1) {
 }
 const runnable = src.replace(INIT, 'globalThis.__PROFILES = ProfilesPlugin;');
 
-function build() {
+function build(code) {
     const sandbox = {
         console: { log() {}, warn() {}, error() {} },
         localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -66,7 +66,7 @@ function build() {
     sandbox.window = sandbox;
     sandbox.globalThis = sandbox;
     vm.createContext(sandbox);
-    new vm.Script(runnable, { filename: 'profiles.js' }).runInContext(sandbox);
+    new vm.Script(code || runnable, { filename: 'profiles.js' }).runInContext(sandbox);
     return sandbox.__PROFILES;
 }
 
@@ -196,6 +196,35 @@ ok('the device markup exists once', countOutsideRenderers('devices-dropdown-cont
 ok('the rating options exist once', countOutsideRenderers("'profileForm.ratingPG13'") === 2);
 ok('the allowed-tags hint exists once',
     countOutsideRenderers("t('profileForm.allowedTagsHint')") === 1);
+
+console.log();
+console.log('── the server\'s placeholder device labels are translated ─────────');
+
+// The server names three English placeholders and sends a code beside each. The
+// table is rewritten to marked text so the test can tell "translated by the client"
+// from "the server's English passed through".
+{
+    const marked = runnable
+        .replace("'profileForm.deviceUnrecognised': 'Unrecognised device'", "'profileForm.deviceUnrecognised': 'ZZ-unrecognised'")
+        .replace("'profileForm.devicePreviouslyAllowed': 'Previously allowed device'", "'profileForm.devicePreviouslyAllowed': 'ZZ-previously'")
+        .replace("'profileForm.deviceNotSeenRecently': 'Not seen recently'", "'profileForm.deviceNotSeenRecently': 'ZZ-notseen'");
+    const PM = build(marked);
+    const LIST = [
+        { deviceId: 'a', deviceName: 'Unrecognised device', client: 'Web', nameCode: 'unrecognised', lastSeen: '2026-08-01T10:00:00Z' },
+        { deviceId: 'b', deviceName: 'Unrecognised device (x9)', client: 'Web', nameCode: 'unrecognised', lastSeen: '2026-08-01T10:00:00Z' },
+        { deviceId: 'c', deviceName: 'Previously allowed device', client: 'Not seen recently',
+          nameCode: 'previouslyAllowed', clientCode: 'notSeenRecently', lastSeen: '0001-01-01T00:00:00Z' },
+        { deviceId: 'd', deviceName: 'Old server row', client: 'Not seen recently', lastSeen: '0001-01-01T00:00:00Z' },
+    ];
+    const html = PM.renderDeviceDropdown('edit', LIST, PROFILE);
+    ok('an unrecognised device reads in the viewer\'s language', html.indexOf('ZZ-unrecognised<') !== -1);
+    ok('and keeps its disambiguating tail', html.indexOf('ZZ-unrecognised (x9)') !== -1);
+    ok('the server\'s English is not shown for a coded name', html.indexOf('>Unrecognised device') === -1);
+    ok('a previously allowed device is translated', html.indexOf('ZZ-previously') !== -1);
+    ok('and so is "not seen recently"', html.indexOf('ZZ-notseen') !== -1);
+    ok('a row from an older server (no code) shows what it was sent',
+        html.indexOf('Old server row') !== -1);
+}
 
 console.log();
 console.log('  ' + pass + ' passed, ' + fails.length + ' failed');
