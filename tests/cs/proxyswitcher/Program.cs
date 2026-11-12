@@ -720,6 +720,26 @@ Child();
        tileTable.Count + " tiles");
 }
 
+// A tile is drawn from a snapshot, so it must not wait on the global configuration lock (r2-04-04).
+{
+    var sessType = switcher.GetNestedType("ProxySession", BindingFlags.NonPublic);
+    var kindType = switcher.GetNestedType("TileKind", BindingFlags.NonPublic);
+    var make = switcher.GetMethod("MakeTile", BindingFlags.Static | BindingFlags.NonPublic);
+    var draw = switcher.GetMethod("DrawnTile", BindingFlags.Static | BindingFlags.NonPublic);
+    var sess = Activator.CreateInstance(sessType);
+    var tile = make.Invoke(null, new object[] { sess, Enum.Parse(kindType, "ProfilesView"), Guid.Empty, Guid.Empty, "", "", "x" });
+    var snap = cfgType.GetMethod("SnapshotForReading").Invoke(config, null);
+    var lockField = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true).GetField("ConfigLock", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+    var gate = lockField.GetValue(null);
+    bool finished;
+    lock (gate)
+    {
+        var t = Task.Run(() => draw.Invoke(null, new object[] { sess, tile, snap }));
+        finished = t.Wait(3000);
+    }
+    Ok("drawing a tile from a snapshot does not wait on the configuration lock", finished);
+}
+
 var logout = Get("/Sessions/Logout", method: "POST");
 Ok("signing out of the app signs the profile out too",
    sessionLog.LoggedOut.Contains("tok-" + N(KIDS)) && logout.reachedJellyfin && seenAuth.Contains(MOON_TOKEN),

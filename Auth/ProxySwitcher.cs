@@ -1530,12 +1530,12 @@ namespace Jellyfin.Profiles.Auth
                 default: return null;
             }
 
-            // The lists Resolve reads are the ones a settings save replaces.
-            lock (ProfilesBaseController.ConfigLock)
-            {
-                var row = config.Mappings?.FirstOrDefault(m => m.ProfileUserId == whose);
-                return (ThemeCatalog.ThemeFor(Themes.Resolve(row, config), config), glyph);
-            }
+            // No lock: every caller hands in ReadConfigSnapshot's copy, whose mappings and
+            // theme lists are copied (SnapshotForReading), so nothing here is replaced under
+            // it. Taking ConfigLock on a copy protected nothing and contended once per tile
+            // and per picture.
+            var row = config.Mappings?.FirstOrDefault(m => m.ProfileUserId == whose);
+            return (ThemeCatalog.ThemeFor(Themes.Resolve(row, config), config), glyph);
         }
 
         private static bool HasImage(PluginConfiguration? config, Guid profileId)
