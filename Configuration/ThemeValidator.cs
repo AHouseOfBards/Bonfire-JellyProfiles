@@ -54,6 +54,12 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>The schema this validator reads.</summary>
         public const int Schema = 1;
 
+        /// <summary>
+        /// The highest revision a theme may carry. Well below int.MaxValue: a save writes the
+        /// stored revision plus one, which overflowed an int at the top of the range.
+        /// </summary>
+        public const int MaxRevision = 1_000_000_000;
+
         /// <summary>A serialised theme larger than this is refused before anything else.</summary>
         public const int MaxBytes = 64 * 1024;
 
@@ -303,7 +309,7 @@ namespace Jellyfin.Profiles.Configuration
 
                 var id = Str(t, "", "id", true);
                 if (id != null && !IdRegex.IsMatch(id)) Add("id", "range", "Lower case letters, digits and - only, at most 40.");
-                var revision = Num(t, "", "revision", true, 1, int.MaxValue);
+                var revision = Num(t, "", "revision", true, 1, MaxRevision);
                 if (revision != null && revision != Math.Floor(revision.Value)) Add("revision", "type", "Must be a whole number.");
                 OneOf(t, "", "scheme", true, "dark", "light");
                 Name(t);

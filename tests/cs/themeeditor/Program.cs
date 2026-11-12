@@ -723,6 +723,11 @@ foreach (var raw in new[] { "[1]", "\"text\"", "5", "null" })
     Ok("a theme body of " + raw + " is a 400", thrown == null && Status(r) == 400, thrown?.InnerException?.Message ?? thrown?.Message);
 }
 
+// r2-15-04: a revision at the top of the range cannot be saved on (stored + 1 overflowed an int).
+Ok("a revision of int.MaxValue is refused", Status(Call(As(true), "SaveCustomTheme", "bigrev", Json(AtRevision("bigrev", "harvest", int.MaxValue, "Big")))) == 400);
+Ok("a revision a billion is still fine", Status(Call(As(true), "SaveCustomTheme", "bigrev", Json(AtRevision("bigrev", "harvest", 1000000000, "Big")))) == 200);
+Call(As(true), "DeleteCustomTheme", "bigrev");
+
 // r2-15-02: a stored theme whose type is not an object does not take the Themes page down.
 {
     live.CustomThemes.Add(new CustomTheme { Id = "oddtype", Json = "{\"id\":\"oddtype\",\"type\":\"serif\"}" });
