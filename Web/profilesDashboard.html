@@ -612,7 +612,9 @@
     #profilesConfigurationPage .jpf-te-none { flex-direction: row; align-items: center; flex-basis: 100%; }
     #profilesConfigurationPage .jpf-te-none .jpf-te-input { width: auto; margin: 0 6px 0 0; }
     #profilesConfigurationPage .jpf-te-shadow .jpf-te-input:disabled, #profilesConfigurationPage .jpf-te-shadow .jpf-te-pick:disabled { opacity: 0.4; }
-    #profilesConfigurationPage .jpf-te-adv-label code { font-size: 0.85rem; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-te-adv-label { display: block; }
+    #profilesConfigurationPage .jpf-te-adv-name { display: block; }
+    #profilesConfigurationPage .jpf-te-adv-label code { display: block; font-size: 0.75rem; opacity: 0.6; overflow-wrap: anywhere; }
     #profilesConfigurationPage .jpf-te-pair { display: flex; align-items: center; gap: 8px; }
     #profilesConfigurationPage .jpf-te-input { width: 100%; box-sizing: border-box; margin: 0; }
     #profilesConfigurationPage .jpf-te-json { font-family: monospace; font-size: 0.85rem; min-height: 4.5em; resize: vertical; }
@@ -2133,13 +2135,90 @@
                 'admin.themes.sample3': 'Kids',
                 'admin.themes.pickDialog': 'Pick a color',
                 'admin.themes.pickFor': 'Pick a color for {name}',
-                'admin.themes.hint.color': 'Pick, or type #rrggbb or #rrggbbaa.',
-                'admin.themes.hint.range': 'Drag to set, {min} to {max}.',
-                'admin.themes.hint.choice': 'Choose from the list.',
+                'admin.themes.hint.range': '{min} to {max}.',
                 'admin.themes.hint.font': 'Uploaded fonts are listed too.',
                 'admin.themes.hint.shadow': 'Sizes in pixels, opacity 0 to 1.',
                 'admin.themes.hint.layers': 'A JSON list of gradients, first on top.',
                 'admin.themes.hint.decorations': 'A JSON list. [] for none.',
+                'admin.themes.name.scheme': 'Light or dark',
+                'admin.themes.name.colors.accent': 'Accent color',
+                'admin.themes.name.colors.accentFocus': 'Accent color, focused',
+                'admin.themes.name.colors.onAccent': 'Text on accent',
+                'admin.themes.name.colors.ring': 'Avatar ring color',
+                'admin.themes.name.colors.text1': 'Main text color',
+                'admin.themes.name.colors.text2': 'Secondary text color',
+                'admin.themes.name.colors.text3': 'Faint text color',
+                'admin.themes.name.colors.name': 'Profile name color',
+                'admin.themes.name.colors.nameFocus': 'Profile name color, focused',
+                'admin.themes.name.colors.panel': 'Panel color',
+                'admin.themes.name.colors.surface1': 'Surface 1 color',
+                'admin.themes.name.colors.surface2': 'Surface 2 color',
+                'admin.themes.name.colors.surface3': 'Surface 3 color',
+                'admin.themes.name.colors.border1': 'Border 1 color',
+                'admin.themes.name.colors.border2': 'Border 2 color',
+                'admin.themes.name.colors.border3': 'Border 3 color',
+                'admin.themes.name.colors.shadow': 'Shadow color',
+                'admin.themes.name.colors.danger': 'Error color',
+                'admin.themes.name.colors.warning': 'Warning color',
+                'admin.themes.name.background.fill': 'Background color',
+                'admin.themes.name.background.layers': 'Background layers',
+                'admin.themes.name.background.image': 'Background picture',
+                'admin.themes.name.shape.radius.small': 'Corner radius, small',
+                'admin.themes.name.shape.radius.medium': 'Corner radius, medium',
+                'admin.themes.name.shape.radius.large': 'Corner radius, large',
+                'admin.themes.name.shape.avatar.kind': 'Avatar shape',
+                'admin.themes.name.shape.avatar.radius': 'Avatar corner radius',
+                'admin.themes.name.shape.ringWidth': 'Avatar ring width',
+                'admin.themes.name.shape.button.kind': 'Button shape',
+                'admin.themes.name.shape.button.radius': 'Button corner radius',
+                'admin.themes.name.shape.input.radius': 'Text box corner radius',
+                'admin.themes.name.type.font.family': 'Font',
+                'admin.themes.name.type.font.fallback': 'Fallback font style',
+                'admin.themes.name.type.title.weight': 'Title weight',
+                'admin.themes.name.type.title.spacing': 'Title letter spacing',
+                'admin.themes.name.type.title.scale': 'Title size',
+                'admin.themes.name.type.name.weight': 'Name weight',
+                'admin.themes.name.type.name.scale': 'Name size',
+                'admin.themes.name.type.name.opacity': 'Name opacity',
+                'admin.themes.name.type.button.case': 'Button text case',
+                'admin.themes.name.type.button.spacing': 'Button letter spacing',
+                'admin.themes.name.type.button.weight': 'Button text weight',
+                'admin.themes.name.depth.avatar': 'Avatar shadow',
+                'admin.themes.name.depth.title': 'Title shadow',
+                'admin.themes.name.depth.sheet': 'Sheet shadow',
+                'admin.themes.name.focus.scale': 'Focus zoom',
+                'admin.themes.name.focus.glow': 'Focus glow',
+                'admin.themes.name.parts.button2.fill': 'Button color',
+                'admin.themes.name.parts.button2.text': 'Button text color',
+                'admin.themes.name.parts.button2.border.width': 'Button, border width',
+                'admin.themes.name.parts.button2.border.style': 'Button, border style',
+                'admin.themes.name.parts.button2.border.color': 'Button, border color',
+                'admin.themes.name.parts.button2.focus.fill': 'Focused button color',
+                'admin.themes.name.parts.button2.focus.text': 'Focused button text color',
+                'admin.themes.name.parts.button2.focus.border.width': 'Focused button, border width',
+                'admin.themes.name.parts.button2.focus.border.style': 'Focused button, border style',
+                'admin.themes.name.parts.button2.focus.border.color': 'Focused button, border color',
+                'admin.themes.name.parts.button2.focus.glow': 'Focused button glow',
+                'admin.themes.name.parts.addTile.fill': 'Add-profile tile color',
+                'admin.themes.name.parts.addTile.border.width': 'Add-profile tile, border width',
+                'admin.themes.name.parts.addTile.border.style': 'Add-profile tile, border style',
+                'admin.themes.name.parts.addTile.border.color': 'Add-profile tile, border color',
+                'admin.themes.name.parts.addTile.text': 'Add-profile tile text color',
+                'admin.themes.name.parts.addTile.focusFill': 'Add-profile tile color, focused',
+                'admin.themes.name.parts.card.fill': 'Card color',
+                'admin.themes.name.parts.card.line': 'Card line color',
+                'admin.themes.name.parts.sheet.fill': 'Sheet color',
+                'admin.themes.name.parts.sheet.border.width': 'Sheet, border width',
+                'admin.themes.name.parts.sheet.border.style': 'Sheet, border style',
+                'admin.themes.name.parts.sheet.border.color': 'Sheet, border color',
+                'admin.themes.name.parts.input.fill': 'Text box color',
+                'admin.themes.name.parts.input.line': 'Text box line color',
+                'admin.themes.name.layout.households': 'Household layout',
+                'admin.themes.name.layout.profiles': 'Profile layout',
+                'admin.themes.name.layout.align': 'Alignment',
+                'admin.themes.name.layout.size': 'Tile size',
+                'admin.themes.name.layout.logo': 'Logo corner',
+                'admin.themes.name.decorations': 'Decorations',
                 'admin.themes.deco.pattern': 'Pattern',
                 'admin.themes.deco.pattern2': 'Second pattern',
                 'admin.themes.deco.rings': 'Rings',
@@ -4412,6 +4491,96 @@
                 ];
             }
 
+            /// The plain name of one Advanced field: path -> string key, beside themeFieldList
+            /// (the key is spelled out so validate.js can see it is used). English is in
+            /// ADMIN_EN, the rest in every Web/i18n file. The path is still shown under it;
+            /// themeeditor.js fails a field that has no name.
+            const THEME_FIELD_NAMES = {
+                'scheme': 'admin.themes.name.scheme',
+                'colors.accent': 'admin.themes.name.colors.accent',
+                'colors.accentFocus': 'admin.themes.name.colors.accentFocus',
+                'colors.onAccent': 'admin.themes.name.colors.onAccent',
+                'colors.ring': 'admin.themes.name.colors.ring',
+                'colors.text1': 'admin.themes.name.colors.text1',
+                'colors.text2': 'admin.themes.name.colors.text2',
+                'colors.text3': 'admin.themes.name.colors.text3',
+                'colors.name': 'admin.themes.name.colors.name',
+                'colors.nameFocus': 'admin.themes.name.colors.nameFocus',
+                'colors.panel': 'admin.themes.name.colors.panel',
+                'colors.surface1': 'admin.themes.name.colors.surface1',
+                'colors.surface2': 'admin.themes.name.colors.surface2',
+                'colors.surface3': 'admin.themes.name.colors.surface3',
+                'colors.border1': 'admin.themes.name.colors.border1',
+                'colors.border2': 'admin.themes.name.colors.border2',
+                'colors.border3': 'admin.themes.name.colors.border3',
+                'colors.shadow': 'admin.themes.name.colors.shadow',
+                'colors.danger': 'admin.themes.name.colors.danger',
+                'colors.warning': 'admin.themes.name.colors.warning',
+                'background.fill': 'admin.themes.name.background.fill',
+                'background.layers': 'admin.themes.name.background.layers',
+                'background.image': 'admin.themes.name.background.image',
+                'shape.radius.small': 'admin.themes.name.shape.radius.small',
+                'shape.radius.medium': 'admin.themes.name.shape.radius.medium',
+                'shape.radius.large': 'admin.themes.name.shape.radius.large',
+                'shape.avatar.kind': 'admin.themes.name.shape.avatar.kind',
+                'shape.avatar.radius': 'admin.themes.name.shape.avatar.radius',
+                'shape.ringWidth': 'admin.themes.name.shape.ringWidth',
+                'shape.button.kind': 'admin.themes.name.shape.button.kind',
+                'shape.button.radius': 'admin.themes.name.shape.button.radius',
+                'shape.input.radius': 'admin.themes.name.shape.input.radius',
+                'type.font.family': 'admin.themes.name.type.font.family',
+                'type.font.fallback': 'admin.themes.name.type.font.fallback',
+                'type.title.weight': 'admin.themes.name.type.title.weight',
+                'type.title.spacing': 'admin.themes.name.type.title.spacing',
+                'type.title.scale': 'admin.themes.name.type.title.scale',
+                'type.name.weight': 'admin.themes.name.type.name.weight',
+                'type.name.scale': 'admin.themes.name.type.name.scale',
+                'type.name.opacity': 'admin.themes.name.type.name.opacity',
+                'type.button.case': 'admin.themes.name.type.button.case',
+                'type.button.spacing': 'admin.themes.name.type.button.spacing',
+                'type.button.weight': 'admin.themes.name.type.button.weight',
+                'depth.avatar': 'admin.themes.name.depth.avatar',
+                'depth.title': 'admin.themes.name.depth.title',
+                'depth.sheet': 'admin.themes.name.depth.sheet',
+                'focus.scale': 'admin.themes.name.focus.scale',
+                'focus.glow': 'admin.themes.name.focus.glow',
+                'parts.button2.fill': 'admin.themes.name.parts.button2.fill',
+                'parts.button2.text': 'admin.themes.name.parts.button2.text',
+                'parts.button2.border.width': 'admin.themes.name.parts.button2.border.width',
+                'parts.button2.border.style': 'admin.themes.name.parts.button2.border.style',
+                'parts.button2.border.color': 'admin.themes.name.parts.button2.border.color',
+                'parts.button2.focus.fill': 'admin.themes.name.parts.button2.focus.fill',
+                'parts.button2.focus.text': 'admin.themes.name.parts.button2.focus.text',
+                'parts.button2.focus.border.width': 'admin.themes.name.parts.button2.focus.border.width',
+                'parts.button2.focus.border.style': 'admin.themes.name.parts.button2.focus.border.style',
+                'parts.button2.focus.border.color': 'admin.themes.name.parts.button2.focus.border.color',
+                'parts.button2.focus.glow': 'admin.themes.name.parts.button2.focus.glow',
+                'parts.addTile.fill': 'admin.themes.name.parts.addTile.fill',
+                'parts.addTile.border.width': 'admin.themes.name.parts.addTile.border.width',
+                'parts.addTile.border.style': 'admin.themes.name.parts.addTile.border.style',
+                'parts.addTile.border.color': 'admin.themes.name.parts.addTile.border.color',
+                'parts.addTile.text': 'admin.themes.name.parts.addTile.text',
+                'parts.addTile.focusFill': 'admin.themes.name.parts.addTile.focusFill',
+                'parts.card.fill': 'admin.themes.name.parts.card.fill',
+                'parts.card.line': 'admin.themes.name.parts.card.line',
+                'parts.sheet.fill': 'admin.themes.name.parts.sheet.fill',
+                'parts.sheet.border.width': 'admin.themes.name.parts.sheet.border.width',
+                'parts.sheet.border.style': 'admin.themes.name.parts.sheet.border.style',
+                'parts.sheet.border.color': 'admin.themes.name.parts.sheet.border.color',
+                'parts.input.fill': 'admin.themes.name.parts.input.fill',
+                'parts.input.line': 'admin.themes.name.parts.input.line',
+                'layout.households': 'admin.themes.name.layout.households',
+                'layout.profiles': 'admin.themes.name.layout.profiles',
+                'layout.align': 'admin.themes.name.layout.align',
+                'layout.size': 'admin.themes.name.layout.size',
+                'layout.logo': 'admin.themes.name.layout.logo',
+                'decorations': 'admin.themes.name.decorations'
+            };
+
+            function themeFieldName(path) {
+                return t(THEME_FIELD_NAMES[path] || path);
+            }
+
             function getThemePath(obj, path) {
                 return String(path).split('.').reduce(function (o, k) {
                     return o && typeof o === 'object' ? o[k] : undefined;
@@ -5901,13 +6070,13 @@
                             const id = 'teField' + (n++);
                             const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '"';
                             const colourPair = function (p, a) {
-                                return '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + p + '" aria-haspopup="dialog" aria-label="' + escapeHtml(t('admin.themes.pickFor', { name: p })) + '"></button>' +
+                                return '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + p + '" aria-haspopup="dialog" aria-label="' + escapeHtml(t('admin.themes.pickFor', { name: themeFieldName(path) })) + '"></button>' +
                                     '<input type="text" class="emby-input jpf-te-input"' + a + ' spellcheck="false" maxlength="9" /></span>';
                             };
                             let control, hint;
                             if (kind === 'color') {
                                 control = colourPair(path, attrs);
-                                hint = t('admin.themes.hint.color');
+                                hint = '';
                             } else if (kind === 'number') {
                                 control = '<span class="jpf-te-pair"><input type="range" class="jpf-te-input jpf-te-range"' + attrs +
                                     ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" /><output class="jpf-te-val" for="' + id + '"></output></span>';
@@ -5915,7 +6084,7 @@
                             } else if (kind === 'choice' || kind === 'font') {
                                 control = '<select class="emby-select emby-select-withcolor jpf-te-input"' + attrs + '><option value="">—</option>' +
                                     (opt || []).map(function (v) { return '<option value="' + v + '">' + v + '</option>'; }).join('') + '</select>';
-                                hint = t(kind === 'font' ? 'admin.themes.hint.font' : 'admin.themes.hint.choice');
+                                hint = kind === 'font' ? t('admin.themes.hint.font') : '';
                             } else if (kind === 'shadow') {
                                 // One box per key of ThemeValidator.Shadow, each writing its own
                                 // path, and None for null. An empty box leaves its key out.
@@ -5948,8 +6117,9 @@
                             }
                             const hintHtml = typeof hint === 'object' ? hint.html : escapeHtml(hint);
                             return '<div class="jpf-te-field jpf-te-adv" data-paths="' + path + '">' +
-                                '<label class="jpf-te-adv-label" for="' + id + '"><code>' + path + '</code></label>' + control +
-                                '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div></div>';
+                                '<label class="jpf-te-adv-label" for="' + id + '"><span class="jpf-te-adv-name">' + escapeHtml(themeFieldName(path)) +
+                                '</span><code>' + path + '</code></label>' + control +
+                                (hintHtml ? '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div>' : '') + '</div>';
                         }).join('') + '</details>';
                 }).join('');
             }

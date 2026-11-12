@@ -206,8 +206,23 @@ async function advancedControlChecks(c, s) {
     ok('only the free-form lists are JSON', JSON.stringify(json) === JSON.stringify(['background.layers', 'decorations']), JSON.stringify(json));
     const hints = await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields .jpf-te-adv:not(.jpf-te-photo)')).map(function (f) { var h = f.querySelector('.jpf-te-hint'); var c = h ? h.cloneNode(true) : null; if (c) [].slice.call(c.querySelectorAll('.jpf-te-example')).forEach(function (x) { x.parentNode.removeChild(x); }); return { p: f.getAttribute('data-paths'), h: c ? c.textContent.replace(/\\s+/g, ' ').trim() : '' }; })");
     // The JSON example is code, not words, and is checked on its own below.
-    const bad = hints.filter(x => !x.h || x.h.split(' ').length >= 10);
-    ok('every Advanced field has a hint under ten words', hints.length > 50 && bad.length === 0, bad.slice(0, 5).map(x => x.p + ': "' + x.h + '"').join('; ') + ' of ' + hints.length);
+    // A hint that says nothing ("A hex color", "Choose from the list") was dropped on purpose
+    // (owner, 2026-11-12): a field has one only where it tells a range or an effect.
+    const bad = hints.filter(x => x.h.split(' ').length >= 10);
+    ok('a hint, where a field has one, is under ten words', hints.length > 50 && bad.length === 0, bad.slice(0, 5).map(x => x.p + ': "' + x.h + '"').join('; ') + ' of ' + hints.length);
+    const empty = hints.filter(x => !x.h);
+    ok('and most fields have none: the hints left are the ranges, shadows, lists and font',
+        empty.length > 30 && hints.length - empty.length < 40, empty.length + ' without of ' + hints.length);
+    // Plain names (owner, 2026-11-12): each row's label is a short name, with its path
+    // small beneath it.
+    const names = await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields .jpf-te-adv:not(.jpf-te-photo)')).map(function (f) { var n = f.querySelector('.jpf-te-adv-name'), p = f.querySelector('.jpf-te-adv-label code'); return { path: f.getAttribute('data-paths'), name: n ? n.textContent : '', code: p ? p.textContent : '', size: p ? parseFloat(getComputedStyle(p).fontSize) : 0, nameSize: n ? parseFloat(getComputedStyle(n).fontSize) : 0 }; })");
+    const unnamed = names.filter(n => !n.name || n.name === n.path || n.name.indexOf('.') !== -1 || n.name.split(' ').length > 6);
+    ok('every Advanced row has a plain name, not its path', names.length > 50 && unnamed.length === 0, unnamed.slice(0, 5).map(n => n.path + ': "' + n.name + '"').join('; '));
+    ok('and the path is still there beneath it, smaller', names.every(n => n.code === n.path && n.size < n.nameSize), names.filter(n => n.code !== n.path || n.size >= n.nameSize).slice(0, 3).map(n => n.path).join());
+    ok('no two rows share a name', new Set(names.map(n => n.name)).size === names.length);
+    ok('the focused button\'s border width reads as in the brief',
+        (names.filter(n => n.path === 'parts.button2.focus.border.width')[0] || {}).name === 'Focused button, border width',
+        JSON.stringify(names.filter(n => n.path === 'parts.button2.focus.border.width')));
     const ex = await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields .jpf-te-example')).map(function (e) { try { return Array.isArray(JSON.parse(e.textContent)); } catch (x) { return false; } })");
     ok('the JSON lists show an example that parses', ex.length === 2 && ex.every(Boolean), JSON.stringify(ex));
 }
