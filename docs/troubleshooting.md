@@ -92,6 +92,10 @@ changes, Bonfire first copies `PluginConfiguration.xml` to
 The last three are kept. To get a newer version's settings back, stop Jellyfin, copy that
 file over `PluginConfiguration.xml`, and start the newer version.
 
+## I deleted the settings file and it came back
+
+Bonfire keeps a copy of its settings beside the file, as `PluginConfiguration.xml.lastgood`. If `PluginConfiguration.xml` is deleted, Bonfire restores it from that copy, so to start over with default settings, stop Jellyfin and delete both.
+
 ## Quick Connect still shows on my Android TV
 
 If anyone outside a household has signed in on a TV with the same name, Bonfire stops hiding
