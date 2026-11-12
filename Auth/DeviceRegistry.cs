@@ -788,7 +788,9 @@ namespace Jellyfin.Profiles.Auth
         /// sighting is no later than the newer one's first, and the newer one has been around
         /// for <see cref="SameDeviceQuietPeriod"/>. Two records used in overlapping weeks — a
         /// second "Family Room TV" at another home, a tablet renamed to match — never merge.
-        /// Not by address: addresses change and proxies hide them.</para>
+        /// Nor does a row on any profile's allow list (aliases included) by this rule: only
+        /// proof, the paragraph above, may merge it, because a wrong guess would hand its
+        /// permission to another device. Not by address: addresses change and proxies hide them.</para>
         ///
         /// <para>Into the newer record, by <see cref="ProfilesBaseController.MergeDeviceRecords"/>:
         /// add before remove, so no whitelist passes through empty, and the old id stays as an
@@ -827,6 +829,13 @@ namespace Jellyfin.Profiles.Auth
                 .GroupBy(d => d.DeviceName.Trim().ToLowerInvariant() + "\0" + d.Client.Trim().ToLowerInvariant())
                 .Where(g => g.Count() > 1);
 
+            // Every id any profile is restricted to; a row is on it by its id or an alias.
+            var allowed = (config.Mappings ?? new List<ProfileMapping>())
+                .SelectMany(m => m.AllowedDeviceIds ?? new List<string>())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToList();
+            bool Allowed(KnownDevice d) => allowed.Any(id => d.Answers(id));
+
             foreach (var g in groups)
             {
                 var rows = g.OrderByDescending(d => d.LastSeen).ToList();
@@ -841,6 +850,11 @@ namespace Jellyfin.Profiles.Auth
                         // Proven: into the most recently seen, the id in use now.
                         if (i > j && Derived(older, newer, members, names, screens, config.KnownDevices))
                             return (older.DeviceId, newer.DeviceId);
+
+                        // Never by time when either row is on an allow list (owner decision,
+                        // 2026-11-12): a guess that two devices are one would hand the allowed
+                        // device's permission to the other. Only proof, above, may merge it.
+                        if (Allowed(older) || Allowed(newer)) continue;
 
                         if (newer.FirstSeen != DateTime.MinValue
                             && older.LastSeen <= newer.FirstSeen

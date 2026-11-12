@@ -275,15 +275,12 @@ Console.WriteLine("── One device that got a new id is one row ────�
     // 1. Four ids one after another: each used, then never again once the next appeared.
     {
         var h = Household(1);
-        var allowFirst = (IList)mappingType.GetProperty("AllowedDeviceIds")
-            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h.Cfg))[0]);
         var ids = new[] { "fb030d0001", "392e4e0002", "bdf0880003", "51efea0004" }
             .Select(s => Sha1(s)).ToArray();
         for (var i = 0; i < ids.Length; i++)
         {
             See(h.Cfg, ids[i], "Family Room TV", TV, h.Master, t0.AddDays(i * 7));
             See(h.Cfg, ids[i], "Family Room TV", TV, h.Master, t0.AddDays(i * 7 + 2));
-            if (i == 0) allowFirst.Add(ids[0]);
         }
         Ok("two days after the newest id appeared it is still its own row: the old one may be in use ("
            + h.List.Count + ")", h.List.Count >= 2);
@@ -293,8 +290,68 @@ Console.WriteLine("── One device that got a new id is one row ────�
            h.List.Count == 1);
         Ok("the row kept is the newest id", h.List.Count == 1 && Ids(h.List)[0] == ids[3]);
         Ok("every old id still answers as that row", ids.All(id => Answers(h.List, id)));
-        Ok("a profile allowed on the first id is allowed on the merged one",
-           allowFirst.Cast<string>().Contains(ids[3]) && !allowFirst.Cast<string>().Contains(ids[0]));
+    }
+
+    // 1b. Owner decision, 2026-11-12: a device on an allow list is never joined by the time
+    //     rule. An unproven merge of two different devices hands the allowed one's
+    //     permission to the other: a kid's iPad renamed "Family Room TV", the real TV unused
+    //     for a week. Only proof (one id derived from the other) may merge it.
+    {
+        var h = Household(1);
+        var allow = (IList)mappingType.GetProperty("AllowedDeviceIds")
+            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h.Cfg))[0]);
+        See(h.Cfg, "real-tv-0001", "Family Room TV", TV, h.Master, t0);
+        allow.Add("real-tv-0001");
+        See(h.Cfg, "ipad-newcomer-2", "Family Room TV", TV, h.Master, t0.AddDays(2));
+        var merged = Merge(h.Cfg, h.Master, t0.AddDays(10));
+        Ok("an allow-listed television and a same-named newcomer after 8 days are two rows (" + h.List.Count + ")",
+           h.List.Count == 2 && merged == 0);
+        Ok("and the newcomer is not on the allow list", !allow.Cast<string>().Contains("ipad-newcomer-2")
+           && allow.Cast<string>().Contains("real-tv-0001"));
+
+        // The same two, with the newcomer the one on the allow list.
+        var h2 = Household(1);
+        var allow2 = (IList)mappingType.GetProperty("AllowedDeviceIds")
+            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h2.Cfg))[0]);
+        See(h2.Cfg, "old-tv-0001", "Family Room TV", TV, h2.Master, t0);
+        See(h2.Cfg, "new-tv-0002", "Family Room TV", TV, h2.Master, t0.AddDays(2));
+        allow2.Add("new-tv-0002");
+        Merge(h2.Cfg, h2.Master, t0.AddDays(10));
+        Ok("an allow-listed newer row is not folded into either (" + h2.List.Count + ")", h2.List.Count == 2);
+
+        // An alias counts: the list may name an id this row only answers to.
+        var h3 = Household(1);
+        var allow3 = (IList)mappingType.GetProperty("AllowedDeviceIds")
+            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h3.Cfg))[0]);
+        See(h3.Cfg, "tv-a-000001", "Family Room TV", TV, h3.Master, t0);
+        See(h3.Cfg, "tv-b-000002", "Family Room TV", TV, h3.Master, t0.AddDays(2));
+        ((IList)deviceType.GetProperty("Aliases").GetValue(h3.List[0])).Add("tv-a-alias");
+        allow3.Add("tv-a-alias");
+        Merge(h3.Cfg, h3.Master, t0.AddDays(10));
+        Ok("a row the allow list names only by an alias is not joined by time (" + h3.List.Count + ")", h3.List.Count == 2);
+
+        // Unrestricted rows keep the time rule.
+        var h4 = Household(1);
+        See(h4.Cfg, "plain-old-0001", "Family Room TV", TV, h4.Master, t0);
+        See(h4.Cfg, "plain-new-0002", "Family Room TV", TV, h4.Master, t0.AddDays(2));
+        Merge(h4.Cfg, h4.Master, t0.AddDays(10));
+        Ok("unrestricted rows are still joined by the time rule (" + h4.List.Count + ")", h4.List.Count == 1);
+
+        // Proof still merges an allow-listed row, and the allowance moves with it.
+        if (forgetScreens != null) forgetScreens.Invoke(null, null);
+        var h5 = Household(1);
+        var allow5 = (IList)mappingType.GetProperty("AllowedDeviceIds")
+            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h5.Cfg))[0]);
+        const string bare5 = "5c1d7e90ab34f2d6";
+        var accts = new[] { h5.Master, h5.Profiles[0] };
+        foreach (var a in accts) See(h5.Cfg, Sha1(bare5 + "+" + a), "Family Room TV", TV, h5.Master, t0.AddHours(Array.IndexOf(accts, a)));
+        allow5.Add(Sha1(bare5 + "+" + accts[0]));
+        noteScreen.Invoke(null, new object[] { bare5 });
+        Merge(h5.Cfg, h5.Master, t0.AddDays(1));
+        Ok("ids derived from one another still merge when one is allow-listed (" + h5.List.Count + ")", h5.List.Count == 1);
+        Ok("and the allowance is on the surviving id",
+           allow5.Count > 0 && allow5.Cast<string>().All(id => Answers(h5.List, id)));
+        if (forgetScreens != null) forgetScreens.Invoke(null, null);
     }
 
     // 2. One television, four accounts: four derived ids in use side by side. The time rule
