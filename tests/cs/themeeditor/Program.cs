@@ -403,6 +403,9 @@ Directory.CreateDirectory(tempDir);
 var pluginType = asm.GetType("Jellyfin.Profiles.Plugin", true);
 Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var live = (PluginConfiguration)pluginType.GetProperty("Configuration").GetValue(pluginType.GetProperty("Instance").GetValue(null));
+// A new install starts with Bonfire off (2.0), and off every gate stands down. This harness
+// is about a server where it is on.
+live.BonfireOn = true;
 Ok("the plugin stands up, its fonts folder under the stub data path",
    live != null && ThemeCatalog.CustomFontFolder.StartsWith(tempDir, StringComparison.Ordinal));
 

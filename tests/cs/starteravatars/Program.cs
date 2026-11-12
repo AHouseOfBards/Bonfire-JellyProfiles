@@ -156,6 +156,9 @@ try
 {
     var plugin = (Plugin)Activator.CreateInstance(typeof(Plugin), new StubPaths(tempDir), new StubXml());
     var config = plugin.Configuration;
+    // A new install starts with Bonfire off (2.0), and off every gate stands down. This
+    // harness is about a server where it is on.
+    config.BonfireOn = true;
 
     // One avatar the administrator uploaded, with its file where the library keeps them.
     var libraryFolder = Path.Combine(tempDir, "plugins", "ProfilesManagement", "avatars");

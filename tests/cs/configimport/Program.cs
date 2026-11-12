@@ -70,6 +70,9 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-configimport-" + Guid.Ne
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var live = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0), and off every gate stands down. This harness
+// is about a server where it is on.
+live.GetType().GetProperty("BonfireOn").SetValue(live, true);
 // The library avatar the round trip below carries has its file here, as on the server the
 // backup was taken from: an import drops a picture whose file is not on this one (R-1150).
 Directory.CreateDirectory(Path.Combine(tempDir, "plugins", "ProfilesManagement", "avatars"));

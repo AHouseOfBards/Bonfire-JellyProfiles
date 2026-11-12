@@ -95,6 +95,13 @@ catch (Exception ex)
     Console.WriteLine("        could not construct the plugin: " + ex.GetBaseException().Message);
 }
 Ok("the plugin can be constructed against stub paths", plugin != null);
+// A new install starts with Bonfire off (2.0), and off every gate stands down. This harness
+// is about a server where it is on.
+if (plugin != null)
+{
+    var startConfig = pluginType.GetProperty("Configuration").GetValue(plugin);
+    startConfig.GetType().GetProperty("BonfireOn").SetValue(startConfig, true);
+}
 
 if (plugin != null)
 {
