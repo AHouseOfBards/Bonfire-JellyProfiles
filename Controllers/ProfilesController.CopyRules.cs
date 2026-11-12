@@ -189,7 +189,7 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
             }
 
-            ViewingTracker.Invalidate();
+            ViewingTracker.RulesChanged();
             if (viewing == null || !viewing.IsLimited) ViewingTracker.ForgetUnlessRecent(request.TargetProfileId);
             LogActivity("Rules copied from " + source.ProfileName + " to " + targetUser.Username, "CopyRules", request.TargetProfileId);
             return Ok();

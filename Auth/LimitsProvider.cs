@@ -60,6 +60,9 @@ namespace Jellyfin.Profiles.Auth
 
             Limits.Provide(PluginIds.Bonfire, Minor, (userId, _, _) => Task.FromResult(Decide(userId, ViewingTracker.Now())));
             RefreshAdmins();
+            // Who is limited, for a caller that gets no answer from this provider. Written now so
+            // the file is current after a restart, and again whenever a save changes it.
+            ViewingTracker.RulesChanged();
         }
 
         // ── Maintenance ─────────────────────────────────────────────────────────────

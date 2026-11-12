@@ -191,7 +191,7 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
                 saved = config.SnapshotForReading();
             }
-            ViewingTracker.Invalidate();
+            ViewingTracker.RulesChanged();
             // Nothing reads what a profile with no rules has watched, and it would stay in the file (R-1023).
             if (!rules.IsLimited) ViewingTracker.ForgetUnlessRecent(profileId);
             LogActivity("Viewing limits for " + row.ProfileName + (rules.IsLimited ? " changed" : " turned off"), "ViewingLimits", profileId);

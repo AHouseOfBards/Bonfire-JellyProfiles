@@ -783,6 +783,7 @@ namespace Jellyfin.Profiles.Controllers
                 // What it had watched today, kept per profile, would stay in viewing_usage.json (R-1023).
                 // Outside ConfigLock: the tracker's own lock is never taken inside it.
                 Auth.ViewingTracker.Forget(request.ProfileId);
+                Auth.ViewingTracker.RulesChanged();
 
                 // The master's last profile may just have gone, and a master with no
                 // profiles is no longer one the PIN provider should hold.
@@ -1560,6 +1561,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             foreach (var gone in orphansRemoved) Auth.ViewingTracker.Forget(gone);   // R-1023
+            if (orphansRemoved.Count > 0) Auth.ViewingTracker.RulesChanged();
             foreach (var (gonesMain, gonesProfile, gonesName) in orphanEvents) BonfireCampground.RaiseDeleted(gonesMain, gonesProfile, gonesName);
 
             // A master whose profiles were all orphans is no longer one the PIN provider
@@ -5016,7 +5018,11 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Out of the household it was in, so as far as the household goes it was deleted.
-            if (left) BonfireCampground.RaiseDeleted(mapping.MasterUserId, mapping.ProfileUserId, mapping.ProfileName);
+            if (left)
+            {
+                Auth.ViewingTracker.RulesChanged();
+                BonfireCampground.RaiseDeleted(mapping.MasterUserId, mapping.ProfileUserId, mapping.ProfileName);
+            }
 
             // 4. Shown on the sign-in screen if its master is. Every profile is hidden, because
             //    it is reached through its master; left that way, the new account is missing

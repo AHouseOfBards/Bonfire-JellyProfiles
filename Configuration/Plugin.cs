@@ -64,7 +64,7 @@ namespace Jellyfin.Profiles
         /// </summary>
         internal static void ForgetOnOffCaches()
         {
-            Auth.ViewingTracker.Invalidate();
+            Auth.ViewingTracker.RulesChanged();
             Auth.ProxySwitcher.ForgetUnproxied();
         }
 

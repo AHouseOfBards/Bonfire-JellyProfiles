@@ -2283,9 +2283,11 @@ a gate; the caller decides what to do. Bonfire counts the time of every activity
 `UserId` (`Sessions.ListActivities`) that is not `Paused` against the daily limit, once
 however many things the user is doing at once. Maintenance is not part of the answer.
 
-When Bonfire is not installed, or the call fails or takes over two seconds, the shared
-helper answers allowed. Check `Capabilities.IsAvailable` to tell "allowed" from "nobody
-asked".
+When Bonfire is not installed or is disabled, the shared helper answers allowed. When it is
+installed but the call fails, takes over two seconds, or Bonfire has not registered, a user
+with limits is refused with `limits_unavailable` and everyone else is allowed. Bonfire
+publishes who has limits at start-up and after every save that changes it. Check
+`Capabilities.IsAvailable` to tell "allowed" from "nobody asked".
 
 ### Households and devices
 

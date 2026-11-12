@@ -593,6 +593,9 @@ namespace Jellyfin.Profiles.Controllers
                 CreateGate.Release();
             }
 
+            // The row that was a profile is gone, and with it any limit it carried.
+            Auth.ViewingTracker.RulesChanged();
+
             // Another household's devices that came in through a link just forgotten, or on the
             // main account's own row, are signed out: the door they used is gone (r2-10-02).
             await SignOutClosedEntriesAsync().ConfigureAwait(false);

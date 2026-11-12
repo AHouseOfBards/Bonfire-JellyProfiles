@@ -134,14 +134,58 @@ namespace Jellyfin.Profiles.Auth
             }
 
             AfterBuild?.Invoke();
+            bool current;
+            IReadOnlyDictionary<Guid, Limited> result;
             lock (UsageLock)
             {
                 _index = built;
                 // Not marked fresh if a rule was saved while this was being built: the next
                 // read rebuilds, instead of serving the old rules for the rest of the 30 seconds.
-                _indexUntil = generation == _indexGeneration ? now + IndexLife : DateTime.MinValue;
-                return _index;
+                current = generation == _indexGeneration;
+                _indexUntil = current ? now + IndexLife : DateTime.MinValue;
+                result = _index;
             }
+
+            // A rebuild that raced a save may have read the rules before it, so only a current one
+            // is published. Never before the configuration is loaded: that set would be empty, and
+            // would replace the one Bonfire last wrote down.
+            if (current && Plugin.Instance?.Configuration != null) PublishLimited(built.Keys);
+            return result;
+        }
+
+        private static string? _publishedKey;
+        private static int _saidPublishFailed;
+
+        // Everyone in the index is refused with limits_unavailable by Campground.Shared when
+        // Bonfire does not answer. Written only when the set changed, so the 30-second rebuild
+        // does no file work. Never throws.
+        private static void PublishLimited(IEnumerable<Guid> ids)
+        {
+            try
+            {
+                var set = ids.Distinct().ToArray();
+                var key = string.Join(",", set.Select(g => g.ToString("N")).OrderBy(x => x, StringComparer.Ordinal));
+                if (key == _publishedKey) return;
+                Campground.Shared.Contracts.Limits.PublishLimited(set);
+                _publishedKey = key;
+            }
+            catch (Exception ex)
+            {
+                if (System.Threading.Interlocked.Exchange(ref _saidPublishFailed, 1) == 0)
+                {
+                    Log?.LogWarning(ex, "ProfilesPlugin: could not publish the limited profiles to other Campground plugins.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Re-reads the rules and publishes who is limited now. For a save that can change a profile's
+        /// limits or remove a profile. Call it after leaving ConfigLock: a changed set goes to a file.
+        /// </summary>
+        internal static void RulesChanged()
+        {
+            Invalidate();
+            Index();
         }
 
         /// <summary>Re-read the rules on the next request. Called when a rule or a zone is saved.</summary>
@@ -432,6 +476,9 @@ namespace Jellyfin.Profiles.Auth
                 _loaded = false;
                 _dirty = false;
             }
+
+            _publishedKey = null;
+            _saidPublishFailed = 0;
         }
 
         // ── Words ───────────────────────────────────────────────────────────────────
