@@ -921,7 +921,9 @@
         // below writes the same three, and tests/js/a11y.js checks each rule for them.
         if (patternImage && pattern.drift === 'down') {
             const seconds = num(pattern.seconds, 32);
-            const anim = 'jpf-drift-' + patternSize;
+            // A name, so no '.': a size of 240.5 (the validator allows it) made
+            // "jpf-drift-240.5", which is not an identifier and dropped the animation.
+            const anim = 'jpf-drift-' + String(patternSize).replace(/[^0-9a-z]/gi, '-');
             css += '@media (prefers-reduced-motion: no-preference) {\n'
                 + '    ' + sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay::before {\n'
                 + '        top: -' + patternSize + 'px;\n        will-change: transform;\n'
