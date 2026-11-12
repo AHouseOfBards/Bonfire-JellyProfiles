@@ -757,6 +757,29 @@ namespace Jellyfin.Profiles.Controllers
             return (result, null);
         }
 
+        /// <summary>The most tags a profile may block, and the most it may allow. A fixed limit (r2-22-01).</summary>
+        internal const int MaxTagsPerList = 100;
+
+        /// <summary>The longest a tag may be.</summary>
+        internal const int MaxTagLength = 100;
+
+        internal const string TooManyTagsMessage = "Too many tags in the list.";
+        internal const string TagTooLongMessage = "A tag is too long.";
+
+        /// <summary>
+        /// Refuses a tag list that is long, or holds a long tag, before it is written into the
+        /// Jellyfin user's policy, where every read of that policy would carry it. Counted
+        /// after trimming and de-duplicating, the same way it is stored. A list left out is fine.
+        /// </summary>
+        internal static string? TagListError(IEnumerable<string>? tags)
+        {
+            if (tags == null) return null;
+            var normalized = NormalizeTags(tags);
+            if (normalized.Count > MaxTagsPerList) return TooManyTagsMessage;
+            if (normalized.Any(t => t.Length > MaxTagLength)) return TagTooLongMessage;
+            return null;
+        }
+
         /// <summary>A maxParentalRating that isn't a score. It used to be read as no limit (R-1144).</summary>
         internal const string RatingNotScoreMessage = "maxParentalRating must be a rating score, or \"\" for no limit.";
 

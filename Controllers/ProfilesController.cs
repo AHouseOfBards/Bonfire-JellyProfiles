@@ -441,8 +441,9 @@ namespace Jellyfin.Profiles.Controllers
             // Reject an allow-list that shares no tags with the master's, which would leave the
             // profile with an empty library. Checked before the user is created so we don't
             // leave a half-built account behind.
-            var allowedTagsError = ValidateAllowedTags(
-                _userManager.GetUserDto(masterUser, string.Empty).Policy, request.AllowedTags);
+            var allowedTagsError = TagListError(request.BlockedTags) ?? TagListError(request.AllowedTags)
+                ?? ValidateAllowedTags(
+                    _userManager.GetUserDto(masterUser, string.Empty).Policy, request.AllowedTags);
             if (allowedTagsError != null)
             {
                 return BadRequest(allowedTagsError);
@@ -2196,7 +2197,8 @@ namespace Jellyfin.Profiles.Controllers
             var masterUserDto = _userManager.GetUserDto(masterUser, string.Empty);
             var masterPolicy = masterUserDto.Policy;
 
-            var allowedTagsError = ValidateAllowedTags(masterPolicy, request.AllowedTags);
+            var allowedTagsError = TagListError(request.BlockedTags) ?? TagListError(request.AllowedTags)
+                ?? ValidateAllowedTags(masterPolicy, request.AllowedTags);
             if (allowedTagsError != null)
             {
                 return BadRequest(allowedTagsError);

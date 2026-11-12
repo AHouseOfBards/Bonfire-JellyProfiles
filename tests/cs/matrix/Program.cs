@@ -578,7 +578,22 @@ if (normIds != null)
     Check("200 devices are taken", Norm(Enumerable.Range(0, 200).Select(i => "d" + i)).Error == null, true);
     Check("201 devices are refused", Norm(Enumerable.Range(0, 201).Select(i => "d" + i)).Error != null, true);
 }
-Check("create checks the rating and the list", SrcHas(controllerSrc, "var ratingError = ValidateRatingScore(request.MaxParentalRating);"), true);
+// r2-22-01: tag lists are capped, a fixed limit.
+var tagErr = baseType.GetMethod("TagListError", Flags);
+Check("tag lists are checked in one place", tagErr != null, true);
+if (tagErr != null)
+{
+    string TagErr(System.Collections.Generic.IEnumerable<string> l) => (string)tagErr.Invoke(null, new object[] { l });
+    Check("no list is fine", TagErr(null) == null, true);
+    Check("100 tags are taken", TagErr(Enumerable.Range(0, 100).Select(i => "t" + i)) == null, true);
+    Check("101 tags are refused", TagErr(Enumerable.Range(0, 101).Select(i => "t" + i)) != null, true);
+    Check("repeats are counted once", TagErr(Enumerable.Range(0, 500).Select(i => "t" + (i % 5))) == null, true);
+    Check("a tag of 100 characters is taken", TagErr(new[] { new string('a', 100) }) == null, true);
+    Check("a tag of 101 characters is refused", TagErr(new[] { new string('a', 101) }) != null, true);
+}
+Check("create and update both check the tag lists",
+    System.Text.RegularExpressions.Regex.Matches(controllerSrc, @"TagListError\(request\.BlockedTags\) \?\? TagListError\(request\.AllowedTags\)").Count, 2);
+Check("create checks the rating and the list",SrcHas(controllerSrc, "var ratingError = ValidateRatingScore(request.MaxParentalRating);"), true);
 Check("create stores the cleaned list", SrcHas(controllerSrc, "AllowedDeviceIds = newDeviceIds ?? new List<string>(),"), true);
 Check("update stores the cleaned list", SrcHas(controllerSrc, "mappingEntry.AllowedDeviceIds = newDeviceIds!;"), true);
 Check("the raw list is stored nowhere", SrcHas(controllerSrc, "AllowedDeviceIds = request.AllowedDeviceIds"), false);
