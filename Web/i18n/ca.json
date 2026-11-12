@@ -464,8 +464,6 @@
   "admin.panic.placeholder": "Com a mínim 10 caràcters",
   "admin.panic.hint": "Desa'l en blanc per desactivar-lo. No es pot tornar a mostrar, així que anota'l fora d'aquest servidor.",
   "admin.panic.save": "Desa el codi",
-  "admin.security.apiTitle": "Accés a l'API",
-  "admin.security.apiBody": "Els scripts i altres aplicacions poden fer servir les rutes d'administrador de Bonfire amb una clau de Tauler → Claus de l'API.",
   "admin.switcher.title": "Selector",
   "admin.switcher.lede": "El que tenen els comptes principals fins que triïn per si mateixos.",
   "admin.switcher.askOnStartup": "Pregunta «Qui està mirant?» en iniciar",

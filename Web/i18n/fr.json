@@ -464,8 +464,6 @@
   "admin.panic.placeholder": "Au moins 10 caractères",
   "admin.panic.hint": "Enregistrez-le vide pour le désactiver. Il ne peut pas être réaffiché : notez-le ailleurs que sur ce serveur.",
   "admin.panic.save": "Enregistrer le code",
-  "admin.security.apiTitle": "Accès API",
-  "admin.security.apiBody": "Les scripts et autres applications peuvent utiliser les routes administrateur de Bonfire avec une clé de Tableau de bord → Clés API.",
   "admin.switcher.title": "Sélecteur",
   "admin.switcher.lede": "Ce que reçoivent les comptes principaux tant qu'ils n'ont pas choisi eux-mêmes.",
   "admin.switcher.askOnStartup": "Demander « Qui regarde ? » au démarrage",

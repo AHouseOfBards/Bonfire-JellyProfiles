@@ -475,8 +475,6 @@
   "admin.panic.placeholder": "En az 10 karakter",
   "admin.panic.hint": "Kapatmak için boş kaydedin. Yeniden gösterilemez, bu yüzden bu sunucunun dışında bir yere not edin.",
   "admin.panic.save": "Kodu kaydet",
-  "admin.security.apiTitle": "API erişimi",
-  "admin.security.apiBody": "Betikler ve diğer uygulamalar, Pano → API Anahtarları'ndan alınan bir anahtarla Bonfire'ın yönetici yollarını kullanabilir.",
   "admin.switcher.title": "Profil değiştirici",
   "admin.switcher.lede": "Ana hesaplar kendileri seçene kadar geçerli olanlar.",
   "admin.switcher.askOnStartup": "Açılışta \"Kim izliyor?\" diye sor",

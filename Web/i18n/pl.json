@@ -464,8 +464,6 @@
   "admin.panic.placeholder": "Co najmniej 10 znaków",
   "admin.panic.hint": "Zapisz pusty, aby go wyłączyć. Nie da się go ponownie wyświetlić, więc zapisz go gdzieś poza tym serwerem.",
   "admin.panic.save": "Zapisz kod",
-  "admin.security.apiTitle": "Dostęp przez API",
-  "admin.security.apiBody": "Skrypty i inne aplikacje mogą korzystać z tras administratora Bonfire przy użyciu klucza z Panel → Klucze API.",
   "admin.switcher.title": "Przełącznik",
   "admin.switcher.lede": "To, co dostają konta główne, dopóki same nie wybiorą.",
   "admin.switcher.askOnStartup": "Pytaj „Kto ogląda?” przy uruchomieniu",

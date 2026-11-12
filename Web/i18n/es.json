@@ -464,8 +464,6 @@
   "admin.panic.placeholder": "Al menos 10 caracteres",
   "admin.panic.hint": "Guárdalo en blanco para desactivarlo. No se puede volver a mostrar, así que apúntalo fuera de este servidor.",
   "admin.panic.save": "Guardar código",
-  "admin.security.apiTitle": "Acceso a la API",
-  "admin.security.apiBody": "Los scripts y otras aplicaciones pueden usar las rutas de administrador de Bonfire con una clave de Panel → Claves de API.",
   "admin.switcher.title": "Selector",
   "admin.switcher.lede": "Lo que tienen las cuentas principales hasta que elijan por sí mismas.",
   "admin.switcher.askOnStartup": "Preguntar «¿Quién está viendo?» al iniciar",

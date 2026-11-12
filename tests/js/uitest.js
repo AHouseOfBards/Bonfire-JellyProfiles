@@ -213,6 +213,8 @@ const beforeTabs = html.slice(0, html.indexOf('<div class="jpf-tabs"'));
 // Both only repeated a Status row on every tab.
 ['betaNoticeContainer', 'injectionOkContainer', 'admin.banner.okTitle', 'admin.banner.betaTitle']
     .forEach(function (id) { ok(html.indexOf(id) === -1, id + ' is not on the page: Status lists it'); });
+// Owner decision (1.9.0.4 eye test): API access is documented in docs/developer-api.md only.
+ok(html.indexOf('admin.security.api') === -1 && !/>API access</.test(html), 'the Security tab has no API access section');
 // The stale-tag banner and the chmod/chown panels are gone: isVersionStale is always false
 // and the failure banner hid its file fix whenever it showed (the file is never patched).
 ['staleVersionWarningContainer', 'dismissStaleBtn', 'injectionFileFix', 'linuxChownCmd', 'dockerChmodCmd', 'windowsFixCmd']
