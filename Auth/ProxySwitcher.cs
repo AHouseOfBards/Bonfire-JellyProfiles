@@ -639,6 +639,10 @@ namespace Jellyfin.Profiles.Auth
             foreach (var pair in Sessions)
             {
                 var s = pair.Value;
+                // ChildTokens is keyed by the main token as well as the profile's, so this is
+                // not covered by Acting: SignOutChildAsync clears Acting and keeps the main
+                // token's mark until Jellyfin confirms the sign-out. A session in that state
+                // is still being refused and is kept.
                 if (s.Acting != null || !s.Sockets.IsEmpty || ChildTokens.ContainsKey(pair.Key)) continue;
                 if (Interlocked.Read(ref s.CheckedTicks) >= cutoff) continue;
                 if (Sessions.TryRemove(pair.Key, out _)) removed++;
