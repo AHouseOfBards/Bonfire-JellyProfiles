@@ -42,7 +42,7 @@ because other people build against it too.
 
 ## All routes
 
-All 112 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -111,7 +111,6 @@ All 112 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/avatars/{id}` | anon | One avatar image. |
 | `POST /plugins/profiles/admin/avatars` | admin | Add an avatar. |
 | `DELETE /plugins/profiles/admin/avatars/{id}` | admin | Remove an avatar. |
-| `POST /plugins/profiles/admin/avatars/settings` | admin | Avatar library options. |
 | `GET /plugins/profiles/admin/avatars/scan` | admin | List pictures in a server folder. |
 | `GET /plugins/profiles/admin/avatars/scan/file` | admin | Read one of them. |
 | `GET /plugins/profiles/announcements` | user | Announcements showing now. |
@@ -2071,17 +2070,6 @@ oversized image.
 **Authorisation:** administrator.
 
 Removes an avatar. Profiles using it keep their copy.
-
-### `POST /plugins/profiles/admin/avatars/settings`
-
-**Authorisation:** administrator.
-
-| Field | Description |
-| --- | --- |
-| `disallowCustomAvatarUploads` | Pictures may only come from the library. |
-| `enableStarterAvatars` | Offer the starter avatars. |
-
-Leave a field out to keep it as it is.
 
 ### `GET /plugins/profiles/admin/avatars/scan`
 

@@ -252,14 +252,14 @@ try
     Ok("and a refused choice leaves the profile's current picture alone",
        current != null && File.Exists(current) && File.ReadAllBytes(current).SequenceEqual(before));
 
-    // The avatar tab's own endpoint carries it too.
-    var avatarSettingsType = asm.GetType("Jellyfin.Profiles.Models.AvatarSettingsRequest", true);
-    var avatarSettings = Activator.CreateInstance(avatarSettingsType);
-    var avatarProp = avatarSettingsType.GetProperty("EnableStarterAvatars");
-    avatarProp?.SetValue(avatarSettings, (bool?)true);
-    typeof(ProfilesController).GetMethod("UpdateAvatarSettings").Invoke(controller, new[] { avatarSettings });
-    Ok("and switch them back on from the avatar settings endpoint",
-       avatarProp != null && enabledProp != null && (bool)enabledProp.GetValue(config) && Listed().Count(IsStarter) == 30);
+    // The one settings endpoint switches them back on. There was a second, avatar-only route
+    // for it, which nothing called (r2-14-04); it is gone, and this is the only way.
+    var backOn = Activator.CreateInstance(settingsType);
+    settingsProp?.SetValue(backOn, (bool?)true);
+    typeof(ProfilesController).GetMethod("UpdateAdminSettings").Invoke(controller, new[] { backOn });
+    Ok("and switch them back on from the same endpoint",
+       enabledProp != null && (bool)enabledProp.GetValue(config) && Listed().Count(IsStarter) == 30);
+    Ok("the avatar-only settings route is gone", typeof(ProfilesController).GetMethod("UpdateAvatarSettings") == null);
 
     // Not an administrator: the switch is refused, the setting untouched.
     var userId = Guid.NewGuid();

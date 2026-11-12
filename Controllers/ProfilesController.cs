@@ -2261,12 +2261,17 @@ namespace Jellyfin.Profiles.Controllers
             // (R-1108).
             string? newImageUrl = null;
             var imageChanged = false;
+            // A file was written under this profile's name by this request, so a later
+            // refusal or failure has to take it back. A value that only repeats the stored
+            // address, or points elsewhere, wrote nothing.
+            var imageWritten = false;
             if (!string.IsNullOrEmpty(request.AvatarLibraryId))
             {
                 var copied = CopyLibraryAvatarToProfile(request.ProfileId, request.AvatarLibraryId);
                 if (copied.Error != null) return BadRequest(copied.Error);
                 newImageUrl = copied.Url;
                 imageChanged = true;
+                imageWritten = true;
             }
             else if (request.ProfileImage != null)
             {
@@ -2274,6 +2279,7 @@ namespace Jellyfin.Profiles.Controllers
                 if (saved.Error != null) return BadRequest(saved.Error);
                 newImageUrl = saved.Url;
                 imageChanged = true;
+                imageWritten = request.ProfileImage.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) && newImageUrl != null;
             }
 
             // The new account name, decided and checked here and written below, after the
@@ -2300,6 +2306,26 @@ namespace Jellyfin.Profiles.Controllers
             using var syncGate = request.ProfileId != masterUserId
                 ? await Auth.ProfilePolicySync.HoldAsync().ConfigureAwait(false)
                 : null;
+
+            // The profile is looked at again now that the gate is held. The first look was
+            // before the picture was saved and before this wait, and the profile could have
+            // been deleted, or handed to another household, in between. Without it the account
+            // was renamed and its policy written for a profile the mapping no longer had, and
+            // the save answered 200 while the lock below found nothing to update (r2-12-04).
+            if (request.ProfileId != masterUserId)
+            {
+                bool stillTheirs;
+                lock (ConfigLock)
+                {
+                    stillTheirs = config.Mappings.Any(m => m.ProfileUserId == request.ProfileId && m.MasterUserId == masterUserId);
+                }
+                if (!stillTheirs)
+                {
+                    DiscardNewImage(request.ProfileId, imageWritten);
+                    return NotFound("Target user not found.");
+                }
+            }
+
             List<Guid>? validatedFolders = null;
             // What the editor changed about the rating and what it wrote, for the mapping
             // (R-1045): the profile's own rating when the form set one, and the value written
@@ -2364,7 +2390,15 @@ namespace Jellyfin.Profiles.Controllers
                 if (newUsername != null)
                 {
                     targetUser.Username = newUsername;
-                    await _userManager.UpdateUserAsync(targetUser).ConfigureAwait(false);
+                    try
+                    {
+                        await _userManager.UpdateUserAsync(targetUser).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        DiscardNewImage(request.ProfileId, imageWritten);
+                        throw;
+                    }
                 }
                 try
                 {
@@ -2384,6 +2418,7 @@ namespace Jellyfin.Profiles.Controllers
                             _logger.LogError(undo, "ProfilesPlugin: Could not undo the rename of {Profile} after its policy write failed.", request.ProfileId);
                         }
                     }
+                    DiscardNewImage(request.ProfileId, imageWritten);
                     throw;
                 }
             }
@@ -2541,6 +2576,18 @@ namespace Jellyfin.Profiles.Controllers
             if (pinChanged) await SignOutAfterPinChangeAsync(request.ProfileId).ConfigureAwait(false);
 
             return Ok();
+        }
+
+        /// <summary>
+        /// Takes back a picture this request saved, when the rest of the request was refused or
+        /// failed. The previous picture was replaced when the new one was placed, so what is
+        /// left is no picture rather than a half-applied save with a file nothing points to.
+        /// </summary>
+        private void DiscardNewImage(Guid profileId, bool written)
+        {
+            if (!written) return;
+            try { DeleteImageFiles(ProfileImageFolder, profileId.ToString()); }
+            catch (Exception ex) { _logger.LogWarning(ex, "ProfilesPlugin: Could not remove the picture saved for {Profile} by a save that failed.", profileId); }
         }
 
         /// <summary>
@@ -3065,15 +3112,14 @@ namespace Jellyfin.Profiles.Controllers
 
             var currentUserIdVal = GetCurrentUserId();
             if (currentUserIdVal == null) return Unauthorized();
-            Guid masterUserId = currentUserIdVal.Value;
+            Guid masterId = currentUserIdVal.Value;
 
-            var currentMapping = FindMapping(masterUserId);
-            Guid masterId = currentMapping != null ? currentMapping.MasterUserId : masterUserId;
-
-            if (currentMapping != null && currentMapping.MasterUserId != masterUserId)
+            // A profile's own row names a different master; only the main account joins.
+            var currentMapping = FindMapping(masterId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterId)
                 return Unauthorized("Only the master profile can join Bonfire groups.");
 
-            if (!ManagementAllowed(masterUserId, config, null, out var pinRefusal)) return pinRefusal!;
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
 
             // Counted before the code is looked up, per address and per account, so neither
             // parallel requests nor a second address buy extra guesses.
@@ -3965,6 +4011,22 @@ namespace Jellyfin.Profiles.Controllers
             string mode = LibraryArtworkModes.Normalize(request.Mode);
             string baseName = LibraryArtName(profileId, libraryId);
 
+            // Looked at before any file is written: the profile has to exist, and a picture
+            // can only be set for a library it can open. Both used to be found out after the
+            // files were on disk (the second never), so a refusal left them behind and a
+            // library the profile cannot see could be given a tile (r2-13-01, r2-13-03).
+            // Putting a library back to inherit or none stays open: it hides, never shows.
+            var profileUser = _userManager.GetUserById(profileId);
+            if (profileUser == null) return NotFound("Profile not found.");
+            if (mode == LibraryArtworkModes.Custom)
+            {
+                var policy = _userManager.GetUserDto(profileUser, string.Empty).Policy;
+                var blocked = policy?.BlockedMediaFolders ?? Array.Empty<Guid>();
+                var enabled = policy?.EnabledFolders ?? Array.Empty<Guid>();
+                var canSee = policy != null && !blocked.Contains(libraryId) && (policy.EnableAllFolders || enabled.Contains(libraryId));
+                if (!canSee) return BadRequest("That profile cannot see that library.");
+            }
+
             if (mode == LibraryArtworkModes.Custom)
             {
                 if (!string.IsNullOrEmpty(request.AvatarLibraryId))
@@ -4009,15 +4071,20 @@ namespace Jellyfin.Profiles.Controllers
                     // changed for the first time. Refusing here meant a master could never
                     // set artwork for its own libraries, and every attempt left the image
                     // files behind. Sub-profiles always have a row, so this only ever
-                    // creates the master one.
-                    var owner = _userManager.GetUserById(profileId);
-                    if (owner == null) return NotFound("Profile not found.");
+                    // creates the master one. A sub-profile with none was deleted since the
+                    // ownership check above: it gets no row made for it, and the files
+                    // written for it are taken back.
+                    if (profileId != masterUserId)
+                    {
+                        DeleteImageFiles(LibraryArtFolder, baseName);
+                        return NotFound("Profile not found.");
+                    }
 
                     mapping = new ProfileMapping
                     {
                         ProfileUserId = profileId,
                         MasterUserId = profileId,
-                        ProfileName = owner.Username
+                        ProfileName = profileUser.Username
                     };
                     config.Mappings.Add(mapping);
                 }
@@ -4138,6 +4205,12 @@ namespace Jellyfin.Profiles.Controllers
 
         // ── Device Management ──────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Set once the stored device names have been repaired of legacy URL encoding in this
+        /// run. Read and written only inside <c>ConfigLock</c>.
+        /// </summary>
+        private static bool _legacyNamesRepaired;
+
         [HttpGet("devices")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -4200,6 +4273,15 @@ namespace Jellyfin.Profiles.Controllers
             lock (ConfigLock)
             {
                 var changed = false;
+                // Names recorded before 1.5.10 kept whatever encoding the client sent,
+                // because the header parser returned values verbatim — a phone shows as
+                // "Pixel+8". The parser is fixed, but a stored name only corrects itself
+                // the next time that device contacts the server, and a device on a
+                // whitelist may not do so for months. Repaired in place instead — once
+                // per run, for every row, since nothing writes an encoded name any more.
+                // It was a pattern match on two strings of every row on every look at
+                // this list (r2-13-04).
+                var repairNames = !_legacyNamesRepaired;
                 foreach (var d in config.KnownDevices)
                 {
                     if (d.MasterUserId == Guid.Empty
@@ -4209,11 +4291,8 @@ namespace Jellyfin.Profiles.Controllers
                         changed = true;
                     }
 
-                    // Names recorded before 1.5.10 kept whatever encoding the client sent,
-                    // because the header parser returned values verbatim — a phone shows as
-                    // "Pixel+8". The parser is fixed, but a stored name only corrects itself
-                    // the next time that device contacts the server, and a device on a
-                    // whitelist may not do so for months. Repaired in place instead.
+                    if (!repairNames) continue;
+
                     var decodedName = DecodeLegacyDeviceName(d.DeviceName);
                     if (!string.Equals(decodedName, d.DeviceName, StringComparison.Ordinal))
                     {
@@ -4228,6 +4307,7 @@ namespace Jellyfin.Profiles.Controllers
                         changed = true;
                     }
                 }
+                _legacyNamesRepaired = true;
 
                 // One device that got a new id, or one television signed in as several
                 // accounts, is one row: see DeviceRegistry.MergeSameDevices. Done here as well
@@ -5054,6 +5134,11 @@ namespace Jellyfin.Profiles.Controllers
 
                 user.ProfileImage = new Jellyfin.Database.Implementations.Entities.ImageInfo(target);
                 await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+
+                // The account has it now, and nothing serves or sweeps this folder for an
+                // account with no mapping, so the original would stay for good (r2-14-05).
+                // Only after the copy and the account's save both went through.
+                DeleteImageFiles(ProfileImageFolder, userId.ToString());
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -5323,6 +5408,8 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
+            if (request == null) return BadRequest("No code was sent.");
+
             // Empty clears it, which is how the feature is turned back off.
             if (string.IsNullOrWhiteSpace(request.Code))
             {
@@ -5495,7 +5582,7 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            if (string.IsNullOrWhiteSpace(request.Image))
+            if (request == null || string.IsNullOrWhiteSpace(request.Image))
                 return BadRequest("No image supplied.");
 
             // A fixed limit, not a setting: no household wants more than this to scroll
@@ -5535,10 +5622,45 @@ namespace Jellyfin.Profiles.Controllers
                 UploadedUtc = DateTime.UtcNow
             };
 
-            lock (ConfigLock)
+            // The cap is looked at again where the row is added: the check above was a
+            // separate look, and every add running at once passed it before any had added
+            // (r2-14-02). A row that is not kept, for the cap or a save that failed, takes
+            // its files with it, so neither is left on disk for nothing.
+            var full = false;
+            try
             {
-                config.AvatarLibrary.Add(item);
-                Plugin.Instance?.SaveConfiguration();
+                lock (ConfigLock)
+                {
+                    if (config.AvatarLibrary.Count >= MaxLibraryAvatars)
+                    {
+                        full = true;
+                    }
+                    else
+                    {
+                        config.AvatarLibrary.Add(item);
+                        try
+                        {
+                            Plugin.Instance?.SaveConfiguration();
+                        }
+                        catch
+                        {
+                            config.AvatarLibrary.Remove(item);
+                            throw;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DeleteImageFiles(AvatarLibraryFolder, id);
+                _logger.LogError(ex, "ProfilesPlugin: Could not save library avatar {Id}.", id);
+                throw;
+            }
+
+            if (full)
+            {
+                DeleteImageFiles(AvatarLibraryFolder, id);
+                return BadRequest($"The library is full ({MaxLibraryAvatars} pictures). Remove one first.");
             }
 
             _logger.LogInformation("ProfilesPlugin: Added library avatar {Id} ({Name}).", id, name);
@@ -5590,29 +5712,6 @@ namespace Jellyfin.Profiles.Controllers
 
             // Profiles that chose this avatar keep their own copy of the image, so nothing
             // they see changes — only the picker loses the option.
-            return Ok();
-        }
-
-        [HttpPost("admin/avatars/settings")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult UpdateAvatarSettings([FromBody] AvatarSettingsRequest request)
-        {
-            var adminError = RequireAdministrator("change avatar settings");
-            if (adminError != null) return adminError;
-
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-
-            lock (ConfigLock)
-            {
-                if (request.DisallowCustomAvatarUploads.HasValue)
-                    config.DisallowCustomAvatarUploads = request.DisallowCustomAvatarUploads.Value;
-                if (request.EnableStarterAvatars.HasValue)
-                    config.EnableStarterAvatars = request.EnableStarterAvatars.Value;
-                Plugin.Instance?.SaveConfiguration();
-            }
-
             return Ok();
         }
 

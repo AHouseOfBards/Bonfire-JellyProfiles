@@ -2861,25 +2861,40 @@ namespace Jellyfin.Profiles.Controllers
             try
             {
                 System.IO.File.WriteAllBytes(temp, bytes);
-                // Windows refuses a replace while another replace of the same name is in
-                // flight, so a second save of the same picture at once gets a few tries.
-                for (var attempt = 1; ; attempt++)
-                {
-                    try
-                    {
-                        System.IO.File.Move(temp, target, true);
-                        break;
-                    }
-                    catch (Exception ex) when (attempt < 8 && (ex is IOException || ex is UnauthorizedAccessException))
-                    {
-                        System.Threading.Thread.Sleep(15 * attempt);
-                    }
-                }
+                MoveIntoPlace(temp, target);
             }
             catch
             {
                 try { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); } catch { }
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// A staging name no other save shares: a fixed one let two saves at once, or a file
+        /// left by one that died, stop each other.
+        /// </summary>
+        private static string UniqueTempName(string target)
+            => target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+
+        /// <summary>
+        /// Moves a staged file over its target. Windows refuses a replace while another
+        /// replace of the same name is in flight, so a second save of the same picture at
+        /// once gets a few tries.
+        /// </summary>
+        private static void MoveIntoPlace(string temp, string target)
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    System.IO.File.Move(temp, target, true);
+                    return;
+                }
+                catch (Exception ex) when (attempt < 8 && (ex is IOException || ex is UnauthorizedAccessException))
+                {
+                    System.Threading.Thread.Sleep(15 * attempt);
+                }
             }
         }
 
@@ -3049,7 +3064,7 @@ namespace Jellyfin.Profiles.Controllers
                 // It used to delete the old one and then copy: a copy that failed halfway
                 // left the profile with no picture at all (R-1108).
                 Directory.CreateDirectory(destFolder);
-                var stagedStarter = Path.Combine(destFolder, baseName + ".tmp");
+                var stagedStarter = UniqueTempName(Path.Combine(destFolder, baseName + StarterAvatars.Extension));
                 try
                 {
                     using (var target = System.IO.File.Create(stagedStarter))
@@ -3058,7 +3073,7 @@ namespace Jellyfin.Profiles.Controllers
                     }
 
                     DeleteImageFiles(destFolder, baseName);
-                    System.IO.File.Move(stagedStarter, Path.Combine(destFolder, baseName + StarterAvatars.Extension), true);
+                    MoveIntoPlace(stagedStarter, Path.Combine(destFolder, baseName + StarterAvatars.Extension));
                 }
                 finally
                 {
@@ -3104,7 +3119,7 @@ namespace Jellyfin.Profiles.Controllers
 
                     var extension = Path.GetExtension(source.Value.Path);
                     var final = Path.Combine(destFolder, $"{baseName}{suffix}{extension}");
-                    var temp = final + ".tmp";
+                    var temp = UniqueTempName(final);
                     System.IO.File.Copy(source.Value.Path, temp, true);
                     staged.Add((temp, final));
                 }
@@ -3119,7 +3134,7 @@ namespace Jellyfin.Profiles.Controllers
                 DeleteImageFiles(destFolder, baseName);
                 foreach (var (temp, final) in staged)
                 {
-                    System.IO.File.Move(temp, final, true);
+                    MoveIntoPlace(temp, final);
                 }
                 return true;
             }
