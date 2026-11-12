@@ -1041,6 +1041,22 @@
         }).filter(k => k[3] >= 1);
     }
 
+    /// What a custom theme's background picture can put behind the logo, as gateColours
+    /// does: [] for a theme without one. The picture is drawn under the fill at its dim, so
+    /// at a low dim a bright or dark photograph shows nearly as itself, and gateBackground
+    /// does not know it is there. Taken at its worst, as ThemeValidator takes it: the fill
+    /// at the dim over white and over black.
+    function gatePhotoColours(id) {
+        const theme = customTheme(id);
+        const bg = theme && theme.background;
+        const image = bg && bg.image;
+        if (!image || !image.file) return [];
+        const dim = Number(image.dim);
+        const fill = gateColours(bg.fill)[0];
+        if (!fill || !(dim >= 0 && dim <= 1)) return [];
+        return [255, 0].map(end => [0, 1, 2].map(i => fill[i] * dim + end * (1 - dim)).concat([1]));
+    }
+
     /// The luminance of each visible pixel of a loaded logo, read off a canvas of at most
     /// 64px a side, which is plenty to tell what colour a logo is. [] for a solid picture
     /// (under 3% of it see-through): it carries its own background, so it never needs one.
@@ -13405,7 +13421,9 @@
         /// the logo gets a backing: dark behind a light logo, light behind a dark one. Not
         /// the theme's panel colour, which on a dark theme is as dark as its background and
         /// would hide a dark logo just the same. A logo that reads is left bare, and so is a
-        /// solid picture. Only from drawLogo and applyTheme, never from checkRoute.
+        /// solid picture. A theme's background picture counts at its worst under the dim
+        /// (gatePhotoColours), alongside the solid colours, which still show until it loads.
+        /// Only from drawLogo and applyTheme, never from checkRoute.
         fitLogoBacking: function () {
             const box = document.getElementById('profiles-logo');
             const img = box && box.querySelector('img');
@@ -13414,7 +13432,7 @@
             let want = '';
             if (px && px.length) {
                 const id = document.documentElement.getAttribute('data-jpf-theme') || 'bonfire';
-                const backs = gateColours(gateBackground(id)).map(relLum);
+                const backs = gateColours(gateBackground(id)).concat(gatePhotoColours(id)).map(relLum);
                 if (backs.length) {
                     const lo = Math.min.apply(null, backs), hi = Math.max.apply(null, backs);
                     let lost = 0, lostSum = 0;
