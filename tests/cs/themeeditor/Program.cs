@@ -954,6 +954,15 @@ Call(As(true), "SaveCustomTheme", "photo", Json(WithImage("photo", bg3, 0.9)));
 
 // An upload never saved is left for the orphan cleanup, which names it first.
 var stray = (string)Body(Call(As(true, Png(800, 600)), "UploadThemeBackground"))?["file"];
+// Not one uploaded a minute ago, though: that is an editor still open, and the cleanup
+// would delete the picture it is showing before its Save names it.
+var fresh = Call(As(true), "CleanupOrphans", false);
+Ok("the orphan cleanup leaves an image uploaded within the hour", (int?)Body(fresh)?["unusedImages"] == 0, Body(fresh)?.ToJsonString());
+try { Call(As(true), "CleanupOrphans", true); } catch (Exception) { /* the reconcile after it needs a server */ }
+Ok("and does not delete it", File.Exists(Path.Combine(ThemeBackground.Folder, stray)));
+// Two hours old: an editor long since closed without saving.
+if (File.Exists(Path.Combine(ThemeBackground.Folder, stray)))
+    File.SetLastWriteTimeUtc(Path.Combine(ThemeBackground.Folder, stray), DateTime.UtcNow.AddHours(-2));
 var preview = Call(As(true), "CleanupOrphans", false);
 Ok("the orphan cleanup counts an image no theme names", (int?)Body(preview)?["unusedImages"] == 1, Body(preview)?.ToJsonString());
 try { Call(As(true), "CleanupOrphans", true); } catch (Exception) { /* the reconcile after it needs a server */ }

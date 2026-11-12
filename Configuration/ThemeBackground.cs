@@ -95,14 +95,30 @@ namespace Jellyfin.Profiles.Configuration
             ThemeLogo.IsFileName(file) && File.Exists(Path.Combine(Folder, file!));
 
         /// <summary>
-        /// The stored images no custom theme names. The caller holds ConfigLock, so a save
-        /// cannot name one between this list and its deletion.
+        /// How long an upload no theme names is left alone by the orphan cleanup. An upload is
+        /// stored when the picture is chosen and named only when the theme is saved, so an
+        /// editor that is still open holds a file nothing names yet; the cleanup deleting it
+        /// took the picture out from under the editor, and its Save then named a missing file.
+        /// An hour covers a long editing session with room to spare, and waiting costs only
+        /// disk (a file is at most <see cref="MaxBytes"/>): the cleanup is run by hand and
+        /// finds the file next time. Every upload rewrites its file, so choosing the same
+        /// picture again restarts the hour.
+        /// </summary>
+        public static readonly TimeSpan UnusedGrace = TimeSpan.FromHours(1);
+
+        /// <summary>
+        /// The stored images no custom theme names and nobody has uploaded within
+        /// <see cref="UnusedGrace"/>. The caller holds ConfigLock, so a save cannot name one
+        /// between this list and its deletion.
         /// </summary>
         public static List<string> Unused(PluginConfiguration config)
         {
             if (!Directory.Exists(Folder)) return new List<string>();
             var named = Named(config);
-            return Directory.GetFiles(Folder).Select(Path.GetFileName)
+            var cutoff = DateTime.UtcNow - UnusedGrace;
+            return Directory.GetFiles(Folder)
+                .Where(p => File.GetLastWriteTimeUtc(p) < cutoff)
+                .Select(Path.GetFileName)
                 .Where(f => ThemeLogo.IsFileName(f) && !named.Contains(f!)).Select(f => f!).OrderBy(f => f, StringComparer.Ordinal).ToList();
         }
 
