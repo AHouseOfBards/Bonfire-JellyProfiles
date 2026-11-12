@@ -303,7 +303,8 @@
     /// is the whole face of the profile.
     function onAvatarColor(color) {
         const h = safeColor(color).replace('#', '');
-        const full = h.length === 3 ? h.replace(/(.)/g, '$1$1') : h.slice(0, 6);
+        // safeColor only lets six digits through (HEX_COLOR_RE), so there is no short form.
+        const full = h;
         const lin = i => {
             const x = parseInt(full.slice(i, i + 2), 16) / 255;
             return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
