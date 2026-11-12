@@ -266,7 +266,6 @@ uses('.jpf-note-warn', 'background', '--jpf-warn-tint');
 uses('.jpf-note-warn', 'color', '--jpf-warn');
 uses('.jpf-note-error', 'background', '--jpf-bad-tint');
 uses('.jpf-note-ok', 'background', '--jpf-good-tint');
-uses('.jpf-link-warn', 'color', '--jpf-warn');
 
 // The theme-scoped blocks hold tokens and nothing else: a light-only rule would be a
 // second place a colour is decided.
