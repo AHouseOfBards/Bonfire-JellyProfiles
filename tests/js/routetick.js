@@ -56,6 +56,7 @@ function build(opts) {
                      storageReads: 0, jsonParse: 0, offsetParent: 0,
                      elementQueries: 0, getElementsBy: 0, layoutReads: 0, rafCalls: 0 };
     const selectors = [];
+    const idLookups = [];
     const elSelectors = [];
     // Elements the page already has, by selector. Without these every query answers null
     // and a path that only runs when a header or button exists is never measured.
@@ -159,7 +160,7 @@ function build(opts) {
                                        return present[sel] ? [present[sel]] : []; },
             getElementsByClassName: () => { counts.getElementsBy++; return []; },
             getElementsByTagName: () => { counts.getElementsBy++; return []; },
-            getElementById: id => { counts.getElementById++; return byId[id] || null; },
+            getElementById: id => { counts.getElementById++; idLookups.push(id); return byId[id] || null; },
             // Forces layout in a real browser, so it is counted like offsetParent.
             elementFromPoint: () => { counts.offsetParent++; return null; },
             createElement: () => makeEl(),
@@ -205,11 +206,12 @@ function build(opts) {
     function reset() {
         Object.keys(counts).forEach(k => { counts[k] = 0; });
         selectors.length = 0;
+        idLookups.length = 0;
         elSelectors.length = 0;
         storageKeys.length = 0;
     }
 
-    return { plugin, counts, selectors, elSelectors, storageKeys, reset, sandbox, makeEl, present, byId };
+    return { plugin, counts, selectors, idLookups, elSelectors, storageKeys, reset, sandbox, makeEl, present, byId };
 }
 
 main();
@@ -293,6 +295,24 @@ Object.keys(ALLOWED).forEach(function (sel) {
 Object.keys(bySelector).forEach(function (sel) {
     ok('"' + sel.slice(0, 44) + '" runs ' + (bySelector[sel] / TICKS).toFixed(1)
        + ' times a tick, and should run 1.0', bySelector[sel] === TICKS);
+});
+
+// getElementById was counted all along and never asserted, so a lookup added to the tick
+// went unseen. It is indexed and cheap, which is why it is enumerated rather than banned:
+// each id here is one the tick has a stated reason to ask for, once. A new one is a new
+// per-tick cost somebody has to justify.
+const idsPerTick = {};
+env.idLookups.forEach(function (id) { idsPerTick[id] = (idsPerTick[id] || 0) + 1; });
+const ALLOWED_IDS = {};
+ALLOWED_IDS['profiles-floating-bubble'] = 'the button the tick keeps in place or removes.';
+console.log('\n  element ids looked up per tick: '
+    + (Object.keys(idsPerTick).map(function (k) { return k + ' x' + (idsPerTick[k] / TICKS).toFixed(1); }).join(', ') || 'none'));
+Object.keys(idsPerTick).sort().forEach(function (id) {
+    ok('an unchanged tick looks up #' + id + ' - '
+       + (ALLOWED_IDS[id] || 'NOT on the allowed list'),
+       Object.prototype.hasOwnProperty.call(ALLOWED_IDS, id));
+    ok('#' + id + ' is looked up at most once a tick (' + (idsPerTick[id] / TICKS).toFixed(1) + ')',
+       idsPerTick[id] <= TICKS);
 });
 
 console.log('\n── With a profile actually active, which is the normal case ────');
@@ -665,6 +685,81 @@ intervals().slice(-1)[0].fn();
 ok('leaving playback restores 500 ms (' + (intervals().slice(-1)[0] || {}).ms + ')',
    (intervals().slice(-1)[0] || {}).ms === 500);
 ok('and still exactly one poll is running', intervals().length === 1);
+
+console.log('\n── Things the tick must do, or must not repeat ─────────────────');
+
+// The other retries on the tick. Only the preferences one was measured, so dropping the
+// others stayed green: a browser that signed in after init never learned the emergency link
+// or the artwork rules.
+function settled(opts) {
+    const e = build(opts || {});
+    e.plugin._switcherPrefs = { askOnStartup: false, location: 'button' };
+    e.plugin._panicLinkAvailable = false;
+    e.plugin._libraryArtLoaded = true;
+    return e;
+}
+const panicWait = settled({});
+panicWait.plugin._panicLinkAvailable = null;
+let prefRetries = 0;
+panicWait.plugin.loadSwitcherPrefs = () => { prefRetries++; };
+panicWait.plugin.checkRoute(); panicWait.plugin.checkRoute(); panicWait.plugin.checkRoute();
+ok('an emergency link that has not been learned is asked for on every tick, with the prefs known ('
+   + prefRetries + ' of 3)', prefRetries === 3);
+
+const artWait = settled({});
+artWait.plugin._libraryArtLoaded = false;
+let artRetries = 0;
+artWait.plugin.loadLibraryArtwork = () => { artRetries++; };
+artWait.plugin.checkRoute(); artWait.plugin.checkRoute(); artWait.plugin.checkRoute();
+ok('library artwork that has not arrived is asked for on every tick (' + artRetries + ' of 3)',
+   artRetries === 3);
+const artDone = settled({});
+let artDoneCalls = 0;
+artDone.plugin.loadLibraryArtwork = () => { artDoneCalls++; };
+artDone.plugin.checkRoute(); artDone.plugin.checkRoute();
+ok('and once it has arrived it is not asked for again (' + artDoneCalls + ')', artDoneCalls === 0);
+
+// Playback seen from the DOM alone: the URL says nothing, the OSD appears. The poll exists
+// for exactly this, and until now only the URL route to 'videoosd' was exercised, so the
+// OSD query could be answered and ignored.
+const osdOnly = settled({ present: { '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo': { tagName: 'DIV' } } });
+osdOnly.plugin.checkRoute();
+ok('an OSD in the DOM on an ordinary URL is classified as playback (' + osdOnly.plugin._lastRouteType + ')',
+   osdOnly.plugin._lastRouteType === 'videoosd');
+const noOsd = settled({});
+noOsd.plugin.checkRoute();
+ok('and without one the same URL is home (' + noOsd.plugin._lastRouteType + ')',
+   noOsd.plugin._lastRouteType === 'home');
+
+// The Dashboard -> Users list is the one route that asks the server something from the
+// tick, guarded by the address changing. The guard is a string compare; losing it would
+// send a request twice a second for as long as an administrator sat on that page.
+const usersPage = settled({ hash: '#/dashboard/users', href: 'https://jf.local/web/#/dashboard/users' });
+let usersFetches = 0;
+usersPage.sandbox.fetch = () => { usersFetches++; return new Promise(() => {}); };
+for (let i = 0; i < 20; i++) usersPage.plugin.checkRoute();
+ok('twenty ticks on Dashboard -> Users ask the server once, not twenty times (' + usersFetches + ')',
+   usersFetches === 1);
+const awayPage = settled({ hash: '#/home.html' });
+let awayFetches = 0;
+awayPage.sandbox.fetch = () => { awayFetches++; return new Promise(() => {}); };
+for (let i = 0; i < 20; i++) awayPage.plugin.checkRoute();
+ok('and on the home screen the tick asks the server nothing (' + awayFetches + ')', awayFetches === 0);
+
+// The startup cover is taken down by the tick only when one is up. Called unconditionally
+// it would be a write to <html> and a timer cancel on every tick for the life of the page.
+const noCover = settled({});
+let drops = 0;
+noCover.plugin._dropCover = () => { drops++; };
+noCover.plugin._coverUp = false;
+for (let i = 0; i < 20; i++) noCover.plugin.checkRoute();
+ok('with no startup cover up, ticks never take it down (' + drops + ' of 20)', drops === 0);
+const cover = settled({});
+let coverDrops = 0;
+cover.plugin._dropCover = () => { coverDrops++; };
+cover.plugin._coverUp = true;
+cover.plugin.checkRoute();
+ok('and with one up on a settled page, the tick does take it down (' + coverDrops + ')', coverDrops === 1);
 
 console.log('');
 if (fails.length) {
