@@ -198,6 +198,27 @@ if (plugin != null)
             Ok("UpdateConfiguration carries " + p.Name + " onto the instance in use", same);
         }
 
+        // Turning Bonfire off or on reaches every reader through Plugin.IsOff at once, except
+        // two caches: the viewing-limits index and the tokens the proxy switcher has put down
+        // as not ours. admin/settings cleared both; Jellyfin's own configuration save, which
+        // lands here, did not, so a switch made there took up to minutes to reach a device.
+        var tracker = asm.GetType("Jellyfin.Profiles.Auth.ViewingTracker", true);
+        var generation = tracker.GetField("_indexGeneration", Any);
+        var notOurs = (System.Collections.IDictionary)asm.GetType("Jellyfin.Profiles.Auth.ProxySwitcher", true)
+            .GetField("NotOurs", Any).GetValue(null);
+        var onProp = cfgType.GetProperty("BonfireOn");
+        var wasOn = (bool)onProp.GetValue(configProp.GetValue(plugin));
+        var genBefore = (int)generation.GetValue(null);
+        notOurs["harness-token"] = (DateTime.UtcNow.AddMinutes(5), 0);
+        var flipped = Activator.CreateInstance(cfgType);
+        onProp.SetValue(flipped, !wasOn);
+        update.Invoke(plugin, new[] { flipped });
+        Ok("a configuration save that turns Bonfire " + (wasOn ? "off" : "on") + " takes effect",
+           (bool)onProp.GetValue(configProp.GetValue(plugin)) == !wasOn);
+        Ok("and drops the viewing-limits index", (int)generation.GetValue(null) != genBefore);
+        Ok("and the apps the proxy switcher put down as not ours", !notOurs.Contains("harness-token"));
+        notOurs.Clear();
+
         // R-1290: the two-thread sections lock on an object this harness fetched, so they
         // prove what `lock` does, and could not go red if the plugin stopped taking it.
         // This runs the real UpdateConfiguration while the harness holds ConfigLock: it

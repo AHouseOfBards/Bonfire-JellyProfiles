@@ -44,6 +44,20 @@ namespace Jellyfin.Profiles
         /// </summary>
         public static bool IsOff => _panicDisabled || Instance?.Configuration?.BonfireOn == false;
 
+        /// <summary>
+        /// Called by every path that can change <see cref="PluginConfiguration.BonfireOn"/>:
+        /// <c>admin/settings</c>, the import, and Jellyfin's own configuration save
+        /// (<see cref="UpdateConfiguration"/>). <see cref="IsOff"/> reaches every reader at
+        /// once, except what they have cached: the viewing-limits index (30 seconds) and the
+        /// tokens the proxy switcher has put down as not ours. One place, so a new path
+        /// cannot clear one and forget the other. Outside ConfigLock.
+        /// </summary>
+        internal static void ForgetOnOffCaches()
+        {
+            Auth.ViewingTracker.Invalidate();
+            Auth.ProxySwitcher.ForgetUnproxied();
+        }
+
         /// <summary>Trips the emergency disable. There is no code path that clears it.</summary>
         internal static void TripPanicDisable() => _panicDisabled = true;
 
@@ -140,13 +154,17 @@ namespace Jellyfin.Profiles
             }
 
             PluginConfiguration current;
+            bool switched;
             lock (ProfilesBaseController.ConfigLock)
             {
                 current = Configuration;
+                var wasOn = current.BonfireOn;
                 if (!ReferenceEquals(current, incoming)) CopyInto(incoming, current);
+                switched = current.BonfireOn != wasOn;
                 SaveConfiguration();
             }
 
+            if (switched) ForgetOnOffCaches();
             ConfigurationChanged?.Invoke(this, current);
         }
 

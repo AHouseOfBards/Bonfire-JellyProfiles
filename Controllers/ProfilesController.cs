@@ -1993,8 +1993,9 @@ namespace Jellyfin.Profiles.Controllers
 
             // Every profile, PIN and the feature switch itself may have changed.
             ProfilesBootstrapTask.ReconcileAuthProvidersNow();
-            // And which apps get the profile picker, the same as a settings save.
-            Auth.ProxySwitcher.ForgetUnproxied();
+            // And which apps get the profile picker, and whether Bonfire is on at all: what a
+            // settings save that changes either clears, cleared here whatever the file held.
+            Plugin.ForgetOnOffCaches();
 
             return Ok(new
             {
@@ -5692,13 +5693,8 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Turning Bonfire off or on reaches every reader through Plugin.IsOff at once,
-            // except what they have cached: the viewing-limits index (30 seconds) and the
-            // tokens the proxy switcher has put down as not ours.
-            if (request.BonfireOn.HasValue)
-            {
-                Auth.ViewingTracker.Invalidate();
-                Auth.ProxySwitcher.ForgetUnproxied();
-            }
+            // except what they have cached.
+            if (request.BonfireOn.HasValue) Plugin.ForgetOnOffCaches();
 
             // Outside the lock: this walks users and writes to the database, and holding
             // ConfigLock across that would block every other request that reads the
