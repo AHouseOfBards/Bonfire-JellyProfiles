@@ -4963,7 +4963,10 @@
                 // Ctrl+Shift+B. Chosen to be unreachable by accident and not to collide
                 // with Jellyfin's own shortcuts. It is the way in when the switcher has
                 // failed badly enough that no overlay renders at all.
-                if (e.ctrlKey && e.shiftKey && (isKey(e, 'B') || isKey(e, 'b'))) {
+                // Only when the server has said a code is set. Otherwise the key is the
+                // browser's (Ctrl+Shift+B toggles the bookmarks bar) and is left alone.
+                if (e.ctrlKey && e.shiftKey && (isKey(e, 'B') || isKey(e, 'b'))
+                    && this._panicLinkAvailable === true) {
                     e.preventDefault();
                     this.showPanicPrompt();
                 }
