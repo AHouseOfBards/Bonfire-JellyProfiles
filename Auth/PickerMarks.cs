@@ -130,20 +130,30 @@ namespace Jellyfin.Profiles.Auth
             lock (PickerFileLock)
             {
                 if (_loaded) return;
-                _loaded = true;
-                var path = FilePath();
-                if (path == null || !File.Exists(path)) return;
+                // "Loaded" is said last, once the rows are in. It used to be said first, and
+                // Any reads it without the lock, so a request racing the first read saw no
+                // marks and served a child's TV on the main token as the main account. Now
+                // that request finds the flag down and queues on the lock behind the read.
                 try
                 {
-                    var rows = JsonSerializer.Deserialize<List<Mark>>(File.ReadAllText(path));
-                    if (rows == null) return;
-                    foreach (var row in rows.Where(r => !string.IsNullOrEmpty(r?.MasterTokenHash))) Marks[row.MasterTokenHash] = row;
+                    var path = FilePath();
+                    if (path == null || !File.Exists(path)) return;
+                    try
+                    {
+                        var rows = JsonSerializer.Deserialize<List<Mark>>(File.ReadAllText(path));
+                        if (rows == null) return;
+                        foreach (var row in rows.Where(r => !string.IsNullOrEmpty(r?.MasterTokenHash))) Marks[row.MasterTokenHash] = row;
+                    }
+                    catch (Exception ex) when (ex is IOException || ex is JsonException || ex is UnauthorizedAccessException)
+                    {
+                        // Unreadable: the TVs it named are served as the picker would serve them
+                        // once they next ask, and nothing worse than before this existed.
+                        Log?.LogWarning(ex, "ProfilesPlugin: {File} could not be read; which TVs were in a child's profile is forgotten.", path);
+                    }
                 }
-                catch (Exception ex) when (ex is IOException || ex is JsonException || ex is UnauthorizedAccessException)
+                finally
                 {
-                    // Unreadable: the TVs it named are served as the picker would serve them
-                    // once they next ask, and nothing worse than before this existed.
-                    Log?.LogWarning(ex, "ProfilesPlugin: {File} could not be read; which TVs were in a child's profile is forgotten.", path);
+                    _loaded = true;
                 }
             }
         }

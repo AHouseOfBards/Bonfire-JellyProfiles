@@ -753,6 +753,39 @@ ProxyReset();
 Set("ProxyClients", new List<string> { "moonfin" });
 
 Console.WriteLine();
+Console.WriteLine("── A request racing the first read of the marks file (r2-03-01) ─");
+
+// Load used to say "loaded" before it had read anything, and Any read that flag without the
+// lock, so a request arriving during the read saw no marks: a child's TV on the main token
+// was served as the main account. A slow read is made with a big file.
+{
+    ProxyReset();
+    var marksFile = Path.Combine(tempDir, "plugins", "ProfilesManagement", "proxy_picker.json");
+    Directory.CreateDirectory(Path.GetDirectoryName(marksFile));
+    var rows = new StringBuilder("[");
+    for (int i = 0; i < 400000; i++)
+    {
+        if (i > 0) rows.Append(',');
+        rows.Append("{\"MasterTokenHash\":\"H").Append(i).Append("\",\"MasterId\":\"" + Guid.Empty + "\",\"ProfileId\":\"" + Guid.Empty + "\",\"ProfileToken\":\"\"}");
+    }
+    rows.Append(']');
+    File.WriteAllText(marksFile, rows.ToString());
+    var anyProp = marksType.GetProperty("Any", BindingFlags.Static | BindingFlags.NonPublic);
+    var loadedField = marksType.GetField("_loaded", BindingFlags.Static | BindingFlags.NonPublic);
+    marksType.GetMethod("Reload", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+    var loader = Task.Run(() => (bool)anyProp.GetValue(null));
+    // Wait until the loader is inside Load, whichever way it signals that.
+    var spin = System.Diagnostics.Stopwatch.StartNew();
+    while (!(bool)loadedField.GetValue(null) && !loader.IsCompleted && spin.ElapsedMilliseconds < 3000) Thread.Sleep(0);
+    var racing = (bool)anyProp.GetValue(null);
+    Ok("a request that arrives while the marks are being read waits for them and sees them", racing && loader.GetAwaiter().GetResult(), "racing=" + racing);
+    File.Delete(marksFile);
+    marksType.GetMethod("Clear", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+    marksType.GetMethod("Reload", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+    ProxyReset();
+}
+
+Console.WriteLine();
 Console.WriteLine("── A restart does not let a child's TV onto the main account ───");
 
 // The picker's sessions and its marks on a child's TV are in memory. A restart emptied both,
