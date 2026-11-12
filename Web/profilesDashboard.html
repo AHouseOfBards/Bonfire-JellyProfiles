@@ -562,9 +562,13 @@
        Between 900 and 1279 px, and in Simple, none of this applies. The outline and the preview
        are sticky together; the preview is larger than the one beside the fields. */
     #profilesConfigurationPage .jpf-te-outline { display: none; }
-    #profilesConfigurationPage .jpf-te-3col .jpf-te-body {
-        display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(21em, 25em);
-        grid-template-areas: "outline preview fields"; gap: 24px; align-items: start;
+    /* The media query repeats the script's 1280: the fixed tracks can never reach a phone,
+       even if the class were left on after the window shrank. */
+    @media (min-width: 1280px) {
+        #profilesConfigurationPage .jpf-te-3col .jpf-te-body {
+            display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(21em, 25em);
+            grid-template-areas: "outline preview fields"; gap: 24px; align-items: start;
+        }
     }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-outline {
         display: flex; flex-direction: column; gap: 2px; grid-area: outline;
