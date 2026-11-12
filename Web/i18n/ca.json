@@ -581,6 +581,8 @@
   "admin.themes.group.tiles": "Icones i disposició",
   "admin.themes.group.names": "Noms",
   "admin.themes.group.cards": "Targetes i camps de text",
+  "admin.themes.search": "Cerca camps",
+  "admin.themes.noMatch": "Cap resultat",
   "admin.themes.group.buttons": "Botons",
   "admin.themes.previewText": "Text secundari",
   "admin.themes.previewPrimary": "Continua",

@@ -581,6 +581,8 @@
   "admin.themes.group.tiles": "Karolar ve düzen",
   "admin.themes.group.names": "Adlar",
   "admin.themes.group.cards": "Kartlar ve metin kutuları",
+  "admin.themes.search": "Alan ara",
+  "admin.themes.noMatch": "Eşleşme yok",
   "admin.themes.group.buttons": "Düğmeler",
   "admin.themes.previewText": "İkincil metin",
   "admin.themes.previewPrimary": "Devam",

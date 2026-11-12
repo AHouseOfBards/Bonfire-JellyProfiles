@@ -115,6 +115,39 @@ async function main() {
         await wait(500);
         ok('and a new visit opens those groups again', (await c.evaluate(GROUPS)).replace(/=[^|*]*/g, '') === 'colours*|background|tiles|names*|type|buttons|cards|decorations', await c.evaluate(GROUPS));
 
+        // Search (owner, 2026-11-12): one box above the groups, by the translated name and the
+        // path. A row is "shown" by its computed display, because a row inside a closed group
+        // is not on screen but is not hidden by the search either.
+        const SHOWN = "(function(){ var shown = function (e) { return !!e && getComputedStyle(e).display !== 'none'; };" +
+            " return JSON.stringify({ rows: [].slice.call(document.querySelectorAll('#teAdvancedFields .jpf-te-adv')).filter(shown).map(function (r) { return r.getAttribute('data-paths'); })," +
+            " groups: [].slice.call(document.querySelectorAll('#teAdvancedFields > details')).filter(shown).map(function (d) { return d.getAttribute('data-group').replace('admin.themes.group.', '') + (d.open ? '*' : ''); })," +
+            " noMatch: shown(document.getElementById('teNoMatch')) }); })()";
+        const TYPE = v => "(function(){ var s = document.getElementById('teSearch'); if (!s) return false; s.value = " + JSON.stringify(v) + "; s.dispatchEvent(new Event('input', { bubbles: true })); return true; })()";
+        const shown = async () => JSON.parse(await c.evaluate(SHOWN));
+        const total = (await shown()).rows.length;
+        ok('there is one search box above the groups', (await c.evaluate("(function(){ var s = document.getElementById('teSearch'); return !!s && s.nextElementSibling.id === 'teNoMatch' && s.nextElementSibling.nextElementSibling.id === 'teAdvancedFields'; })()")) === true);
+        await c.evaluate(TYPE('focused button'));
+        let st = await shown();
+        ok('searching a name keeps only the rows with it, and only their group, open',
+            st.rows.length === 6 && st.rows.every(p => /^parts\.button2\.focus\./.test(p)) && JSON.stringify(st.groups) === '["buttons*"]' && st.noMatch === false, JSON.stringify(st));
+        await c.evaluate(TYPE('button2.focus.glow'));
+        st = await shown();
+        ok('and a path finds its row alone', JSON.stringify(st.rows) === '["parts.button2.focus.glow"]', JSON.stringify(st));
+        await c.evaluate(TYPE('Avatar RING'));
+        st = await shown();
+        ok('every word must match, in any case', st.rows.indexOf('colors.ring') !== -1 && st.rows.indexOf('shape.ringWidth') !== -1 && st.rows.every(p => /ring/i.test(p)), JSON.stringify(st));
+        await c.evaluate(TYPE('zzzz'));
+        st = await shown();
+        ok('with nothing found it says No match and shows no group', st.rows.length === 0 && st.groups.length === 0 && st.noMatch === true
+            && (await c.evaluate("document.getElementById('teNoMatch').textContent")) === 'No match', JSON.stringify(st));
+        ok('searching never changes which groups are remembered', (await c.evaluate("localStorage.getItem('bonfire-theme-groups')")) === savedGroups);
+        await c.evaluate(TYPE(''));
+        await wait(300);
+        st = await shown();
+        ok('clearing restores every row, the open groups and hides No match',
+            st.rows.length === total && st.noMatch === false && st.groups.join('|') === 'colours*|background|tiles|names*|type|buttons|cards|decorations', JSON.stringify(st.groups) + ' ' + st.rows.length + '/' + total);
+        ok('and still did not touch the saved groups', (await c.evaluate("localStorage.getItem('bonfire-theme-groups')")) === savedGroups);
+
         await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function(d){ d.open = true; })");
         await wait(300);
         const adv =await c.evaluate(PREVIEW_WITH('#teAdvancedFields > :last-child'));

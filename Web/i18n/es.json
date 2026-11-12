@@ -581,6 +581,8 @@
   "admin.themes.group.tiles": "Iconos y disposición",
   "admin.themes.group.names": "Nombres",
   "admin.themes.group.cards": "Tarjetas y campos de texto",
+  "admin.themes.search": "Buscar campos",
+  "admin.themes.noMatch": "Sin coincidencias",
   "admin.themes.group.buttons": "Botones",
   "admin.themes.previewText": "Texto secundario",
   "admin.themes.previewPrimary": "Continuar",

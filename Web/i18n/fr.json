@@ -581,6 +581,8 @@
   "admin.themes.group.tiles": "Tuiles et disposition",
   "admin.themes.group.names": "Noms",
   "admin.themes.group.cards": "Cartes et champs de texte",
+  "admin.themes.search": "Rechercher un champ",
+  "admin.themes.noMatch": "Aucune correspondance",
   "admin.themes.group.buttons": "Boutons",
   "admin.themes.previewText": "Texte secondaire",
   "admin.themes.previewPrimary": "Continuer",

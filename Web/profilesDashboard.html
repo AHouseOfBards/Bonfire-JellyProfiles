@@ -592,6 +592,10 @@
     #profilesConfigurationPage .jpf-te-bad .jpf-te-adv-label { color: var(--jpf-bad); }
     #profilesConfigurationPage .jpf-te-msg { flex-basis: 100%; color: var(--jpf-bad); font-size: 0.85rem; margin-top: 4px; }
     #profilesConfigurationPage .jpf-te-group { margin: 0 0 0.5em; }
+    /* The search hides rows and groups. .jpf-hidden is declared far above and the rules for
+       .jpf-te-adv (display: grid) are the same specificity and later, so they are named. */
+    #profilesConfigurationPage .jpf-te-adv.jpf-hidden, #profilesConfigurationPage .jpf-te-group.jpf-hidden { display: none; }
+    #profilesConfigurationPage .jpf-te-search { width: 100%; box-sizing: border-box; margin: 0 0 0.75em; }
     #profilesConfigurationPage .jpf-te-group > summary { cursor: pointer; font-weight: 600; padding: 0.45em 0; }
     /* The path above its control, then the hint: with the preview taking 45% of the editor
        there is no room for the path beside a shadow's boxes or a slider. */
@@ -1309,6 +1313,8 @@
                             </div>
                             <div class="jpf-te-advanced jpf-hidden" id="teAdvanced">
                                 <div class="fieldDescription jpf-lede" data-i18n="admin.themes.advancedHint">Lists are JSON.</div>
+                                <input type="text" class="emby-input jpf-te-search" id="teSearch" autocomplete="off" spellcheck="false" placeholder="Search fields" data-i18n-placeholder="admin.themes.search" aria-label="Search fields" data-i18n-aria-label="admin.themes.search" />
+                                <div class="fieldDescription jpf-hidden" id="teNoMatch" role="status" data-i18n="admin.themes.noMatch">No match</div>
                                 <div id="teAdvancedFields"></div>
                             </div>
                         </div>
@@ -6061,7 +6067,8 @@
                         escapeHtml(t(group[0])) + '</summary>' +
                         group[1].map(function (f) {
                             const path = f[0], kind = f[1], opt = f[2];
-                            if (kind === 'photo') return '<div class="jpf-te-field jpf-te-adv jpf-te-photo" data-paths="' + path + '">' + themePhotoControlHtml() + '</div>';
+                            const search = escapeHtml((themeFieldName(path) + ' ' + path).toLowerCase());
+                            if (kind === 'photo') return '<div class="jpf-te-field jpf-te-adv jpf-te-photo" data-paths="' + path + '" data-search="' + search + '">' + themePhotoControlHtml() + '</div>';
                             const id = 'teField' + (n++);
                             const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '"';
                             const colourPair = function (p, a) {
@@ -6111,7 +6118,7 @@
                                 hint = { html: hint };
                             }
                             const hintHtml = typeof hint === 'object' ? hint.html : escapeHtml(hint);
-                            return '<div class="jpf-te-field jpf-te-adv" data-paths="' + path + '">' +
+                            return '<div class="jpf-te-field jpf-te-adv" data-paths="' + path + '" data-search="' + search + '">' +
                                 '<label class="jpf-te-adv-label" for="' + id + '"><span class="jpf-te-adv-name">' + escapeHtml(themeFieldName(path)) +
                                 '</span><code>' + path + '</code></label>' + control +
                                 (hintHtml ? '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div>' : '') + '</div>';
@@ -6124,6 +6131,37 @@
                     if (box.dataset.searching) return;
                     themeSaveOpenGroups(box);
                 }, true);
+                const search = page.querySelector('#teSearch');
+                search.addEventListener('input', function () { themeFilterAdvanced(page); });
+                search.addEventListener('keydown', function (e) {
+                    // keyCode 27 is Escape; the word itself would read to admini18n.js as copy.
+                    if (e.keyCode === 27 && search.value) { search.value = ''; themeFilterAdvanced(page); e.stopPropagation(); }
+                });
+            }
+
+            /// Search over Advanced: a row stays if every word typed is in its translated name
+            /// or its path. Groups with a match are opened and the rest hidden; "No match"
+            /// shows when nothing is left. Clearing puts back the groups the viewer had open,
+            /// which are in storage (themeOpenGroups) because searching never saves.
+            function themeFilterAdvanced(page) {
+                const box = page.querySelector('#teAdvancedFields');
+                const words = page.querySelector('#teSearch').value.toLowerCase().split(/\s+/).filter(Boolean);
+                const restore = themeOpenGroups();
+                let any = false;
+                if (words.length) box.dataset.searching = '1'; else delete box.dataset.searching;
+                Array.prototype.forEach.call(box.querySelectorAll('details.jpf-te-group'), function (d) {
+                    let hit = 0;
+                    Array.prototype.forEach.call(d.querySelectorAll('.jpf-te-adv'), function (row) {
+                        const text = row.getAttribute('data-search') || '';
+                        const show = words.every(function (w) { return text.indexOf(w) !== -1; });
+                        row.classList.toggle('jpf-hidden', !show);
+                        if (show) hit++;
+                    });
+                    d.classList.toggle('jpf-hidden', words.length > 0 && hit === 0);
+                    d.open = words.length ? hit > 0 : restore.indexOf(d.getAttribute('data-group')) !== -1;
+                    if (hit) any = true;
+                });
+                page.querySelector('#teNoMatch').classList.toggle('jpf-hidden', !(words.length && !any));
             }
 
             const THEME_GROUPS_KEY = 'bonfire-theme-groups';
