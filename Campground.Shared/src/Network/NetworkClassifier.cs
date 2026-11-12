@@ -165,8 +165,32 @@ namespace Campground.Shared.Network
         /// <summary>Parses addresses and CIDR ranges; bad entries are skipped.</summary>
         internal static IReadOnlyList<IPNetwork> ParseNetworks(IEnumerable<string>? entries)
         {
+            var all = (entries ?? Array.Empty<string>()).ToArray();
+            var key = string.Join('\n', all);
+            if (ParsedLists.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var parsed = ParseNetworksUncached(all);
+            if (ParsedLists.Count >= MaxParsedLists)
+            {
+                ParsedLists.Clear();
+            }
+
+            ParsedLists[key] = parsed;
+            return parsed;
+        }
+
+        // Settings change rarely and every request reads them, so a list is parsed once per distinct value.
+        // The key is the entries themselves, so a changed setting is a different key.
+        private const int MaxParsedLists = 64;
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, IReadOnlyList<IPNetwork>> ParsedLists = new();
+
+        private static IReadOnlyList<IPNetwork> ParseNetworksUncached(IEnumerable<string> entries)
+        {
             var list = new List<IPNetwork>();
-            foreach (var raw in entries ?? Array.Empty<string>())
+            foreach (var raw in entries)
             {
                 var s = (raw ?? string.Empty).Trim();
                 if (s.Length == 0)
@@ -181,7 +205,16 @@ namespace Campground.Shared.Network
                 else if (IPAddress.TryParse(s, out var ip))
                 {
                     ip = Normalize(ip)!;
-                    list.Add(new IPNetwork(ip, ip.AddressFamily == AddressFamily.InterNetwork ? 32 : 128));
+
+                    // Jellyfin reads a bare 0.0.0.0 or :: as "any", not as one host (NetworkUtils.TryParseToSubnet).
+                    if (ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any))
+                    {
+                        list.Add(new IPNetwork(ip, 0));
+                    }
+                    else
+                    {
+                        list.Add(new IPNetwork(ip, ip.AddressFamily == AddressFamily.InterNetwork ? 32 : 128));
+                    }
                 }
             }
 

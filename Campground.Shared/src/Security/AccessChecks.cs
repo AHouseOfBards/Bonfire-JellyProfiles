@@ -68,13 +68,20 @@ namespace Campground.Shared.Security
         internal static IReadOnlyList<AnonymousRoute> Find(Assembly assembly)
         {
             var result = new List<AnonymousRoute>();
+            var mvc = typeof(ControllerBase).Assembly;
             foreach (var type in SafeTypes(assembly).Where(t => !t.IsAbstract && typeof(ControllerBase).IsAssignableFrom(t)))
             {
                 var classAuth = type.GetCustomAttributes<AuthorizeAttribute>(true).Any();
                 var classAnon = type.GetCustomAttributes<AllowAnonymousAttribute>(true).Any();
                 var prefix = type.GetCustomAttribute<RouteAttribute>(true)?.Template ?? string.Empty;
-                foreach (var m in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                // Inherited actions count; ControllerBase's own members (and object's) are not actions.
+                foreach (var m in type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
                 {
+                    if (m.DeclaringType == typeof(object) || m.DeclaringType?.Assembly == mvc)
+                    {
+                        continue;
+                    }
+
                     if (m.IsSpecialName || m.GetCustomAttribute<NonActionAttribute>() != null)
                     {
                         continue;

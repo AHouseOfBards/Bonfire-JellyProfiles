@@ -26,15 +26,31 @@ namespace Campground.Shared.Privacy
     {
         internal const string Redacted = "[redacted]";
 
+        private const string Keys = "api_?key|access_?token|token|x-emby-token|x-mediabrowser-token|password|pw|pin|secret|refresh_?token|authorization";
+
+        // A quoted value, which may hold spaces and escaped quotes: "password" : "a b", password="a b".
+        private static readonly Regex Quoted = new(
+            "(?i)(?<![a-z])(" + Keys + ")(\"\\s*:\\s*\"|=\")(?:[^\"\\\\]|\\\\.)*",
+            RegexOptions.Compiled);
+
+        // Authorization with a scheme: the scheme stays, the credential goes.
+        private static readonly Regex AuthScheme = new(
+            "(?i)(?<![a-z])(authorization\\s*[:=]\\s*(?:bearer|basic|negotiate|ntlm)\\s+)[^\\s\"\\\\]+",
+            RegexOptions.Compiled);
+
         private static readonly Regex Tokens = new(
-            "(?i)(?<![a-z])(api_?key|access_?token|token|x-emby-token|x-mediabrowser-token|password|pw|pin|secret|refresh_?token|authorization)(=(?:\\\\u0022|\")?|\":\\s*\"|\\\\u0022:\\\\u0022|:\\s*)[^&\"\\s\\\\]+",
+            "(?i)(?<![a-z])(" + Keys + ")(=(?:\\\\u0022|\")?|\"\\s*:\\s*\"?|\\\\u0022:\\\\u0022|:\\s*)(?!(?:bearer|basic|negotiate|ntlm)\\s)[^&\"\\s\\\\]+",
             RegexOptions.Compiled);
 
         private static readonly Regex EmbyAuth = new("(?i)(Token=\")[^\"]+(\")", RegexOptions.Compiled);
         private static readonly Regex Bearer = new("(?i)(Bearer\\s+)[A-Za-z0-9._~+/=-]+", RegexOptions.Compiled);
         private static readonly Regex Email = new(@"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", RegexOptions.Compiled);
-        private static readonly Regex IPv4 = new(@"(?<![\d.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![\d.])", RegexOptions.Compiled);
-        private static readonly Regex IPv6 = new(@"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}(?![0-9A-Fa-f:])", RegexOptions.Compiled);
+        // ASCII digits only: \d also matches other scripts' digits, which int.Parse rejects. A full stop after
+        // the address is the end of a sentence; a full stop and a digit is a longer dotted number.
+        private static readonly Regex IPv4 = new(@"(?<![0-9])(?<![0-9]\.)([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})(?![0-9])(?!\.[0-9])", RegexOptions.Compiled);
+
+        // Any run of hex groups with 2 to 7 colons, including "::" forms; IPAddress.TryParse decides if it is one.
+        private static readonly Regex IPv6 = new(@"(?<![0-9A-Za-z:])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?![0-9A-Za-z:])", RegexOptions.Compiled);
 
         /// <summary>Redacts tokens, passwords, e-mail addresses; masks IPs (keeps private ranges' first two octets for support).</summary>
         internal static string Redact(string? text, bool maskAddresses = true)
@@ -44,14 +60,16 @@ namespace Campground.Shared.Privacy
                 return text ?? string.Empty;
             }
 
-            var s = Tokens.Replace(text, m => m.Groups[1].Value + m.Groups[2].Value + Redacted);
+            var s = Quoted.Replace(text, m => m.Groups[1].Value + m.Groups[2].Value + Redacted);
+            s = AuthScheme.Replace(s, m => m.Groups[1].Value + Redacted);
+            s = Tokens.Replace(s, m => m.Groups[1].Value + m.Groups[2].Value + Redacted);
             s = EmbyAuth.Replace(s, m => m.Groups[1].Value + Redacted + m.Groups[2].Value);
             s = Bearer.Replace(s, m => m.Groups[1].Value + Redacted);
             s = Email.Replace(s, "[email]");
             if (maskAddresses)
             {
                 s = IPv4.Replace(s, m => IsValidIPv4(m) ? MaskIPv4(m) : m.Value);
-                s = IPv6.Replace(s, m => IPAddress.TryParse(m.Value, out _) ? "[ipv6]" : m.Value);
+                s = IPv6.Replace(s, m => m.Value.Any(Uri.IsHexDigit) && IPAddress.TryParse(m.Value, out _) ? "[ipv6]" : m.Value);
             }
 
             return s;

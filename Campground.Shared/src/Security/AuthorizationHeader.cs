@@ -42,11 +42,14 @@ namespace Campground.Shared.Security
 
         /// <summary>
         /// The parameter from <paramref name="authorization"/>, or from <paramref name="embyAuthorization"/>
-        /// when the first is empty. Null when neither carries it.
+        /// when the first is empty or does not carry it (a proxy may put Bearer or Basic there). Null when
+        /// neither carries it.
         /// </summary>
         internal static string? Parameter(string? authorization, string? embyAuthorization, string name)
+            => Read(authorization, name) ?? Read(embyAuthorization, name);
+
+        private static string? Read(string? header, string name)
         {
-            var header = !string.IsNullOrEmpty(authorization) ? authorization : embyAuthorization;
             if (string.IsNullOrEmpty(header))
             {
                 return null;
