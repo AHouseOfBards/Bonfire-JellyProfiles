@@ -1778,6 +1778,13 @@ namespace Jellyfin.Profiles.Controllers
         /// </para>
         /// </summary>
         internal static bool MergeDeviceRecords(PluginConfiguration config, string? fromId, string? intoId)
+            => MergeDeviceRecordsCore(config, fromId, intoId, true);
+
+        /// <param name="proven">False for a merge nobody vouched for (the time rule in
+        /// <see cref="Auth.DeviceRegistry.MergeSameDevices"/>): the old id is then not kept
+        /// as an alias, because an alias is honoured by every device list the new row is on
+        /// (R2-02-01).</param>
+        internal static bool MergeDeviceRecordsCore(PluginConfiguration config, string? fromId, string? intoId, bool proven)
         {
             fromId = fromId?.Trim();
             intoId = intoId?.Trim();
@@ -1835,9 +1842,11 @@ namespace Jellyfin.Profiles.Controllers
             // The old id is the same machine at another address, and will be back. It is kept
             // as an alias so its next request is this record, on every list this one is on
             // (R-1049). Newest last; the oldest go past the cap.
+            // Not for an unproven merge: see <paramref name="proven"/>. The old id is simply
+            // forgotten, and if it returns it is a new row that merges again once it qualifies.
             var aliases = (target.Aliases ?? new List<string>())
-                .Concat(source.Aliases ?? new List<string>())
-                .Append(source.DeviceId)
+                .Concat(proven ? source.Aliases ?? new List<string>() : new List<string>())
+                .Concat(proven ? new[] { source.DeviceId } : new string[0])
                 .Select(a => a?.Trim() ?? string.Empty)
                 .Where(a => a.Length > 0 && !string.Equals(a, target.DeviceId?.Trim(), StringComparison.OrdinalIgnoreCase))
                 .Reverse()

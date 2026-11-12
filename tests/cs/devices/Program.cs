@@ -311,7 +311,9 @@ Console.WriteLine("── One device that got a new id is one row ────�
         Ok("four ids that followed one another on one television are one row (" + h.List.Count + ")",
            h.List.Count == 1);
         Ok("the row kept is the newest id", h.List.Count == 1 && Ids(h.List)[0] == ids[3]);
-        Ok("every old id still answers as that row", ids.All(id => Answers(h.List, id)));
+        // R2-02-01: a guess that two ids are one device leaves no alias, or allowing the
+        // newer row later would also allow whatever device the old id belonged to.
+        Ok("a merge by time keeps no alias for an old id", !ids.Take(3).Any(id => Answers(h.List, id)));
     }
 
     // 1b. Owner decision, 2026-11-12: a device on an allow list is never joined by the time
@@ -358,6 +360,8 @@ Console.WriteLine("── One device that got a new id is one row ────�
         See(h4.Cfg, "plain-new-0002", "Family Room TV", TV, h4.Master, t0.AddDays(2));
         Merge(h4.Cfg, h4.Master, t0.AddDays(10));
         Ok("unrestricted rows are still joined by the time rule (" + h4.List.Count + ")", h4.List.Count == 1);
+        Ok("and the older id is not an alias, so allowing the survivor later does not allow it (R2-02-01)",
+           h4.List.Count == 1 && !Answers(h4.List, "plain-old-0001") && Answers(h4.List, "plain-new-0002"));
 
         // Proof still merges an allow-listed row, and the allowance moves with it.
         if (forgetScreens != null) forgetScreens.Invoke(null, null);

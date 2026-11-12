@@ -811,14 +811,14 @@ namespace Jellyfin.Profiles.Auth
             {
                 var pair = FindSameDevicePair(config, householdId, members, names, screens, now);
                 if (pair == null) break;
-                if (!ProfilesBaseController.MergeDeviceRecords(config, pair.Value.From, pair.Value.Into)) break;
+                if (!ProfilesBaseController.MergeDeviceRecordsCore(config, pair.Value.From, pair.Value.Into, pair.Value.Proven)) break;
                 merged++;
             }
 
             return merged;
         }
 
-        private static (string From, string Into)? FindSameDevicePair(
+        private static (string From, string Into, bool Proven)? FindSameDevicePair(
             PluginConfiguration config, Guid householdId, List<Guid> members, List<string> names,
             IEnumerable<string> screens, DateTime now)
         {
@@ -849,7 +849,7 @@ namespace Jellyfin.Profiles.Auth
 
                         // Proven: into the most recently seen, the id in use now.
                         if (i > j && Derived(older, newer, members, names, screens, config.KnownDevices))
-                            return (older.DeviceId, newer.DeviceId);
+                            return (older.DeviceId, newer.DeviceId, true);
 
                         // Never by time when either row is on an allow list (owner decision,
                         // 2026-11-12): a guess that two devices are one would hand the allowed
@@ -860,7 +860,10 @@ namespace Jellyfin.Profiles.Auth
                             && older.LastSeen <= newer.FirstSeen
                             && now - newer.FirstSeen >= SameDeviceQuietPeriod)
                         {
-                            return (older.DeviceId, newer.DeviceId);
+                            // A guess, so no alias is left behind (R2-02-01): the old id would
+                            // be honoured by every allow check once the newer row is allowed,
+                            // and the older device may be a different one.
+                            return (older.DeviceId, newer.DeviceId, false);
                         }
                     }
                 }
