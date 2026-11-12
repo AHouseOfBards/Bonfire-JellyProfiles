@@ -3087,6 +3087,9 @@
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
                     page._mappings = result;
+                    // Rows already drawn hold edits that are not saved yet; take them
+                    // before the redraw, or a PIN reset on Households wipes them (r2-35-01).
+                    page._trusted = collectTrusted(page);
                     renderTrusted(page);
                     renderGettingStarted(page);
                     renderInjectionStatus(page, result);
