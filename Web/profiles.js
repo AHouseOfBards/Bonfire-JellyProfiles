@@ -2045,7 +2045,7 @@
         /// A dialog that asks which one. `options` is [{ id, name }]; the chosen id is
         /// handed back. Built on a real <select> so a television's D-pad and a phone's
         /// native picker both work without any focus handling of our own.
-        showSelectDialog: function (title, message, options, onSubmit) {
+        showSelectDialog: function (title, message, options, onSubmit, onCancel) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-select-dialog';
             dialog.classList.add('jpf-trap-surface', 'jpf-fade');
@@ -2099,8 +2099,14 @@
             };
 
             const select = dialog.querySelector('#profiles-select-input');
-            dialog.querySelector('#select-cancel-btn').addEventListener('click', close);
             let picked = false;
+            const cancel = () => {
+                if (picked) return;
+                picked = true;
+                close();
+                if (typeof onCancel === 'function') onCancel();
+            };
+            dialog.querySelector('#select-cancel-btn').addEventListener('click', cancel);
             dialog.querySelector('#select-confirm-btn').addEventListener('click', () => {
                 const value = select.value;
                 if (picked) return;
@@ -2110,7 +2116,7 @@
             });
 
             dialog.addEventListener('keydown', (e) => {
-                if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
+                if (isKey(e, 'Escape')) { e.preventDefault(); cancel(); }
             });
 
             select.focus();
@@ -2269,7 +2275,11 @@
         /// A dialog with a row of choices. `actions` is [{ label, primary, run }]; the
         /// dialog closes before `run` is called. Escape closes it with no choice. The arrow
         /// keys move along the buttons, for a remote.
-        showActionsDialog: function (title, message, actions) {
+        ///
+        /// `onDismiss` runs when the dialog closes without any action that has a run: the
+        /// cancel button, Escape or the TV Back key. A caller holding the main PIN for one
+        /// act uses it to let the PIN go (r2-24-01).
+        showActionsDialog: function (title, message, actions, onDismiss) {
             // The TV Back key clicks the dialog's cancel button (_dismissSurface), so it has
             // to have an id. The cancel is the first action with nothing to run: choosing it
             // only closes the dialog, which is exactly what Back should do.
@@ -2323,10 +2333,15 @@
                 const action = actions[parseInt(btn.getAttribute('data-action'), 10)];
                 close();
                 if (action && typeof action.run === 'function') action.run();
+                else if (typeof onDismiss === 'function') onDismiss();
             }));
             dialog.addEventListener('keydown', (e) => {
                 const at = buttons.indexOf(document.activeElement);
-                if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
+                if (isKey(e, 'Escape')) {
+                    e.preventDefault();
+                    close();
+                    if (typeof onDismiss === 'function') onDismiss();
+                }
                 else if ((isKey(e, 'ArrowRight') || isKey(e, 'ArrowDown')) && buttons.length) {
                     e.preventDefault();
                     buttons[(at + 1) % buttons.length].focus();
@@ -2694,9 +2709,9 @@
             const options = [15, 30, 60, 120].map(m => ({ id: String(m), name: this.durationText(m) }));
             this.showSelectDialog(t('viewing.giveTitle', { name: profile.profileName }), t('viewing.giveBody'), options, (minutes) => {
                 this._limitsCall(profile.profileUserId, 'grant', { minutes: parseInt(minutes, 10), masterPin: this.masterPin })
-                    .then(() => { if (!this.isManageMode) this.masterPin = null; done(); })
-                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, err.message)), done));
-            });
+                    .then(() => { this._dropGatePin(); done(); })
+                    .catch(err => { this._dropGatePin(); this.showAlert(t('errors.error'), escapeHtml(this._failText(err, err.message)), done); });
+            }, () => this._dropGatePin());
         },
 
         /// "45 min", "1 h", "1 h 30 min".
@@ -7064,14 +7079,15 @@
             const left = typeof req.grantMinutesLeft === 'number' ? req.grantMinutesLeft : 0;
             const grant = (minutes) => {
                 this._limitsCall(req.profileId, 'grant', { minutes: minutes, masterPin: this.masterPin })
-                    .then(() => { if (!this.isManageMode) this.masterPin = null; refresh(); })
-                    .catch(err => this.showAlert(t('errors.error'), escapeHtml(this._failText(err, err.message)), refresh));
+                    .then(() => { this._dropGatePin(); refresh(); })
+                    .catch(err => { this._dropGatePin(); this.showAlert(t('errors.error'), escapeHtml(this._failText(err, err.message)), refresh); });
             };
+            const drop = () => this._dropGatePin();
             const no = { label: t('viewing.decline'), run: () => grant(0) };
             const cancel = { label: t('common.cancel') };
             if (left <= 0) {
                 no.primary = true;
-                this.showActionsDialog(t('viewing.giveTitle', { name: name }), t('viewing.capBody', { name: name }), [no, cancel]);
+                this.showActionsDialog(t('viewing.giveTitle', { name: name }), t('viewing.capBody', { name: name }), [no, cancel], drop);
                 return;
             }
             const sizes = [15, 30, 60, 120].filter(m => m <= left);
@@ -7082,7 +7098,7 @@
                 run: () => grant(m)
             }));
             actions.push(no, cancel);
-            this.showActionsDialog(t('viewing.giveTitle', { name: name }), t('viewing.giveBody'), actions);
+            this.showActionsDialog(t('viewing.giveTitle', { name: name }), t('viewing.giveBody'), actions, drop);
         },
 
         /// The administrator's announcements, above the title.
@@ -7879,6 +7895,8 @@
         /// requiresPin, Manage Profiles opened without asking and every save then failed
         /// as a wrong PIN.
         withMainPin: function (profiles, then) {
+            // (A caller that holds the PIN for one act on the gate lets it go with
+            // _dropGatePin, on every way out of that act, not only the one that works.)
             const main = (profiles || this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
             if (main && main.hasPin) {
                 if (this.masterPin) { then(); return; }
@@ -7891,6 +7909,12 @@
                 if (required) this.promptSetMainPin(profiles, true, then);
                 else then();
             });
+        },
+
+        /// Forgets the main PIN typed for a single act on the gate. Manage Profiles keeps it:
+        /// it is open for as long as the parent stays there.
+        _dropGatePin: function () {
+            if (!this.isManageMode) this.masterPin = null;
         },
 
         /// Asks the main account to set a PIN. Required: there is no "Not now", and Cancel
