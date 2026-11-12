@@ -212,7 +212,8 @@ namespace Jellyfin.Profiles.Controllers
         {
             mainId = Guid.Empty;
             if (id == null || id.Value == Guid.Empty) return Unauthorized();
-            var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == id.Value);
+            // Read under the lock: a create or a delete changes this list (r2-11-02c).
+            var row = MappingIn(config, id.Value);
             if (row != null && row.MasterUserId != Guid.Empty && row.MasterUserId != id.Value)
                 return Unauthorized("Only the main account can do that.");
             mainId = id.Value;

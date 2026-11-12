@@ -566,16 +566,20 @@ Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02)
     mapT.GetProperty("MasterUserId").SetValue(row, someone);
     list.Add(row);
 
-    void WaitsForLock(string name, string method, object[] args, Type on = null)
+    void WaitsForLock(string name, string method, object[] args, Type on = null, bool instance = false)
     {
-        var m = (on ?? baseCtl).GetMethod(method, Any);
+        var flags = instance ? BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic : Any;
+        var m = (on ?? baseCtl).GetMethod(method, flags);
         if (m == null) { Ok(name + " (no such method " + method + ")", false); return; }
+        // An instance method is called on a controller made without its constructor: these
+        // readers use no injected service.
+        var target = instance ? System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(on ?? baseCtl) : null;
         var held = new ManualResetEventSlim(false);
         var letGo = new ManualResetEventSlim(false);
         var holder = new Thread(() => { lock (realLock) { held.Set(); letGo.Wait(10000); } });
         holder.Start(); held.Wait(5000);
         var returned = new ManualResetEventSlim(false);
-        var caller = new Thread(() => { try { m.Invoke(null, args); } catch { } returned.Set(); });
+        var caller = new Thread(() => { try { m.Invoke(target, args); } catch { } returned.Set(); });
         caller.Start();
         var through = returned.Wait(1000);
         letGo.Set();
@@ -593,6 +597,9 @@ Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02)
     WaitsForLock("IsSubProfile", "IsSubProfile", new object[] { someone, cfg }, profilesCtl);
     WaitsForLock("OnboardingStepsFor (the first-profile step)", "OnboardingStepsFor", new object[] { someone, cfg }, profilesCtl);
     WaitsForLock("DescribeLibraryArtwork", "DescribeLibraryArtwork", new object[] { cfg, someone }, profilesCtl);
+    // The account-email routes' main-account check read the live list unlocked (r2-11-02c).
+    WaitsForLock("RequireMainAccount (the email routes' main-account check)", "RequireMainAccount",
+        new object[] { cfg, (Guid?)someone, null }, profilesCtl, instance: true);
 }
 
 Console.WriteLine();
