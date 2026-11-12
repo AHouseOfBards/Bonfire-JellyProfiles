@@ -88,7 +88,7 @@ namespace Jellyfin.Profiles.Auth
             // pbkdf2.sha256$<iterations>$<salt>$<hash>
             var parts = storedHash.Substring(Prefix.Length).Split('$');
             if (parts.Length != 3
-                || !int.TryParse(parts[0], out var iterations)
+                || !int.TryParse(parts[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var iterations)
                 || iterations <= 0
                 || iterations > MaxIterations)
             {

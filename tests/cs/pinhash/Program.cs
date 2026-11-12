@@ -34,7 +34,11 @@ string B(int n) => Convert.ToBase64String(new byte[n]);
 var good = Hash("1234");
 Ok("a real hash matches", Verify("1234", good) == "Match");
 Ok("a real hash rejects a wrong PIN", Verify("9999", good) == "NoMatch");
-Ok("an empty hash part is malformed", Verify("1234", "pbkdf2.sha256$1000$" + B(16) + "$") == "MalformedHash");
+// r2-03-07: the iteration count is digits and nothing else (no sign, no space, no separators).
+var goodParts = good.Split('$');
+Ok("an iteration count with a leading plus is malformed", Verify("1234", goodParts[0] + "$+" + goodParts[1] + "$" + goodParts[2] + "$" + goodParts[3]) == "MalformedHash");
+Ok("an iteration count with a space is malformed", Verify("1234", goodParts[0] + "$ " + goodParts[1] + "$" + goodParts[2] + "$" + goodParts[3]) == "MalformedHash");
+Ok("an empty hash part is malformed",Verify("1234", "pbkdf2.sha256$1000$" + B(16) + "$") == "MalformedHash");
 Ok("an empty salt part is malformed", Verify("1234", "pbkdf2.sha256$1000$$" + B(32)) == "MalformedHash");
 Ok("a short hash part is malformed", Verify("1234", "pbkdf2.sha256$1000$" + B(16) + "$" + B(8)) == "MalformedHash");
 Ok("a short salt part is malformed", Verify("1234", "pbkdf2.sha256$1000$" + B(4) + "$" + B(32)) == "MalformedHash");
