@@ -576,6 +576,7 @@ namespace Jellyfin.Profiles.Auth
             public readonly byte[] Secret = RandomNumberGenerator.GetBytes(16);
             public readonly SemaphoreSlim Gate = new(1, 1);
             public readonly ConcurrentDictionary<Guid, Tile> Tiles = new();
+            public long TileCount;
             public readonly ConcurrentDictionary<RewritingWebSocket, byte> Sockets = new();
             public volatile ActingAs? Acting;
             public Guid LastWrongOk;
@@ -753,15 +754,36 @@ namespace Jellyfin.Profiles.Auth
         /// One made-up folder. <see cref="Entered"/> and <see cref="Key"/> are the keypad's
         /// whole state, carried in the tile so that opening it twice means the same thing.
         /// </summary>
-        private sealed record Tile(TileKind Kind, Guid Id, Guid ParentId, Guid ProfileId, string Entered, string Key, string Name);
+        private sealed record Tile(TileKind Kind, Guid Id, Guid ParentId, Guid ProfileId, string Entered, string Key, string Name)
+        {
+            /// <summary>When it was last made, in the session's own count; the oldest are let go first.</summary>
+            public long Stamp { get; init; }
+        }
 
         private static Tile MakeTile(ProxySession session, TileKind kind, Guid parentId, Guid profileId, string entered, string key, string name)
         {
             var meaning = string.Join('|', (int)kind, profileId.ToString("N"), entered, key, name);
             var hash = MD5.HashData(session.Secret.Concat(Encoding.UTF8.GetBytes(meaning)).ToArray());
-            var tile = new Tile(kind, new Guid(hash), parentId, profileId, entered, key, name);
+            var tile = new Tile(kind, new Guid(hash), parentId, profileId, entered, key, name)
+            {
+                Stamp = Interlocked.Increment(ref session.TileCount),
+            };
 
-            if (session.Tiles.Count > 5_000) session.Tiles.Clear();
+            // Past 5,000 let go of the oldest keypad and notice tiles, never the folders and
+            // profiles: clearing everything dropped what the app still had on screen or on its
+            // back stack, and its next open of one read as an unknown parent and came back empty.
+            // A keypad press mints about 13 tiles, so only hundreds of presses get here.
+            if (session.Tiles.Count > 5_000)
+            {
+                var keep = tile.Stamp - 1_000;
+                foreach (var old in session.Tiles)
+                {
+                    if ((old.Value.Kind == TileKind.Key || old.Value.Kind == TileKind.Notice) && old.Value.Stamp < keep)
+                        session.Tiles.TryRemove(old.Key, out _);
+                }
+            }
+
+
             session.Tiles[tile.Id] = tile;
             return tile;
         }

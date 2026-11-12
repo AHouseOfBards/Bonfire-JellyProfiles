@@ -702,6 +702,24 @@ Child();
        accepted.State + " " + left + " kept");
 }
 
+// A flood of keypad tiles must not drop the folders still on screen (r2-04-03).
+{
+    var sessType = switcher.GetNestedType("ProxySession", BindingFlags.NonPublic);
+    var kindType = switcher.GetNestedType("TileKind", BindingFlags.NonPublic);
+    var make = switcher.GetMethod("MakeTile", BindingFlags.Static | BindingFlags.NonPublic);
+    var sess = Activator.CreateInstance(sessType);
+    object Mk(string kind, string key) => make.Invoke(null, new object[] { sess, Enum.Parse(kindType, kind), Guid.Empty, Guid.Empty, "", key, key });
+    Guid TileIdOf(object t) => (Guid)t.GetType().GetProperty("Id").GetValue(t);
+    var tileTable = (System.Collections.IDictionary)sessType.GetField("Tiles").GetValue(sess);
+    var rootId = TileIdOf(Mk("ProfilesView", "root"));
+    for (int i = 0; i < 6000; i++) Mk("Key", "k" + i);
+    var lastId = TileIdOf(Mk("Key", "last"));
+    Ok("after thousands of keypad tiles the folder on screen is still known", tileTable.Contains(rootId),
+       tileTable.Count + " tiles");
+    Ok("and the newest keypad tile is too, and the table stays bounded", tileTable.Contains(lastId) && tileTable.Count <= 5001,
+       tileTable.Count + " tiles");
+}
+
 var logout = Get("/Sessions/Logout", method: "POST");
 Ok("signing out of the app signs the profile out too",
    sessionLog.LoggedOut.Contains("tok-" + N(KIDS)) && logout.reachedJellyfin && seenAuth.Contains(MOON_TOKEN),
