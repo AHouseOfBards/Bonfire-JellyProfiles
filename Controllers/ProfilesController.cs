@@ -905,10 +905,15 @@ namespace Jellyfin.Profiles.Controllers
                     {
                         return BadRequest("Invalid PIN code.");
                     }
+
+                    // Only a PIN that was actually checked and right starts the allowance again.
+                    // A pass with no PIN asked (none set, trusted address, LAN bypass) proves
+                    // nothing about it, and resetting there gave a remote guesser 20 more
+                    // whenever a household member opened the profile.
+                    EndPinAttempt(rateLimitKey, request.ProfileId);
                 }
             }
 
-            EndPinAttempt(rateLimitKey, request.ProfileId);
             tAuth = sw.ElapsedMilliseconds;
 
             var targetUser = _userManager.GetUserById(request.ProfileId);
@@ -1144,9 +1149,11 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     return BadRequest("Invalid PIN.");
                 }
+
+                // Reset only after a PIN was checked and right, as in /switch.
+                EndPinAttempt(rateLimitKey, request.ProfileId);
             }
 
-            EndPinAttempt(rateLimitKey, request.ProfileId);
             return Ok();
         }
 

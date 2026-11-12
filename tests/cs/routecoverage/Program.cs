@@ -308,6 +308,21 @@ Console.WriteLine("── VerifyPin ──────────────�
     var otherAddress = Call("VerifyPin", PARENT, new { ProfileId = KID, Pin = "1357" }, ip: "203.0.113.8");
     Ok("from another address too: the allowance is the profile's (" + Say(otherAddress) + ")", otherAddress.status == 429);
     Forget();
+
+    // r2-11-01: opening with no PIN asked (none set, a trusted address, LAN bypass) proves
+    // nothing about the PIN, so it must not hand a guesser a fresh allowance.
+    {
+        var budget = asm.GetType("Jellyfin.Profiles.Controllers.PinBudget", true);
+        var begin = budget.GetMethod("TryBegin", flags);
+        bool Spend() => (bool)begin.Invoke(null, new object[] { OPEN_KID });
+        for (int i = 0; i < 12 && Spend(); i++) { }
+        Ok("setup: the guesser has used the quarter hour", !Spend());
+        var free = Call("VerifyPin", PARENT, new { ProfileId = OPEN_KID, Pin = "" });
+        Ok("a PIN-free open is allowed (" + Say(free) + ")", free.status == 200);
+        Ok("but it does not give the guesser a fresh allowance", !Spend());
+        Forget();
+        budget.GetMethod("End", flags).Invoke(null, new object[] { OPEN_KID });
+    }
 }
 
 // ── SetProfileLimit ──────────────────────────────────────────────────────────
