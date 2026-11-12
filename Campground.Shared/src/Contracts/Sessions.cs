@@ -170,7 +170,35 @@ namespace Campground.Shared.Contracts
             // Boxed once, so the generation stamp and the stored value are the same object.
             object stored = CampgroundRegistry.ToJson(new SessionTag(sessionId, pluginId, kind, DateTime.UtcNow));
             CampgroundLifetime.Stamp(stored);
-            CampgroundRegistry.Section(TagsSection)[sessionId] = stored;
+            var section = CampgroundRegistry.Section(TagsSection);
+            PruneTags(section);
+
+            // Another plugin's live tag stays; the owner Untags it. An expired or stale one is replaced.
+            section.AddOrUpdate(sessionId, stored, (_, current) =>
+                current is JsonElement e && !CampgroundLifetime.IsStale(current)
+                && CampgroundRegistry.FromJson<SessionTag>(e) is { } other
+                && !IsExpired(other) && !string.Equals(other.PluginId, pluginId, StringComparison.Ordinal)
+                    ? current
+                    : stored);
+        }
+
+        /// <summary>
+        /// How long a tag counts. A session ends without an Untag when its plugin crashes, and nothing else removes
+        /// the tag, so without a limit the table only grows. Tagging again renews it.
+        /// </summary>
+        internal static readonly TimeSpan TagTtl = TimeSpan.FromHours(24);
+
+        private static bool IsExpired(SessionTag tag) => DateTime.UtcNow - tag.TaggedUtc > TagTtl;
+
+        private static void PruneTags(System.Collections.Concurrent.ConcurrentDictionary<string, object> section)
+        {
+            foreach (var pair in section)
+            {
+                if (pair.Value is JsonElement e && CampgroundRegistry.FromJson<SessionTag>(e) is { } tag && IsExpired(tag))
+                {
+                    section.TryRemove(pair);
+                }
+            }
         }
 
         /// <summary>Removes a tag.</summary>
@@ -200,7 +228,8 @@ namespace Campground.Shared.Contracts
         internal static SessionTag? GetTag(string sessionId)
             => CampgroundRegistry.Section(TagsSection).TryGetValue(sessionId, out var v) && v is JsonElement e
                 && !CampgroundLifetime.IsStale(v)
-                ? CampgroundRegistry.FromJson<SessionTag>(e)
+                && CampgroundRegistry.FromJson<SessionTag>(e) is { } tag && !IsExpired(tag)
+                ? tag
                 : null;
 
         /// <summary>True when another plugin owns this session.</summary>
@@ -213,12 +242,18 @@ namespace Campground.Shared.Contracts
         internal static void PublishActivity(Activity activity)
         {
             var section = CampgroundRegistry.Section(ActivitiesSection);
-            var isNew = !section.ContainsKey(activity.Id);
 
             // Boxed once, so the generation stamp and the stored value are the same object.
             object stored = CampgroundRegistry.ToJson(activity with { UpdatedUtc = DateTime.UtcNow });
             CampgroundLifetime.Stamp(stored);
-            section[activity.Id] = stored;
+
+            // TryAdd decides who is first, so two threads can't both raise ActivityStarted.
+            var isNew = section.TryAdd(activity.Id, stored);
+            if (!isNew)
+            {
+                section[activity.Id] = stored;
+            }
+
             if (isNew)
             {
                 CampgroundEvents.Publish(EventNames.ActivityStarted, activity);

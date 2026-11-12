@@ -56,36 +56,90 @@ namespace Campground.Shared.Emergency
                 return;
             }
 
-            var file = new AtomicJsonFile(Path.Combine(CampgroundPaths.Root, StateFileName));
-            var node = file.LoadNode() ?? new JsonObject();
-            if (pluginId == null)
+            // Every plugin's copy writes this one file. The registry is shared by all copies in the process, so a
+            // lock object kept there serialises them where a static in each copy would not.
+            var gate = CampgroundRegistry.Section("emergency").GetOrAdd("gate", _ => new object());
+            lock (gate)
             {
-                node["all"] = disabled;
-            }
-            else
-            {
-                var list = (node["plugins"] as JsonArray)?.Select(n => n?.GetValue<string>()).OfType<string>().ToHashSet(StringComparer.Ordinal)
-                    ?? new HashSet<string>(StringComparer.Ordinal);
-                if (disabled)
+                var file = new AtomicJsonFile(Path.Combine(CampgroundPaths.Root, StateFileName));
+                var node = file.LoadNode() ?? new JsonObject();
+                if (pluginId == null)
                 {
-                    list.Add(pluginId);
+                    node["all"] = disabled;
                 }
                 else
                 {
-                    list.Remove(pluginId);
+                    var list = new HashSet<string>(StringComparer.Ordinal);
+                    if (node["plugins"] is JsonArray existing)
+                    {
+                        foreach (var n in existing)
+                        {
+                            if (n is JsonValue v && v.TryGetValue<string>(out var s))
+                            {
+                                list.Add(s);
+                            }
+                        }
+                    }
+
+                    if (disabled)
+                    {
+                        list.Add(pluginId);
+                    }
+                    else
+                    {
+                        list.Remove(pluginId);
+                    }
+
+                    node["plugins"] = new JsonArray(list.OrderBy(x => x).Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
                 }
 
-                node["plugins"] = new JsonArray(list.OrderBy(x => x).Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
+                node["changedUtc"] = DateTime.UtcNow;
+                file.SaveNode(node);
             }
 
-            node["changedUtc"] = DateTime.UtcNow;
-            file.SaveNode(node);
+            ClearCache();
             CampgroundEvents.Publish(EventNames.EmergencyDisabled, new { pluginId, disabled });
+        }
+
+        /// <summary>Forgets the cached read (tests, and Set).</summary>
+        internal static void ClearCache()
+        {
+            lock (CacheGate)
+            {
+                _cached = null;
+            }
         }
 
         private sealed record State(bool All, HashSet<string> Plugins, string Source);
 
+        // Read() runs for every tag on every index.html and runtime.js request, so the answer is kept for a
+        // few seconds. Keyed on the folder and the variable, so a different data folder never sees a stale one.
+        private static readonly TimeSpan CacheFor = TimeSpan.FromSeconds(3);
+        private static readonly object CacheGate = new();
+        private static (State State, string Key, long Tick)? _cached;
+
         private static State Read()
+        {
+            var key = (CampgroundPaths.IsInitialized ? CampgroundPaths.Root : string.Empty) + "|" + Environment.GetEnvironmentVariable(EnvVar);
+            var now = Environment.TickCount64;
+            lock (CacheGate)
+            {
+                if (_cached is { } c && c.Key == key && now - c.Tick < CacheFor.TotalMilliseconds)
+                {
+                    return c.State;
+                }
+            }
+
+            var fresh = ReadFromDisk();
+            lock (CacheGate)
+            {
+                _cached = (fresh, key, now);
+            }
+
+            return fresh;
+        }
+
+        private static State ReadFromDisk()
         {
             var plugins = new HashSet<string>(StringComparer.Ordinal);
             var sources = new List<string>();
@@ -96,7 +150,8 @@ namespace Campground.Shared.Emergency
             {
                 sources.Add("environment");
                 var trimmed = env.Trim();
-                if (trimmed is "1" or "true" or "all" or "*")
+                if (trimmed is "1" or "*" || trimmed.Equals("true", StringComparison.OrdinalIgnoreCase)
+                    || trimmed.Equals("all", StringComparison.OrdinalIgnoreCase))
                 {
                     all = true;
                 }
@@ -122,8 +177,13 @@ namespace Campground.Shared.Emergency
 
                     foreach (var f in Directory.EnumerateFiles(root, AllFile + ".*"))
                     {
-                        plugins.Add(Path.GetFileName(f).Substring(AllFile.Length + 1));
-                        sources.Add("file");
+                        // On Windows "DISABLE.*" also matches the bare DISABLE file, which has no id after the dot.
+                        var fileName = Path.GetFileName(f);
+                        if (fileName.Length > AllFile.Length + 1)
+                        {
+                            plugins.Add(fileName.Substring(AllFile.Length + 1));
+                            sources.Add("file");
+                        }
                     }
 
                     var state = new AtomicJsonFile(Path.Combine(root, StateFileName)).LoadNode();

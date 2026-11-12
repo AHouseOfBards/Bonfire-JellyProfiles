@@ -38,10 +38,9 @@ namespace Campground.Shared.Contracts
     /// without releasing would hold encoder sessions that no longer exist, and real streams would be refused.
     /// Owners: call <see cref="Heartbeat"/> at least every minute, and <see cref="WithdrawExternal"/> on
     /// <c>ApplicationStopping</c>. A plugin whose encoders die with Jellyfin (CleanStream's ffmpeg) also calls
-    /// <see cref="ReleaseAll"/> then; one whose encoders outlive the restart (GameTent's Tentpole) keeps its leases
-    /// for its next copy to adopt. At start, a plugin whose encoders die with Jellyfin
-    /// (CleanStream's ffmpeg) calls <see cref="ReleaseAll"/>. One whose encoders outlive the restart (GameTent's
-    /// Tentpole) calls <see cref="Adopt"/> before it accepts new work, then releases any lease it can't match.</para>
+    /// <see cref="ReleaseAll"/> then. One whose encoders outlive the restart (GameTent's Tentpole) keeps its
+    /// leases, and its next copy calls <see cref="Adopt"/> at start, before it accepts new work, then releases any
+    /// lease it can't match.</para>
     /// </summary>
     internal static class EncoderLedger
     {
@@ -143,11 +142,12 @@ namespace Campground.Shared.Contracts
         internal static EncoderLease? TryReserve(string pluginId, string purpose, string kind, int gpu, Guid? userId = null, int reserveFloor = 0)
         {
             var leases = CampgroundRegistry.Section(LeasesSection);
+            var external = ExternalUse(kind, gpu);
             lock (leases)
             {
                 PruneUnlocked(leases);
                 var limit = GetLimit(kind, gpu);
-                if (limit is not null && InUseUnlocked(kind, gpu) + 1 + reserveFloor > limit.Value)
+                if (limit is not null && ReservedUnlocked(kind, gpu) + external + 1 + reserveFloor > limit.Value)
                 {
                     return null;
                 }
@@ -160,7 +160,15 @@ namespace Campground.Shared.Contracts
         }
 
         /// <summary>Releases a lease (idempotent).</summary>
-        internal static void Release(string leaseId) => CampgroundRegistry.Section(LeasesSection).TryRemove(leaseId, out _);
+        internal static void Release(string leaseId)
+        {
+            // Under the same lock as Heartbeat and Adopt: an unlocked remove landing mid-iteration was written back.
+            var leases = CampgroundRegistry.Section(LeasesSection);
+            lock (leases)
+            {
+                leases.TryRemove(leaseId, out _);
+            }
+        }
 
         /// <summary>Releases every lease a plugin holds (call on plugin shutdown).</summary>
         internal static void ReleaseAll(string pluginId)
@@ -204,10 +212,11 @@ namespace Campground.Shared.Contracts
         internal static int InUse(string kind, int gpu)
         {
             var leases = CampgroundRegistry.Section(LeasesSection);
+            var external = ExternalUse(kind, gpu);
             lock (leases)
             {
                 PruneUnlocked(leases);
-                return InUseUnlocked(kind, gpu);
+                return ReservedUnlocked(kind, gpu) + external;
             }
         }
 
@@ -259,9 +268,12 @@ namespace Campground.Shared.Contracts
             => CampgroundRegistry.Section(ExternalSeenSection).TryGetValue(pluginId, out var v) && v is long ticks
                && now - new DateTime(ticks, DateTimeKind.Utc) <= Ttl;
 
-        private static int InUseUnlocked(string kind, int gpu)
+        private static int ReservedUnlocked(string kind, int gpu) => Snapshot().Count(l => l.Kind == kind && l.Gpu == gpu);
+
+        // Run outside the ledger lock: a reporter is another plugin's code, and one slow one would stall every
+        // reservation. The count can be a moment old by the time it is compared, which is fine for an outside number.
+        private static int ExternalUse(string kind, int gpu)
         {
-            var reserved = Snapshot().Count(l => l.Kind == kind && l.Gpu == gpu);
             var external = 0;
             var now = DateTime.UtcNow;
             foreach (var pair in CampgroundRegistry.Section(ExternalSection))
@@ -281,7 +293,7 @@ namespace Campground.Shared.Contracts
                 }
             }
 
-            return reserved + external;
+            return external;
         }
 
         private static string Key(string kind, int gpu) => kind + ":" + gpu.ToString(System.Globalization.CultureInfo.InvariantCulture);

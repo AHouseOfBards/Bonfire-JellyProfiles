@@ -24,7 +24,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '0.11.1';
+  var VERSION = '0.12.1';
   if (root.Campground && root.Campground.version && compare(root.Campground.version, VERSION) >= 0) {
     return;
   }
@@ -58,6 +58,11 @@
     } catch (e) { /* private mode */ }
   }
 
+  // A link can carry a bad escape (%, %E0%A4%A). decodeURIComponent throws on those, so use the raw text.
+  function decode(s) {
+    try { return decodeURIComponent(s); } catch (e) { return s; }
+  }
+
   // ── Emergency brake ───────────────────────────────────────────────
   function readEmergency() {
     var query = '';
@@ -67,7 +72,7 @@
     } catch (e) { /* ignore */ }
     var m = /(?:^|[?&])campground=([^&#]*)/.exec(query);
     if (m) {
-      var v = decodeURIComponent(m[1]);
+      var v = decode(m[1]);
       storageSet(STORAGE_KEY, v === 'on' ? null : v);
     }
     var stored = storageGet(STORAGE_KEY) || '';
@@ -192,6 +197,8 @@
   }
 
   // ── Safe DOM ──────────────────────────────────────────────────────
+  var URL_ATTRS = ['href', 'src', 'action', 'formaction', 'xlink:href'];
+
   function el(tag, attrs, children) {
     var node = root.document.createElement(tag);
     if (attrs) {
@@ -206,9 +213,12 @@
           Object.keys(v).forEach(function (s) { node.style[s] = v[s]; });
         } else if (k.indexOf('on') === 0 && typeof v === 'function') {
           node.addEventListener(k.substring(2).toLowerCase(), v);
-        } else if (k === 'innerHTML' || k === 'outerHTML') {
+        } else if (k.toLowerCase().indexOf('on') === 0) {
+          throw new Error('Campground.el: ' + k + ' must be a function');
+        } else if (k === 'innerHTML' || k === 'outerHTML' || k === 'srcdoc') {
           throw new Error('Campground.el: ' + k + ' is not allowed; pass text or child nodes');
-        } else if ((k === 'href' || k === 'src' || k === 'action') && /^\s*javascript:/i.test(String(v))) {
+        } else if (URL_ATTRS.indexOf(k.toLowerCase()) !== -1 && /^javascript:/i.test(String(v).replace(/[\u0000- ]/g, ''))) {
+          // Browsers drop tabs, newlines and leading controls from a URL before reading its scheme.
           throw new Error('Campground.el: javascript: URLs are not allowed');
         } else {
           node.setAttribute(k, v === true ? '' : String(v));
@@ -235,7 +245,7 @@
       path.substring(q + 1).split('&').forEach(function (p) {
         if (!p) { return; }
         var kv = p.split('=');
-        params[decodeURIComponent(kv[0])] = decodeURIComponent(kv.slice(1).join('=') || '');
+        params[decode(kv[0])] = decode(kv.slice(1).join('=') || '');
       });
       path = path.substring(0, q);
     }

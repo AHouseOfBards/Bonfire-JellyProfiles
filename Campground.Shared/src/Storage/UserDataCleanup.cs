@@ -31,12 +31,10 @@ namespace Campground.Shared.Storage
         /// <summary>Runs every plugin's cleaner for the user, once. Returns the plugins whose cleaner failed.</summary>
         internal static async Task<IReadOnlyList<string>> RunAsync(Guid userId, CancellationToken ct = default)
         {
-            if (!CampgroundRegistry.Section(DoneSection).TryAdd(userId.ToString("N"), DateTime.UtcNow))
-            {
-                return Array.Empty<string>();
-            }
-
+            // Claimed per plugin, so a cleaner that threw is tried again on the next call and the others don't rerun.
+            var done = CampgroundRegistry.Section(DoneSection);
             var failed = new List<string>();
+            var ran = false;
             foreach (var pair in CampgroundRegistry.Section(CleanersSection).ToArray())
             {
                 if (pair.Value is not Func<Guid, CancellationToken, Task> cleaner)
@@ -44,17 +42,29 @@ namespace Campground.Shared.Storage
                     continue;
                 }
 
+                var claim = userId.ToString("N") + "|" + pair.Key;
+                if (!done.TryAdd(claim, DateTime.UtcNow))
+                {
+                    continue;
+                }
+
+                ran = true;
                 try
                 {
                     await cleaner(userId, ct).ConfigureAwait(false);
                 }
                 catch (Exception)
                 {
+                    done.TryRemove(claim, out _);
                     failed.Add(pair.Key);
                 }
             }
 
-            CampgroundEvents.Publish(EventNames.UserDeleted, new { userId, failed });
+            if (ran)
+            {
+                CampgroundEvents.Publish(EventNames.UserDeleted, new { userId, failed });
+            }
+
             return failed;
         }
     }

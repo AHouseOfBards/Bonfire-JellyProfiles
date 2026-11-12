@@ -92,10 +92,28 @@ namespace Campground.Shared.Privacy
     /// </summary>
     internal static class IpHasher
     {
-        private static readonly Lazy<byte[]> Key = new(() => SecretBox.LoadOrCreateKey(Path.Combine(CampgroundPaths.Root, "keys", "ip-hash.key")));
+        private static readonly object KeyGate = new();
+        private static string? _keyPath;
+        private static byte[]? _key;
+
+        // Kept only once it has loaded: a Lazy would remember a failed load until restart.
+        private static byte[] Key()
+        {
+            var path = Path.Combine(CampgroundPaths.Root, "keys", "ip-hash.key");
+            lock (KeyGate)
+            {
+                if (_key == null || _keyPath != path)
+                {
+                    _key = SecretBox.LoadOrCreateKey(path);
+                    _keyPath = path;
+                }
+
+                return _key;
+            }
+        }
 
         /// <summary>Hash with the server key.</summary>
-        internal static string Hash(IPAddress? address) => address == null ? "none" : Hash(address, Key.Value);
+        internal static string Hash(IPAddress? address) => address == null ? "none" : Hash(address, Key());
 
         /// <summary>Hash with an explicit key (tests).</summary>
         internal static string Hash(IPAddress address, byte[] key)
@@ -166,13 +184,22 @@ namespace Campground.Shared.Privacy
             }
 
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            if (fs.Length > maxBytes)
+            var cut = fs.Length > maxBytes;
+            if (cut)
             {
                 fs.Seek(-maxBytes, SeekOrigin.End);
             }
 
             using var reader = new StreamReader(fs, Encoding.UTF8);
-            return Add(name, reader.ReadToEnd());
+            var text = reader.ReadToEnd();
+            if (cut)
+            {
+                // The first line is usually cut part-way, and a cut key or value would slip past the Redactor.
+                var nl = text.IndexOf('\n');
+                text = nl < 0 ? string.Empty : text.Substring(nl + 1);
+            }
+
+            return Add(name, text);
         }
 
         /// <summary>The section names (for previews: show the admin what will be shared).</summary>

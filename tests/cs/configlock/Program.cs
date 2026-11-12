@@ -513,6 +513,13 @@ var sharedAllowed = new Dictionary<string, string>(StringComparer.Ordinal)
         = "readonly object per limiter instance, never replaced",
     ["Campground.Shared/src/Storage/AtomicJsonFile.cs|_gate"]
         = "readonly object per file instance; one read or write of that file at a time",
+    // shared 0.12.1 (Coordination #46).
+    ["Campground.Shared/src/Emergency/EmergencyDisable.cs|gate"]
+        = "one object in the registry's emergency section, shared by every copy; serialises writes of the DISABLE state file",
+    ["Campground.Shared/src/Emergency/EmergencyDisable.cs|CacheGate"]
+        = "static readonly object of this copy; guards the 3-second cache of the DISABLE state",
+    ["Campground.Shared/src/Privacy/Privacy.cs|KeyGate"]
+        = "static readonly object of this copy; guards loading the address-hashing key once",
 };
 
 var sources = Directory
