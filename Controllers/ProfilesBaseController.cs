@@ -252,8 +252,9 @@ namespace Jellyfin.Profiles.Controllers
         /// <para>Three fixes, each one a client that really sends what it describes:</para>
         /// <list type="number">
         /// <item><description><c>X-Emby-Authorization</c> is still sent instead of
-        /// <c>Authorization</c> by a number of clients, and Jellyfin itself accepts either
-        /// (<c>GetAuthorizationDictionary</c> falls back to it). Reading only the one header
+        /// <c>Authorization</c> by a number of clients, and Jellyfin falls back to it when
+        /// <c>Authorization</c> is empty, but only while legacy authorization is enabled
+        /// (off by default on 12.x). Reading only the one header
         /// meant every parameter came back null for those clients — so the switch was refused
         /// and nothing was ever recorded in the device picker for them.</description></item>
         /// <item><description>Commas inside a quoted value are part of the value. The device
@@ -297,7 +298,9 @@ namespace Jellyfin.Profiles.Controllers
 
             void Consider(string k, string v)
             {
-                if (found == null && string.Equals(k.Trim(), name, StringComparison.OrdinalIgnoreCase))
+                // No `found == null` guard: Jellyfin's GetParts assigns `result[key] = ...`,
+                // so a key sent twice keeps the last value, and so must this.
+                if (string.Equals(k.Trim(), name, StringComparison.OrdinalIgnoreCase))
                 {
                     found = WebUtility.UrlDecode(v.Trim().Trim('"'));
                 }

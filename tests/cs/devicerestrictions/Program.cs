@@ -152,6 +152,13 @@ if (parse != null)
     Ok("Authorization wins when both are present",
        P(plain, emby, "DeviceId") == "abc123");
 
+    // r2-08-04: Jellyfin's GetParts assigns `result[key] = ...`, so a key sent twice
+    // keeps the LAST value. The first used to win, so a device check and Jellyfin could
+    // read different DeviceIds from one header.
+    var twice = "MediaBrowser Client=\"Web\", DeviceId=\"first\", Device=\"TV\", DeviceId=\"last\"";
+    Ok("a repeated key keeps the last value, as Jellyfin does", P(twice, null, "DeviceId") == "last");
+    Ok("a key sent once is unaffected", P(twice, null, "Device") == "TV");
+
     // The device name is user-settable and travels unencoded, so a comma in it used to
     // shift every parameter after it out of alignment — including DeviceId.
     var comma = "MediaBrowser Client=\"Jellyfin Web\", Device=\"Living Room, TV\", DeviceId=\"tv-1\", Version=\"10.11.5\"";
