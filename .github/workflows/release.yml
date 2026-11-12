@@ -141,7 +141,11 @@ jobs:
           echo "Detected version: ${FULL} (tag v${TAG}, informational ${INFO})"
           echo "Channel: ${CHANNEL} — manifest lives on the '${BRANCH}' branch"
 
-      - name: Update the channel manifest with the correct checksum
+      # Everything that can refuse a release, before anything is published: the manifest
+      # entry exists once, is not in the other channel, and does not clash on checksum.
+      # Nothing is written to the repository here. The stamp and the push come after the
+      # release, in the step below it.
+      - name: Check the channel manifest entry and write the release notes
         run: |
           set -euo pipefail
           V="${{ steps.version.outputs.version }}"
@@ -223,6 +227,34 @@ jobs:
             exit 1
           fi
 
+          # The notes come from the entry just validated, written to a file. They went
+          # through a GITHUB_OUTPUT heredoc with a fixed EOF delimiter, so a changelog
+          # containing a line that said EOF would have ended the value early.
+          jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .changelog' \
+             manifest.json > "$RUNNER_TEMP/release-notes.md"
+
+      # The release, asset included, goes out BEFORE the manifest is stamped and pushed.
+      # The other order pointed every subscribed server at a download that did not exist
+      # yet, and left a manifest naming a checksum for a release that then failed to
+      # publish. Now a failure here pushes nothing.
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          files: dist/Jellyfin.Profiles.zip
+          body_path: ${{ runner.temp }}/release-notes.md
+          # A pre-release must not become the repo's "Latest" — that badge is what people
+          # land on from the releases page, and the stable manifest does not offer it.
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          make_latest: ${{ steps.version.outputs.make_latest }}
+
+      - name: Stamp the checksum and push the channel manifest
+        run: |
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+          C="${{ steps.checksum.outputs.md5 }}"
+          BRANCH="${{ steps.version.outputs.branch }}"
+
+          # Still on the ci-manifest branch the previous step checked out.
           jq --arg v "$V" --arg c "$C" \
              '.[0].versions |= map(if .version == $v then .checksum = $c else . end)' \
              manifest.json > manifest.tmp.json
@@ -278,25 +310,6 @@ jobs:
           echo "::error::Could not push the manifest update to ${BRANCH}."
           exit 1
 
-      - name: Get release notes from manifest changelog
-        id: notes
-        run: |
-          NOTES=$(jq -r --arg v "${{ steps.version.outputs.version }}" \
-            '.[0].versions[] | select(.version == $v) | .changelog' manifest.json)
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create or update GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          files: dist/Jellyfin.Profiles.zip
-          body: ${{ steps.notes.outputs.notes }}
-          # A pre-release must not become the repo's "Latest" — that badge is what people
-          # land on from the releases page, and the stable manifest does not offer it.
-          prerelease: ${{ steps.version.outputs.prerelease }}
-          make_latest: ${{ steps.version.outputs.make_latest }}
-
       # End-to-end check against what users actually install: re-download the published
       # asset from the release URL in the manifest and confirm its MD5 matches the
       # published checksum. Catches a stale/failed manifest push or a re-zipped asset.
@@ -306,19 +319,11 @@ jobs:
           V="${{ steps.version.outputs.version }}"
           BRANCH="${{ steps.version.outputs.branch }}"
 
-          # Read from the pushed manifest on the channel branch, using cache-busting
-          # headers and a query string.
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            MANIFEST_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${BRANCH}/manifest.json?cb=$(date +%s)"
-            if curl -fsSL -H "Cache-Control: no-cache, no-store" -H "Pragma: no-cache" "$MANIFEST_URL" -o published-manifest.json; then
-              EXPECTED=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .checksum' published-manifest.json || echo "")
-              if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "null" ] && [ "$EXPECTED" != "00000000000000000000000000000000" ]; then
-                break
-              fi
-            fi
-            echo "Manifest or updated checksum not available yet (attempt $i); retrying in 5s..."
-            sleep 5
-          done
+          # Read the manifest from the pushed git ref, not from raw.githubusercontent.com:
+          # that is a CDN, and it can serve the previous file for minutes after a push.
+          # git fetch asks the repository itself.
+          git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+          git show "origin/${BRANCH}:manifest.json" > published-manifest.json
 
           EXPECTED=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .checksum' published-manifest.json)
           SOURCE=$(jq -r --arg v "$V" '.[0].versions[] | select(.version == $v) | .sourceUrl' published-manifest.json)
@@ -326,7 +331,7 @@ jobs:
           echo "Published sourceUrl:         ${SOURCE}"
 
           if [ -z "$EXPECTED" ] || [ "$EXPECTED" = "null" ] || [ "$EXPECTED" = "00000000000000000000000000000000" ]; then
-            echo "::error::Published manifest has no valid checksum for ${V} — the manifest push did not land or CDN cache is stale."
+            echo "::error::Published manifest has no valid checksum for ${V} — the manifest push did not land."
             exit 1
           fi
 
