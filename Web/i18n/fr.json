@@ -720,7 +720,7 @@
   "admin.gs.done": "Fait",
   "admin.gs.todo": "À faire",
   "admin.gs.open": "Configurer",
-  "admin.gs.profiles": "Créez un premier profil. Chaque foyer le fait depuis l’écran d’accueil de Jellyfin.",
+  "admin.gs.dismiss": "Ignorer",
   "admin.gs.pins": "Exigez un code PIN principal sur chaque compte principal.",
   "admin.gs.zone": "Choisissez un fuseau horaire par défaut. Ce serveur est en UTC.",
   "admin.gs.bonfireOn": "Activez Bonfire.",

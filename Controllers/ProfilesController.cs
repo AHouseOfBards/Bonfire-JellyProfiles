@@ -3331,14 +3331,17 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// The steps to offer this main account, in order. A step whose feature is off is
-        /// left out, not shown disabled: the theme step needs profiles to be allowed a theme.
+        /// left out, not shown disabled: the theme step needs profiles to be allowed a theme,
+        /// and a choice of at least two (every built-in hidden but Bonfire, and no custom
+        /// theme, is one card with nothing to pick).
         /// <c>Done</c> marks what is already true, so a client can pass over it.
         /// </summary>
         internal static List<OnboardingStepInfo> OnboardingStepsFor(Guid mainId, PluginConfiguration config)
         {
             var o = config.Onboarding ?? new OnboardingSettings();
+            var themeChoice = config.AllowProfileThemes && Themes.Offered(config).Count > 1;
             return o.OfferedSteps()
-                .Where(id => id != OnboardingSteps.Theme || config.AllowProfileThemes)
+                .Where(id => id != OnboardingSteps.Theme || themeChoice)
                 .Where(id => id != OnboardingSteps.ResetEmail || Features.Available(Features.Email, config))
                 .Select(id => new OnboardingStepInfo
                 {
@@ -5570,6 +5573,12 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest("That time zone isn't known to this server.");
             }
 
+            if (request.GettingStartedDismiss != null
+                && !OnboardingSettings.GettingStartedItems.Contains(request.GettingStartedDismiss, StringComparer.Ordinal))
+            {
+                return BadRequest("That isn't a Getting started item.");
+            }
+
             if (request.ProfileImageQuality != null && !ImageQualities.IsKnown(request.ProfileImageQuality))
             {
                 return BadRequest($"Picture quality must be '{ImageQualities.Standard}', "
@@ -5672,6 +5681,9 @@ namespace Jellyfin.Profiles.Controllers
                 var onboarding = config.Onboarding;
                 if (request.OnboardingAsked.HasValue)
                     onboarding.Asked = request.OnboardingAsked.Value;
+                onboarding.Dismissed ??= new List<string>();
+                if (request.GettingStartedDismiss != null && !onboarding.Dismissed.Contains(request.GettingStartedDismiss))
+                    onboarding.Dismissed.Add(request.GettingStartedDismiss);
                 if (request.OnboardingEnabled.HasValue)
                 {
                     onboarding.Enabled = request.OnboardingEnabled.Value;

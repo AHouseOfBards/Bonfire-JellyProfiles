@@ -720,7 +720,7 @@
   "admin.gs.done": "Hecho",
   "admin.gs.todo": "Pendiente",
   "admin.gs.open": "Configurar",
-  "admin.gs.profiles": "Crea un primer perfil. Cada hogar lo hace desde la pantalla de inicio de Jellyfin.",
+  "admin.gs.dismiss": "Descartar",
   "admin.gs.pins": "Exige un PIN principal en cada cuenta principal.",
   "admin.gs.zone": "Elige una zona horaria predeterminada. Este servidor está en UTC.",
   "admin.gs.bonfireOn": "Activa Bonfire.",

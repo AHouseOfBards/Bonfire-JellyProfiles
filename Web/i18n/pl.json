@@ -720,7 +720,7 @@
   "admin.gs.done": "Gotowe",
   "admin.gs.todo": "Do zrobienia",
   "admin.gs.open": "Ustaw",
-  "admin.gs.profiles": "Utwórz pierwszy profil. Domownicy robią to na ekranie głównym Jellyfin.",
+  "admin.gs.dismiss": "Ukryj",
   "admin.gs.pins": "Wymagaj głównego PIN-u na każdym koncie głównym.",
   "admin.gs.zone": "Wybierz domyślną strefę czasową. Ten serwer działa w UTC.",
   "admin.gs.bonfireOn": "Włącz Bonfire.",

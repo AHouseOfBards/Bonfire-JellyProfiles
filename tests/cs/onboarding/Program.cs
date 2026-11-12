@@ -207,6 +207,21 @@ cfgType.GetProperty("AllowProfileThemes").SetValue(config, false);
 Ok("theme is not offered while profiles can't have their own", !Steps(NEW).Any(s => s.id == "theme"));
 cfgType.GetProperty("AllowProfileThemes").SetValue(config, true);
 
+// Owner, 2026-11-12: a step with one card has nothing to choose. Bonfire can't be hidden,
+// so one theme on offer is every other built-in hidden and no custom theme.
+{
+    var hidden = (List<string>)cfgType.GetProperty("HiddenThemes").GetValue(config);
+    var builtIns = (string[])asm.GetType("Jellyfin.Profiles.Configuration.Themes", true).GetField("All").GetValue(null);
+    var hiddenBefore = hidden.ToList();
+    hidden.Clear();
+    hidden.AddRange(builtIns.Where(b => b != "bonfire" && b != "crimson"));
+    Ok("two themes on offer: the theme step is offered", Steps(NEW).Any(s => s.id == "theme"));
+    hidden.Add("crimson");
+    Ok("only Bonfire on offer: the theme step is not", !Steps(NEW).Any(s => s.id == "theme"));
+    hidden.Clear();
+    hidden.AddRange(hiddenBefore);
+}
+
 // ── The question on a new install ────────────────────────────────────────────
 Console.WriteLine();
 Console.WriteLine("── The question on a new install ───────────────────────────────");
@@ -231,6 +246,32 @@ if (askedProp != null)
     using (var sw = new StringWriter()) { xmlAsked.Serialize(sw, wasAsked); using var sr = new StringReader(sw.ToString());
         Ok("and it survives the serializer", (bool)obType.GetProperty("Asked").GetValue(xmlAsked.Deserialize(sr))); }
     Admin(new() { ["OnboardingAsked"] = (bool?)false });
+}
+
+// ── Getting started, dismissed ───────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Getting started, dismissed ──────────────────────────────────");
+// Owner, 2026-11-12: every Getting started item can be dismissed. Kept on the server so
+// it holds for every administrator.
+var dismissedProp = obType.GetProperty("Dismissed");
+Ok("the setting keeps what was dismissed", dismissedProp != null);
+if (dismissedProp != null)
+{
+    List<string> Dismissed() => ((IEnumerable<string>)Ob("Dismissed")).ToList();
+    var d1 = Admin(new() { ["GettingStartedDismiss"] = "pins" });
+    Ok("dismissing one item keeps it", d1.status == 200 && Dismissed().SequenceEqual(new[] { "pins" }), d1.status + " " + d1.value);
+    Admin(new() { ["GettingStartedDismiss"] = "pins" });
+    Ok("twice is kept once", Dismissed().Count == 1);
+    var bad = Admin(new() { ["GettingStartedDismiss"] = "nonsense" });
+    Ok("an unknown item is refused and nothing changes", bad.status == 400 && Dismissed().Count == 1, bad.status + " " + bad.value);
+    var notAdminD = Admin(new() { ["GettingStartedDismiss"] = "zone" }, OLD);
+    Ok("only an administrator can dismiss", notAdminD.status == 401 && !Dismissed().Contains("zone"));
+    Admin(new());
+    Ok("a save that doesn't mention it leaves it alone", Dismissed().SequenceEqual(new[] { "pins" }));
+    var xmlD = new XmlSerializer(obType);
+    using (var sw = new StringWriter()) { xmlD.Serialize(sw, Onboarding()); using var sr = new StringReader(sw.ToString());
+        Ok("and it survives the serializer", ((IEnumerable<string>)dismissedProp.GetValue(xmlD.Deserialize(sr))).SequenceEqual(new[] { "pins" })); }
+    ((List<string>)Ob("Dismissed")).Clear();
 }
 
 // ── Steps ────────────────────────────────────────────────────────────────────

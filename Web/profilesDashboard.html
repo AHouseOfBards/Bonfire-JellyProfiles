@@ -693,6 +693,7 @@
         opacity: 0.8;
     }
     #profilesConfigurationPage .jpf-check-fix { padding: 4px 12px; white-space: nowrap; }
+    #profilesConfigurationPage .jpf-check-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     @media (max-width: 480px) {
         #profilesConfigurationPage .jpf-check { grid-template-columns: 1fr; gap: 4px; }
         /* One column on a phone: server over port, an announcement over its buttons, a
@@ -1659,7 +1660,7 @@
                 'admin.gs.done': 'Done',
                 'admin.gs.todo': 'To do',
                 'admin.gs.open': 'Set up',
-                'admin.gs.profiles': 'Make a first profile. Households do this from the Jellyfin home screen.',
+                'admin.gs.dismiss': 'Dismiss',
                 'admin.gs.pins': 'Require a main PIN on every main account.',
                 'admin.gs.zone': 'Choose a default time zone. This server is on UTC.',
                 'admin.gs.bonfireOn': 'Turn on Bonfire.',
@@ -6805,11 +6806,9 @@
 
             function gettingStartedItems(page) {
                 const c = page._config || {};
-                const r = page._mappings || null;
-                const subs = r ? (field(r, 'subProfiles') || []) : null;
-                const items = [
-                    { key: 'profiles', text: t('admin.gs.profiles'), done: subs === null ? null : subs.length > 0 }
-                ];
+                // No "make a first profile" item: households make profiles from the Jellyfin
+                // home screen, and an administrator on a new server read it as their job.
+                const items = [];
                 // One row for one task: while Status is already naming the accounts with
                 // no main PIN, it carries the way to fix it.
                 if (c.RequireMainPin || !(page._openPins > 0)) {
@@ -6825,7 +6824,10 @@
                 // Last: everything above is worth doing before anyone sees the profile screen.
                 // Absent on a configuration from before 2.0, which is on.
                 items.push({ key: 'bonfireOn', text: t('admin.gs.bonfireOn'), done: c.BonfireOn !== false, tab: 'status', anchor: 'bonfireOn' });
-                return items;
+                // Dismissed is for good, for every administrator: it is kept on the server
+                // (Onboarding.Dismissed). Status still flags anything that is actually wrong.
+                const dismissed = field(c.Onboarding || {}, 'dismissed') || [];
+                return items.filter(function (it) { return dismissed.indexOf(it.key) === -1; });
             }
 
             function isUtcZone(zone) {
@@ -6891,15 +6893,45 @@
                     text.textContent = it.text;
                     row.appendChild(chip);
                     row.appendChild(text);
-                    if (!it.done && it.tab) {
-                        const go = document.createElement('button');
-                        go.type = 'button';
-                        go.className = 'raised button-mini jpf-check-fix';
-                        go.textContent = t('admin.gs.open');
-                        go.addEventListener('click', function () { goTo(page, it.tab, it.anchor); });
-                        row.appendChild(go);
+                    if (!it.done) {
+                        const actions = document.createElement('span');
+                        actions.className = 'jpf-check-actions';
+                        if (it.tab) {
+                            const go = document.createElement('button');
+                            go.type = 'button';
+                            go.className = 'raised button-mini jpf-check-fix';
+                            go.textContent = t('admin.gs.open');
+                            go.addEventListener('click', function () { goTo(page, it.tab, it.anchor); });
+                            actions.appendChild(go);
+                        }
+                        const dismiss = document.createElement('button');
+                        dismiss.type = 'button';
+                        dismiss.className = 'raised button-mini jpf-check-fix';
+                        dismiss.setAttribute('data-gs-dismiss', it.key);
+                        dismiss.textContent = t('admin.gs.dismiss');
+                        dismiss.addEventListener('click', function () { dismissGettingStarted(page, it.key); });
+                        actions.appendChild(dismiss);
+                        row.appendChild(actions);
                     }
                     list.appendChild(row);
+                });
+            }
+
+            function dismissGettingStarted(page, key) {
+                ApiClient.ajax({
+                    type: 'POST',
+                    url: ApiClient.getUrl('plugins/profiles/admin/settings'),
+                    contentType: 'application/json',
+                    data: JSON.stringify({ gettingStartedDismiss: key })
+                }).then(function () {
+                    const c = page._config = page._config || {};
+                    const ob = c.Onboarding = Object.assign({}, c.Onboarding || {});
+                    const was = field(ob, 'dismissed') || [];
+                    ob.Dismissed = was.indexOf(key) === -1 ? was.concat([key]) : was;
+                    delete ob.dismissed;
+                    renderGettingStarted(page);
+                }, function () {
+                    Dashboard.alert({ message: t('admin.saveFailed'), title: t('admin.error') });
                 });
             }
 

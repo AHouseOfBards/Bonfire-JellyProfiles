@@ -33,6 +33,7 @@ const source = L.dashboardI18n(script)
     + (has('isUtcZone') ? L.extractFunction(script, 'isUtcZone') + '\n' : '')
     + L.extractFunction(script, 'gettingStartedItems') + '\n'
     + L.extractFunction(script, 'renderGettingStarted') + '\n'
+    + (has('dismissGettingStarted') ? L.extractFunction(script, 'dismissGettingStarted') + '\n' : '')
     // Only on a dashboard that asks; an older one fails the assertions below instead of here.
     + (has('onboardingAskDue') ? L.extractFunction(script, 'onboardingAskDue') + '\n' : '')
     + (has('answerOnboardingAsk') ? L.extractFunction(script, 'answerOnboardingAsk') + '\n' : '');
@@ -90,6 +91,7 @@ const Dashboard = { showLoadingMsg() {}, hideLoadingMsg() {}, alert() {} };
 // eslint-disable-next-line no-new-func
 const api = new Function('document', 'goTo', 'ApiClient', 'Dashboard',
     source + '; return { loadOnboarding, renderGettingStarted,'
+    + ' dismissGettingStarted: typeof dismissGettingStarted === "function" ? dismissGettingStarted : null,'
     + ' onboardingAskDue: typeof onboardingAskDue === "function" ? onboardingAskDue : null,'
     + ' answerOnboardingAsk: typeof answerOnboardingAsk === "function" ? answerOnboardingAsk : null };')(document, goTo, ApiClient, Dashboard);
 
@@ -122,18 +124,23 @@ page._config = { RequireMainPin: false, EnableStarterAvatars: false, AvatarLibra
 api.renderGettingStarted(page);
 const rows = () => page.ids.gettingStarted.children;
 const row = key => rows().filter(r => r.getAttribute('data-gs') === key)[0];
-ok('what is not known yet is left out: no profile list', !row('profiles'));
+ok('no profile item before the profile list is known', !row('profiles'));
 ok('a fresh install lists the main PIN as to do', row('pins') && row('pins').getAttribute('data-level') === 'info');
 ok('the list is shown', !page.ids.gettingStartedBlock.classList.contains('jpf-hidden'));
-ok('the main PIN opens where it is fixed', row('pins').children.length === 3);
-row('pins').children[2].listeners.click();
-ok('and goes to Security at the PINs', gone.pop() === 'security#jpfPins');
+// The row's third child holds its buttons: Set up, then Dismiss.
+const buttons = r => (r && r.children[2] && r.children[2].children) || [];
+ok('the main PIN has Set up and Dismiss', buttons(row('pins')).length === 2
+   && buttons(row('pins'))[0].textContent === 'Set up' && buttons(row('pins'))[1].textContent === 'Dismiss',
+   buttons(row('pins')).map(b => b.textContent).join());
+buttons(row('pins'))[0] && buttons(row('pins'))[0].listeners.click();
+ok('and Set up goes to Security at the PINs', gone.pop() === 'security#jpfPins');
 
+// Owner, 2026-11-12: "Make a first profile" confused new administrators, who read it as
+// their job. Households make profiles from the Jellyfin home screen.
 page._mappings = { subProfiles: [] };
 page._panicConfigured = false;
 api.renderGettingStarted(page);
-ok('once known, no profiles is a to-do with nothing to open (households make them)',
-   row('profiles') && row('profiles').getAttribute('data-level') === 'info' && row('profiles').children.length === 2);
+ok('no "make a first profile" item, even once the profile list is known and empty', !row('profiles'));
 
 // P2-301, P2-302: only what a new install needs. Each of these was a to-do that was never one.
 ok('no emergency code, though none is set (it bypasses the picker; Security says so)', !row('emergency'));
@@ -142,21 +149,21 @@ ok('no first-time setup item: it is asked once instead', !row('onboarding'));
 ok('no apps item: a choice, not a chore', !row('apps'));
 // 2.0 added "Turn on Bonfire." as the last item; tests/js/adminonoff.js covers it.
 const keys = () => rows().map(r => r.getAttribute('data-gs')).join();
-ok('exactly the profile, the PIN and turning Bonfire on', keys() === 'profiles,pins,bonfireOn', keys());
+ok('exactly the PIN and turning Bonfire on', keys() === 'pins,bonfireOn', keys());
 
 // The time zone item: only a server on UTC with no default chosen is asked.
 ['Europe/London', 'America/New_York', '', undefined].forEach(function (zone) {
     page._serverZone = zone;
     api.renderGettingStarted(page);
-    ok('a server on ' + JSON.stringify(zone) + ' is not asked for a zone', !row('zone') && keys() === 'profiles,pins,bonfireOn', keys());
+    ok('a server on ' + JSON.stringify(zone) + ' is not asked for a zone', !row('zone') && keys() === 'pins,bonfireOn', keys());
 });
 ['UTC', 'Etc/UTC'].forEach(function (zone) {
     page._serverZone = zone;
     page._config.DefaultTimeZone = '';
     api.renderGettingStarted(page);
     ok(zone + ' with no default: a to-do that opens the viewing hours',
-       row('zone') && row('zone').getAttribute('data-level') === 'info' && keys() === 'profiles,pins,zone,bonfireOn', keys());
-    row('zone') && row('zone').children[2] && row('zone').children[2].listeners.click();
+       row('zone') && row('zone').getAttribute('data-level') === 'info' && keys() === 'pins,zone,bonfireOn', keys());
+    buttons(row('zone'))[0] && buttons(row('zone'))[0].listeners.click();
     ok('and goes to Setup at the zone', gone.pop() === 'setup#jpfViewing');
     page._config.DefaultTimeZone = 'Europe/Paris';
     api.renderGettingStarted(page);
@@ -164,6 +171,40 @@ ok('exactly the profile, the PIN and turning Bonfire on', keys() === 'profiles,p
 });
 page._serverZone = undefined;
 page._config.DefaultTimeZone = '';
+
+console.log('\n── Dismiss ─────────────────────────────────────────────────────');
+// Owner, 2026-11-12: every item can be dismissed, so an administrator can clear the list.
+// Kept on the server, so it holds for every administrator and browser.
+{
+    const p = makePage();
+    p._config = { RequireMainPin: false, BonfireOn: false, Onboarding: { Dismissed: ['pins'] } };
+    api.renderGettingStarted(p);
+    const keysOf = () => p.ids.gettingStarted.children.map(r => r.getAttribute('data-gs')).join();
+    ok('a dismissed item is not drawn', keysOf() === 'bonfireOn', keysOf());
+    p._config.Onboarding = { dismissed: ['pins', 'bonfireOn'] };
+    api.renderGettingStarted(p);
+    ok('every item dismissed: the list goes away', keysOf() === '' && p.ids.gettingStartedBlock.classList.contains('jpf-hidden'), keysOf());
+    p._config = { RequireMainPin: true, BonfireOn: false, Onboarding: {} };
+    api.renderGettingStarted(p);
+    const done = p.ids.gettingStarted.children.filter(r => r.getAttribute('data-gs') === 'pins')[0];
+    ok('a done item has no buttons', done && done.children.length === 2);
+}
+const settleD = () => new Promise(r => setImmediate(r));
+const dismissDone = (async function () {
+    const p = makePage();
+    p._config = { RequireMainPin: false, BonfireOn: false };
+    api.renderGettingStarted(p);
+    posted.length = 0;
+    const rowOf = k => p.ids.gettingStarted.children.filter(r => r.getAttribute('data-gs') === k)[0];
+    const btn = buttons(rowOf('bonfireOn'))[1];
+    ok('"Turn on Bonfire." has Dismiss too', !!btn && btn.textContent === 'Dismiss');
+    btn && btn.listeners.click();
+    ok('Dismiss sends that one key and nothing else',
+       posted.length === 1 && JSON.stringify(posted[0]) === '{"gettingStartedDismiss":"bonfireOn"}', JSON.stringify(posted));
+    posted.length = 0;   // before the first await: the question's checks below count it
+    await settleD(); await settleD();
+    ok('and the row goes once it is saved', !rowOf('bonfireOn') && !!rowOf('pins'));
+})();
 
 page._config.RequireMainPin = true;
 page._mappings = { SubProfiles: [{}] };
@@ -215,6 +256,7 @@ const settle = () => new Promise(r => setImmediate(r));
        JSON.stringify(posted));
     await settle(); await settle();
     ok('and the question goes away, the box left off', !askShown(page) && !page.ids.onboardingEnabled.checked);
+    await dismissDone;
     finish();
 })();
 

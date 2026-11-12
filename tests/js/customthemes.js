@@ -390,6 +390,31 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     ok('every picker offers what the server offers, not the built-in list',
         pickers.every(m => m && m.body.indexOf('offeredThemes()') !== -1 && m.body.indexOf('THEMES.map') === -1));
 
+    // Owner, 2026-11-12: first-time setup's theme step with one theme on offer is one card
+    // and nothing to choose. The server leaves the step out; the client skips it too, for a
+    // custom theme deleted since the server answered.
+    {
+        const m = method('_onboardingTheme');
+        const run = offered => {
+            const seen = { skipped: 0, framed: 0 };
+            // eslint-disable-next-line no-new-func
+            const fn = new Function('offeredThemes', 'offeredChoice', 't', 'escapeHtml', 'themeName',
+                'return function (' + m.params + ') {' + m.body + '};')(
+                () => offered, () => '', k => k, s => s, s => s);
+            fn.call({
+                _themeSettings: { allow: true, defaultTheme: 'bonfire' },
+                currentProfiles: [{ isMaster: true }],
+                renderThemePreview: () => '',
+                _onboardingFrame: () => { seen.framed++; return null; }
+            }, () => {}, () => { seen.skipped++; });
+            return seen;
+        };
+        const one = run(['bonfire']);
+        ok('the theme step with one theme on offer skips itself', one.skipped === 1 && one.framed === 0, JSON.stringify(one));
+        const two = run(['bonfire', 'crimson']);
+        ok('with two it is shown', two.skipped === 0 && two.framed === 1, JSON.stringify(two));
+    }
+
     // R-1251: a request that failed was kept as the answer for the life of the page, so a
     // server that was down at startup meant no custom themes until the next reload.
     {

@@ -31,6 +31,14 @@ namespace Jellyfin.Profiles.Configuration
         /// until it is set, and only while nothing has been configured yet.</summary>
         public bool Asked { get; set; }
 
+        /// <summary>The Status tab's Getting started items the administrator dismissed, by
+        /// key (<see cref="GettingStartedItems"/>). Never read by the server: the dashboard
+        /// leaves them out. Each key at most once, so the list can never grow past the set.</summary>
+        public List<string> Dismissed { get; set; } = new();
+
+        /// <summary>The keys the dashboard's Getting started list uses.</summary>
+        public static readonly string[] GettingStartedItems = { "pins", "zone", "bonfireOn" };
+
         // There used to be a RequiredSteps list here, "can't skip" per step. It was only ever
         // a client screen with no Skip on it, and nothing on the server held anyone to it
         // (a main PIN is what RequireMainPin is for). Every step can be skipped now. A file
@@ -54,6 +62,7 @@ namespace Jellyfin.Profiles.Configuration
             var copy = (OnboardingSettings)MemberwiseClone();
             copy.Seen = Seen?.Select(r => new OnboardingRecord { UserId = r.UserId, Generation = r.Generation }).ToList()
                         ?? new List<OnboardingRecord>();
+            copy.Dismissed = Dismissed?.ToList() ?? new List<string>();
             return copy;
         }
 

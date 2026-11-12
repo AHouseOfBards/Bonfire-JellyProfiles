@@ -11257,7 +11257,9 @@
         _onboardingTheme: function (next, skip) {
             const settings = this._themeSettings;
             const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
-            if (!settings || !settings.allow || !main) { (skip || next)(); return; }
+            // One theme on offer is nothing to choose; the server leaves the step out too
+            // (OnboardingStepsFor), this covers a custom theme deleted since it answered.
+            if (!settings || !settings.allow || !main || offeredThemes().length < 2) { (skip || next)(); return; }
 
             const stored = offeredChoice(main.theme);
             let chosen = stored || settings.defaultTheme;

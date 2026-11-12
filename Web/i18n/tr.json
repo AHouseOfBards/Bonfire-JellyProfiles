@@ -731,7 +731,7 @@
   "admin.gs.done": "Tamam",
   "admin.gs.todo": "Yapılacak",
   "admin.gs.open": "Ayarla",
-  "admin.gs.profiles": "İlk profili oluşturun. Haneler bunu Jellyfin ana ekranından yapar.",
+  "admin.gs.dismiss": "Kapat",
   "admin.gs.pins": "Her ana hesapta ana PIN zorunlu olsun.",
   "admin.gs.zone": "Varsayılan bir saat dilimi seçin. Bu sunucu UTC'de.",
   "admin.gs.bonfireOn": "Bonfire'ı açın.",

@@ -85,6 +85,10 @@ namespace Jellyfin.Profiles.Models
         /// setup. Null leaves it alone.</summary>
         public bool? OnboardingAsked { get; set; }
 
+        /// <summary>One Getting started item to stop showing, by key. Null leaves the list
+        /// alone; an unknown key is refused.</summary>
+        public string? GettingStartedDismiss { get; set; }
+
         /// <summary>Main accounts may reset a forgotten PIN by email. Refused while email
         /// isn't working.</summary>
         public bool? EnablePinResetByEmail { get; set; }
