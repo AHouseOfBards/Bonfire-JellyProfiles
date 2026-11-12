@@ -92,6 +92,30 @@ pages.forEach(p => {
        bad.length === 0);
 });
 
+console.log('\n── Source is not served, and what pages link to is ────────────');
+// Every tracked C# file or project is source, not a page. New folders (Mail/,
+// Campground.Shared/) were added after the exclude list and were being published.
+const tracked = require('child_process').execFileSync('git', ['ls-files'], { cwd: L.ROOT, encoding: 'utf8' })
+    .split('\n').filter(Boolean);
+const servedSource = tracked.filter(p => /\.(cs|csproj|proj|sln)$/i.test(p) && !excluded.some(e => covers(e, p)));
+const servedDirs = Array.from(new Set(servedSource.map(p => p.split('/')[0])));
+ok('no C# source is on the site' + (servedDirs.length ? ' (served: ' + servedDirs.join(', ') + ')' : ''),
+   servedSource.length === 0);
+// A relative link from a page to a file that is not Markdown is served as that file, so
+// excluding its folder makes it a 404 on the site while it still works on GitHub.
+const deadLinks = [];
+pages.forEach(p => {
+    const text = fs.readFileSync(path.join(L.ROOT, p), 'utf8');
+    text.replace(/\]\(([^)\s#]+)(?:#[^)]*)?\)/g, (m, href) => {
+        if (/^[a-z]+:|^\/|\.md$/i.test(href)) return m;
+        const target = path.posix.normalize(path.posix.join(path.posix.dirname(p), href)).replace(/\/$/, '');
+        if (excluded.some(e => covers(e, target))) deadLinks.push(p + ' -> ' + href);
+        return m;
+    });
+});
+ok('every file a page links to is served' + (deadLinks.length ? ' (excluded: ' + deadLinks.join('; ') + ')' : ''),
+   deadLinks.length === 0);
+
 console.log('\n── Every page is in the navigation, and nothing else is ───────');
 const scoped = [];
 block('defaults').replace(/path:\s*(\S+)/g, (m, p) => { scoped.push(p.replace(/^["']|["']$/g, '')); return m; });

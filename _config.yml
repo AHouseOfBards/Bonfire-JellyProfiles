@@ -45,13 +45,20 @@ gh_edit_view_mode: tree
 
 footer_content: MIT licensed. Bonfire/JellyProfiles is not made by or part of Jellyfin.
 
-# The plugin's source, its tests and build output are not pages.
+# The plugin's source, its tests and build output are not pages. Web/ stays, because
+# pages link to files in it (the Tizen loader, the font folder, the avatar licence);
+# only its scripts are left out. tests/js/pagessite.js fails on served C# or a dead link.
 exclude:
   - Auth/
+  - Campground.Shared/
   - Configuration/
   - Controllers/
   - Injection/
+  - Mail/
   - Models/
+  - Web/profiles.js
+  - Web/styles.css
+  - Web/profilesDashboard.html
   - tests/
   - bin/
   - obj/
