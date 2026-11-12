@@ -25,27 +25,36 @@ const html = process.argv[2] ? fs.readFileSync(process.argv[2], 'utf8') : fs.rea
 const styles = (html.match(/<style[^>]*>[\s\S]*?<\/style>/g) || []).join('\n')
     .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
 
-// [{ selector, body, phone }]
+// [{ selector, body, phone, wide }]. A rule inside @media (min-width: N) with N above 480px
+// never reaches a phone, so it needs no phone rule: the Switches log's columns exist only
+// from 900px, and below that the row is a stacked flex box.
 const rules = [];
-let i = 0, head = '', depth = 0, inPhone = false, phoneDepth = -1;
+let i = 0, head = '', depth = 0, inPhone = false, phoneDepth = -1, inWide = false, wideDepth = -1;
 while (i < styles.length) {
     const ch = styles[i];
     if (ch === '{') {
         const h = head.trim();
         if (h.charAt(0) === '@') {
             if (/max-width:\s*480px/.test(h)) { inPhone = true; phoneDepth = depth; }
+            const minW = /min-width:\s*(\d+)px/.exec(h);
+            if (minW && Number(minW[1]) > 480 && !inWide) { inWide = true; wideDepth = depth; }
             depth++; head = ''; i++; continue;
         }
         const end = styles.indexOf('}', i);
-        rules.push({ selector: h.replace(/\s+/g, ' '), body: styles.slice(i + 1, end), phone: inPhone });
+        rules.push({ selector: h.replace(/\s+/g, ' '), body: styles.slice(i + 1, end), phone: inPhone, wide: inWide });
         head = ''; i = end + 1; continue;
     }
-    if (ch === '}') { depth--; if (inPhone && depth === phoneDepth) inPhone = false; head = ''; i++; continue; }
+    if (ch === '}') {
+        depth--;
+        if (inPhone && depth === phoneDepth) inPhone = false;
+        if (inWide && depth === wideDepth) inWide = false;
+        head = ''; i++; continue;
+    }
     head += ch; i++;
 }
 
 const tracks = v => v.trim().split(/\s+(?![^(]*\))/).filter(Boolean);
-const fixed = rules.filter(r => !r.phone).map(r => {
+const fixed = rules.filter(r => !r.phone && !r.wide).map(r => {
     const m = /grid-template-columns:\s*([^;]+)/.exec(r.body);
     return m && !/auto-fit|auto-fill/.test(m[1]) && tracks(m[1]).length > 1 ? { sel: r.selector, cols: m[1].trim() } : null;
 }).filter(Boolean);
