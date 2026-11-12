@@ -600,6 +600,31 @@
        column at this width.) */
     #profilesConfigurationPage .jpf-te-3col .jpf-te-adv.jpf-te-adv-color { display: inline-grid; width: 50%; box-sizing: border-box; padding: 6px 8px 6px 0; vertical-align: top; }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-adv.jpf-te-adv-color.jpf-hidden { display: none; }
+    /* The preview opens its fields (Advanced only): each part names its group in data-te-group.
+       Hover and a focused field outline a part with is-hot and is-focus, which script sets so that
+       only the innermost part under the pointer is marked, not the card around it too. The add
+       tile, card, sheet and text box are drawn for this and are not in the lists' cards. */
+    #profilesConfigurationPage .jpf-te-preview-extra { display: none; }
+    #profilesConfigurationPage .jpf-te.is-advanced .jpf-te-preview-extra { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; }
+    #profilesConfigurationPage .jpf-te.is-advanced #tePreview [data-te-group] { cursor: pointer; }
+    #profilesConfigurationPage .jpf-te #tePreview [data-te-group].is-hot,
+    #profilesConfigurationPage .jpf-te #tePreview [data-te-group].is-focus {
+        outline: 2px solid var(--jpf-ring); outline-offset: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+    }
+    #profilesConfigurationPage .jpf-te #tePreview .jpf-theme-preview[data-te-group].is-hot,
+    #profilesConfigurationPage .jpf-te #tePreview .jpf-theme-preview[data-te-group].is-focus { outline-offset: -4px; box-shadow: none; }
+    #profilesConfigurationPage .jpf-te-pv-add {
+        display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; box-sizing: border-box;
+        border-radius: var(--jpf-avatar-r); border: var(--jpf-add-border); background: var(--jpf-add-bg); color: var(--jpf-add-color); font-size: 1.2rem;
+    }
+    #profilesConfigurationPage .jpf-te-pv-card, #profilesConfigurationPage .jpf-te-pv-sheet, #profilesConfigurationPage .jpf-te-pv-input {
+        display: inline-block; box-sizing: border-box; height: 32px;
+    }
+    #profilesConfigurationPage .jpf-te-pv-card { width: 52px; border-radius: var(--jpf-r-md); background: var(--jpf-card-bg); border: 1px solid var(--jpf-card-border); }
+    #profilesConfigurationPage .jpf-te-pv-sheet { width: 52px; border-radius: var(--jpf-r-md); background: var(--jpf-sheet-bg); border: 1px solid var(--jpf-sheet-border); box-shadow: var(--jpf-sheet-shadow); }
+    #profilesConfigurationPage .jpf-te-pv-input { width: 84px; border-radius: var(--jpf-input-r); background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border); }
+    /* The group a click on the preview opened: its fields are lit for a moment. */
+    #profilesConfigurationPage .jpf-te-group.is-flash { box-shadow: 0 0 0 2px var(--jpf-accent); border-radius: 6px; }
     #profilesConfigurationPage .jpf-te-checks { margin-top: 0.5em; }
     #profilesConfigurationPage .jpf-te-side-title { margin: 1em 0 0.25em; }
     #profilesConfigurationPage .jpf-te-colors {
@@ -5030,14 +5055,26 @@
             /// built-in list and the default select cannot show three different cards. It
             /// wears `previewId` (a data-jpf-theme the page has written a sheet for) and
             /// says only words the page already has keys for.
-            function themePreviewCardHtml(previewId, name) {
-                return '<div class="jpf-theme-preview" data-jpf-theme="' + escapeHtml(previewId) + '" aria-hidden="true">' +
-                    '<span class="jpf-theme-preview-name">' + escapeHtml(name || '') + '</span>' +
-                    '<span class="jpf-theme-preview-tiles"><span class="jpf-theme-preview-tile"></span>' +
-                    '<span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span></span>' +
-                    '<span class="jpf-te-preview-text">' + escapeHtml(t('admin.themes.previewText')) + '</span>' +
-                    '<span class="jpf-te-preview-actions"><span class="jpf-te-preview-primary">' + escapeHtml(t('admin.themes.previewPrimary')) +
-                    '</span><span class="jpf-theme-preview-button">' + escapeHtml(t('admin.themes.previewSecondary')) + '</span></span>' +
+            ///
+            /// `parts` is the editor's: each part of the card then names the group of fields
+            /// that styles it (data-te-group, the group's own key) so a click on the card can open
+            /// them, and an add tile, a card, a sheet and a text box are drawn that the lists'
+            /// cards do not need. Only the editor's Advanced view uses them.
+            function themePreviewCardHtml(previewId, name, parts) {
+                const g = function (key) { return parts ? ' data-te-group="' + key + '"' : ''; };
+                const tg = g('admin.themes.group.tiles');
+                return '<div class="jpf-theme-preview" data-jpf-theme="' + escapeHtml(previewId) + '"' + g('admin.themes.group.background') + ' aria-hidden="true">' +
+                    '<span class="jpf-theme-preview-name"' + g('admin.themes.group.type') + '>' + escapeHtml(name || '') + '</span>' +
+                    '<span class="jpf-theme-preview-tiles"><span class="jpf-theme-preview-tile"' + tg + '></span>' +
+                    '<span class="jpf-theme-preview-tile"' + tg + '></span><span class="jpf-theme-preview-tile"' + tg + '></span></span>' +
+                    '<span class="jpf-te-preview-text"' + g('admin.themes.group.colours') + '>' + escapeHtml(t('admin.themes.previewText')) + '</span>' +
+                    '<span class="jpf-te-preview-actions"><span class="jpf-te-preview-primary"' + g('admin.themes.group.buttons') + '>' + escapeHtml(t('admin.themes.previewPrimary')) +
+                    '</span><span class="jpf-theme-preview-button"' + g('admin.themes.group.buttons') + '>' + escapeHtml(t('admin.themes.previewSecondary')) + '</span></span>' +
+                    (parts ? '<span class="jpf-te-preview-extra">' +
+                        '<span class="jpf-te-pv-add"' + g('admin.themes.group.buttons') + '>+</span>' +
+                        '<span class="jpf-te-pv-card"' + g('admin.themes.group.cards') + '></span>' +
+                        '<span class="jpf-te-pv-sheet"' + g('admin.themes.group.cards') + '></span>' +
+                        '<span class="jpf-te-pv-input"' + g('admin.themes.group.cards') + '></span></span>' : '') +
                     '</div>';
             }
 
@@ -5463,7 +5500,7 @@
                     .concat(patterns.map(function (n) { return [n, patternName(n)]; })));
 
                 buildThemeAdvanced(page);
-                page.querySelector('#tePreview').innerHTML = themePreviewCardHtml(THEME_PREVIEW_ID, '');
+                page.querySelector('#tePreview').innerHTML = themePreviewCardHtml(THEME_PREVIEW_ID, '', true);
                 showThemeStatus(page, '#teResult', '', false);
                 showThemeStatus(page, '#teFileNote', '', false);
                 setThemeEditorView(page, 'simple');
@@ -6615,6 +6652,67 @@
                 // Leaving three columns puts the folds back as the viewer (or the search) had them.
                 else if (was) themeFilterAdvanced(page);
                 if (page._themeStick) page._themeStick.onMove();
+            }
+
+            /// A click on a part of the preview (Advanced): its group of fields. Three columns
+            /// select the group; one column opens it and scrolls to it. Either way its fields
+            /// are lit for a moment. A search that hides the group is cleared first.
+            function themeRevealGroup(page, key) {
+                const ed = page._themeEditor;
+                if (!ed || ed.view !== 'advanced') return;
+                const find = function () {
+                    return Array.prototype.filter.call(page.querySelectorAll('#teAdvancedFields details.jpf-te-group'), function (g) { return g.getAttribute('data-group') === key; })[0];
+                };
+                let group = find();
+                if (!group) return;
+                const search = page.querySelector('#teSearch');
+                if (group.classList.contains('jpf-hidden') && search.value) { search.value = ''; themeFilterAdvanced(page); }
+                if (themeThreeCol(page)) {
+                    themeSelectGroup(page, key);
+                } else {
+                    group.open = true;
+                    ed.group = key;
+                    try { group.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { group.scrollIntoView(); }
+                }
+                group = find();
+                group.classList.add('is-flash');
+                clearTimeout(group._flash);
+                group._flash = setTimeout(function () { group.classList.remove('is-flash'); }, 1400);
+            }
+
+            /// Marks the parts of the preview that belong to `key` (a focused field's group), or
+            /// clears the mark. `cls` is is-hot for the pointer and is-focus for a field.
+            function themeMarkPreview(page, cls, key, only) {
+                Array.prototype.forEach.call(page.querySelectorAll('#tePreview [data-te-group]'), function (p) {
+                    p.classList.toggle(cls, !!key && (only ? p === only : p.getAttribute('data-te-group') === key));
+                });
+            }
+
+            /// Wires the preview to the groups, both ways. Delegated, because the card is
+            /// rebuilt each time the editor opens.
+            function bindThemePreviewParts(page) {
+                const box = page.querySelector('#tePreview');
+                const part = function (e) {
+                    const p = e.target && e.target.closest ? e.target.closest('[data-te-group]') : null;
+                    return p && page._themeEditor && page._themeEditor.view === 'advanced' ? p : null;
+                };
+                box.addEventListener('click', function (e) {
+                    const p = part(e);
+                    if (p) themeRevealGroup(page, p.getAttribute('data-te-group'));
+                });
+                box.addEventListener('mouseover', function (e) {
+                    const p = part(e);
+                    themeMarkPreview(page, 'is-hot', p ? p.getAttribute('data-te-group') : '', p);
+                });
+                box.addEventListener('mouseleave', function () { themeMarkPreview(page, 'is-hot', ''); });
+                // A focused field outlines the parts of its group.
+                const fields = page.querySelector('#teAdvancedFields');
+                fields.addEventListener('focusin', function (e) {
+                    const row = e.target && e.target.closest ? e.target.closest('.jpf-te-adv') : null;
+                    const g = row ? row.closest('details.jpf-te-group') : null;
+                    themeMarkPreview(page, 'is-focus', g ? g.getAttribute('data-group') : '');
+                });
+                fields.addEventListener('focusout', function () { themeMarkPreview(page, 'is-focus', ''); });
             }
 
             /// Selects a group: its fields show in the right column, its entry is marked in the
@@ -7879,6 +7977,7 @@
                     const recolumn = function () { applyThemeColumns(page); };
                     if (three.addEventListener) three.addEventListener('change', recolumn); else if (three.addListener) three.addListener(recolumn);
                 }
+                bindThemePreviewParts(page);
                 page.querySelector('#teExpand').addEventListener('click', function () { openThemeExpanded(page); });
                 page.querySelector('#teCount').addEventListener('click', function () { jumpToThemeProblem(page); });
                 page.querySelector('#teMore').addEventListener('click', function () { toggleThemeMenu(page, false); });

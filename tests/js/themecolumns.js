@@ -157,7 +157,61 @@ async function main() {
         await wait(500);
         ok('Undo is still in the bar', (await ev("!!document.getElementById('teUndo') && !!document.getElementById('teRedo')")) === true);
 
+        // 9. Click the preview to open its fields. Simple first: nothing is clickable there.
+        const G = k => 'admin.themes.group.' + k;
+        const PART = (sel, key) => `(function(){ var p = document.querySelector(${JSON.stringify('#tePreview ' + sel)}); return !!p && p.getAttribute('data-te-group') === ${JSON.stringify(G(key))}; })()`;
+        await ev("localStorage.removeItem('bonfire-theme-groups'); 0");
+        await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="simple"]')));
+        await ev(`(function(){ var t = document.querySelector('#tePreview .jpf-theme-preview-tile'); if (t) t.click(); })()`);
+        ok('in Simple a click on the preview does nothing', (await ev("document.querySelectorAll('#teAdvancedFields .is-flash').length")) === 0 && (await ev("document.getElementById('themeEditor').classList.contains('is-advanced')")) === false
+            && (await ev("(function(){ var e = document.querySelector('#tePreview .jpf-te-preview-extra'); return !e || getComputedStyle(e).display === 'none'; })()")) === true);
+        await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="advanced"]')));
+        await ev(frame);
+        const mapped = (await Promise.all([
+            ['.jpf-theme-preview-name', 'type'], ['.jpf-theme-preview-tile', 'tiles'], ['.jpf-theme-preview-button', 'buttons'], ['.jpf-te-preview-primary', 'buttons'],
+            ['.jpf-te-pv-add', 'buttons'], ['.jpf-theme-preview', 'background'], ['.jpf-te-pv-card', 'cards'], ['.jpf-te-pv-sheet', 'cards'], ['.jpf-te-pv-input', 'cards']
+        ].map(async p => [p[0], await ev(PART(p[0], p[1]))]))).filter(p => p[1] !== true).map(p => p[0]);
+        ok('each part of the preview names its group: title, tile, buttons, add tile, background, cards, sheet, text box', mapped.length === 0, 'not mapped: ' + JSON.stringify(mapped));
+        const everyKnown = await ev(`(function(){ var keys = [].map.call(document.querySelectorAll('#teAdvancedFields details.jpf-te-group'), function (d) { return d.getAttribute('data-group'); });
+            var parts = [].slice.call(document.querySelectorAll('#tePreview [data-te-group]')); return parts.length >= 9 && parts.every(function (p) { return keys.indexOf(p.getAttribute('data-te-group')) !== -1; }); })()`);
+        ok('and every group it names is a real one', everyKnown === true);
+        ok('the add tile, card, sheet and text box are drawn in Advanced', (await ev("[].every.call(document.querySelectorAll('#tePreview .jpf-te-pv-add, #tePreview .jpf-te-pv-card, #tePreview .jpf-te-pv-sheet, #tePreview .jpf-te-pv-input'), function (e) { var b = e.getBoundingClientRect(); return b.width > 10 && b.height > 10; })")) === true);
+        await ev(CLICK(Q('#teOutline .jpf-te-opt')));
+        await ev(`(function(){ var t = document.querySelector('#tePreview .jpf-theme-preview-tile'); t.click(); })()`);
+        ok('three columns: a click on a tile selects the tile group and shows only it', JSON.stringify(await ev(PRESSED)) === JSON.stringify([G('tiles')]) && JSON.stringify(await ev(SHOWN)) === JSON.stringify([G('tiles')]), JSON.stringify(await ev(PRESSED)) + JSON.stringify(await ev(SHOWN)));
+        ok('and its fields are lit for a moment', (await ev("document.querySelectorAll('#teAdvancedFields details.jpf-te-group.is-flash').length")) === 1 && (await ev(Q('#teAdvancedFields details.jpf-te-group.is-flash') + ".getAttribute('data-group')")) === G('tiles'));
+        await wait(1700);
+        ok('the light goes out', (await ev("document.querySelectorAll('#teAdvancedFields .is-flash').length")) === 0);
+        await ev(`(function(){ document.querySelector('#tePreview .jpf-te-pv-input').click(); })()`);
+        ok('a text box opens Cards and text boxes', JSON.stringify(await ev(PRESSED)) === JSON.stringify([G('cards')]));
+        // Hover marks the innermost part, not the card around it too.
+        await ev(`(function(){ var b = document.querySelector('#tePreview .jpf-theme-preview-button'); b.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); })()`);
+        const hot = await ev("[].map.call(document.querySelectorAll('#tePreview .is-hot'), function (e) { return e.className; })");
+        ok('hovering a button outlines the button and not the card around it', !!hot && hot.length >= 1 && hot.every(c => /button/.test(c)), JSON.stringify(hot));
+        ok('the outline is drawn', (await ev("(function(){ var e = document.querySelector('#tePreview .is-hot'); if (!e) return false; var s = getComputedStyle(e); return parseFloat(s.outlineWidth) >= 2 && s.outlineStyle !== 'none'; })()")) === true);
+        await ev(`(function(){ document.getElementById('tePreview').dispatchEvent(new MouseEvent('mouseleave')); })()`);
+        ok('and leaving puts it out', (await ev("document.querySelectorAll('#tePreview .is-hot').length")) === 0);
+        // The other way: a focused field outlines its parts.
+        await ev(CLICK(Q(`#teOutline .jpf-te-opt[data-outline="${G('buttons')}"]`)));
+        await ev(`(function(){ var i = document.querySelector('#teAdvancedFields details.is-selected .jpf-te-input'); i.focus(); })()`);
+        await ev(frame);
+        const lit = await ev("[].map.call(document.querySelectorAll('#tePreview .is-focus'), function (e) { return e.getAttribute('data-te-group'); })");
+        ok('focusing a field in Buttons outlines the preview\'s button parts', !!lit && lit.length >= 3 && lit.every(k => k === G('buttons')), JSON.stringify(lit));
+        await ev("document.activeElement.blur(); 0");
+        ok('and leaving the field puts it out', (await ev("document.querySelectorAll('#tePreview .is-focus').length")) === 0);
+        // One column opens and scrolls.
+        await size(1000);
+        await ev("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = false; }); window.scrollTo(0, 0); 0");
+        const extra = await ev("(function(){ var e = document.querySelector('#tePreview .jpf-te-preview-extra'); return !!e && getComputedStyle(e).display !== 'none'; })()");
+        ok('at 1000 px the extra parts are there too', extra === true);
+        await ev(`(function(){ document.querySelector('#tePreview .jpf-te-pv-card').click(); })()`);
+        await wait(900);
+        const one1 = await ev(`(function(){ var g = document.querySelector('#teAdvancedFields details[data-group="${G('cards')}"]'); var b = g.getBoundingClientRect();
+            return { open: g.open, others: [].filter.call(document.querySelectorAll('#teAdvancedFields details'), function (d) { return d.open && d !== g; }).length, flash: g.classList.contains('is-flash'), inView: b.bottom > 0 && b.top < window.innerHeight }; })()`);
+        ok('one column: a click on a card opens its group, scrolls to it and lights it', !!one1 && one1.open && one1.others === 0 && one1.flash && one1.inView, JSON.stringify(one1));
+
         // 8. A saved choice of open groups is not overwritten by the columns.
+        await size(1280);
         await ev("try { localStorage.setItem('bonfire-theme-groups', JSON.stringify([])); } catch (e) {} 0");
         await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="advanced"]')));
         await ev(CLICK(Q(`#teOutline .jpf-te-opt[data-outline="${keys[3]}"]`)));
