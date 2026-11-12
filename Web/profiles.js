@@ -4628,7 +4628,13 @@
             if (!apiClient) return;
             // A refusal (403, anyone but an administrator) or a dead server waits out
             // POLL_RETRY_MS before it is asked again, across navigation.
-            if (this._usersMappingsRetryAt && Date.now() < this._usersMappingsRetryAt) return;
+            // checkRoute cleared the retry flag before calling here, so an early return that
+            // does not raise it again forgets the retry: an admin who navigated onto this page
+            // inside the wait kept profile accounts visible until the address changed.
+            if (this._usersMappingsRetryAt && Date.now() < this._usersMappingsRetryAt) {
+                this._usersRetryDue = true;
+                return;
+            }
 
             const masterState = this.readMasterState();
             const token = masterState ? masterState.token : apiClient.accessToken();
