@@ -173,6 +173,18 @@ var household = new (string method, Dictionary<string, object> body, object[] ra
     ("MergeDevices", new() { ["FromDeviceId"] = "tv-1", ["IntoDeviceId"] = "tv-2" }, null),
     ("RenameDevice", new() { ["DeviceId"] = "tv-1", ["DeviceName"] = "Lounge" }, null),
     ("MergeDuplicateDevices", null, new object[] { true }),
+    // Added by the test audit: these answered without a PIN and nothing here noticed. Linking
+    // an account into the switcher, copying rules and the email address are all the household
+    // changing, and the email is the way back in if the PIN is forgotten.
+    ("GetAccountLinks", null, null),
+    ("AddAccountLink", new() { ["Username"] = "someone", ["Password"] = "x" }, null),
+    ("RemoveAccountLink", new() { ["Username"] = "someone" }, null),
+    ("CopyRules", new() { ["FromProfileId"] = Guid.NewGuid() }, null),
+    ("GetAccountEmail", null, null),
+    ("SetAccountEmail", new() { ["Address"] = "a@b.example" }, null),
+    ("ConfirmAccountEmail", new() { ["Code"] = "123456" }, null),
+    ("SetAccountEmailNotifications", null, null),
+    ("RemoveAccountEmail", null, null),
 };
 // The five that already asked for it. Artwork checks the profile is the caller's first.
 var LOCKED_KID = Guid.NewGuid();
@@ -214,6 +226,18 @@ foreach (var (method, body, raw) in household)
 
 var wrong = Call("UpdatePreferences", LOCKED, new() { ["AskOnStartup"] = (bool?)false }, headerPin: "9999");
 Ok("a wrong PIN is refused as wrong", wrong.status == 400 && (wrong.message ?? "").StartsWith("Invalid Master PIN"), wrong.status + " " + wrong.message);
+
+// Viewing limits take the profile in the route, so they cannot ride the table above. A child
+// who could set them could switch their own limit off.
+object Req(string name) => Activator.CreateInstance(asm.GetType("Jellyfin.Profiles.Models." + name, true));
+foreach (var route in new[] { "SetViewingLimits", "GrantViewingTime" })
+{
+    object[] Args() => new object[] { LOCKED_KID, Req(route == "SetViewingLimits" ? "SetViewingRulesRequest" : "GrantTimeRequest") };
+    var noPin = Call(route, LOCKED, raw: Args());
+    Ok(route + " is refused without the PIN", noPin.status == 400 && noPin.message == MISSING, noPin.status + " " + noPin.message);
+    var withPin = Call(route, LOCKED, headerPin: "1234", raw: Args());
+    Ok(route + " goes ahead with the PIN in the header", !PinRefusal(withPin) && withPin.status > 0 && withPin.status < 500, withPin.status + " " + withPin.message);
+}
 
 var preview = Call("MergeDuplicateDevices", LOCKED, raw: new object[] { false });
 Ok("looking for duplicate devices without merging them needs no PIN", !PinRefusal(preview), preview.status + " " + preview.message);
@@ -292,6 +316,11 @@ if (hasAccountRoutes)
     var ask = Call("UpdateAccount", SOFA, new() { ["AskPinToOpen"] = (bool?)true, ["MasterPin"] = "2468" });
     Ok("the owner can turn asking back on, with the PIN", ask.status == 200 && (bool)mapType.GetProperty("AskPinToOpen").GetValue(sofaRow), ask.status + " " + ask.message);
 
+    // A PIN in the body is the one that counts: the header is the fallback for routes with
+    // no body. Reading the header first let a stale one from the page override the PIN just typed.
+    var bodyWins = Call("UpdateAccount", SOFA, new() { ["AskPinToOpen"] = (bool?)true, ["MasterPin"] = "2468" }, headerPin: "0000");
+    Ok("a PIN in the body is used even when the header carries another", bodyWins.status == 200, bodyWins.status + " " + bodyWins.message);
+
     // Settings → Your account saves the main account's home-network skip and auto-lock
     // here (1.7.2), so they no longer need the whole profile form sent back.
     var reqType = ctrlType.GetMethod("UpdateAccount").GetParameters()[0].ParameterType;
@@ -328,6 +357,18 @@ if (askProp != null)
     Ok("where only its owner's household-switching setting counts", Skip(sofaRow, true, true, true));
     askProp.SetValue(kidRow, false);
     Ok("on a sub-profile the setting does nothing", !Skip(kidRow, false, false, false) && !Skip(kidRow, true, false, false));
+
+    // The home-network skip is for the home network. Dropping the "and it is local" half
+    // handed every profile that had the box ticked an open door from the internet.
+    mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(kidRow, true);
+    Ok("a profile that skips its PIN at home still asks away from home", !Skip(kidRow, false, false, false));
+    Ok("and skips it at home", Skip(kidRow, true, false, false));
+    Ok("but not at home for another household's account", !Skip(kidRow, true, true, false));
+    mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(kidRow, false);
+    Ok("no mapping at all never skips", !Skip(null, true, false, false) && !Skip(null, false, false, false));
+    var trusted = (bool)canSkip.Invoke(null, new[] { kidRow, false, false, false, (object)true });
+    Ok("an address the household trusts skips the PIN", trusted);
+    Ok("but a trusted address is not a way across households", !(bool)canSkip.Invoke(null, new[] { kidRow, false, true, false, (object)true }));
 }
 
 // ── One allowance for the main PIN ───────────────────────────────────────────
