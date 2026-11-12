@@ -1374,5 +1374,7 @@
   "admin.themes.more": "Daha fazla",
   "admin.themes.problemNone": "Sorun yok",
   "admin.themes.problemOne": "1 sorun",
-  "admin.themes.problemCount": "{n} sorun"
+  "admin.themes.problemCount": "{n} sorun",
+  "admin.themes.undo": "Geri al",
+  "admin.themes.redo": "Yinele"
 }

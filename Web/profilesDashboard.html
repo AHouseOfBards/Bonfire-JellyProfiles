@@ -484,6 +484,8 @@
         color: var(--jpf-bad); text-decoration: underline; cursor: pointer;
     }
     #profilesConfigurationPage .jpf-te-count.is-ok { color: var(--jpf-good); text-decoration: none; cursor: default; }
+    #profilesConfigurationPage .jpf-te-hist { display: inline-flex; align-items: center; padding: 4px 6px; }
+    #profilesConfigurationPage .jpf-te-hist .material-icons { font-size: 1.2rem; }
     #profilesConfigurationPage .jpf-te-more { position: relative; display: none; }
     #profilesConfigurationPage .jpf-te-menu {
         position: absolute; right: 0; top: 100%; margin-top: 4px; z-index: 4; min-width: 9em;
@@ -1248,6 +1250,8 @@
                          move into #teMenu, which Bonfire draws. -->
                     <div class="jpf-te-bar" id="teBar">
                         <span class="jpf-te-bar-name" id="teBarName"></span>
+                        <button type="button" class="jpf-te-lbtn jpf-te-hist" id="teUndo" disabled><span class="material-icons" translate="no" aria-hidden="true">undo</span></button>
+                        <button type="button" class="jpf-te-lbtn jpf-te-hist" id="teRedo" disabled><span class="material-icons" translate="no" aria-hidden="true">redo</span></button>
                         <span class="jpf-te-bar-slot" id="teFileSlot"></span>
                         <button type="button" class="jpf-te-count is-ok" id="teCount" aria-live="polite"></button>
                         <button is="emby-button" type="button" class="raised jpf-te-bar-opt" id="teBarExpand" data-i18n="admin.themes.expand">Expand</button>
@@ -2319,6 +2323,8 @@
                 'admin.themes.noProblems': 'No problems.',
                 'admin.themes.checkFailed': 'Couldn\'t check the theme.',
                 'admin.themes.fixFirst': 'Fix the problems first.',
+                'admin.themes.undo': 'Undo',
+                'admin.themes.redo': 'Redo',
                 'admin.themes.problemNone': 'No problems',
                 'admin.themes.problemOne': '1 problem',
                 'admin.themes.problemCount': '{n} problems',
@@ -5273,6 +5279,15 @@
                     revision: typeof draft.revision === 'number' ? draft.revision : 0
                 };
                 page._themeEditor = ed;
+                themeHistoryInit(ed);
+                const undoBtn = page.querySelector('#teUndo'), redoBtn = page.querySelector('#teRedo');
+                [[undoBtn, 'admin.themes.undo'], [redoBtn, 'admin.themes.redo']].forEach(function (p) {
+                    p[0].setAttribute('aria-label', t(p[1]));
+                    p[0].setAttribute('title', t(p[1]));
+                });
+                themeHistoryButtons(page);
+                page._themeKeys = function (e) { themeEditorKey(page, e); };
+                document.addEventListener('keydown', page._themeKeys);
                 const nameText = getThemePath(draft, 'name.text');
                 page.querySelector('#themeEditorTitle').textContent = mode === 'edit'
                     ? t('admin.themes.editTitle', { name: typeof nameText === 'string' && nameText ? nameText : draft.id })
@@ -5409,6 +5424,7 @@
                 closeThemeExpanded(page, false);
                 closeThemeMenu(page);
                 unbindThemePreviewStick(page);
+                if (page._themeKeys) { document.removeEventListener('keydown', page._themeKeys); page._themeKeys = null; }
                 page._themeEditor = null;
                 page.querySelector('#themeEditor').classList.add('jpf-hidden');
                 const style = document.getElementById('jpfThemeEditorCss');
@@ -5539,6 +5555,8 @@
                 const st = page._picker;
                 if (!st) return;
                 page._picker = null;
+                // A picker session is one undo step.
+                themeHistoryClose(page);
                 document.removeEventListener('mousedown', st.onOutside, true);
                 document.removeEventListener('touchstart', st.onOutside, true);
                 document.removeEventListener('keydown', st.onKey, true);
@@ -6548,10 +6566,113 @@
                 try { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { first.scrollIntoView(); }
             }
 
+            // ── Undo and redo ─────────────────────────────────────────────────────
+            // A stack of whole-draft snapshots (JSON strings), at most 50. ed.base is the
+            // draft as of the last settled step; the first change after it pushes that onto
+            // the undo stack and opens a step, and every change until the step closes belongs
+            // to it. A step closes on a `change` event (a slider let go, a box left), when a
+            // colour popup closes, when the pointer is released, or after 700 ms with no
+            // change; so a drag, a colour-picker session and a typing burst each count once.
+            // A picture that was uploaded is undone as a reference only: the file stays on
+            // the server, and the draft stops naming it.
+            const THEME_UNDO_MAX = 50;
+
+            function themeHistoryInit(ed) {
+                ed.undo = [];
+                ed.redo = [];
+                ed.base = JSON.stringify(ed.draft);
+                ed.stepOpen = false;
+            }
+
+            function themeHistoryButtons(page) {
+                const ed = page._themeEditor;
+                const u = page.querySelector('#teUndo'), r = page.querySelector('#teRedo');
+                if (u) u.disabled = !ed || !ed.undo || !ed.undo.length;
+                if (r) r.disabled = !ed || !ed.redo || !ed.redo.length;
+            }
+
+            /// Settles the open step, if any: what the draft is now is the next step's start.
+            function themeHistoryClose(page) {
+                const ed = page._themeEditor;
+                if (!ed || !ed.undo) return;
+                clearTimeout(ed.stepTimer);
+                ed.stepOpen = false;
+                ed.base = JSON.stringify(ed.draft);
+            }
+
+            /// Called after every change to the draft. `discrete`: one click that is its own step.
+            function themeHistoryNote(page, discrete) {
+                const ed = page._themeEditor;
+                if (!ed || !ed.undo) return;
+                const nowJson = JSON.stringify(ed.draft);
+                if (nowJson === ed.base) return;
+                if (!ed.stepOpen) {
+                    ed.undo.push(ed.base);
+                    if (ed.undo.length > THEME_UNDO_MAX) ed.undo.shift();
+                    ed.redo = [];
+                    ed.stepOpen = true;
+                }
+                clearTimeout(ed.stepTimer);
+                if (discrete) themeHistoryClose(page);
+                else {
+                    ed.stepTimer = setTimeout(function () {
+                        // A drag or a colour popup is still going: it closes the step itself.
+                        if (page._themeEditor !== ed) return;
+                        if (page._picker || ed.pointer) return;
+                        themeHistoryClose(page);
+                    }, 700);
+                }
+                themeHistoryButtons(page);
+            }
+
+            /// dir -1 undoes, +1 redoes.
+            function themeHistoryGo(page, dir) {
+                const ed = page._themeEditor;
+                if (!ed || !ed.undo) return;
+                themeHistoryClose(page);
+                const from = dir < 0 ? ed.undo : ed.redo;
+                const to = dir < 0 ? ed.redo : ed.undo;
+                if (!from.length) return;
+                to.push(JSON.stringify(ed.draft));
+                if (to.length > THEME_UNDO_MAX) to.shift();
+                const snap = from.pop();
+                ed.draft = JSON.parse(snap);
+                ed.base = snap;
+                closeColorPopup(page, false);
+                ed.jsonErrors = {};
+                const name = getThemePath(ed.draft, 'name.text');
+                page.querySelector('#teName').value = typeof name === 'string' ? name : '';
+                fillThemeEditor(page);
+                themeDraftChanged(page, true);
+                themeHistoryButtons(page);
+            }
+
+            /// Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y and Ctrl+S while the editor is open. A text box keeps
+            /// its own Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y: the browser undoes the typing there.
+            function themeEditorKey(page, e) {
+                if (!page._themeEditor || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+                if (page.querySelector('#teExpanded')) return;
+                const code = e.keyCode;
+                if (code === 83) {
+                    e.preventDefault();
+                    saveThemeDraft(page);
+                    return;
+                }
+                if (code !== 90 && code !== 89) return;
+                const el = e.target;
+                const type = el && el.type ? String(el.type).toLowerCase() : '';
+                const typing = el && (el.isContentEditable || el.tagName === 'TEXTAREA' ||
+                    (el.tagName === 'INPUT' && ['range', 'checkbox', 'radio', 'button', 'color', 'file', 'submit'].indexOf(type) === -1));
+                if (typing || page._picker) return;
+                e.preventDefault();
+                themeHistoryGo(page, code === 90 && !e.shiftKey ? -1 : 1);
+            }
+
             /// The preview at once; the server's check a moment after the last change.
             function themeDraftChanged(page, now) {
                 const ed = page._themeEditor;
                 if (!ed) return;
+                themeHistoryNote(page, now === true);
                 renderThemeDraftPreview(page);
                 showThemeProblems(page);
                 clearTimeout(ed.timer);
@@ -7195,6 +7316,23 @@
                 };
                 editor.addEventListener('input', edited);
                 editor.addEventListener('change', edited);
+                // A `change` is a control let go of: the step it belongs to is done. (Registered
+                // after `edited`, so the change itself is in the step.)
+                editor.addEventListener('change', function () { themeHistoryClose(page); });
+                // A drag is one step however long it pauses.
+                const down = function () { if (page._themeEditor) page._themeEditor.pointer = true; };
+                const up = function () {
+                    const ed = page._themeEditor;
+                    if (!ed || !ed.pointer) return;
+                    ed.pointer = false;
+                    if (!page._picker) themeHistoryClose(page);
+                };
+                editor.addEventListener('mousedown', down);
+                editor.addEventListener('touchstart', down);
+                document.addEventListener('mouseup', up);
+                document.addEventListener('touchend', up);
+                page.querySelector('#teUndo').addEventListener('click', function () { themeHistoryGo(page, -1); });
+                page.querySelector('#teRedo').addEventListener('click', function () { themeHistoryGo(page, 1); });
                 editor.addEventListener('click', function (e) {
                     const listBtn = e.target.closest ? e.target.closest('[data-list-act]') : null;
                     if (listBtn && page._themeEditor) { if (!listBtn.disabled) themeListAction(page, listBtn); return; }

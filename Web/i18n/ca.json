@@ -1374,5 +1374,7 @@
   "admin.themes.more": "Més",
   "admin.themes.problemNone": "Cap problema",
   "admin.themes.problemOne": "1 problema",
-  "admin.themes.problemCount": "{n} problemes"
+  "admin.themes.problemCount": "{n} problemes",
+  "admin.themes.undo": "Desfés",
+  "admin.themes.redo": "Refés"
 }

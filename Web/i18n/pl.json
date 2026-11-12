@@ -1374,5 +1374,7 @@
   "admin.themes.more": "Więcej",
   "admin.themes.problemNone": "Brak problemów",
   "admin.themes.problemOne": "1 problem",
-  "admin.themes.problemCount": "Problemy: {n}"
+  "admin.themes.problemCount": "Problemy: {n}",
+  "admin.themes.undo": "Cofnij",
+  "admin.themes.redo": "Ponów"
 }

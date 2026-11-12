@@ -1374,5 +1374,7 @@
   "admin.themes.more": "Más",
   "admin.themes.problemNone": "Sin problemas",
   "admin.themes.problemOne": "1 problema",
-  "admin.themes.problemCount": "{n} problemas"
+  "admin.themes.problemCount": "{n} problemas",
+  "admin.themes.undo": "Deshacer",
+  "admin.themes.redo": "Rehacer"
 }

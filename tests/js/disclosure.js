@@ -92,7 +92,7 @@ const ADMIN = {
             // 2.0: the four layout choices and the preview's Expand, inside the editor's fold.
             'teAlign', 'teExpand', 'teLogo', 'teProfiles', 'teSize',
             // 2026-11-12: the editor's bar, inside the same fold.
-            'teCount', 'teBarExpand', 'teMore', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]']
+            'teCount', 'teBarExpand', 'teMore', 'teUndo', 'teRedo', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]']
     },
     setup: {
         // Owner decision 2026-11-12: first-time setup, switcher, avatar library, email.
