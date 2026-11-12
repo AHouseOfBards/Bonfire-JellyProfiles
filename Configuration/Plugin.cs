@@ -180,6 +180,10 @@ namespace Jellyfin.Profiles
                     // every route that then read it threw. The list keeps what it had. R-1128.
                     if (value == null && property.PropertyType.IsGenericType
                         && property.PropertyType.GetGenericTypeDefinition() == typeof(List<>)) continue;
+                    // The same for any section the configuration declares non-null (Email,
+                    // Onboarding, Maintenance...): a posted null there threw in every later
+                    // route until a restart. The import path uses the same rule. r2-19-01.
+                    if (value == null && !PluginConfiguration.AcceptsNull(property)) continue;
                     property.SetValue(to, value);
                 }
             }

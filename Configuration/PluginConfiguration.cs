@@ -7,6 +7,15 @@ namespace Jellyfin.Profiles.Configuration
 {
     public class PluginConfiguration : BasePluginConfiguration
     {
+        /// <summary>
+        /// Whether a property is declared to hold null. A file or a posted body that says null
+        /// for one that is not is saying nothing; both the import and the generic configuration
+        /// POST skip it, by this one rule. r2-12-03, r2-19-01.
+        /// </summary>
+        internal static bool AcceptsNull(System.Reflection.PropertyInfo property)
+            => new System.Reflection.NullabilityInfoContext().Create(property).WriteState
+               == System.Reflection.NullabilityState.Nullable;
+
         public int MaxProfilesPerUser { get; set; } = 5;
 
         /// <summary>

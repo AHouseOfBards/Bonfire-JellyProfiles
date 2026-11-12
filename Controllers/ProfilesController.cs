@@ -2010,7 +2010,6 @@ namespace Jellyfin.Profiles.Controllers
                 // fields were each added after it was written, none came back from a backup,
                 // and the answer was still "success" (R-1146). Only what is named in
                 // ImportNotRestored stays as the server has it.
-                var nullability = new NullabilityInfoContext();
                 foreach (var property in typeof(PluginConfiguration).GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
                     if (property.DeclaringType != typeof(PluginConfiguration) || !property.CanRead || !property.CanWrite) continue;
@@ -2019,7 +2018,7 @@ namespace Jellyfin.Profiles.Controllers
                     // "Email": null is a file that says nothing, not an instruction to remove
                     // the section. Only a property declared nullable may be set to null. r2-12-03.
                     if (property.GetValue(incoming) == null
-                        && nullability.Create(property).WriteState != NullabilityState.Nullable) continue;
+                        && !PluginConfiguration.AcceptsNull(property)) continue;
                     if (property.Name == nameof(PluginConfiguration.Email)
                         && string.IsNullOrEmpty(incoming.Email?.Password))
                     {

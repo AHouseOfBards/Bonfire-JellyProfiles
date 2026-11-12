@@ -173,6 +173,22 @@ if (plugin != null)
                .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
                .All(p => p.GetValue(afterNulls) != null));
 
+        // r2-19-01: the same for the sections (Email, Onboarding, Maintenance...). A posted
+        // null on a property the class declares non-null must not replace the live object.
+        var nullSections = Activator.CreateInstance(cfgType);
+        var sectionNames = new List<string>();
+        foreach (var p in cfgType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            if (p.CanRead && p.CanWrite && !p.PropertyType.IsValueType && p.PropertyType != typeof(string)
+                && !(p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(List<>))
+                && p.GetValue(afterNulls) != null)
+            { p.SetValue(nullSections, null); sectionNames.Add(p.Name); }
+        Ok("there are object sections to null (" + string.Join(",", sectionNames) + ")", sectionNames.Count >= 3);
+        update.Invoke(plugin, new[] { nullSections });
+        var afterSections = configProp.GetValue(plugin);
+        foreach (var name in sectionNames)
+            Ok("a posted null " + name + " leaves the live one in place",
+               cfgType.GetProperty(name).GetValue(afterSections) != null);
+
         // R-1290: one int showed the copy ran, not that it copies everything. Every
         // writable property gets its own value, different from the default, and each is
         // checked one at a time, so a property the copy skips is named. A list carries one
