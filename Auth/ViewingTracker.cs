@@ -292,6 +292,41 @@ namespace Jellyfin.Profiles.Auth
             }
         }
 
+        /// <summary>
+        /// A profile's rules were switched off. Forgets it unless it holds today's (or yesterday's UTC
+        /// day, which covers every zone) usage or grants: switched off and on again, the minutes
+        /// already watched and the daily cap on more time must still count (r2-07-03).
+        /// </summary>
+        internal static void ForgetUnlessRecent(Guid profileId)
+        {
+            lock (UsageLock)
+            {
+                EnsureLoaded();
+                if (!Entries.TryGetValue(profileId, out var e)) return;
+                var cutoff = Now().AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                if (string.CompareOrdinal(e.Day, cutoff) >= 0 || string.CompareOrdinal(e.GrantDay, cutoff) >= 0) return;
+                Entries.Remove(profileId);
+                _dirty = true;
+            }
+        }
+
+        /// <summary>
+        /// A profile is not playing and its grace is over: forget the grace and the stop, so the next
+        /// play is warned and stopped like the first (r2-07-01). Never creates an entry.
+        /// </summary>
+        internal static void ClearSpentGrace(Guid profileId, DateTime nowUtc)
+        {
+            lock (UsageLock)
+            {
+                if (!Entries.TryGetValue(profileId, out var e)) return;
+                if (e.GraceEndsUtc.HasValue && nowUtc >= e.GraceEndsUtc.Value)
+                {
+                    e.GraceEndsUtc = null;
+                    e.StopSent = false;
+                }
+            }
+        }
+
         /// <summary>For the timer: the entry to keep its warning state on. Call under <see cref="UsageLock"/>.</summary>
         internal static Entry EntryFor(Guid profileId)
         {

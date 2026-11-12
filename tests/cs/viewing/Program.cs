@@ -113,6 +113,7 @@ if (rulesType == null || windowType == null || clockType == null || tracker == n
     return Finish();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+void Set(object o, string prop, object v) => o.GetType().GetProperty(prop, Any).SetValue(o, v);
 object Get(object o, string prop) => o?.GetType().GetProperty(prop, Any)?.GetValue(o);
 bool Bool(object o, string prop) => Get(o, prop) is bool b && b;
 object Static(Type t, string name, params object[] args)
@@ -920,6 +921,18 @@ Ok("and not once the grace is over",
    Code(Static(gate, "Check", "/Items/" + item + "/PlaybackInfo", KID, sessions, library, clockNow.AddMinutes(2))) == "daily_limit_reached");
 Ok("a download of it is still refused",
    Code(Static(gate, "Check", "/Items/" + item + "/Download", KID, sessions, library, clockNow.AddSeconds(-10))) == "daily_limit_reached");
+// r2-07-01: the stop was sent and the film ended. The next play, still over the limit, gets
+// its five minutes' notice and is not stopped on the first look.
+{
+    stub.Sessions.Remove(kidTv);
+    clockNow = clockNow.AddSeconds(30); Tick();
+    stub.Messages.Clear(); stub.Stopped.Clear();
+    stub.Sessions.Add(kidTv);
+    clockNow = clockNow.AddSeconds(30); Tick();
+    Ok("the next play over the limit is warned, not stopped on the first look (r2-07-01)",
+       stub.Stopped.Count == 0 && stub.Messages.Any(m => m.header == "Time's up" && m.text.Contains("5 min")),
+       "stopped " + stub.Stopped.Count + "; " + string.Join(" | ", stub.Messages.Select(m => m.header + ": " + m.text)));
+}
 
 var songSession = SessionStub.Make("kid-speaker", KID2, song, deviceId: "dev-speaker", media: MediaType.Audio);
 Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);
@@ -1000,6 +1013,33 @@ Ok("the timer bills a play that ends between two looks", noteStart != null && no
     Static(tracker, "Forget", KID2);
 }
 
+// r2-07-03: switching the rules off and on again keeps today's usage and the grant cap.
+Section("Rules off and on");
+{
+    Static(tracker, "Reset");
+    Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);
+    Fresh();
+    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow), 120.0);
+    var entry = Static(tracker, "EntryFor", KID2);
+    Set(entry, "GrantDay", ViewingDay(clockNow)); Set(entry, "GrantedMinutes", 200);
+    Call("SetViewingLimits", MAIN, B(("DailyMinutes", 0), ("MasterPin", "1234")), KID2);
+    Fresh();
+    Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);
+    Fresh();
+    var backEntry = Static(tracker, "EntryFor", KID2);
+    Ok("off and on again keeps today's seconds", (double)Get(backEntry, "Seconds") == 120, Get(backEntry, "Seconds").ToString());
+    Ok("and the minutes already granted", (int)Get(backEntry, "GrantedMinutes") == 200, Get(backEntry, "GrantedMinutes").ToString());
+    // A profile that watched nothing recently is still forgotten (R-1023).
+    Static(tracker, "Reset");
+    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow.AddDays(-5)), 60.0);
+    Call("SetViewingLimits", MAIN, B(("DailyMinutes", 0), ("MasterPin", "1234")), KID2);
+    Fresh();
+    Ok("a profile with nothing recent is forgotten when its rules go off", (double)Get(Static(tracker, "EntryFor", KID2), "Seconds") == 0);
+    Static(tracker, "Forget", KID2);
+    Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);
+    Fresh();
+}
+
 // ── Kept ─────────────────────────────────────────────────────────────────────
 Section("Kept");
 
@@ -1042,13 +1082,13 @@ Ok("and read back after a restart", Used(KID2) == 5, Used(KID2).ToString());
     Static(tracker, "Save", new object[] { null });
 }
 
-// Switching a profile's rules off forgets what it had watched: nothing reads it any more, and
+// Switching a profile's rules off forgets what it watched before yesterday: nothing reads it, and
 // it would sit in the file for good (R-1023).
 {
     bool Kept(Guid id) => ((System.Collections.IDictionary)tracker.GetField("Entries", Any).GetValue(null)).Contains(id);
     Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);
     Fresh();
-    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow), 90.0);
+    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow.AddDays(-5)), 90.0);
     Ok("(a limited profile has time on record)", Kept(KID2));
     Call("SetViewingLimits", MAIN, B(("HoursEnabled", false), ("Windows", WindowList()), ("DailyMinutes", 0), ("MasterPin", "1234")), KID2);
     Ok("turning its rules off forgets it", !Kept(KID2));

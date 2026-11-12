@@ -151,7 +151,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             ViewingTracker.Invalidate();
-            if (viewing == null || !viewing.IsLimited) ViewingTracker.Forget(request.TargetProfileId);
+            if (viewing == null || !viewing.IsLimited) ViewingTracker.ForgetUnlessRecent(request.TargetProfileId);
             LogActivity("Rules copied from " + source.ProfileName + " to " + targetUser.Username, "CopyRules", request.TargetProfileId);
             return Ok();
         }

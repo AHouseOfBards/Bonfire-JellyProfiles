@@ -215,6 +215,13 @@ namespace Jellyfin.Profiles.Auth
                 ViewingTracker.AddSeconds(id, ViewingClock.DayOf(index[id].Zone, nowUtc), elapsed);
             }
 
+            // Nothing playing: a spent grace and its stop are over. Left set, the next play outside
+            // the hours is stopped on its first look with no notice (r2-07-01).
+            foreach (var id in index.Keys)
+            {
+                if (!playing.ContainsKey(id)) ViewingTracker.ClearSpentGrace(id, nowUtc);
+            }
+
             foreach (var pair in playing)
             {
                 var limited = index[pair.Key];
