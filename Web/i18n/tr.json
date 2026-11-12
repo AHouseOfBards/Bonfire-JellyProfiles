@@ -1098,8 +1098,6 @@
   "admin.viewing.zone": "Varsayılan saat dilimi",
   "admin.viewing.serverZone": "Sunucunun kendi dilimi",
   "admin.viewing.serverIs": "Bu sunucunun saat dilimi {zone}.",
-  "settings.profilesTitle": "Profiller",
-  "settings.profilesBody": "Profil ekleyin, düzenleyin ve silin.",
   "settings.accountTitle": "Hesabınız",
   "settings.accountBody": "Ana PIN'iniz, sunucunun ağı ve cihazlarınız.",
   "settings.switcherTitle": "Geçiş düğmesi",

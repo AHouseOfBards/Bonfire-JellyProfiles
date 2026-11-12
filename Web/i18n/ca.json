@@ -1087,8 +1087,6 @@
   "admin.viewing.zone": "Zona horària per defecte",
   "admin.viewing.serverZone": "La del servidor",
   "admin.viewing.serverIs": "La zona horària d'aquest servidor és {zone}.",
-  "settings.profilesTitle": "Perfils",
-  "settings.profilesBody": "Afegeix, edita i elimina perfils.",
   "settings.accountTitle": "El teu compte",
   "settings.accountBody": "El teu PIN principal, la xarxa del servidor i els dispositius.",
   "settings.switcherTitle": "Botó de canvi",

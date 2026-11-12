@@ -1087,8 +1087,6 @@
   "admin.viewing.zone": "Fuseau horaire par défaut",
   "admin.viewing.serverZone": "Celui du serveur",
   "admin.viewing.serverIs": "Le fuseau horaire de ce serveur est {zone}.",
-  "settings.profilesTitle": "Profils",
-  "settings.profilesBody": "Ajoutez, modifiez et supprimez des profils.",
   "settings.accountTitle": "Votre compte",
   "settings.accountBody": "Votre code PIN principal, le réseau du serveur et les appareils.",
   "settings.switcherTitle": "Bouton de changement",

@@ -1087,8 +1087,6 @@
   "admin.viewing.zone": "Domyślna strefa czasowa",
   "admin.viewing.serverZone": "Strefa serwera",
   "admin.viewing.serverIs": "Strefa czasowa tego serwera to {zone}.",
-  "settings.profilesTitle": "Profile",
-  "settings.profilesBody": "Dodawaj, edytuj i usuwaj profile.",
   "settings.accountTitle": "Twoje konto",
   "settings.accountBody": "Twój główny PIN, sieć serwera i urządzenia.",
   "settings.switcherTitle": "Przycisk zmiany",

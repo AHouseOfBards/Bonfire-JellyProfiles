@@ -62,20 +62,25 @@ function freshAccount() {
     PP._themeSettings = { theme: 'bonfire', defaultTheme: 'bonfire', allow: true };
     PP.showSettingsMenu = realSettings;
     PP.showSettingsMenu();
-    const order = ['settings-profiles', 'settings-account', 'settings-switcher-style',
+    const order = ['settings-account', 'settings-switcher-style',
                    'settings-your-bonfire', 'settings-theme'];
     const at = order.map(id => content.innerHTML.indexOf('id="' + id + '"'));
-    ok('Profiles, Your account, Switcher, Sharing, Look', at.every(i => i !== -1)
+    ok('Your account, Switcher, Sharing, Look', at.every(i => i !== -1)
         && at.every((v, i) => i === 0 || v > at[i - 1]), JSON.stringify(at));
-    ok('their titles are the five names',
-        ['settings.profilesTitle', 'settings.accountTitle', 'settings.switcherTitle',
+    ok('their titles are the four names',
+        ['settings.accountTitle', 'settings.switcherTitle',
          'settings.sharingTitle', 'settings.lookTitle'].every(k => new RegExp("t\\('" + k.replace('.', '\\.') + "'\\)").test(SRC)));
+    // The Profiles entry only reopened the screen Settings is reached from.
+    ok('no Profiles entry', content.innerHTML.indexOf('id="settings-profiles"') === -1
+        && !/settings\.profiles(Title|Body)/.test(SRC));
 
-    PP.isManageMode = false;
-    const profilesEntry = content.querySelector('#settings-profiles');
-    if (profilesEntry) profilesEntry.click();
-    ok('Profiles opens the manage grid, with the PIN already typed',
+    // Settings is only reached from Manage profiles, and Back returns there.
+    PP.isManageMode = true;
+    calls.grid.length = 0;
+    content.querySelector('#settings-back-btn').click();
+    ok('Back returns to the manage grid it came from',
         calls.grid.length === 1 && calls.grid[0].manage === true, JSON.stringify(calls.grid));
+    PP.isManageMode = false;
 
     // Stubbed before the menu is drawn: the menu binds the function it is given.
     let opened = false;

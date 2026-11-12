@@ -1087,8 +1087,6 @@
   "admin.viewing.zone": "Zona horaria predeterminada",
   "admin.viewing.serverZone": "La del servidor",
   "admin.viewing.serverIs": "La zona horaria de este servidor es {zone}.",
-  "settings.profilesTitle": "Perfiles",
-  "settings.profilesBody": "Añade, edita y elimina perfiles.",
   "settings.accountTitle": "Tu cuenta",
   "settings.accountBody": "Tu PIN principal, la red del servidor y los dispositivos.",
   "settings.switcherTitle": "Botón de cambio",

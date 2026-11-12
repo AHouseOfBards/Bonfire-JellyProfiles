@@ -1345,8 +1345,6 @@
         'pinReset.sentTo': 'Enter the code sent to {address}, then a new PIN.',
         'pinReset.newPin': 'New PIN',
         'pinReset.sendAgain': 'Send a new code',
-        'settings.profilesTitle': 'Profiles',
-        'settings.profilesBody': 'Add, edit and remove profiles.',
         'settings.accountTitle': 'Your account',
         'settings.accountBody': "Your main PIN, the server's network and devices.",
         'settings.switcherTitle': 'Switch button',
@@ -11365,13 +11363,14 @@
             this.removeProfileOverlay();
         },
 
-        /// The main account's Settings, in five sections (1.7.2): Profiles, Your account,
-        /// Switcher, Sharing, Look.
+        /// The main account's Settings, in four sections: Your account, Switcher, Sharing,
+        /// Look.
         ///
         /// Opened through withMainPin, so the main PIN is asked once on the way in and every
-        /// page below sends it; the server checks it again on each save. Profiles opens the
-        /// manage grid rather than a second list of the same people. Server-wide settings
-        /// stay on the dashboard.
+        /// page below sends it; the server checks it again on each save. There was a
+        /// Profiles entry that only reopened the Manage profiles screen this one is reached
+        /// from, and Back returns there, so it is gone. Server-wide settings stay on the
+        /// dashboard.
         showSettingsMenu: function () {
             this.beginNavigation();
 
@@ -11392,8 +11391,6 @@
                 <h1 class="profiles-title">${t('settings.title')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
                     <div class="jpf-col-gap" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
-                        ${entry('settings-profiles', 'people', t('settings.profilesTitle'),
-                            t('settings.profilesBody'))}
                         ${entry('settings-account', 'manage_accounts', t('settings.accountTitle'),
                             t('settings.accountBody'))}
                         ${entry('settings-switcher-style', 'switch_account', t('settings.switcherTitle'),
@@ -11418,13 +11415,6 @@
                     if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); el.click(); }
                 });
             };
-            open('settings-profiles', () => {
-                const st = this.readMasterState();
-                if (!st) return;
-                // The PIN typed to open Settings is the one Manage Profiles would ask for.
-                this.isManageMode = true;
-                this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, /* forceRefresh */ true);
-            });
             open('settings-account', this.showAccountSettings);
             open('settings-switcher-style', this.showSwitcherModeModal);
             open('settings-your-bonfire', this.showBonfireModal);
