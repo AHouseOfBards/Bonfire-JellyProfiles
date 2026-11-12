@@ -1237,6 +1237,47 @@ else
     wrapped.SendAsync(new ArraySegment<byte>(bytes, 30, bytes.Length - 30), WebSocketMessageType.Text, true, CancellationToken.None).GetAwaiter().GetResult();
     Ok("a watched-state message carries the main account's id, so the app keeps it",
        inner.Sent.Count == 1 && inner.Sent[0].Contains(N(MASTER)) && !inner.Sent[0].Contains(N(KIDS)), string.Join(" | ", inner.Sent));
+
+    // r2-05-04: a binary frame must wait its turn like a text one; the framework allows one
+    // send at a time and throws on the second.
+    {
+        var slow = new GatedSocket();
+        var gated = (WebSocket)Activator.CreateInstance(socketType, BindingFlags.Instance | BindingFlags.NonPublic, null,
+            new object[] { slow, rewrite, onDispose }, null);
+        var first = gated.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes("{}")), WebSocketMessageType.Text, true, CancellationToken.None);
+        var second = gated.SendAsync(new ArraySegment<byte>(new byte[] { 1, 2 }), WebSocketMessageType.Binary, true, CancellationToken.None);
+        System.Threading.Thread.Sleep(100);
+        var overlapped = slow.Overlapped;
+        slow.Gate.SetResult(true);
+        Task.WaitAll(first, second);
+        Ok("a binary frame sent while a text one is going out waits for it", !overlapped && slow.Completed == 2,
+           "overlapped=" + overlapped + " completed=" + slow.Completed);
+
+        gated.Dispose();
+        var gate = (SemaphoreSlim)socketType.GetField("_send", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(gated);
+        var threw = false;
+        try { gate.Wait(0); } catch (ObjectDisposedException) { threw = true; }
+        Ok("disposing the socket disposes its send lock", threw);
+    }
+
+    // r2-05-04: Sec-WebSocket-Key is 16 random bytes, base64: anything else is not a handshake.
+    {
+        var featType = asm.GetType("Jellyfin.Profiles.Auth.ProxyWebSocketFeature", true);
+        bool Accepts(string key)
+        {
+            var h = new DefaultHttpContext();
+            h.Request.Method = "GET";
+            h.Request.Headers["Upgrade"] = "websocket";
+            h.Request.Headers["Sec-WebSocket-Version"] = "13";
+            h.Request.Headers["Sec-WebSocket-Key"] = key;
+            var f = Activator.CreateInstance(featType, BindingFlags.Instance | BindingFlags.NonPublic, null,
+                new object[] { h, new UpgradeStub(), (Func<WebSocket, WebSocket>)(s => s) }, null);
+            return (bool)featType.GetProperty("IsWebSocketRequest").GetValue(f);
+        }
+        Ok("a 16-byte key is a handshake", Accepts(Convert.ToBase64String(new byte[16])));
+        Ok("a key that is not base64 is not", !Accepts("not base64!"));
+        Ok("a key of another length is not", !Accepts(Convert.ToBase64String(new byte[8])) && !Accepts(Convert.ToBase64String(new byte[24])));
+    }
 }
 
 // ── The picker's own words, in the app's language (P2-706) ───────────────────
@@ -1631,6 +1672,33 @@ public sealed class UpgradeStub : Microsoft.AspNetCore.Http.Features.IHttpUpgrad
 {
     public bool IsUpgradableRequest => true;
     public Task<Stream> UpgradeAsync() => Task.FromResult<Stream>(new MemoryStream());
+}
+
+// Holds every send open until told to, and notes when two are in flight at once.
+public sealed class GatedSocket : WebSocket
+{
+    public TaskCompletionSource<bool> Gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public bool Overlapped;
+    public int Completed;
+    private int _active;
+    public override WebSocketCloseStatus? CloseStatus => null;
+    public override string CloseStatusDescription => null;
+    public override WebSocketState State => WebSocketState.Open;
+    public override string SubProtocol => null;
+    public override void Abort() { }
+    public override Task CloseAsync(WebSocketCloseStatus s, string d, CancellationToken c) => Task.CompletedTask;
+    public override Task CloseOutputAsync(WebSocketCloseStatus s, string d, CancellationToken c) => Task.CompletedTask;
+    public override void Dispose() { }
+    public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> b, CancellationToken c) => throw new NotSupportedException();
+    public override Task SendAsync(ArraySegment<byte> b, WebSocketMessageType t, bool end, CancellationToken c) => Hold().AsTask();
+    public override ValueTask SendAsync(ReadOnlyMemory<byte> b, WebSocketMessageType t, bool end, CancellationToken c) => Hold();
+    private async ValueTask Hold()
+    {
+        if (System.Threading.Interlocked.Increment(ref _active) > 1) Overlapped = true;
+        await Gate.Task.ConfigureAwait(false);
+        System.Threading.Interlocked.Decrement(ref _active);
+        System.Threading.Interlocked.Increment(ref Completed);
+    }
 }
 
 public sealed class RecordingSocket : WebSocket

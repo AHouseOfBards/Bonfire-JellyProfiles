@@ -46,8 +46,15 @@ namespace Jellyfin.Profiles.Auth
 
                 return request.Headers["Upgrade"].ToString().Contains("websocket", StringComparison.OrdinalIgnoreCase)
                     && request.Headers["Sec-WebSocket-Version"].ToString().Trim() == "13"
-                    && !string.IsNullOrWhiteSpace(request.Headers["Sec-WebSocket-Key"].ToString());
+                    && IsValidKey(request.Headers["Sec-WebSocket-Key"].ToString());
             }
+        }
+
+        /// <summary>RFC 6455 section 4.1: the key is the base64 of exactly 16 bytes.</summary>
+        private static bool IsValidKey(string key)
+        {
+            var bytes = new byte[24];
+            return Convert.TryFromBase64String(key.Trim(), bytes, out var written) && written == 16;
         }
 
         /// <inheritdoc />
@@ -120,6 +127,7 @@ namespace Jellyfin.Profiles.Auth
         {
             _onDispose(this);
             _inner.Dispose();
+            _send.Dispose();
         }
 
         public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
@@ -139,15 +147,18 @@ namespace Jellyfin.Profiles.Auth
 
         private async ValueTask SendCoreAsync(ReadOnlyMemory<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
         {
-            if (messageType != WebSocketMessageType.Text)
-            {
-                await _inner.SendAsync(buffer, messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
-                return;
-            }
-
+            // Every send takes the lock, binary included: the framework allows one send in
+            // flight and throws on a second, and a binary frame sent while a text message was
+            // being rewritten used to be exactly that second one (r2-05-04).
             await _send.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                if (messageType != WebSocketMessageType.Text)
+                {
+                    await _inner.SendAsync(buffer, messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
+
                 // A message sent in pieces is rewritten whole: an id can straddle two pieces.
                 if (!endOfMessage)
                 {
