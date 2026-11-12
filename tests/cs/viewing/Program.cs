@@ -1116,6 +1116,39 @@ Ok("and read back after a restart", Used(KID2) == 5, Used(KID2).ToString());
     Static(tracker, "Save", new object[] { null });
 }
 
+// A file already at the temp name (left by a write that died, or held by another process) used to
+// stop every later save: the write went to <file>.tmp. Each save now has a name of its own.
+{
+    Static(tracker, "Reset");
+    Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow), 41.0);
+    var stale = file + ".tmp";
+    var saved = false;
+    using (var hold = new FileStream(stale, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+    {
+        Static(tracker, "Save", new object[] { null });
+        saved = File.Exists(file) && File.ReadAllText(file).Contains("41");
+    }
+    Ok("a save lands although <file>.tmp is already there and held open", saved);
+    Ok("and leaves the pre-existing <file>.tmp alone", File.Exists(stale));
+    try { File.Delete(stale); } catch { }
+    Ok("and no other temp file is left beside it", Directory.GetFiles(Path.GetDirectoryName(file), Path.GetFileName(file) + ".*.tmp").Length == 0);
+    Static(tracker, "Forget", KID2);
+    Static(tracker, "Save", new object[] { null });
+}
+
+// r2-21-04: Windows is never null, whatever sets it (an import, a hand-edited file).
+{
+    var nullWindows = Rules(true, 30, null);
+    rulesType.GetProperty("Windows").SetValue(nullWindows, null);
+    Ok("Windows = null stays non-null (r2-21-04)", rulesType.GetProperty("Windows").GetValue(nullWindows) != null);
+    object evaluated = null; string evalError = null;
+    try { evaluated = Eval(nullWindows, london, 0, null, Utc(2026, 11, 4, 16)); } catch (Exception e) { evalError = e.GetType().Name; }
+    Ok("Evaluate handles it: hours on with no windows means refused", evalError == null && evaluated != null && !Bool(evaluated, "Allowed"), evalError);
+    object copied = null; string copyError = null;
+    try { copied = rulesType.GetMethod("Copy").Invoke(nullWindows, null); } catch (Exception e) { copyError = (e.InnerException ?? e).GetType().Name; }
+    Ok("Copy handles it, and the copy's Windows is non-null", copyError == null && copied != null && Get(copied, "Windows") != null, copyError);
+}
+
 // Switching a profile's rules off forgets what it watched before yesterday: nothing reads it, and
 // it would sit in the file for good (R-1023).
 {

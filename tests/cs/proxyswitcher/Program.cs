@@ -850,6 +850,28 @@ Set("ProxyClients", new List<string> { "moonfin" });
 
 Console.WriteLine();
 Console.WriteLine("── A request racing the first read of the marks file (r2-03-01) ─");
+// A file at the old fixed temp name, held open, used to stop every later write of the marks.
+{
+    ProxyReset();
+    var marksDir = Path.Combine(tempDir, "plugins", "ProfilesManagement");
+    Directory.CreateDirectory(marksDir);
+    var marksPath = Path.Combine(marksDir, "proxy_picker.json");
+    marksType.GetMethod("Clear", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+    var staleTmp = marksPath + ".tmp";
+    using (var hold = new FileStream(staleTmp, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+    {
+        marksType.GetMethod("Add", BindingFlags.Static | BindingFlags.NonPublic)
+            .Invoke(null, new object[] { "stale-tmp-token", Guid.NewGuid(), Guid.NewGuid(), "profile-token" });
+        Ok("a mark is written although <file>.tmp is already there and held open",
+           File.Exists(marksPath) && File.ReadAllText(marksPath).Contains("profile-token"));
+    }
+    Ok("and the pre-existing <file>.tmp is left alone", File.Exists(staleTmp));
+    try { File.Delete(staleTmp); } catch { }
+    Ok("and no other temp file is left beside it", Directory.GetFiles(marksDir, "proxy_picker.json.*.tmp").Length == 0);
+    marksType.GetMethod("Clear", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+    ProxyReset();
+}
+
 
 // Load used to say "loaded" before it had read anything, and Any read that flag without the
 // lock, so a request arriving during the read saw no marks: a child's TV on the main token

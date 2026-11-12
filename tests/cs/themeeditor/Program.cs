@@ -179,6 +179,18 @@ hand.CustomFonts = new List<CustomFont>();
 Ok("and dropped again when the font goes, though the text did not change",
    !ThemeCatalog.ValidCustomThemes(hand).Any(t => (string)t["id"]! == "fonted"));
 
+// r2-20-04: an invalid first copy of an id must not hide a valid second one.
+var dupCfg = new PluginConfiguration
+{
+    CustomThemes = new List<CustomTheme>
+    {
+        new CustomTheme { Id = "dup", Json = SetId(broken, "dup").ToJsonString() },
+        new CustomTheme { Id = "dup", Json = Custom("dup").ToJsonString() },
+    },
+};
+Ok("an invalid first copy then a valid second copy of one id keeps the valid one",
+   ThemeCatalog.ValidCustomThemes(dupCfg).Select(t => (string)t["id"]!).SequenceEqual(new[] { "dup" }));
+
 // r2-20-03: these objects are shared by concurrent anonymous requests, and a parsed JsonNode
 // builds its children on first read. Every object and array in the shared trees must already
 // be built. The detector is proved first: a node straight from Parse is not.
@@ -282,11 +294,11 @@ Console.WriteLine("── The WOFF2 reader, on files made to be wrong ───�
 
 // A WOFF2 font built here, table by table, so each test changes one thing.
 byte[] Font(string family = "Harness Sans", bool lower = true, int weight = 400, (int Min, int Max)? axis = null,
-             uint? flavor = null, int lengthDelta = 0, byte[] extra = null, string extraTag = "zzzz", int os2Version = 0)
+             uint? flavor = null, int lengthDelta = 0, byte[] extra = null, string extraTag = "zzzz", int os2Version = 0, byte[] cmap = null)
 {
     var tables = new List<(string Tag, byte[] Data)>
     {
-        ("cmap", Cmap(lower)),
+        ("cmap", cmap ?? Cmap(lower)),
         ("head", new byte[54]),
         ("name", Name(family)),
         ("OS/2", OS2(weight)),
@@ -320,6 +332,22 @@ byte[] Font(string family = "Harness Sans", bool lower = true, int weight = 400,
     Put32(head, 16, (uint)(12 + raw.Length));
     Put32(head, 20, (uint)packed.Length);
     return head.Concat(dir).Concat(packed).ToArray();
+}
+
+// A cmap with a format 12 table that lists only digits and capitals (a gap where a-z
+// belong) and a format 4 table that has them: r2-22-04.
+byte[] CmapFormat12Gap()
+{
+    var f12 = new byte[16 + 24];
+    Put16(f12, 0, 12); Put32(f12, 4, (uint)f12.Length); Put32(f12, 12, 2);
+    Put32(f12, 16, 0x30); Put32(f12, 20, 0x39); Put32(f12, 24, 1);
+    Put32(f12, 28, 0x41); Put32(f12, 32, 0x5A); Put32(f12, 36, 1);
+    var f4 = Cmap(true).Skip(12).ToArray();
+    var head = new byte[20];
+    Put16(head, 2, 2);
+    Put16(head, 4, 3); Put16(head, 6, 10); Put32(head, 8, 20);
+    Put16(head, 12, 3); Put16(head, 14, 1); Put32(head, 16, (uint)(20 + f12.Length));
+    return head.Concat(f12).Concat(f4).ToArray();
 }
 
 byte[] Cmap(bool lower)
@@ -386,6 +414,11 @@ var verRefusal = Refusal(Font(os2Version: 2));
 Ok("a transform version the format does not define is refused (R-1081)", verRefusal != null && !verRefusal.StartsWith("WRONG"));
 
 var made = Woff2Font.Read(Font());
+{
+    string gapErr = null; Woff2Info gapInfo = null;
+    try { gapInfo = Woff2Font.Read(Font(cmap: CmapFormat12Gap())); } catch (Exception e) { gapErr = e.GetType().Name + ": " + e.Message; }
+    Ok("a format 12 table with a gap falls back to the format 4 table that has the letters (r2-22-04)", gapInfo != null, gapErr);
+}
 Ok("the made font reads: its family, weight 400 from OS/2", made.Family == "Harness Sans" && made.WeightMin == 400 && made.WeightMax == 400);
 var heavy = Woff2Font.Read(Font(weight: 700));
 Ok("a static bold reads as 700 to 700", heavy.WeightMin == 700 && heavy.WeightMax == 700);
@@ -861,6 +894,22 @@ var jpgInfo = ThemeLogo.Read(Jpeg(300, 90));
 Ok("a JPEG reads its size from the frame header", jpgInfo.Extension == ".jpg" && jpgInfo.Width == 300 && jpgInfo.Height == 90);
 var animRefusal = LogoRefusal(AnimatedWebP(512, 128));
 Ok("an animated WebP is refused, as an animated GIF is (R-1079)", animRefusal != null && !animRefusal.StartsWith("WRONG"));
+// r2-20-06: an animated image is told apart by a flag on the exception, not by its words.
+{
+    var isAnimated = typeof(ThemeLogo).GetMethod("IsAnimated", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+    Ok("ThemeLogo.IsAnimated exists", isAnimated != null);
+    bool Flag(InvalidDataException e) => isAnimated != null && (bool)isAnimated.Invoke(null, new object[] { e });
+    InvalidDataException Thrown(byte[] b) { try { ThemeLogo.Sniff(b); } catch (InvalidDataException e) { return e; } return null; }
+    var realAnim = Thrown(AnimatedWebP(512, 128));
+    Ok("the refusal of an animated WebP carries the flag", realAnim != null && Flag(realAnim));
+    Ok("an error whose text merely contains the word is not flagged", !Flag(new InvalidDataException("the pictures were not animated at all")));
+    Ok("a plain bad image is not flagged", Thrown(Encoding.UTF8.GetBytes("<svg/>")) is { } svg && !Flag(svg));
+    string BgMsg(byte[] b) { try { ThemeBackground.Read(b); } catch (InvalidDataException e) { return e.Message; } return null; }
+    Ok("an animated background still gets the animated message", BgMsg(AnimatedWebP(1280, 720)) == "A background image can't be animated.");
+    Ok("a bad background does not", BgMsg(Encoding.UTF8.GetBytes("<svg/>")) is { } m && !m.Contains("animated"));
+    string PatMsg(byte[] b) { try { ThemePattern.Read(b); } catch (InvalidDataException e) { return e.Message; } return null; }
+    Ok("an animated pattern picture still gets the animated message", PatMsg(AnimatedWebP(256, 256)) == "A pattern picture can't be animated.");
+}
 var webpInfo = ThemeLogo.Read(WebP(512, 128));
 Ok("a WebP too", webpInfo.Extension == ".webp" && webpInfo.Width == 512 && webpInfo.Height == 128);
 foreach (var (label, bytes) in new (string, byte[])[]

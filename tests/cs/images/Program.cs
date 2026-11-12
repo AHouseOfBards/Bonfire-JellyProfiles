@@ -175,6 +175,23 @@ if (helper != null)
         Ok("a type that merely contains a known one is refused (image/png-evil)",
            Decode(Url("image/png-evil", PngBytes)) == null);
 
+        // r2-22-02: the text is measured before it is decoded. A payload far over the
+        // budget made of characters that are not base64 at all is refused as too large;
+        // had it been decoded first it would have failed as unreadable.
+        {
+            var parse = baseType.GetMethod("ParseImageDataUrl", Any);
+            Ok("ParseImageDataUrl is reachable", parse != null);
+            string Refusal(string url)
+            {
+                var t = parse.Invoke(controller, new object[] { url, "test" });
+                return (string)t.GetType().GetField("Item3").GetValue(t);
+            }
+            Ok("an oversize base64 payload is refused as too large, before it is decoded",
+               Refusal("data:image/png;base64," + new string('!', 4_000_000)) == "That image is too large.");
+            Ok("a short payload that is not base64 is still unreadable, so the bound is not a catch-all",
+               Refusal("data:image/png;base64,!!!!") == "That image could not be read.");
+        }
+
         var wdir = Path.Combine(dir, "write");
         Directory.CreateDirectory(wdir);
         object Write(string name, string url) => write.Invoke(controller, new object[] { wdir, name, url, null, "test" });

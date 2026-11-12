@@ -211,6 +211,25 @@ try
     clearResult = clear.Invoke(cc, null);
     Ok("Clear reports success when it worked", clearResult is bool ok2 && ok2 && Count(roPath) == 0);
 
+    // A file already at the old fixed temp name, held open, stopped every later write.
+    var tmpDir = Path.Combine(dir, "tmpname");
+    Directory.CreateDirectory(tmpDir);
+    var tmpPath = Path.Combine(tmpDir, "audit_log.json");
+    File.WriteAllText(tmpPath, original);
+    pathField.SetValue(null, tmpPath);
+    cacheField.SetValue(null, null);
+    var tc = NewController();
+    Shown(tc);
+    object tmpClear;
+    using (var hold = new FileStream(tmpPath + ".tmp", FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+    {
+        tmpClear = clear.Invoke(tc, null);
+    }
+    Ok("a write lands although <file>.tmp is already there and held open", tmpClear is bool tb && tb && Count(tmpPath) == 0);
+    Ok("and the pre-existing <file>.tmp is left alone", File.Exists(tmpPath + ".tmp"));
+    File.Delete(tmpPath + ".tmp");
+    Ok("and no other temp file is left beside it", Directory.GetFiles(tmpDir).Length == 1);
+
     // With no plugin instance there is no data folder. The log used to go to a file in the
     // system temp folder, a copy of usernames and addresses nobody would think to look for.
     var fallback = Path.Combine(Path.GetTempPath(), "bonfire_audit_log_fallback.json");

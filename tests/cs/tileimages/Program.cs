@@ -182,6 +182,34 @@ foreach (var theme in ThemeCatalog.BuiltIn)
 Console.WriteLine();
 Console.WriteLine("── Tags ─────────────────────────────────────────────────────────");
 var bonfire = ThemeCatalog.BuiltIn.First(t => (string)t["id"]! == "bonfire");
+// r2-21-02: a node of the wrong kind where a string is read must not throw (it was a cast).
+{
+    var odd = (JsonObject)bonfire.DeepClone();
+    odd["background"]!["layers"] = new JsonArray(new JsonObject
+    {
+        ["type"] = 5, ["shape"] = new JsonObject { ["a"] = 1 }, ["x"] = "no", ["y"] = new JsonArray(),
+        ["stops"] = new JsonArray(new JsonObject { ["at"] = 0, ["color"] = "#112233" }, new JsonObject { ["at"] = 100, ["color"] = 7 }),
+    });
+    string oddThrew = null; byte[] oddPng = null;
+    try { oddPng = TileImage.Png(odd, TileGlyph.Person); } catch (Exception e) { oddThrew = e.GetType().Name + ": " + e.Message; }
+    Ok("a non-string where a layer's type or shape belongs does not throw", oddThrew == null && oddPng != null && Decode(oddPng).Pixels != null, oddThrew);
+}
+
+// r2-21-01: the first draw reuses one array for the grid glyph's centres. A fresh array
+// per test of every pixel allocated hundreds of megabytes; this is a bound on the whole draw.
+{
+    var fresh = (JsonObject)bonfire.DeepClone();
+    fresh["colors"]!["accent"] = "#13579b";
+    TileImage.Png(fresh, TileGlyph.Switch); // warm the code paths, a different tag
+    var again = (JsonObject)bonfire.DeepClone();
+    again["colors"]!["accent"] = "#24680c";
+    var before = GC.GetAllocatedBytesForCurrentThread();
+    TileImage.Png(again, TileGlyph.Profiles);
+    var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+    Console.WriteLine("  (the first draw of a grid tile allocated " + allocated + " bytes)");
+    Ok("the first draw of the grid glyph allocates under 40 MB (" + allocated + ")", allocated < 40_000_000);
+}
+
 var tag = TileImage.Tag(bonfire, TileGlyph.Person);
 Ok("the same theme and glyph, the same tag", TileImage.Tag((JsonObject)bonfire.DeepClone(), TileGlyph.Person) == tag);
 Ok("another glyph, another tag", TileImage.Tag(bonfire, TileGlyph.Switch) != tag);
