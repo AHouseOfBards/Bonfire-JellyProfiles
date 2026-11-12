@@ -480,9 +480,9 @@ Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02)
     mapT.GetProperty("MasterUserId").SetValue(row, someone);
     list.Add(row);
 
-    void WaitsForLock(string name, string method, object[] args)
+    void WaitsForLock(string name, string method, object[] args, Type on = null)
     {
-        var m = baseCtl.GetMethod(method, Any);
+        var m = (on ?? baseCtl).GetMethod(method, Any);
         if (m == null) { Ok(name + " (no such method " + method + ")", false); return; }
         var held = new ManualResetEventSlim(false);
         var letGo = new ManualResetEventSlim(false);
@@ -501,6 +501,12 @@ Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02)
     WaitsForLock("MainHasPin", "MainHasPin", new object[] { someone, cfg });
     WaitsForLock("MappingIn (the main-PIN check's lookup)", "MappingIn", new object[] { cfg, someone });
     WaitsForLock("ProfileCountOf (the profile-limit count)", "ProfileCountOf", new object[] { cfg, someone });
+    // The other list readers in the controller (r2-11-02b): each is a lookup or a count the
+    // create and delete routes can change under the lock.
+    var profilesCtl = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
+    WaitsForLock("IsSubProfile", "IsSubProfile", new object[] { someone, cfg }, profilesCtl);
+    WaitsForLock("OnboardingStepsFor (the first-profile step)", "OnboardingStepsFor", new object[] { someone, cfg }, profilesCtl);
+    WaitsForLock("DescribeLibraryArtwork", "DescribeLibraryArtwork", new object[] { cfg, someone }, profilesCtl);
 }
 
 Console.WriteLine();

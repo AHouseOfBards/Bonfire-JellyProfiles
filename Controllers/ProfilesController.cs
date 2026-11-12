@@ -3376,7 +3376,7 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>A sub-profile, as opposed to a main account (which may have no row).</summary>
         internal static bool IsSubProfile(Guid userId, PluginConfiguration config)
         {
-            var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == userId);
+            var row = MappingIn(config, userId);
             return row != null && row.MasterUserId != Guid.Empty && row.MasterUserId != userId;
         }
 
@@ -3398,7 +3398,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     Id = id,
                     Done = id == OnboardingSteps.MainPin ? MainHasPin(mainId, config)
-                         : id == OnboardingSteps.FirstProfile ? config.Mappings.Any(m => m.MasterUserId == mainId && m.ProfileUserId != mainId)
+                         : id == OnboardingSteps.FirstProfile ? ProfileCountOf(config, mainId) > 0
                          : id == OnboardingSteps.ResetEmail ? config.AccountEmails.Any(a => a.UserId == mainId && !string.IsNullOrEmpty(a.Address))
                          : false
                 })
@@ -4052,7 +4052,7 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         private ActionResult? DenyUnlessProfileOwner(PluginConfiguration config, Guid callerId, Guid profileId)
         {
-            var callerMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId);
+            var callerMapping = MappingIn(config, callerId);
             Guid masterUserId = callerMapping != null ? callerMapping.MasterUserId : callerId;
 
             if (callerId != masterUserId)
@@ -4062,7 +4062,7 @@ namespace Jellyfin.Profiles.Controllers
 
             if (profileId == masterUserId) return null;
 
-            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+            var mapping = MappingIn(config, profileId);
             if (mapping == null || mapping.MasterUserId != masterUserId)
             {
                 return Unauthorized("That profile does not belong to this account.");
@@ -4084,8 +4084,12 @@ namespace Jellyfin.Profiles.Controllers
 
         private static IEnumerable<object> DescribeLibraryArtwork(PluginConfiguration config, Guid profileId)
         {
-            var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-            var entries = mapping?.LibraryArtwork ?? new List<LibraryArtwork>();
+            List<LibraryArtwork> entries;
+            lock (ConfigLock)
+            {
+                entries = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId)?.LibraryArtwork?.ToList()
+                    ?? new List<LibraryArtwork>();
+            }
 
             return entries.Select(a =>
             {
