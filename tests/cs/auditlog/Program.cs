@@ -153,7 +153,9 @@ try
 
     // Recording prunes too, so the file itself shrinks, not just the view.
     record.Invoke(ac, new object[] { "main", "next" });
-    for (var w = 0; w < 100 && Count(aged) != 2; w++) Thread.Sleep(10);
+    // The write is off-thread. One second was not enough once, under the full gate's load
+    // (the net10 pass, 2026-11-11); a log that never prunes still fails, after the wait.
+    for (var w = 0; w < 500 && Count(aged) != 2; w++) Thread.Sleep(10);
     Ok("and the file loses it the next time it is written", Count(aged) == 2);
 
     File.WriteAllText(aged, "[" + Entry("a", DateTime.UtcNow) + "," + Entry("b", DateTime.UtcNow) + "]");
