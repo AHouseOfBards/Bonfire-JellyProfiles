@@ -5363,8 +5363,7 @@
                     p[0].setAttribute('title', t(p[1]));
                 });
                 themeHistoryButtons(page);
-                page._themeKeys = function (e) { themeEditorKey(page, e); };
-                document.addEventListener('keydown', page._themeKeys);
+                bindThemeKeys(page);
                 const nameText = getThemePath(draft, 'name.text');
                 page.querySelector('#themeEditorTitle').textContent = mode === 'edit'
                     ? t('admin.themes.editTitle', { name: typeof nameText === 'string' && nameText ? nameText : draft.id })
@@ -5502,6 +5501,18 @@
                 document.addEventListener('keydown', page._themeMenuOff, true);
             }
 
+            /// Ctrl+S / Ctrl+Z / Ctrl+Y while the editor is open. A document listener, so it
+            /// is taken off when the page is hidden (the draft stays; showPage binds it again).
+            function bindThemeKeys(page) {
+                if (page._themeKeys) return;
+                page._themeKeys = function (e) { themeEditorKey(page, e); };
+                document.addEventListener('keydown', page._themeKeys);
+            }
+
+            function unbindThemeKeys(page) {
+                if (page._themeKeys) { document.removeEventListener('keydown', page._themeKeys); page._themeKeys = null; }
+            }
+
             function closeThemeEditor(page) {
                 const ed = page._themeEditor;
                 if (ed) clearTimeout(ed.timer);
@@ -5509,7 +5520,7 @@
                 closeThemeExpanded(page, false);
                 closeThemeMenu(page);
                 unbindThemePreviewStick(page);
-                if (page._themeKeys) { document.removeEventListener('keydown', page._themeKeys); page._themeKeys = null; }
+                unbindThemeKeys(page);
                 page._themeEditor = null;
                 page.querySelector('#themeEditor').classList.add('jpf-hidden');
                 const style = document.getElementById('jpfThemeEditorCss');
@@ -8824,10 +8835,14 @@
                 closeThemeExpanded(this, false);
                 closeColorPopup(this, false);
                 unbindThemePreviewStick(this);
+                // The editor's Ctrl+S/Z/Y and its open menu listen on the document too. The
+                // draft stays on the page; coming back binds the keys again.
+                unbindThemeKeys(this);
+                closeThemeMenu(this);
             });
 
             function showPage(page) {
-                if (page._themeEditor) bindThemePreviewStick(page);
+                if (page._themeEditor) { bindThemePreviewStick(page); bindThemeKeys(page); }
                 loadConfiguration(page);
                 ['#enableClientPinLogin', '#enableClientProfileList', '#allowProfileThemes'].forEach(function (sel) {
                     const box = page.querySelector(sel);

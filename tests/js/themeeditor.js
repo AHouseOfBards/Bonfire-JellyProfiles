@@ -529,6 +529,22 @@ async function expandChecks(c, s) {
         const opened = !!(await c.evaluate('!!' + POPUP));
         await c.evaluate("document.getElementById('profilesConfigurationPage').dispatchEvent(new CustomEvent('viewbeforehide', { bubbles: true, cancelable: true }))");
         ok('leaving the page closes the colour popup' + tag, opened && !(await c.evaluate("!!document.querySelector('#themeEditor .jpf-te-pop')")), 'opened: ' + opened);
+        // The editor's own Ctrl+S / Ctrl+Z / Ctrl+Y listener is on the document as well, and
+        // a menu left open has two more. Hidden, none may take a key from another page.
+        await c.evaluate("(function(){ window.__saves = 0; var a = ApiClient.ajax; ApiClient.ajax = function (o) { if (o && /admin\\/themes/.test(o.url) && !/validate/.test(o.url)) window.__saves++; return a.apply(this, arguments); }; })()");
+        await c.evaluate("document.getElementById('teMore').click()");
+        const KEYSEND = "(function(){ var out = []; [83, 90, 89].forEach(function (k) { var e = new KeyboardEvent('keydown', { keyCode: k, ctrlKey: true, bubbles: true, cancelable: true }); document.body.dispatchEvent(e); out.push(e.defaultPrevented); }); return out; })()";
+        await c.evaluate("document.getElementById('profilesConfigurationPage').dispatchEvent(new CustomEvent('viewbeforehide', { bubbles: true, cancelable: true }))");
+        const hidden = await c.evaluate(KEYSEND);
+        await wait(200);
+        const saves = await c.evaluate('window.__saves');
+        ok('a hidden page takes no Ctrl+S, Ctrl+Z or Ctrl+Y' + tag, hidden.every(v => v === false) && saves === 0, JSON.stringify(hidden) + ' saves ' + saves);
+        ok('a hidden page leaves no theme menu open' + tag, await c.evaluate("document.getElementById('teMenu').classList.contains('jpf-hidden')"));
+        ok('hiding keeps the draft' + tag, await c.evaluate("!!document.getElementById('profilesConfigurationPage')._themeEditor"));
+        await c.evaluate("document.getElementById('profilesConfigurationPage').dispatchEvent(new Event('pageshow'))");
+        await wait(500);
+        const back = await c.evaluate("(function(){ var e = new KeyboardEvent('keydown', { keyCode: 83, ctrlKey: true, bubbles: true, cancelable: true }); document.body.dispatchEvent(e); return e.defaultPrevented; })()");
+        ok('coming back to the editor gives the keys back' + tag, back === true);
     }
 }
 function rgbOf(h) { const m = /^#([0-9a-f]{6})/i.exec(h || ''); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null; }
