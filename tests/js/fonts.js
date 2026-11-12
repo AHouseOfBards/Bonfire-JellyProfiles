@@ -184,7 +184,7 @@ console.log('\n── The web client declares them, and uses them ────�
     ok('when the sheet goes in, and again when the server answers',
         // The custom themes' block may sit between (1.7.2): it goes after the sheet too.
         /style\.textContent = BONFIRE_STYLES[^\n]*\n\s*document\.head\.appendChild\(style\);(?:\s*\/\/[^\n]*|\s*this\.applyCustomThemesCss\(\);)*\s*this\.injectFonts\(\);/.test(src)
-        && /this\.applyTheme\(settings\.theme\);\s*this\.injectFonts\(\);/.test(src));
+        && /this\.applyTheme\(read\('theme'\)\);\s*this\.injectFonts\(\);/.test(src));
 }
 
 console.log('');
