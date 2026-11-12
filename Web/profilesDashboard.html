@@ -7425,7 +7425,7 @@
                         const password = form.querySelector('.standalone-password').value || '';
                         if (!password) { show(t('admin.standalone.needPassword'), false); return; }
                         askFirst(t('admin.standalone.confirm'), t('admin.households.makeAccount')).then(function () {
-                            ApiClient.ajax({
+                            holdWhile(form.querySelector('.standalone-go'), ApiClient.ajax({
                                 type: 'POST',
                                 url: ApiClient.getUrl('plugins/profiles/admin/standalone'),
                                 contentType: 'application/json',
@@ -7435,7 +7435,7 @@
                                     username: (form.querySelector('.standalone-username').value || '').trim(),
                                     password: password
                                 })
-                            }).then(function (res) {
+                            })).then(function (res) {
                                 // The row is about to go: it is not a profile any more. So the
                                 // confirmation cannot live in it.
                                 const done = t('admin.standalone.done', { name: field(res || {}, 'username') || t('admin.standalone.newName') });
@@ -7450,6 +7450,16 @@
             }
 
             // ── Other accounts on a screen, and an account made a profile ─────────
+
+            // A button that starts a request stays pressed until it ends, or a second click
+            // posts it twice (r2-38-04). Returns the request so the caller chains on it.
+            function holdWhile(btn, request) {
+                if (!btn) return request;
+                btn.disabled = true;
+                const release = function () { btn.disabled = false; };
+                request.then(release, release);
+                return request;
+            }
 
             function bindAccountExtras(page) {
                 page.querySelectorAll('.jpf-account-extras').forEach(function (box) {
@@ -7482,7 +7492,7 @@
                     const linkGo = box.querySelector('.link-go');
                     if (linkGo) {
                         linkGo.addEventListener('click', function () {
-                            post('admin/links', { householdId: accountId, userId: box.querySelector('.link-user').value })
+                            holdWhile(linkGo, post('admin/links', { householdId: accountId, userId: box.querySelector('.link-user').value }))
                                 .then(function () { loadMappings(page); }, function (err) {
                                     errorText(err, t('admin.links.failed')).then(function (msg) { show(msg, false); });
                                 });
@@ -7506,11 +7516,11 @@
                             box.querySelectorAll('.pin-prompt-bypass').forEach(function (c) {
                                 profiles.push({ profileId: c.getAttribute('data-id'), bypassPinOnLocalNetwork: c.checked === true });
                             });
-                            post('admin/pin-prompts', {
+                            holdWhile(pinGo, post('admin/pin-prompts', {
                                 householdId: accountId,
                                 askPinToOpen: box.querySelector('.pin-prompt-ask').checked === true,
                                 profiles: profiles
-                            }).then(function () {
+                            })).then(function () {
                                 // No reload: it would redraw the form and the message with it,
                                 // and what the form shows is what was just saved.
                                 show(t('admin.pins.saved'), true);
@@ -7531,7 +7541,7 @@
                                 .filter(function (m) { return normId(field(m, 'profileUserId')) === normId(accountId); })[0];
                             const name = typed || (own ? field(own, 'profileName') : '') || '';
                             askFirst(t('admin.toProfile.confirm', { name: name, household: householdName }), t('admin.toProfile.button')).then(function () {
-                                post('admin/make-profile', { userId: accountId, householdId: target, profileName: typed, deleteWithProfile: box.querySelector('.to-profile-later').value === 'delete' })
+                                holdWhile(toProfile, post('admin/make-profile', { userId: accountId, householdId: target, profileName: typed, deleteWithProfile: box.querySelector('.to-profile-later').value === 'delete' }))
                                     .then(function () {
                                         const done = t('admin.toProfile.done', { name: name, household: householdName });
                                         if (typeof Dashboard.alert === 'function') Dashboard.alert(done); else show(done, true);
