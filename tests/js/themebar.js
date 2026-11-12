@@ -328,15 +328,19 @@ async function main() {
             var kids = [].slice.call(b.querySelectorAll('button, #teBarName')).filter(function (e) { return e.getBoundingClientRect().width > 0; });
             var out = kids.filter(function (e) { var q = e.getBoundingClientRect(); return q.right > window.innerWidth + 0.5 || q.left < -0.5; }).map(function (e) { return e.id || e.className; });
             return { top: Math.round(r.top), h: Math.round(r.height), scrollW: document.documentElement.scrollWidth, w: window.innerWidth, out: out,
-                expand: getComputedStyle(document.getElementById('teBarExpand')).display, more: getComputedStyle(document.getElementById('teMore').parentNode).display }; })()`);
+                cancel: getComputedStyle(document.getElementById('teCancel')).display, more: getComputedStyle(document.getElementById('teMore').parentNode).display }; })()`);
         ok('at 480 px every control in the bar is inside the window and the bar is one line', !narrow.missing && narrow.out.length === 0 && narrow.h < 70 && narrow.top >= 0 && narrow.top < 120, JSON.stringify(narrow));
-        ok('and Expand and Cancel have moved into the menu', narrow.expand === 'none' && narrow.more !== 'none', JSON.stringify(narrow));
+        ok('and Cancel has moved into the menu', narrow.cancel === 'none' && narrow.more !== 'none', JSON.stringify(narrow));
+        ok('the bar has no Expand of its own (the preview\'s is the only one)', (await ev("!document.getElementById('teBarExpand') && !document.querySelector('#teBar [data-more=teBarExpand]') && !!document.getElementById('teExpand')")) === true);
+        // The theme name keeps room, and a long one is cut with an ellipsis, not squeezed out.
+        await ev(SET(Q('#teName'), 'A theme with a rather long name indeed', 'input'));
+        await ev(frame);
+        const nm = await ev(`(function(){ var n = document.getElementById('teBarName'), r = n.getBoundingClientRect(); return { w: Math.round(r.width), cut: n.scrollWidth > n.clientWidth, ell: getComputedStyle(n).textOverflow }; })()`);
+        ok('at 480 px the theme name stays visible in the bar', nm.w >= 60, JSON.stringify(nm));
+        ok('and a long name is cut with an ellipsis', nm.cut && nm.ell === 'ellipsis', JSON.stringify(nm));
         await ev(CLICK(Q('#teMore')));
-        ok('the menu opens and holds Expand and Cancel', (await ev("(function(){ var m = document.getElementById('teMenu'); return !m.classList.contains('jpf-hidden') && !!m.querySelector('[data-more=teBarExpand]') && !!m.querySelector('[data-more=teCancel]') && m.getBoundingClientRect().width > 0; })()")) === true);
-        await ev(CLICK(Q('#teMenu [data-more="teBarExpand"]')));
-        await wait(300);
-        ok('Expand from the menu opens the expanded view', (await ev("!!document.getElementById('teExpanded')")) === true);
-        await ev("document.querySelector('#teExpanded .jpf-te-xclose').click(); 0");
+        ok('the menu opens and holds Cancel', (await ev("(function(){ var m = document.getElementById('teMenu'); return !m.classList.contains('jpf-hidden') && !!m.querySelector('[data-more=teCancel]') && m.getBoundingClientRect().width > 0; })()")) === true);
+        await ev(CLICK(Q('#teMore')));
         ok('Cancel from the menu closes the editor', await (async () => {
             await ev(CLICK(Q('#teMore')));
             await ev(CLICK(Q('#teMenu [data-more="teCancel"]')));
