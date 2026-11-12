@@ -326,8 +326,10 @@ async function previewSizeChecks(c, s) {
         await c.evaluate(HEADER);
         const p = await c.evaluate(AT_LAST_FIELD);
         const ptag = ' (phone' + variant + ')';
+        // The editor's bar (2026-11-12) holds the line under the header; the strip sits right under it.
+        const barH = await c.evaluate("document.getElementById('teBar') ? document.getElementById('teBar').offsetHeight : 0");
         ok('on a phone it is a strip at the top at the last Advanced field' + ptag,
-            p.sideTop >= p.hb - 1 && p.sideTop <= p.hb + 16 && p.sideH <= 0.15 * p.vh && p.seen, JSON.stringify(p));
+            p.sideTop >= p.hb + barH - 1 && p.sideTop <= p.hb + barH + 16 && p.sideH <= 0.15 * p.vh && p.seen, JSON.stringify(p) + ' bar ' + barH);
         ok('with Expand in the strip' + ptag, p.expandIn, JSON.stringify(p));
         await c.evaluate("document.getElementById('teExpand').click()");
         await wait(250);

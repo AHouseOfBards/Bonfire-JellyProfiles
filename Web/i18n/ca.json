@@ -1370,5 +1370,9 @@
   "admin.err.adminPin": "Primer defineix un PIN per al compte d'administrador.",
   "admin.err.linkGone": "Aquest compte ja no està afegit. Torna a carregar la pàgina.",
   "admin.err.imageInvalid": "No es pot fer servir aquesta imatge. Tria'n una altra.",
-  "admin.err.imageGone": "Aquest avatar ja no existeix. Torna a carregar la pàgina."
+  "admin.err.imageGone": "Aquest avatar ja no existeix. Torna a carregar la pàgina.",
+  "admin.themes.more": "Més",
+  "admin.themes.problemNone": "Cap problema",
+  "admin.themes.problemOne": "1 problema",
+  "admin.themes.problemCount": "{n} problemes"
 }

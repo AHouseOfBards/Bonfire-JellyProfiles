@@ -1370,5 +1370,9 @@
   "admin.err.adminPin": "Primero crea un PIN para la cuenta de administrador.",
   "admin.err.linkGone": "Esa cuenta ya no está añadida. Recarga la página.",
   "admin.err.imageInvalid": "No se puede usar esa imagen. Elige otra.",
-  "admin.err.imageGone": "Ese avatar ya no existe. Recarga la página."
+  "admin.err.imageGone": "Ese avatar ya no existe. Recarga la página.",
+  "admin.themes.more": "Más",
+  "admin.themes.problemNone": "Sin problemas",
+  "admin.themes.problemOne": "1 problema",
+  "admin.themes.problemCount": "{n} problemas"
 }

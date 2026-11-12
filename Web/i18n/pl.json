@@ -1370,5 +1370,9 @@
   "admin.err.adminPin": "Najpierw ustaw PIN dla konta administratora.",
   "admin.err.linkGone": "To konto nie jest już dodane. Odśwież stronę.",
   "admin.err.imageInvalid": "Tego obrazu nie można użyć. Wybierz inny.",
-  "admin.err.imageGone": "Tego awatara już nie ma. Odśwież stronę."
+  "admin.err.imageGone": "Tego awatara już nie ma. Odśwież stronę.",
+  "admin.themes.more": "Więcej",
+  "admin.themes.problemNone": "Brak problemów",
+  "admin.themes.problemOne": "1 problem",
+  "admin.themes.problemCount": "Problemy: {n}"
 }

@@ -90,7 +90,9 @@ const ADMIN = {
         basic: ['allowProfileThemes', 'defaultTheme'],
         more: ['.jpf-te-mode[button]', '.jpf-te-mode[button]', 'fontFallback', 'fontFamily', 'fontFile', 'fontRights', 'fontUpload', 'logoAlt', 'logoChoose', 'logoCorners', 'logoFile', 'logoRemove', 'logoSave', 'logoText', 'richThemeMotion', 'teAccent', 'teAvatar', 'teBase', 'teBg1', 'teBg2', 'teButton', 'teCancel', 'teFont', 'teName', 'tePattern', 'teSave', 'teText', 'themeImport', 'themeImportFile', 'themeNew',
             // 2.0: the four layout choices and the preview's Expand, inside the editor's fold.
-            'teAlign', 'teExpand', 'teLogo', 'teProfiles', 'teSize']
+            'teAlign', 'teExpand', 'teLogo', 'teProfiles', 'teSize',
+            // 2026-11-12: the editor's bar, inside the same fold.
+            'teCount', 'teBarExpand', 'teMore', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]']
     },
     setup: {
         // Owner decision 2026-11-12: first-time setup, switcher, avatar library, email.

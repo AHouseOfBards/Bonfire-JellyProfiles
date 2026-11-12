@@ -48,6 +48,7 @@
         --jpf-w20: rgba(255, 255, 255, 0.2);
         --jpf-w70: rgba(255, 255, 255, 0.7);
         --jpf-w75: rgba(255, 255, 255, 0.75);
+        --jpf-bar: #1d1d1f;             /* the theme editor's bar: opaque, it sits over the fields */
     }
     html[data-theme="light"] #profilesConfigurationPage,
     html[data-theme="appletv"] #profilesConfigurationPage {
@@ -78,6 +79,7 @@
         --jpf-w14: rgba(0, 0, 0, 0.14);
         --jpf-w15: rgba(0, 0, 0, 0.15);
         --jpf-w20: rgba(0, 0, 0, 0.2);
+        --jpf-bar: #f4f4f4;
         --jpf-w70: rgba(0, 0, 0, 0.7);
         --jpf-w75: rgba(0, 0, 0, 0.75);
     }
@@ -465,6 +467,36 @@
         margin: 1em 0 2em;
     }
     #profilesConfigurationPage .jpf-te-title { margin: 0 0 0.75em; overflow-wrap: anywhere; }
+    /* The bar. Sticky with the -webkit- prefix like the preview; bindThemePreviewStick sets
+       its top to Jellyfin's header, and on Chromium 53 (no sticky at all) moves it by a
+       transform. Opaque and above the preview (z-index 2). */
+    #profilesConfigurationPage .jpf-te-bar {
+        position: relative; position: -webkit-sticky; position: sticky; top: 0; z-index: 3;
+        display: flex; align-items: center; gap: 8px;
+        margin: 0 0 12px; padding: 8px 0;
+        background: var(--jpf-bar); border-bottom: 1px solid var(--jpf-w14);
+    }
+    #profilesConfigurationPage .jpf-te-bar-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    #profilesConfigurationPage .jpf-te-bar-slot { display: inline-flex; align-items: center; gap: 8px; }
+    #profilesConfigurationPage .jpf-te-bar .raised { margin: 0; padding: 0.4em 0.9em; min-width: 0; }
+    #profilesConfigurationPage .jpf-te-count {
+        font: inherit; font-size: 0.9rem; border: 0; background: transparent; padding: 4px 6px; white-space: nowrap;
+        color: var(--jpf-bad); text-decoration: underline; cursor: pointer;
+    }
+    #profilesConfigurationPage .jpf-te-count.is-ok { color: var(--jpf-good); text-decoration: none; cursor: default; }
+    #profilesConfigurationPage .jpf-te-more { position: relative; display: none; }
+    #profilesConfigurationPage .jpf-te-menu {
+        position: absolute; right: 0; top: 100%; margin-top: 4px; z-index: 4; min-width: 9em;
+        display: flex; flex-direction: column; gap: 4px; padding: 6px;
+        background: var(--jpf-bar); border: 1px solid var(--jpf-w20); border-radius: 6px;
+    }
+    #profilesConfigurationPage .jpf-te-menu.jpf-hidden { display: none; }
+    #profilesConfigurationPage .jpf-te-menu .jpf-te-lbtn { text-align: left; }
+    @media (max-width: 640px) {
+        #profilesConfigurationPage .jpf-te-bar { gap: 6px; }
+        #profilesConfigurationPage .jpf-te-bar-opt { display: none; }
+        #profilesConfigurationPage .jpf-te-more { display: block; }
+    }
     #profilesConfigurationPage .jpf-te-modes {
         display: flex; gap: 2px; margin: 0 0 1.25em;
         border-bottom: 1px solid var(--jpf-w14);
@@ -590,6 +622,10 @@
     #profilesConfigurationPage .jpf-te-bad > label,
     #profilesConfigurationPage .jpf-te-bad > span,
     #profilesConfigurationPage .jpf-te-bad .jpf-te-adv-label { color: var(--jpf-bad); }
+    /* The row a problem names: a red edge down its side and its message under it. Its group,
+       closed or open, carries a "!" on the summary so a problem inside is not out of sight. */
+    #profilesConfigurationPage .jpf-te-field.jpf-te-bad { border-left: 3px solid var(--jpf-bad); padding-left: 8px; }
+    #profilesConfigurationPage details.jpf-te-has-problem > summary::after { content: "!"; margin-left: 0.5em; color: var(--jpf-bad); font-weight: 700; }
     #profilesConfigurationPage .jpf-te-msg { flex-basis: 100%; color: var(--jpf-bad); font-size: 0.85rem; margin-top: 4px; }
     #profilesConfigurationPage .jpf-te-group { margin: 0 0 0.5em; }
     /* The search hides rows and groups. .jpf-hidden is declared far above and the rules for
@@ -1206,6 +1242,25 @@
                      them; Advanced shows every field of the file. Both edit the same draft,
                      which the preview wears and the server checks as it changes. -->
                 <div class="jpf-te jpf-hidden" id="themeEditor">
+                    <!-- Stays at the top of the window while the fields scroll (bindThemePreviewStick
+                         sets its top), so Save, Cancel and the problem count are never a page away.
+                         #teFileSlot is where the File menu goes. At phone width Expand and Cancel
+                         move into #teMenu, which Bonfire draws. -->
+                    <div class="jpf-te-bar" id="teBar">
+                        <span class="jpf-te-bar-name" id="teBarName"></span>
+                        <span class="jpf-te-bar-slot" id="teFileSlot"></span>
+                        <button type="button" class="jpf-te-count is-ok" id="teCount" aria-live="polite"></button>
+                        <button is="emby-button" type="button" class="raised jpf-te-bar-opt" id="teBarExpand" data-i18n="admin.themes.expand">Expand</button>
+                        <button is="emby-button" type="button" class="raised button-submit" id="teSave" data-i18n="admin.themes.save">Save theme</button>
+                        <button is="emby-button" type="button" class="raised jpf-te-bar-opt" id="teCancel" data-i18n="admin.themes.cancel">Cancel</button>
+                        <span class="jpf-te-more">
+                            <button type="button" class="jpf-te-lbtn" id="teMore" aria-haspopup="true" aria-expanded="false" aria-label="More" data-i18n-aria-label="admin.themes.more"><span class="material-icons" translate="no" aria-hidden="true">more_horiz</span></button>
+                            <div class="jpf-te-menu jpf-hidden" id="teMenu" role="menu">
+                                <button type="button" class="jpf-te-lbtn" role="menuitem" data-more="teBarExpand" data-i18n="admin.themes.expand">Expand</button>
+                                <button type="button" class="jpf-te-lbtn" role="menuitem" data-more="teCancel" data-i18n="admin.themes.cancel">Cancel</button>
+                            </div>
+                        </span>
+                    </div>
                     <h3 class="jpf-te-title" id="themeEditorTitle"></h3>
                     <div class="jpf-te-modes" role="tablist" aria-label="Editor mode" data-i18n-aria-label="admin.themes.modes">
                         <button type="button" class="jpf-te-mode" role="tab" data-view="simple" data-i18n="admin.themes.simple">Simple</button>
@@ -1323,11 +1378,7 @@
                         <h4 class="jpf-te-side-title" data-i18n="admin.themes.problems">Problems</h4>
                         <div class="jpf-te-problems" id="teProblems" aria-live="polite"></div>
                     </div>
-                    <div class="jpf-actions jpf-te-end">
-                        <button is="emby-button" type="button" class="raised button-submit" id="teSave" data-i18n="admin.themes.save">Save theme</button>
-                        <button is="emby-button" type="button" class="raised" id="teCancel" data-i18n="admin.themes.cancel">Cancel</button>
-                    </div>
-                    <div class="jpf-hidden jpf-status" id="teResult"></div>
+                    <div class="jpf-hidden jpf-status jpf-te-end" id="teResult"></div>
                 </div>
 
                 <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.fonts">Fonts</h3>
@@ -2268,6 +2319,9 @@
                 'admin.themes.noProblems': 'No problems.',
                 'admin.themes.checkFailed': 'Couldn\'t check the theme.',
                 'admin.themes.fixFirst': 'Fix the problems first.',
+                'admin.themes.problemNone': 'No problems',
+                'admin.themes.problemOne': '1 problem',
+                'admin.themes.problemCount': '{n} problems',
                 'admin.themes.created': '{name} added.',
                 'admin.themes.saved': '{name} saved.',
                 'admin.themes.imported': '{name} imported.',
@@ -5275,8 +5329,19 @@
                     queued = false;
                     const header = document.querySelector('.skinHeader');
                     const hb = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
-                    // A phone's strip sits right under the header; a column keeps a small gap.
-                    const line = Math.round(hb + (side.offsetWidth >= body.offsetWidth - 2 ? 0 : 8));
+                    // The bar takes the line under the header and the preview the one under it.
+                    const bar = page.querySelector('#themeEditor .jpf-te-bar');
+                    const barH = bar ? bar.offsetHeight : 0;
+                    if (bar) {
+                        if (sticky) bar.style.top = Math.round(hb) + 'px';
+                        else {
+                            const e = bar.parentNode.getBoundingClientRect();
+                            const by = Math.max(0, Math.min(hb - e.top, e.height - barH));
+                            bar.style.webkitTransform = bar.style.transform = by ? 'translateY(' + Math.round(by) + 'px)' : '';
+                        }
+                    }
+                    // A phone's strip sits right under the bar; a column keeps a small gap.
+                    const line = Math.round(hb + barH + (side.offsetWidth >= body.offsetWidth - 2 ? 0 : 8));
                     if (sticky) { side.style.top = line + 'px'; return; }
                     side.style.top = '0px';
                     const b = body.getBoundingClientRect();
@@ -5302,6 +5367,39 @@
                 window.removeEventListener('resize', s.onMove);
                 s.side.style.top = '';
                 s.side.style.webkitTransform = s.side.style.transform = '';
+                const bar = page.querySelector('#themeEditor .jpf-te-bar');
+                if (bar) { bar.style.top = ''; bar.style.webkitTransform = bar.style.transform = ''; }
+            }
+
+            /// The bar's "..." menu. Bonfire draws it: a native select cannot hold buttons.
+            function closeThemeMenu(page) {
+                const menu = page.querySelector('#teMenu');
+                if (menu) menu.classList.add('jpf-hidden');
+                const more = page.querySelector('#teMore');
+                if (more) more.setAttribute('aria-expanded', 'false');
+                if (page._themeMenuOff) {
+                    document.removeEventListener('mousedown', page._themeMenuOff, true);
+                    document.removeEventListener('keydown', page._themeMenuOff, true);
+                    page._themeMenuOff = null;
+                }
+            }
+
+            function toggleThemeMenu(page) {
+                const menu = page.querySelector('#teMenu');
+                if (!menu.classList.contains('jpf-hidden')) { closeThemeMenu(page); return; }
+                menu.classList.remove('jpf-hidden');
+                page.querySelector('#teMore').setAttribute('aria-expanded', 'true');
+                page._themeMenuOff = function (e) {
+                    if (e.type === 'keydown') {
+                        if (e.keyCode !== 27) return;
+                        closeThemeMenu(page);
+                        page.querySelector('#teMore').focus();
+                    } else if (!e.target.closest || !e.target.closest('.jpf-te-more')) {
+                        closeThemeMenu(page);
+                    }
+                };
+                document.addEventListener('mousedown', page._themeMenuOff, true);
+                document.addEventListener('keydown', page._themeMenuOff, true);
             }
 
             function closeThemeEditor(page) {
@@ -5309,6 +5407,7 @@
                 if (ed) clearTimeout(ed.timer);
                 closeColorPopup(page, false);
                 closeThemeExpanded(page, false);
+                closeThemeMenu(page);
                 unbindThemePreviewStick(page);
                 page._themeEditor = null;
                 page.querySelector('#themeEditor').classList.add('jpf-hidden');
@@ -6402,6 +6501,7 @@
                     return !(p.path === 'id' && local.some(function (l) { return l.path === 'id'; }));
                 }));
                 const fields = Array.prototype.slice.call(page.querySelectorAll('#themeEditor .jpf-te-field'));
+                Array.prototype.forEach.call(page.querySelectorAll('#themeEditor .jpf-te-has-problem'), function (d) { d.classList.remove('jpf-te-has-problem'); });
                 fields.forEach(function (field) {
                     field.classList.remove('jpf-te-bad');
                     Array.prototype.slice.call(field.querySelectorAll('.jpf-te-msg')).forEach(function (m) { m.parentNode.removeChild(m); });
@@ -6412,6 +6512,9 @@
                         const owns = (field.getAttribute('data-paths') || '').split(' ').some(function (o) { return o && themePathOwns(o, p.path); });
                         if (!owns) return;
                         field.classList.add('jpf-te-bad');
+                        // Its group, and the one around that, say there is something inside.
+                        for (let g = field.parentNode && field.parentNode.closest ? field.parentNode.closest('details') : null; g;
+                            g = g.parentNode && g.parentNode.closest ? g.parentNode.closest('details') : null) g.classList.add('jpf-te-has-problem');
                         const msg = document.createElement('div');
                         msg.className = 'jpf-te-msg';
                         msg.textContent = themeProblemText(p);
@@ -6421,7 +6524,28 @@
                 page.querySelector('#teProblems').innerHTML = ed.checkFailed
                     ? '<div class="jpf-error">' + escapeHtml(t('admin.themes.checkFailed')) + '</div>'
                     : themeProblemsHtml(problems);
+                const count = page.querySelector('#teCount');
+                if (count) {
+                    count.textContent = t(problems.length === 0 ? 'admin.themes.problemNone' : problems.length === 1 ? 'admin.themes.problemOne' : 'admin.themes.problemCount', { n: problems.length });
+                    count.classList.toggle('is-ok', problems.length === 0);
+                }
                 syncThemePhoto(page);
+            }
+
+            /// The bar's count: to the first field with a problem. Simple has only some of the
+            /// fields, so a problem that lives in Advanced takes the editor there, opening the
+            /// groups around it.
+            function jumpToThemeProblem(page) {
+                const ed = page._themeEditor;
+                if (!ed) return;
+                let first = page.querySelector('#themeEditor .jpf-te-bad');
+                if (!first && ed.view === 'simple') {
+                    setThemeEditorView(page, 'advanced');
+                    first = page.querySelector('#themeEditor .jpf-te-bad');
+                }
+                if (!first) return;
+                for (let g = first.closest('details'); g; g = g.parentNode && g.parentNode.closest ? g.parentNode.closest('details') : null) g.open = true;
+                try { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { first.scrollIntoView(); }
             }
 
             /// The preview at once; the server's check a moment after the last change.
@@ -6457,6 +6581,8 @@
                 paintThemeExpanded(page, css);
                 const name = getThemePath(ed.draft, 'name.text');
                 card.querySelector('.jpf-theme-preview-name').textContent = typeof name === 'string' && name ? name : t('admin.themes.newTitle');
+                const barName = page.querySelector('#teBarName');
+                if (barName) barName.textContent = typeof name === 'string' && name ? name : t('admin.themes.newTitle');
             }
 
             function validateThemeDraft(page) {
@@ -7109,6 +7235,15 @@
                     b.addEventListener('click', function () { setThemeEditorView(page, b.getAttribute('data-view')); });
                 });
                 page.querySelector('#teExpand').addEventListener('click', function () { openThemeExpanded(page); });
+                page.querySelector('#teBarExpand').addEventListener('click', function () { openThemeExpanded(page); });
+                page.querySelector('#teCount').addEventListener('click', function () { jumpToThemeProblem(page); });
+                page.querySelector('#teMore').addEventListener('click', function () { toggleThemeMenu(page); });
+                page.querySelector('#teMenu').addEventListener('click', function (e) {
+                    const item = e.target.closest ? e.target.closest('[data-more]') : null;
+                    if (!item) return;
+                    closeThemeMenu(page);
+                    page.querySelector('#' + item.getAttribute('data-more')).click();
+                });
                 page.querySelector('#teSave').addEventListener('click', function () { saveThemeDraft(page); });
                 page.querySelector('#teCancel').addEventListener('click', function () { closeThemeEditor(page); });
 

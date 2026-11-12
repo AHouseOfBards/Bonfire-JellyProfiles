@@ -1370,5 +1370,9 @@
   "admin.err.adminPin": "Önce yönetici hesabı için bir PIN belirleyin.",
   "admin.err.linkGone": "Bu hesap artık eklenmiş değil. Sayfayı yenileyin.",
   "admin.err.imageInvalid": "Bu resim kullanılamaz. Başka bir tane seçin.",
-  "admin.err.imageGone": "Bu avatar artık yok. Sayfayı yenileyin."
+  "admin.err.imageGone": "Bu avatar artık yok. Sayfayı yenileyin.",
+  "admin.themes.more": "Daha fazla",
+  "admin.themes.problemNone": "Sorun yok",
+  "admin.themes.problemOne": "1 sorun",
+  "admin.themes.problemCount": "{n} sorun"
 }
