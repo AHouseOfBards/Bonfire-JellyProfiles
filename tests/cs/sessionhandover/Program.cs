@@ -243,6 +243,16 @@ Console.WriteLine("── A Quick Connect approval (R2-01-01) ──────
     Ok("a main account approving a code still does", DeviceOwnedBy("qc-tv", MAIN));
 }
 
+Console.WriteLine();
+Console.WriteLine("── The player table is bounded (R2-01-04) ──────────────────────");
+{
+    var noted = (ConcurrentDictionary<string, bool>)listenerType
+        .GetField("_playerNoted", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(listener);
+    for (var i = 0; i < 10000; i++) noted["fill-" + i] = true;
+    Raise("SessionStarted", Session("s-bound", "bound-tv", STRANGER));
+    Ok("a full player table is cleared by the next new session (" + noted.Count + ")", noted.Count < 10000);
+}
+
 ((Microsoft.Extensions.Hosting.IHostedService)listener).StopAsync(CancellationToken.None).GetAwaiter().GetResult();
 Ok("stopping unsubscribes from both", world.Handlers.Values.All(l => l.Count == 0));
 

@@ -251,6 +251,8 @@ namespace Jellyfin.Profiles.Auth
         {
             if (string.IsNullOrEmpty(session.Id)) return;
             if (_accountOnSession.Count >= MaxTrackedSessions) _accountOnSession.Clear();
+            // Bounded the same way (R2-01-04). Forgetting only means a session is noted again.
+            if (_playerNoted.Count >= MaxTrackedSessions) _playerNoted.Clear();
             _accountOnSession[session.Id] = session.UserId;
         }
 
