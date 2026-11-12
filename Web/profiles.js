@@ -1967,8 +1967,8 @@
                     <label for="profiles-prompt-input" style="display: block; color: var(--jpf-text-2); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
                     <input id="profiles-prompt-input" type="text" maxlength="64" value="${escapeHtml(initialValue || '')}" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;" />
                     <div class="jpf-actions">
-                        <button id="prompt-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
                         <button id="prompt-save-btn" type="button" class="profiles-btn btn-primary">${t('common.save')}</button>
+                        <button id="prompt-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -2058,8 +2058,8 @@
                         ${choices}
                     </select>
                     <div class="jpf-actions">
-                        <button id="select-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
                         <button id="select-confirm-btn" type="button" class="profiles-btn btn-primary">${t('common.ok')}</button>
+                        <button id="select-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -2124,8 +2124,8 @@
                     <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
                     <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
                     <div class="jpf-actions">
-                        <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
                         <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
+                        <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -4865,8 +4865,8 @@
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
                     <div id="profiles-panic-error" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
                     <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
-                        <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                         <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">${t('panic.disable')}</button>
+                        <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -5992,8 +5992,8 @@
                     '<div id="profiles-libart-error" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
                     '<div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
-                    '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
                     '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">' + t('avatar.usePicture') + '</button>' +
+                    '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
                     '</div></div>';
                 markDialog(dialog);
                 document.body.appendChild(dialog);
@@ -6914,7 +6914,7 @@
                     ${this.isManageMode ? '' : '<div id="profiles-time-requests" class="profiles-time-requests" style="display: none;"></div>'}
                     ${sectionsHtml}
                     <div class="profiles-footer">
-                        <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
+                        ${this.isManageMode ? '' : `<button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>`}
                         ${this.isManageMode && hasLocalMaster
                             ? `<button id="profiles-settings-btn" class="profiles-btn btn-secondary">${t('common.settings')}</button>`
                             : ''}
@@ -6924,6 +6924,7 @@
                         ${this._resumeState && !this.isManageMode
                             ? `<button id="profiles-resume-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>`
                             : ''}
+                        ${this.isManageMode ? `<button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>` : ''}
                     </div>
                     <!-- Deliberately plain and dim. It has to be reachable by D-pad, because
                          a TV has no keyboard shortcut, and this screen is exactly where
@@ -7712,8 +7713,8 @@
                     <input type="text" id="profile-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('pin.enterProfilePin'))}" aria-describedby="pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions jpf-actions">
-                        <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
                         <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
+                        <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
                     </div>
                     <button type="button" id="pin-forgot" class="jpf-text-link" hidden>${t('pinReset.forgot')}</button>
                 </div>
@@ -7870,8 +7871,8 @@
                     <input type="text" id="main-pin-new" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('mainPin.setTitle'))}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="pin-actions jpf-actions">
-                        ${setup && !setup.onSkip ? '' : `<button id="main-pin-skip" class="profiles-btn btn-secondary">${required && !setup ? t('common.cancel') : t('mainPin.notNow')}</button>`}
                         <button id="main-pin-save" class="profiles-btn btn-primary">${t('mainPin.set')}</button>
+                        ${setup && !setup.onSkip ? '' : `<button id="main-pin-skip" class="profiles-btn btn-secondary">${required && !setup ? t('common.cancel') : t('mainPin.notNow')}</button>`}
                     </div>
                 </div>
             `;
@@ -7930,8 +7931,8 @@
                     <input type="text" id="master-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('pin.enterMasterPin'))}" aria-describedby="master-pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
                     <div id="master-pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
                     <div class="pin-actions jpf-actions">
-                        <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                         <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
+                        <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                     </div>
                     <button type="button" id="pin-forgot" class="jpf-text-link" hidden>${t('pinReset.forgot')}</button>
                 </div>
@@ -8109,8 +8110,8 @@
                     <input type="text" id="pin-reset-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder=" " aria-label="${escapeHtml(t('pinReset.newPin'))}" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="pin-reset-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="pin-actions jpf-actions">
-                        <button id="pin-reset-back" class="profiles-btn btn-secondary">${t('common.back')}</button>
                         <button id="pin-reset-save" class="profiles-btn btn-primary">${t('mainPin.set')}</button>
+                        <button id="pin-reset-back" class="profiles-btn btn-secondary">${t('common.back')}</button>
                     </div>
                     <button type="button" id="pin-reset-again" class="jpf-text-link">${t('pinReset.sendAgain')}</button>
                 </div>
@@ -8820,8 +8821,8 @@
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
                            style="width:100%; margin:16px 0 4px 0;" aria-label="${escapeHtml(t('avatar.zoom'))}" />
                     <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
-                        <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                         <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">${t('avatar.usePicture')}</button>
+                        <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
@@ -9382,8 +9383,8 @@
                             <div id="self-error" class="form-error" role="alert" style="display:none;"></div>
                         </div>
                         <div class="bonfire-dialog-actions jpf-actions">
-                            <button id="self-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                             <button id="self-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
+                            <button id="self-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                         </div>
                     </div>
                 `;
@@ -9593,8 +9594,8 @@
 
                         <div id="create-error-msg" class="form-error" role="alert" style="display:none;"></div>
                         <div class="profile-dialog-actions jpf-actions">
-                            <button id="create-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                             <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
+                            <button id="create-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                         </div>
                     </div>
                 `;
@@ -10032,12 +10033,12 @@
 
                         <div class="profile-dialog-actions jpf-actions">
                             <div class="dialog-action-buttons">
-                                <button id="edit-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                                <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
                                 ${isSub ? `
                                     <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
                                 ` : ''}
                             </div>
-                            <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
+                            <button id="edit-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
                         </div>
                     </div>
                 `;
@@ -10369,7 +10370,7 @@
                         <div style="display: flex; justify-content: center; padding: 20px;">
                             <div class="profiles-loading-spinner" style="border: 3px solid var(--jpf-border-1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
-                        <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
+                        <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                             <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                         </div>
                     </div>
@@ -10622,7 +10623,7 @@
                     ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesCountSubtitle'), deviceBody)}
                     ${this.renderFold('account-more', t('account.moreSummary'), `<div class="form-col">${rare}</div>`, true)}
                     <div id="account-status" class="form-hint" role="status" aria-live="polite"></div>
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
                         <button id="account-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
@@ -10679,7 +10680,7 @@
                 <h1 class="profiles-title">${t('account.devicesTitle')}</h1>
                 <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
                     ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesSubtitle'), deviceBody)}
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
                         <button id="account-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
@@ -11088,8 +11089,8 @@
                     ${body}
                     <div id="onboarding-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="bonfire-dialog-actions jpf-actions jpf-onboarding-actions">
-                        ${skip ? `<button id="onboarding-skip" class="profiles-btn btn-secondary">${t('onboarding.skip')}</button>` : ''}
                         <button id="onboarding-next" class="profiles-btn btn-primary">${nextLabel}</button>
+                        ${skip ? `<button id="onboarding-skip" class="profiles-btn btn-secondary">${t('onboarding.skip')}</button>` : ''}
                     </div>
                 </div>
             `;
@@ -11455,7 +11456,7 @@
                             ? entry('settings-theme', 'palette', t('settings.lookTitle'), t('settings.themeBody'))
                             : ''}
                     </div>
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
                         <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
@@ -11553,7 +11554,7 @@
                     </div>
                     <div class="jpf-theme-status" id="theme-settings-status" role="status"></div>
                     <div class="jpf-theme-match" id="theme-settings-match" hidden></div>
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
                         <button id="theme-settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
@@ -11698,7 +11699,7 @@
                     </div>
 
                     <div id="switcher-mode-error" role="alert" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
                         <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
@@ -11972,7 +11973,7 @@
                     ${hostSectionHtml}
                     ${guestSectionHtml}
                     ${settingsSectionHtml}
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
                         <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>

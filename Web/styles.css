@@ -1350,12 +1350,12 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex; gap: var(--jpf-gap-lg); margin-top: 1rem;
     width: 100%; max-width: var(--jpf-w-narrow);
 }
-/* Every row of buttons that ends a screen. The way out is always first,
-   so it is always bottom left; the main action is last, bottom right.
-   It was the other way round on the PIN and create screens, the same as
-   this on the prompts, and a lone Back or Done sat centred on Settings —
-   so the button that leaves was somewhere different on every screen. A
-   lone way out sits on the left too. */
+/* Every row of buttons that ends a screen. The way out is always last,
+   so it is always bottom right; the action is first, on the left. 1.7.2
+   had it the other way round (way out on the left), after the screens
+   had each chosen differently; the owner's call on 1.9.0.4-beta was the
+   right, as on the "Who's watching?" row. A lone way out sits on the
+   right too (an inline flex-end on its row). tests/js/exitbuttons.js. */
 .jpf-actions {
     display: flex; justify-content: space-between; align-items: center;
     gap: var(--jpf-gap); flex-wrap: wrap;
