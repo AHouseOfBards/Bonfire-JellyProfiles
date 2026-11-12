@@ -1257,8 +1257,20 @@ if (shouldDeny != null)
         Ok("only the client this applies to is noted", !Note("Bedroom Roku", "Jellyfin Roku"));
         Ok("never a blank name", !Note("   ", "Jellyfin Android TV") && !Note(null, "Jellyfin Android TV"));
 
+        // A name that no household device carries is not recorded: it cannot change the gate,
+        // and each one would be a configuration save for any account to cause (r2-06-04).
+        var before = shared.Count;
+        for (int i = 0; i < 50; i++) Note("Invented " + i, "Jellyfin Android TV");
+        Ok("names no household device has are not recorded (" + (shared.Count - before) + " added)", shared.Count == before);
+
+        for (int i = 0; i < 600; i++)
+        {
+            Remember("household-set-" + i, MASTER);
+            knownType.GetProperty("DeviceName").SetValue(devicesList[devicesList.Count - 1], "Set " + i);
+        }
+
         for (int i = 0; i < 600; i++) Note("Set " + i, "Jellyfin Android TV");
-        Ok("and the record is bounded (" + shared.Count + " names)", shared.Count <= 500);
+        Ok("and the record is bounded (" + shared.Count + " names)", shared.Count > 100 && shared.Count <= 500);
 
         // The listener is what calls it, for the sign-ins it otherwise ignores. Driving the
         // listener needs a Jellyfin session manager; this pins the call to the right branch.

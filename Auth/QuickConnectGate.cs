@@ -187,6 +187,16 @@ namespace Jellyfin.Profiles.Auth
             var name = deviceName?.Trim();
             if (string.IsNullOrEmpty(name) || ProfilesBaseController.IsPlaceholderDeviceName(name)) return false;
 
+            // A name no household device carries changes nothing about the gate, so it is not
+            // worth a list entry or a save. Without this any account on the server, by signing
+            // in under invented names, could grow the list and force a configuration write each.
+            if (config.KnownDevices == null || !config.KnownDevices.Any(d =>
+                    d.MasterUserId != Guid.Empty
+                    && string.Equals(d.DeviceName?.Trim(), name, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
             config.QuickConnectSharedDeviceNames ??= new System.Collections.Generic.List<string>();
             if (config.QuickConnectSharedDeviceNames.Any(n => string.Equals(n?.Trim(), name, StringComparison.OrdinalIgnoreCase)))
             {
