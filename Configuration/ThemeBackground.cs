@@ -84,7 +84,10 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>The image a theme file names, or null when it names none (or a bad one).</summary>
         public static string? FileOf(JsonNode? theme) =>
-            theme?["background"]?["image"]?["file"] is JsonValue v && v.TryGetValue<string>(out var f) && ThemeLogo.IsFileName(f) ? f : null;
+            // Kind checks: an indexer throws on an array or a bare value, and this reads both
+            // an uploaded body and a stored text edited by hand.
+            theme is JsonObject t && t["background"] is JsonObject b && b["image"] is JsonObject i
+                && i["file"] is JsonValue v && v.TryGetValue<string>(out var f) && ThemeLogo.IsFileName(f) ? f : null;
 
         /// <summary>Every image the configuration's custom themes name.</summary>
         public static HashSet<string> Named(PluginConfiguration config) =>

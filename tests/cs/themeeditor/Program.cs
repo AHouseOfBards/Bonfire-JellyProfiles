@@ -697,6 +697,26 @@ Ok("and its file goes with it", !File.Exists(Path.Combine(ThemeCatalog.CustomFon
 Ok("and it is no longer served", Status(Call(As(false), "GetThemeFont", fileName)) == 404);
 Ok("deleting a name that is not a hash is a 404, and touches nothing", Status(Call(As(true), "DeleteThemeFont", "../PluginConfiguration.xml")) == 404);
 
+// r2-15-01: a body that is not an object is a 400, not a 500.
+foreach (var raw in new[] { "[1]", "\"text\"", "5", "null" })
+{
+    object r = null; Exception thrown = null;
+    try { r = Call(As(true), "SaveCustomTheme", "oddbody", JsonDocument.Parse(raw).RootElement); } catch (Exception e) { thrown = e; }
+    Ok("a theme body of " + raw + " is a 400", thrown == null && Status(r) == 400, thrown?.InnerException?.Message ?? thrown?.Message);
+}
+
+// r2-15-02: a stored theme whose type is not an object does not take the Themes page down.
+{
+    live.CustomThemes.Add(new CustomTheme { Id = "oddtype", Json = "{\"id\":\"oddtype\",\"type\":\"serif\"}" });
+    live.CustomThemes.Add(new CustomTheme { Id = "oddfont", Json = "{\"id\":\"oddfont\",\"type\":{\"font\":5}}" });
+    Call(As(true, good), "UploadThemeFont", "serif", true, null); // usedBy is only worked out per font
+    object r = null; Exception thrown = null;
+    try { r = Call(As(true), "GetThemeManagement"); } catch (Exception e) { thrown = e; }
+    Ok("manage still answers with a stored theme whose type is not an object", thrown == null && Status(r) == 200, thrown?.InnerException?.Message ?? thrown?.Message);
+    live.CustomThemes.RemoveAll(c => c.Id == "oddtype" || c.Id == "oddfont");
+    Call(As(true), "DeleteThemeFont", fileName);
+}
+
 // R-1092: the file is written before the configuration names it; if the save then throws,
 // the file must not be left behind and the list must not name it.
 StubXml.Fail = true;

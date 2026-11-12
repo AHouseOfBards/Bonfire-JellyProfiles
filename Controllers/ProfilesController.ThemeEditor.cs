@@ -378,7 +378,9 @@ namespace Jellyfin.Profiles.Controllers
                 if (node is JsonObject file && !file.ContainsKey("revision")) file["revision"] = storedRevision + 1;
 
                 var problems = ThemeCatalog.ValidateCustom(node, config).ToList();
-                var bodyId = node?["id"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+                // Only an object has an "id" to read: an array or a bare value throws on the
+                // indexer, and the validator has already said why it is not a theme.
+                var bodyId = node is JsonObject asObject && asObject["id"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
                 if (problems.Count == 0 && bodyId != id)
                     problems.Add(new ThemeProblem("id", "range", "The id must match the address."));
                 // A name the validator accepts may still be a picture this server does not
@@ -652,7 +654,10 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>The custom themes whose text names <paramref name="family"/> as their font.</summary>
         private static List<string> ThemesUsing(string family, PluginConfiguration config) =>
             config.CustomThemes
-                .Where(c => ParseTheme(c.Json)?["type"]?["font"]?["family"] is JsonValue v
+                // Kind checks all the way down: a stored text that is not shaped like a theme
+                // (edited by hand) must not take the whole Themes page down.
+                .Where(c => ParseTheme(c.Json) is JsonObject t && t["type"] is JsonObject ty && ty["font"] is JsonObject fo
+                    && fo["family"] is JsonValue v
                     && v.TryGetValue<string>(out var f) && string.Equals(f, family, StringComparison.OrdinalIgnoreCase))
                 .Select(c => c.Id)
                 .ToList();
