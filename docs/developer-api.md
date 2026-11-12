@@ -2552,9 +2552,11 @@ The body is the `configuration` object from an export.
   `emergencyCodeSet` whether the server has one now.
 - **Field names** are matched ignoring case.
 - **Profiles for users this server doesn't have** are dropped and named in the response.
+- **`bonfireOn`** is whether Bonfire is on after the import. A backup from before 2.0 has
+  no on/off switch, so it leaves the server's own, and a new install starts off.
 
 ```json
-{ "mappings": 4, "droppedMappings": ["Sam"], "devices": 7, "bonfires": 1, "emergencyCodeIncluded": false, "emergencyCodeSet": true }
+{ "mappings": 4, "droppedMappings": ["Sam"], "devices": 7, "bonfires": 1, "emergencyCodeIncluded": false, "emergencyCodeSet": true, "bonfireOn": true }
 ```
 
 `400` if the body isn't a Bonfire configuration. Nothing is changed then.

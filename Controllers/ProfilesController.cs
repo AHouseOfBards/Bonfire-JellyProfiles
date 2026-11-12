@@ -1779,6 +1779,7 @@ namespace Jellyfin.Profiles.Controllers
 
             var droppedMappings = new List<string>();
             var emergencyCodeSet = false;
+            var bonfireOn = true;
 
             lock (ConfigLock)
             {
@@ -1986,6 +1987,7 @@ namespace Jellyfin.Profiles.Controllers
                     property.SetValue(config, property.GetValue(incoming));
                 }
 
+                bonfireOn = config.BonfireOn;
                 Plugin.Instance?.SaveConfiguration();
             }
 
@@ -2003,7 +2005,10 @@ namespace Jellyfin.Profiles.Controllers
                 // Whether the file carried the emergency code, and whether the server has one
                 // now, so the page can say to set it.
                 emergencyCodeIncluded = !string.IsNullOrEmpty(incoming.PanicCodeHash),
-                emergencyCodeSet
+                emergencyCodeSet,
+                // Where the switch stands now. A backup from before 2.0 has no BonfireOn and
+                // leaves it as the server has it, which on a new install is off.
+                bonfireOn
             });
         }
 

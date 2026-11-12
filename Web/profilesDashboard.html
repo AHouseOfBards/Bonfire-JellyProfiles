@@ -1826,6 +1826,7 @@
                 'admin.backup.skipped': 'Skipped {count} profiles naming Jellyfin users this server doesn\'t have: {names}.',
                 'admin.backup.panicKept': 'Backups leave out the emergency code, so this server kept its own.',
                 'admin.backup.panicMissing': 'Backups leave out the emergency code. Set it again if you use one.',
+                'admin.backup.bonfireOff': 'Bonfire is off. Turn it on in Status.',
                 'admin.backup.exported': 'Exported. Keep it somewhere you\'d keep a password.',
                 'admin.backup.exportFailed': 'Export failed.',
                 'admin.backup.notJson': 'That file isn\'t valid JSON.',
@@ -3281,6 +3282,8 @@
                 if (res.emergencyCodeIncluded === false) {
                     msg += ' ' + t(res.emergencyCodeSet ? 'admin.backup.panicKept' : 'admin.backup.panicMissing');
                 }
+                // A backup from before 2.0 has no on/off switch and leaves a new install off.
+                if (res.bonfireOn === false) msg += ' ' + t('admin.backup.bonfireOff');
                 return msg;
             }
 

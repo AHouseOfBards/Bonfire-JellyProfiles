@@ -386,6 +386,22 @@ Console.WriteLine("── The emergency code ───────────�
     var olderR = ResultOf(importRoute.Invoke(NewController(), new object[] { JsonSerializer.SerializeToElement(new { configuration = olderObj }) }));
     Ok("a file from before the change, with a code, still restores it", LivePanic() == "from-old-backup", LivePanic());
     Ok("and says it was included", Flag(olderR, "emergencyCodeIncluded") && Flag(olderR, "emergencyCodeSet"), olderR.GetRawText());
+
+    // A backup from before 2.0 has no BonfireOn, so it leaves the switch as the server has
+    // it, and a new install starts off. The result says where it stands, so the page can
+    // say so instead of the household finding out from a television.
+    var onProp = cfgType.GetProperty("BonfireOn");
+    var preTwo = new Dictionary<string, object>();
+    foreach (var kv in fields) if (kv.Key != "BonfireOn") preTwo[kv.Key] = kv.Value;
+    Overwrite(live, Defaults());
+    onProp.SetValue(live, false);
+    var offR = ResultOf(importRoute.Invoke(NewController(), new object[] { JsonSerializer.SerializeToElement(new { configuration = preTwo }) }));
+    Ok("a pre-2.0 backup onto a server that is off leaves it off", (bool)onProp.GetValue(live) == false);
+    Ok("and the result says Bonfire is off", HasFlag(offR, "bonfireOn") && !Flag(offR, "bonfireOn"), offR.GetRawText());
+    Overwrite(live, Defaults());
+    onProp.SetValue(live, true);
+    var onR = ResultOf(importRoute.Invoke(NewController(), new object[] { JsonSerializer.SerializeToElement(new { configuration = preTwo }) }));
+    Ok("and on, when it is on", Flag(onR, "bonfireOn"), onR.GetRawText());
 }
 
 // A backup written by a version that still had a setting that has since been cut. The old

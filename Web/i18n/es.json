@@ -967,6 +967,7 @@
   "admin.backup.skipped": "Se han omitido {count} perfiles que nombran usuarios de Jellyfin que este servidor no tiene: {names}.",
   "admin.backup.panicKept": "Las copias de seguridad no incluyen el código de emergencia, así que este servidor ha conservado el suyo.",
   "admin.backup.panicMissing": "Las copias de seguridad no incluyen el código de emergencia. Vuelve a definirlo si usas uno.",
+  "admin.backup.bonfireOff": "Bonfire está desactivado. Actívalo en Estado.",
   "admin.backup.exported": "Exportado. Guárdalo donde guardarías una contraseña.",
   "admin.backup.exportFailed": "La exportación ha fallado.",
   "admin.backup.notJson": "Ese archivo no es un JSON válido.",

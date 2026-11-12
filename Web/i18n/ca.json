@@ -967,6 +967,7 @@
   "admin.backup.skipped": "S'han omès {count} perfils que anomenen usuaris de Jellyfin que aquest servidor no té: {names}.",
   "admin.backup.panicKept": "Les còpies de seguretat no inclouen el codi d'emergència, així que aquest servidor ha conservat el seu.",
   "admin.backup.panicMissing": "Les còpies de seguretat no inclouen el codi d'emergència. Torna'l a definir si en fas servir un.",
+  "admin.backup.bonfireOff": "Bonfire està desactivat. Activa'l a Estat.",
   "admin.backup.exported": "Exportat. Guarda'l on guardaries una contrasenya.",
   "admin.backup.exportFailed": "L'exportació ha fallat.",
   "admin.backup.notJson": "Aquest fitxer no és un JSON vàlid.",

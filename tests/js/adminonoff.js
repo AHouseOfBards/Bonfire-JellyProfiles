@@ -106,6 +106,18 @@ ok('done on a configuration from before 2.0', list[list.length - 1].done === tru
 list = items({ BonfireOn: false, DefaultTimeZone: '' });
 ok('still last when the zone item is there too', list[list.length - 1].key === 'bonfireOn');
 
+// A backup from before 2.0 has no BonfireOn, so restoring one onto a new install (which
+// starts off) left Bonfire off, and the result said only what it imported.
+console.log('\n── An import that leaves Bonfire off ───────────────────────────');
+{
+    const summary = new Function(L.dashboardI18n(script) + L.extractFunction(script, 'importSummary') + '\nreturn importSummary;')();
+    const base = { mappings: 2, devices: 1, bonfires: 0, droppedMappings: [] };
+    const off = summary(Object.assign({ bonfireOn: false }, base));
+    ok('the import result says Bonfire is off', /Bonfire is off/.test(off) && /Status/.test(off), off);
+    ok('and nothing when it is on', !/Bonfire is off/.test(summary(Object.assign({ bonfireOn: true }, base))));
+    ok('or when an older server does not say', !/Bonfire is off/.test(summary(base)));
+}
+
 console.log('\n── Saving ──────────────────────────────────────────────────────');
 const settle = () => new Promise(r => setImmediate(r));
 (async function () {
