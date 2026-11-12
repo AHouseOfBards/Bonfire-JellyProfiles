@@ -231,6 +231,44 @@ if (plugin != null)
             Ok("UpdateConfiguration carries " + p.Name + " onto the instance in use", same);
         }
 
+        // r2-19-02: Jellyfin's generic POST skipped what admin/settings checks. A value that
+        // settings page would refuse must leave the live one in place, one field at a time.
+        {
+            var liveNow = configProp.GetValue(plugin);
+            var bad = Activator.CreateInstance(cfgType);
+            var badValues = new Dictionary<string, object>
+            {
+                ["MaxProfilesPerUser"] = 999,
+                ["PinGuessesPerDay"] = 999,
+                ["ProfileImageQuality"] = "not-a-quality",
+                ["DefaultSwitcherLocation"] = "middleware",
+                ["DefaultTheme"] = "not-a-theme",
+                ["DefaultTimeZone"] = "No/Such_Zone",
+            };
+            var kept = new Dictionary<string, object>();
+            foreach (var kv in badValues)
+            {
+                kept[kv.Key] = cfgType.GetProperty(kv.Key).GetValue(liveNow);
+                cfgType.GetProperty(kv.Key).SetValue(bad, kv.Value);
+            }
+            var tProp = cfgType.GetProperty("TrustedAddressEntries");
+            var keptTrusted = tProp.GetValue(liveNow);
+            var badEntry = Activator.CreateInstance(tProp.PropertyType.GetGenericArguments()[0]);
+            badEntry.GetType().GetProperty("Address").SetValue(badEntry, "not an address");
+            badEntry.GetType().GetProperty("UserIds").SetValue(badEntry, new List<Guid> { Guid.NewGuid() });
+            ((System.Collections.IList)tProp.GetValue(bad)).Add(badEntry);
+            var pProp = cfgType.GetProperty("ProxyClients");
+            ((System.Collections.IList)pProp.GetValue(bad)).Add("no-such-app");
+
+            update.Invoke(plugin, new[] { bad });
+            var liveAfter = configProp.GetValue(plugin);
+            foreach (var kv in badValues)
+                Ok("an invalid " + kv.Key + " posted to the generic route keeps the live value",
+                   Equals(cfgType.GetProperty(kv.Key).GetValue(liveAfter), kept[kv.Key]));
+            Ok("an invalid trusted address keeps the live list", ReferenceEquals(tProp.GetValue(liveAfter), keptTrusted));
+            Ok("an unknown proxy app is dropped", ((System.Collections.IList)pProp.GetValue(liveAfter)).Count == 0);
+        }
+
         // Turning Bonfire off or on reaches every reader through Plugin.IsOff at once, except
         // two caches: the viewing-limits index and the tokens the proxy switcher has put down
         // as not ours. admin/settings cleared both; Jellyfin's own configuration save, which
@@ -747,6 +785,34 @@ static object DistinctValue(Type t, object def, string name)
 {
     var u = Nullable.GetUnderlyingType(t);
     if (u != null) t = u;
+    // r2-19-02: these are held to the rules admin/settings applies, so a made-up string or an
+    // out-of-range number is no longer carried over. Each gets a value that is valid and
+    // different from the live one; the copy is still checked for every one of them.
+    switch (name)
+    {
+        case "PinGuessesPerDay": return def is int pg && pg == 7 ? 8 : 7;
+        case "ProfileImageQuality": return def as string == "standard" ? "high" : "standard";
+        case "DefaultSwitcherLocation": return def as string == "menu" ? "button" : "menu";
+        case "DefaultTheme": return def as string == "crimson" ? "harbor" : "crimson";
+        case "DefaultTimeZone": return def as string == "UTC" ? "Europe/London" : "UTC";
+        case "ProxyClients":
+            if (((def as System.Collections.IList)?.Count ?? 0) != 0) return null;
+            return new List<string> { "moonfin" };
+        case "TrustedAddressEntries":
+        {
+            var elem = t.GetGenericArguments()[0];
+            var list = (System.Collections.IList)Activator.CreateInstance(t);
+            var n = ((def as System.Collections.IList)?.Count ?? 0) + 1;
+            for (var k = 0; k < n; k++)
+            {
+                var entry = Activator.CreateInstance(elem);
+                elem.GetProperty("Address").SetValue(entry, "203.0.113." + (k + 1));
+                elem.GetProperty("UserIds").SetValue(entry, new List<Guid> { Guid.NewGuid() });
+                list.Add(entry);
+            }
+            return list;
+        }
+    }
     if (t == typeof(bool)) return !(def is bool b && b);
     if (t == typeof(string)) return "saved-" + name;
     if (t == typeof(int)) return (def is int i ? i : 0) + 7;

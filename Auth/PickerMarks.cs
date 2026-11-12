@@ -164,15 +164,18 @@ namespace Jellyfin.Profiles.Auth
             if (path == null) return;
             lock (PickerFileLock)
             {
+                string? temp = null;
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    var temp = path + ".tmp";
+                    // A name of its own per write, removed if the write fails.
+                    temp = Controllers.ProfilesBaseController.UniqueTempName(path);
                     File.WriteAllText(temp, JsonSerializer.Serialize(Marks.Values.ToList()));
-                    File.Move(temp, path, true);
+                    Controllers.ProfilesBaseController.MoveIntoPlace(temp, path);
                 }
                 catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                 {
+                    try { if (temp != null) File.Delete(temp); } catch (Exception) { }
                     Log?.LogWarning(ex, "ProfilesPlugin: could not write {File}; a restart would forget which TVs are in a child's profile.", path);
                 }
             }

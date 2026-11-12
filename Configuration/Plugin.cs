@@ -107,15 +107,21 @@ namespace Jellyfin.Profiles
             // version has no element for either, and XmlSerializer leaves a missing element at
             // the constructor's value: a default of true for RequireMainPin would turn it on
             // for that server, and a default of false for BonfireOn would turn Bonfire off.
-            // A file with a good copy beside it is being recovered, not created.
+            // A missing file is a new install, whatever sits beside it: an administrator who
+            // deletes PluginConfiguration.xml to reset has asked for a fresh start, and a
+            // last good copy found there used to skip this branch, leave Bonfire on with no
+            // main PIN rule, and be overwritten by the first save. The copy is moved aside,
+            // not restored. (A file that EXISTS but won't read is the recovery case, in
+            // TryRestoreOver.) r2-19-03.
             //
             // Saved here, not left in memory. Reading Configuration with no file runs
             // Jellyfin's LoadConfiguration, which saves the plain defaults straight away; a
             // value set only in memory after that was gone at the next restart, so a new
             // install that restarted before its first save came back on (and without the
             // main PIN rule).
-            if (!System.IO.File.Exists(ConfigurationFilePath) && !System.IO.File.Exists(LastGoodPath))
+            if (!System.IO.File.Exists(ConfigurationFilePath))
             {
+                SetLastGoodAside();
                 lock (ProfilesBaseController.ConfigLock)
                 {
                     var fresh = Configuration;
@@ -169,13 +175,73 @@ namespace Jellyfin.Profiles
             {
                 current = Configuration;
                 var wasOn = current.BonfireOn;
+                // The same checks admin/settings makes. This route is Jellyfin's, and without
+                // them a body could save a theme, a limit or a switcher location the
+                // dashboard would have refused. A value that fails keeps what is live.
+                // r2-19-02.
+                var before = new PluginConfiguration
+                {
+                    MaxProfilesPerUser = current.MaxProfilesPerUser,
+                    PinGuessesPerDay = current.PinGuessesPerDay,
+                    ProfileImageQuality = current.ProfileImageQuality,
+                    DefaultSwitcherLocation = current.DefaultSwitcherLocation,
+                    DefaultTheme = current.DefaultTheme,
+                    DefaultTimeZone = current.DefaultTimeZone,
+                    TrustedAddressEntries = current.TrustedAddressEntries
+                };
                 if (!ReferenceEquals(current, incoming)) CopyInto(incoming, current);
+                NormalizeApplied(current, before);
                 switched = current.BonfireOn != wasOn;
                 SaveConfiguration();
             }
 
             if (switched) ForgetOnOffCaches();
             ConfigurationChanged?.Invoke(this, current);
+        }
+
+        /// <summary>
+        /// Holds the fields admin/settings checks to the same rules, after a saved
+        /// configuration has been copied onto <paramref name="live"/>. A value refused there
+        /// goes back to what <paramref name="before"/> held. Done on the live object and not
+        /// on the posted one, so the caller's object is left as it was sent. Called inside
+        /// ConfigLock.
+        /// </summary>
+        internal static void NormalizeApplied(PluginConfiguration live, PluginConfiguration before)
+        {
+            if (live.MaxProfilesPerUser < 1 || live.MaxProfilesPerUser > 20)
+                live.MaxProfilesPerUser = before.MaxProfilesPerUser;
+            // A security limit: lower, never higher.
+            if (live.PinGuessesPerDay < 1 || live.PinGuessesPerDay > PinBudget.DailyLimit)
+                live.PinGuessesPerDay = before.PinGuessesPerDay;
+
+            live.ProfileImageQuality = ImageQualities.IsKnown(live.ProfileImageQuality)
+                ? ImageQualities.Normalize(live.ProfileImageQuality)
+                : before.ProfileImageQuality;
+
+            var location = live.DefaultSwitcherLocation;
+            live.DefaultSwitcherLocation =
+                string.Equals(location, SwitcherLocations.Button, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(location, SwitcherLocations.Menu, StringComparison.OrdinalIgnoreCase)
+                    ? SwitcherLocations.Normalize(location)
+                    : before.DefaultSwitcherLocation;
+
+            // Known to the configuration as saved: a custom theme sent in the same body counts.
+            live.DefaultTheme = Themes.IsKnown(live.DefaultTheme, live)
+                ? Themes.Normalize(live.DefaultTheme, live)
+                : before.DefaultTheme;
+
+            if (!string.IsNullOrEmpty(live.DefaultTimeZone))
+            {
+                live.DefaultTimeZone = HouseholdTime.TryFind(live.DefaultTimeZone, out _)
+                    ? live.DefaultTimeZone.Trim()
+                    : before.DefaultTimeZone;
+            }
+
+            live.ProxyClients = Auth.ProxyClients.Normalize(live.ProxyClients);
+
+            live.TrustedAddressEntries = Auth.TrustedAddresses.Validate(live.TrustedAddressEntries) == null
+                ? Auth.TrustedAddresses.Normalize(live.TrustedAddressEntries)
+                : before.TrustedAddressEntries;
         }
 
         private static void CopyInto(PluginConfiguration from, PluginConfiguration to)
@@ -298,6 +364,42 @@ namespace Jellyfin.Profiles
             }
         }
 
+        /// <summary>
+        /// Moves the last good copy to <c>.lastgood-&lt;stamp&gt;</c> so a fresh install's
+        /// first save does not overwrite it. Never throws.
+        /// </summary>
+        private void SetLastGoodAside()
+        {
+            try
+            {
+                lock (SaveAndCopyLock)
+                {
+                    if (!System.IO.File.Exists(LastGoodPath)) return;
+                    var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
+                    System.IO.File.Move(LastGoodPath, LastGoodPath + "-" + stamp, overwrite: true);
+                    PruneCopies(ConfigurationFilePath, ".lastgood-*");
+                }
+            }
+            catch (Exception)
+            {
+                // The first save then overwrites it, as it did before; nothing worse.
+            }
+        }
+
+        /// <summary>Keeps the newest few copies matching <c>&lt;file&gt;&lt;suffixPattern&gt;</c>.</summary>
+        private static void PruneCopies(string configurationPath, string suffixPattern)
+        {
+            var folder = System.IO.Path.GetDirectoryName(configurationPath)!;
+            var pattern = System.IO.Path.GetFileName(configurationPath) + suffixPattern;
+            var old = new System.IO.DirectoryInfo(folder).GetFiles(pattern)
+                .OrderByDescending(f => f.Name, StringComparer.Ordinal) // the stamp in the name is the time; a copy keeps its source's write time
+                .Skip(VersionBackupsKept);
+            foreach (var file in old)
+            {
+                try { file.Delete(); } catch (Exception) { /* left for the next time */ }
+            }
+        }
+
         private static string SafeLabel(string label)
         {
             var chars = label.Select(c => char.IsLetterOrDigit(c) || c == '.' || c == '-' ? c : '_').ToArray();
@@ -354,6 +456,9 @@ namespace Jellyfin.Profiles
                 // (a file broken before this release), it is all that is left to repair by hand.
                 var kept = path + ".unreadable-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture);
                 System.IO.File.Copy(path, kept, overwrite: true);
+                // Kept like the .bak copies: a file that breaks again and again must not fill
+                // the folder. The one just made is the newest, so it stays. r2-19-04.
+                PruneCopies(path, ".unreadable-*");
                 RestoredFrom = kept;
                 if (!System.IO.File.Exists(LastGoodPath)) return false;
 

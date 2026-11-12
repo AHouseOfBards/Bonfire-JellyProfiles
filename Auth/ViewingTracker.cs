@@ -399,16 +399,20 @@ namespace Jellyfin.Profiles.Auth
                     _dirty = false;
                 }
 
+                string? temp = null;
                 try
                 {
                     BeforeWrite?.Invoke();
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    var temp = path + ".tmp";
+                    // A name of its own per write: a fixed one let two writes at once move
+                    // each other's bytes. A failed write removes its file.
+                    temp = Controllers.ProfilesBaseController.UniqueTempName(path);
                     File.WriteAllText(temp, json);
-                    File.Move(temp, path, true);
+                    Controllers.ProfilesBaseController.MoveIntoPlace(temp, path);
                 }
                 catch (Exception ex)
                 {
+                    try { if (temp != null) File.Delete(temp); } catch (Exception) { }
                     // Any exception, not a list of two: Save is documented never to throw, and a bad
                     // data path (NotSupported, Argument) is as much a failed write as a locked file.
                     logger?.LogWarning("ProfilesPlugin: couldn't save viewing time: {Reason}", ex.Message);

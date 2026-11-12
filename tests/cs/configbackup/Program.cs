@@ -118,7 +118,10 @@ admin.SaveConfiguration();
 var restarted = new Plugin(new StubPaths(turnedOff), new RealXml());
 Ok("an administrator who turned it off is not overruled at the next start", !restarted.Configuration.RequireMainPin);
 
-// Only the last good copy left: the configuration is being recovered, not created.
+// Only the last good copy left: an administrator deleted the file to reset (r2-19-03). It
+// used to be read as "being recovered", which skipped the new-install branch: Bonfire came
+// up on with no main PIN rule, and the first save overwrote the copy. Now it is a new
+// install, and the copy is moved aside, not restored.
 var recovering = NewDir();
 var saver = new Plugin(new StubPaths(recovering), new RealXml());
 saver.Configuration.RequireMainPin = false;
@@ -126,7 +129,28 @@ saver.SaveConfiguration();
 Ok("the good copy exists", File.Exists(saver.ConfigurationFilePath + ".lastgood"));
 File.Delete(saver.ConfigurationFilePath);
 var recovered = new Plugin(new StubPaths(recovering), new RealXml());
-Ok("a missing file with a good copy beside it is not a new install", !recovered.Configuration.RequireMainPin);
+Ok("a missing file with a good copy beside it is a new install: main PIN required",
+   recovered.Configuration.RequireMainPin);
+Ok("and Bonfire starts off", !recovered.Configuration.BonfireOn);
+var asideCopies = Directory.GetFiles(recovering, "*.lastgood-*");
+Ok("the good copy is kept aside as .lastgood-<stamp>, not restored and not overwritten",
+   asideCopies.Length == 1 && File.ReadAllText(asideCopies[0]).Contains("<RequireMainPin>false</RequireMainPin>"),
+   asideCopies.Length + " copies");
+
+// r2-19-04: .unreadable-<stamp> copies are pruned like .bak ones.
+var piled = NewDir();
+var pileInstall = new Plugin(new StubPaths(piled), new RealXml());
+_ = pileInstall.Configuration;
+var pileConfig = pileInstall.ConfigurationFilePath;
+for (var n = 1; n <= 6; n++) File.WriteAllText(pileConfig + ".unreadable-2026010100000" + n, "old " + n);
+File.WriteAllText(pileInstall.ConfigurationFilePath, "<PluginConfiguration><Mappings><Prof");
+var pileAfter = new Plugin(new StubPaths(piled), new RealXml());
+_ = pileAfter.Configuration;
+var pileKept = Directory.GetFiles(piled, "*.unreadable-*");
+Ok("the unreadable copies are pruned to a few (" + pileKept.Length + ")", pileKept.Length == 3,
+   pileKept.Length + " kept");
+Ok("and the newest one, the one just made, is among them",
+   pileKept.Any(f => File.ReadAllText(f).StartsWith("<PluginConfiguration><Mappings><Prof")));
 
 // Jellyfin's LoadConfiguration saves the plain defaults the moment it finds no file, so a
 // value the constructor set only in memory after that was gone at the next restart.
@@ -176,8 +200,9 @@ var onSaver = new Plugin(new StubPaths(recoveringOn), new RealXml());
 onSaver.Configuration.BonfireOn = true;
 onSaver.SaveConfiguration();
 File.Delete(onSaver.ConfigurationFilePath);
-Ok("a missing file with a good copy beside it keeps Bonfire on",
-   new Plugin(new StubPaths(recoveringOn), new RealXml()).Configuration.BonfireOn);
+// r2-19-03: deleting the file is a reset, so it comes back off even with a good copy beside it.
+Ok("a missing file with a good copy beside it comes back off (a new install)",
+   !new Plugin(new StubPaths(recoveringOn), new RealXml()).Configuration.BonfireOn);
 
 Console.WriteLine();
 Console.WriteLine("── A different version starts: the file is copied first (R-1319) ──");

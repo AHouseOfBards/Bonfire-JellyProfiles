@@ -1173,11 +1173,11 @@ namespace Jellyfin.Profiles.Controllers
             {
                 var path = GetAuditLogPath();
                 if (path == null) return true;
-                temp = path + ".tmp";
+                temp = UniqueTempName(path);
                 System.IO.File.WriteAllText(
                     temp,
                     JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = false }));
-                System.IO.File.Move(temp, path, true);
+                MoveIntoPlace(temp, path);
                 return true;
             }
             catch (Exception ex)
@@ -2726,6 +2726,18 @@ namespace Jellyfin.Profiles.Controllers
                 return (null, null, notSupported);
             }
 
+            // The text is measured before it is decoded: base64 is four characters to three
+            // bytes, so a payload longer than that bound cannot be in budget, and decoding it
+            // first allocated the whole of an oversize body to throw it away. r2-22-02.
+            var payloadLength = dataUrl.Length - commaIndex - 1;
+            if (payloadLength > ((MaxProfileImageBytes + 2) / 3 * 4) + 4)
+            {
+                _logger.LogWarning(
+                    "ProfilesPlugin: Image for {Context} is {Size} characters of base64, over the limit. Rejected.",
+                    context, payloadLength);
+                return (null, null, "That image is too large.");
+            }
+
             try
             {
                 var bytes = Convert.FromBase64String(dataUrl.Substring(commaIndex + 1));
@@ -2874,7 +2886,7 @@ namespace Jellyfin.Profiles.Controllers
         /// A staging name no other save shares: a fixed one let two saves at once, or a file
         /// left by one that died, stop each other.
         /// </summary>
-        private static string UniqueTempName(string target)
+        internal static string UniqueTempName(string target)
             => target + "." + Guid.NewGuid().ToString("N") + ".tmp";
 
         /// <summary>
@@ -2882,7 +2894,7 @@ namespace Jellyfin.Profiles.Controllers
         /// replace of the same name is in flight, so a second save of the same picture at
         /// once gets a few tries.
         /// </summary>
-        private static void MoveIntoPlace(string temp, string target)
+        internal static void MoveIntoPlace(string temp, string target)
         {
             for (var attempt = 1; ; attempt++)
             {
