@@ -672,6 +672,24 @@ var servedFont = Call(As(false), "GetThemeFont", fileName);
 Ok("GET /themes/fonts serves it, to anyone, as font/woff2",
    servedFont is FileContentResult fc && fc.ContentType == "font/woff2" && fc.FileContents.SequenceEqual(good));
 
+// r2-15-03, r2-20-02: a revalidation is answered from the name alone, and a font file that
+// cannot be read (replaced or locked between Exists and the read) is a 404, not a 500.
+{
+    var tag = "\"" + fileName.Substring(0, 32) + "\"";
+    var fontPath = Path.Combine(ThemeCatalog.CustomFontFolder, fileName);
+    using (var held = new FileStream(fontPath, FileMode.Open, FileAccess.Read, FileShare.None))
+    {
+        var cond = As(false);
+        cond.Request.Headers["If-None-Match"] = tag;
+        object condResult = null;
+        try { condResult = Call(cond, "GetThemeFont", fileName); } catch (Exception) { }
+        Ok("a font the browser already has is a 304 without opening the file", Status(condResult) == 304);
+        object lockedResult = null;
+        try { lockedResult = Call(As(false), "GetThemeFont", fileName); } catch (Exception) { }
+        Ok("a font file that cannot be read is a 404, not a 500", Status(lockedResult) == 404);
+    }
+}
+
 var renamed = Call(As(true, Font(family: "Outfit Thin")), "UploadThemeFont", "sans-serif", true, "Shop Sign");
 Ok("the administrator can name a font: the file's own name is only the suggestion",
    Status(renamed) == 200 && live.CustomFonts.Any(cf => cf.Family == "Shop Sign"), Body(renamed)?.ToJsonString());

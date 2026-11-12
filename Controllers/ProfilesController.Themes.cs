@@ -69,7 +69,22 @@ namespace Jellyfin.Profiles.Controllers
                         snapshot = new PluginConfiguration { CustomFonts = config.CustomFonts.Where(f => f.File == file).ToList() };
                 }
 
-                if (snapshot != null) found = ThemeCatalog.CustomFontFile(file, snapshot);
+                if (snapshot != null)
+                {
+                    // Named by contents, so the ETag is the name: a browser that has it is
+                    // answered before the file is opened (built-ins are cached; these were
+                    // read from disk on every request, 304s included).
+                    var tag = ThemeCatalog.CustomFontETag(file);
+                    if (IfNoneMatchHas(tag))
+                    {
+                        Response.Headers["ETag"] = tag;
+                        Response.Headers["Cache-Control"] = "public, max-age=86400";
+                        Response.Headers["Access-Control-Allow-Origin"] = "*";
+                        return StatusCode(StatusCodes.Status304NotModified);
+                    }
+
+                    found = ThemeCatalog.CustomFontFile(file, snapshot);
+                }
             }
 
             if (found == null) return NotFound();

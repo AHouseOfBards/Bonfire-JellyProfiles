@@ -349,10 +349,21 @@ namespace Jellyfin.Profiles.Configuration
         {
             if (!IsCustomFontFileName(name) || !config.CustomFonts.Any(f => f.File == name)) return null;
             var path = Path.Combine(CustomFontFolder, name);
-            if (!File.Exists(path)) return null;
-            // Named by its hash, so the name is the validator.
-            return (File.ReadAllBytes(path), "font/woff2", "\"" + name.Substring(0, 32) + "\"");
+            // No Exists check first: a file replaced or locked between that and the read was a
+            // 500. A file that cannot be read is a file that is not there.
+            try
+            {
+                // Named by its hash, so the name is the validator.
+                return (File.ReadAllBytes(path), "font/woff2", CustomFontETag(name));
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
+
+        /// <summary>The ETag an uploaded font is served with: its hash, so no read is needed to know it.</summary>
+        public static string CustomFontETag(string name) => "\"" + name.Substring(0, 32) + "\"";
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] Bytes, string ETag)> FontBytes =
             new(StringComparer.Ordinal);
