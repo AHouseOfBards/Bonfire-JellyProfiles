@@ -1374,5 +1374,10 @@
   "admin.themes.problemOne": "1 problème",
   "admin.themes.problemCount": "{n} problèmes",
   "admin.themes.undo": "Annuler",
-  "admin.themes.redo": "Rétablir"
+  "admin.themes.redo": "Rétablir",
+  "admin.themes.file": "Fichier",
+  "admin.themes.fileDownload": "Télécharger le fichier du thème",
+  "admin.themes.fileLoad": "Charger un fichier de thème",
+  "admin.themes.fileTooBig": "Ce fichier dépasse 256 Ko.",
+  "admin.themes.deco.missing": "Image manquante"
 }

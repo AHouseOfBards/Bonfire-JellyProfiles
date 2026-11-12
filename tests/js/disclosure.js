@@ -94,7 +94,9 @@ const ADMIN = {
             // 2026-11-12: the editor's bar, inside the same fold.
             'teCount', 'teBarExpand', 'teMore', 'teUndo', 'teRedo', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]',
             // and the Advanced view's search box.
-            'teSearch']
+            'teSearch',
+            // and the File menu in the bar.
+            'teFile', 'teFileDownload', 'teFileLoad', 'teFileInput']
     },
     setup: {
         // Owner decision 2026-11-12: first-time setup, switcher, avatar library, email.

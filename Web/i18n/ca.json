@@ -1374,5 +1374,10 @@
   "admin.themes.problemOne": "1 problema",
   "admin.themes.problemCount": "{n} problemes",
   "admin.themes.undo": "Desfés",
-  "admin.themes.redo": "Refés"
+  "admin.themes.redo": "Refés",
+  "admin.themes.file": "Fitxer",
+  "admin.themes.fileDownload": "Baixa el fitxer del tema",
+  "admin.themes.fileLoad": "Carrega un fitxer de tema",
+  "admin.themes.fileTooBig": "Aquest fitxer supera els 256 KB.",
+  "admin.themes.deco.missing": "Falta la imatge"
 }

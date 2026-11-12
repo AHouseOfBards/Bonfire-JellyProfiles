@@ -1374,5 +1374,10 @@
   "admin.themes.problemOne": "1 sorun",
   "admin.themes.problemCount": "{n} sorun",
   "admin.themes.undo": "Geri al",
-  "admin.themes.redo": "Yinele"
+  "admin.themes.redo": "Yinele",
+  "admin.themes.file": "Dosya",
+  "admin.themes.fileDownload": "Tema dosyasını indir",
+  "admin.themes.fileLoad": "Tema dosyası yükle",
+  "admin.themes.fileTooBig": "Bu dosya 256 KB'tan büyük.",
+  "admin.themes.deco.missing": "Resim eksik"
 }

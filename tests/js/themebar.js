@@ -162,6 +162,94 @@ async function main() {
         await ev("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = true; })");
         await ev(frame);
 
+        // 5. The File menu (2026-11-12, round 2): Download saves the draft, Load replaces it.
+        const HEX = 'abcdef0123456789abcdef0123456789';
+        const LOAD = text => `(function(){ var f = new File([${JSON.stringify(text)}], 'x.json', { type: 'application/json' }); var dt = new DataTransfer(); dt.items.add(f);
+            var i = document.getElementById('teFileInput'); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`;
+        const NOTE = "(document.getElementById('teFileNote') || { textContent: '', classList: { contains: function () { return true; } } })";
+        await ev(`window.__put = []; window.__blob = null; window.__dlName = '';
+            var o0 = URL.createObjectURL; URL.createObjectURL = function (b) { window.__blob = b; return o0.call(URL, b); };
+            var k0 = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dlName = this.download; return; } return k0.apply(this, arguments); };
+            var f0 = window.fetch; window.fetch = function (u) { if (/themes\\/(backgrounds|pattern-files)\\//.test(String(u))) return Promise.resolve({ ok: !!window.__present }); return f0.apply(this, arguments); };
+            var a1 = ApiClient.ajax; ApiClient.ajax = function (o) { if (o && o.type === 'PUT') { window.__put.push(o.url); return Promise.resolve({ created: true }); } return a1.apply(this, arguments); }; 0`);
+        await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="advanced"]')));
+        await ev(SET(Q('#teName'), 'Unsaved Mine', 'change'));
+        await ev(`(function(){ var d = ${ED}.draft; d.background = d.background || {}; d.background.image = { file: '${HEX}.png', dim: 0.6 }; })()`);
+        ok('the bar has a File menu that is closed at first', (await ev("!!document.getElementById('teFile') && document.getElementById('teFileSlot').contains(document.getElementById('teFile')) && document.getElementById('teFileMenu').classList.contains('jpf-hidden')")) === true);
+        await ev(CLICK(Q('#teFile')));
+        ok('it opens with Download and Load', (await ev("(function(){ var m = document.getElementById('teFileMenu'); return !m.classList.contains('jpf-hidden') && m.getBoundingClientRect().width > 0 && !!m.querySelector('#teFileDownload') && !!m.querySelector('#teFileLoad') && document.getElementById('teFile').getAttribute('aria-expanded') === 'true'; })()")) === true);
+        await ev(CLICK(Q('#teFileDownload')));
+        ok('Download closes the menu', (await ev("document.getElementById('teFileMenu').classList.contains('jpf-hidden')")) === true);
+        const dl = JSON.parse(await ev("window.__blob ? window.__blob.text() : '{}'"));
+        ok('Download saves the draft, unsaved edits included, as <id>.json', (await ev('window.__dlName')) === 'unsaved-mine.json' && dl.name && dl.name.text === 'Unsaved Mine', JSON.stringify(dl).slice(0, 200));
+        ok('and leaves the picture out, keeping its dim', dl.background && dl.background.image && Object.keys(dl.background.image).join() === 'dim' && dl.background.image.dim === 0.6, JSON.stringify(dl.background));
+        await ev(`delete ${ED}.draft.background.image; 0`);
+
+        const was = await ev(DRAFTJ);
+        const depth0 = await ev(DEPTH);
+        const id0 = await ev(`${ED}.draft.id`);
+        await ev(`window.__problems = [{ path: 'zzz', code: 'unknown', detail: '' }]; 0`);
+        await ev(LOAD('{"id":"other","name":{"text":"Loaded"},"zzz":1,"colors":{"accent":"#112233"}}'));
+        await wait(700);
+        const loaded = JSON.parse(await ev(DRAFTJ));
+        ok('Load replaces the draft and keeps the open theme\'s id', loaded.name.text === 'Loaded' && loaded.colors.accent === '#112233' && loaded.id === id0 && id0 === 'unsaved-mine', JSON.stringify(loaded));
+        ok('it saves nothing', (await ev('window.__put.length')) === 0);
+        ok('it is one undo step', (await ev(DEPTH)) === depth0 + 1, depth0 + ' -> ' + (await ev(DEPTH)));
+        ok('a field the editor does not know is kept, and the server\'s check counts it', loaded.zzz === 1 && /^1 problem$/.test(await ev("document.getElementById('teCount').textContent")) && (await ev("document.querySelectorAll('#teProblems li').length")) === 1);
+        ok('the name box and the bar follow the file', (await ev("document.getElementById('teName').value + '|' + document.getElementById('teBarName').textContent")) === 'Loaded|Loaded');
+        await ev(CLICK(Q('#teUndo')));
+        ok('Undo puts back the draft from before the file', (await ev(DRAFTJ)) === was);
+        await ev(`window.__problems = []; 0`);
+
+        const depth1 = await ev(DEPTH);
+        for (const [what, text] of [['text that is not JSON', 'not json'], ['a JSON array', '[1,2]'], ['a bare value', '5']]) {
+            await ev(LOAD(text));
+            await wait(250);
+            ok('a bad file (' + what + ') gives a one-line error and changes nothing', (await ev(DRAFTJ)) === was && (await ev(DEPTH)) === depth1
+                && (await ev(NOTE + '.textContent')).length > 0 && (await ev(NOTE + '.classList.contains("jpf-hidden")')) === false, await ev(NOTE + '.textContent'));
+        }
+        await ev(`(function(){ var f = new File(['{"id":"x",' + ' '.repeat(262144) + '}'], 'big.json'); var dt = new DataTransfer(); dt.items.add(f); var i = document.getElementById('teFileInput'); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+        await wait(250);
+        ok('a file over 256 KB is refused without being read', (await ev(DRAFTJ)) === was && /256/.test(await ev(NOTE + '.textContent')), await ev(NOTE + '.textContent'));
+
+        // A background picture the server lacks is dropped, with the note under the Photo control.
+        await ev(`window.__present = false; 0`);
+        await ev(LOAD(`{"id":"q","name":{"text":"Pic"},"background":{"fill":"#101010","image":{"file":"${HEX}.png","dim":0.7}}}`));
+        await wait(700);
+        ok('a background picture the server lacks is dropped', (await ev(`${ED}.draft.background.image === undefined && ${ED}.draft.background.fill === '#101010'`)) === true);
+        ok('and the Photo control says to upload it', /imported/.test(await ev("document.querySelector('#teAdvancedFields .jpf-te-photo .jpf-te-photo-note').textContent")), await ev("document.querySelector('#teAdvancedFields .jpf-te-photo .jpf-te-photo-note').textContent"));
+        // One it has is kept.
+        await ev(`window.__present = true; 0`);
+        await ev(LOAD(`{"id":"q","name":{"text":"Pic"},"background":{"fill":"#101010","image":{"file":"${HEX}.png","dim":0.7}}}`));
+        await wait(700);
+        ok('one the server has is kept', (await ev(`${ED}.draft.background.image && ${ED}.draft.background.image.file`)) === HEX + '.png');
+        await ev(`window.__present = false; 0`);
+
+        // A pattern picture the server lacks: the card says so, and Save is held.
+        await ev("document.getElementById('profilesConfigurationPage')._themes.catalog.patterns = [{ name: 'leaves' }]; 0");
+        await ev(LOAD(`{"id":"q","name":{"text":"Pat"},"decorations":[{"name":"pattern","image":"${HEX}.png","size":240,"drift":"none"}]}`));
+        await wait(700);
+        await ev("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = true; })");
+        const card = await ev(`(function(){ var m = document.querySelector('#teAdvancedFields .jpf-te-missing'); var c = m && m.closest('.jpf-te-card'); return { text: m ? m.textContent : '', upload: !!(c && c.querySelector('[data-pattern-act]')) }; })()`);
+        ok('a pattern picture the server lacks shows "Missing picture" with its Upload button', card.text === 'Missing picture' && card.upload === true, JSON.stringify(card));
+        ok('and it is counted as a problem', /^1 problem$/.test(await ev("document.getElementById('teCount').textContent")));
+        await ev(CLICK(Q('#teSave')));
+        await wait(300);
+        ok('Save is held until it is replaced', (await ev('window.__put.length')) === 0);
+        const builtIn = await ev(`(function(){ var s = document.querySelector('#teAdvancedFields select[data-path="decorations.0.image"]'); var o = [].slice.call(s.options).filter(function (x) { return x.value && x.value !== '${HEX}.png'; })[0]; return o ? o.value : ''; })()`);
+        ok('the test found a built-in picture to choose', !!builtIn);
+        await ev(SET(Q('#teAdvancedFields select[data-path="decorations.0.image"]'), builtIn, 'change'));
+        await wait(700);
+        ok('choosing a built-in clears the mark and the count', (await ev("document.querySelectorAll('#teAdvancedFields .jpf-te-missing').length")) === 0 && /no problem/i.test(await ev("document.getElementById('teCount').textContent")));
+        await ev(CLICK(Q('#teSave')));
+        await wait(300);
+        ok('and Save goes through', (await ev('window.__put.length')) === 1);
+        await ev("document.getElementById('themeNew').click(); 0");
+        await wait(500);
+        await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="advanced"]')));
+        await ev("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = true; })");
+        await ev(frame);
+
         // 3. At 480 px the bar still fits, with the rare buttons behind the "..." menu.
         await c.page('Emulation.setDeviceMetricsOverride', { width: 480, height: 800, deviceScaleFactor: 1, mobile: false });
         await wait(300);
