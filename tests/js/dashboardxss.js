@@ -154,7 +154,7 @@ console.log('\n── The household list ─────────────
         + 'function renderTrusted() {} function renderInjectionStatus() {}\n'
         + 'function bindStandaloneForms() {} function bindAccountExtras() {}\n'
         + 'function pluginAsset(u) { return "/" + u; }\n';
-    const make = dashboardFns(['escapeHtml', 'namedAria', 'field', 'normId', 'loadMappings'],
+    const make = dashboardFns(['escapeHtml', 'namedAria', 'field', 'normId', 'collectTrusted', 'loadMappings'],
         '(function (res, page) { __result = res; loadMappings(page); })', pre);
     ok('loadMappings can be run against a fake server', make !== null);
     if (make) {

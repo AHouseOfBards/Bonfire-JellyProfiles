@@ -270,7 +270,7 @@ function pageOf(map) {
             querySelectorAll: sel => sel === '.sub-profile-toggle' ? toggles : []
         };
         const calls = [];
-        const src = TV + fn('field') + fn('escapeHtml') + fn('normId') + opt('namedAria') + fn('loadMappings') + 'return loadMappings;';
+        const src = TV + fn('field') + fn('escapeHtml') + fn('normId') + opt('namedAria') + fn('collectTrusted') + fn('loadMappings') + 'return loadMappings;';
         const load = new Function('ApiClient', 'renderTrusted', 'renderGettingStarted', 'renderInjectionStatus', 'setStatus', 'pinStatusRows',
             'askFirst', 'Dashboard', 'loadConfiguration', 'document', 'window', 'bindStandaloneForms', 'bindPinPrompts', 'bindAccountExtras',
             src)(

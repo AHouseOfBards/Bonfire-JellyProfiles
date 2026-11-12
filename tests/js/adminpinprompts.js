@@ -26,7 +26,7 @@ function ok(name, cond, detail) {
 
 const script = L.dashboardScript(L.readDashboard());
 const source = L.dashboardI18n(script) + '\n'
-    + ['escapeHtml', 'namedAria', 'field', 'normId', 'loadMappings', 'bindAccountExtras'].map(function (n) { return L.extractFunction(script, n); }).join('\n');
+    + ['escapeHtml', 'namedAria', 'field', 'normId', 'collectTrusted', 'holdWhile', 'loadMappings', 'bindAccountExtras'].map(function (n) { return L.extractFunction(script, n); }).join('\n');
 
 const MAPPINGS = {
     MasterUsers: [
