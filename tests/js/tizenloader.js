@@ -176,9 +176,48 @@ console.log('\n── It recovers from a server that was not up yet ────
     p.turn();
     ok('and tries again', p.live().length === 1 && p.live()[0] !== first);
 
-    for (let i = 0; i < 10; i++) { const s = p.live()[0]; if (s) s.onerror(); p.turn(); }
-    ok('but gives up after a few failures rather than hammering a server with no Bonfire',
-       p.pending() === 0 && p.appended.length <= 6);
+}
+
+{
+    // A television that starts before its network: every load fails for the first two
+    // minutes. Five quick tries (about ten seconds) used to give up long before that.
+    const p = page();
+    p.window.ApiClient = { serverAddress: () => 'http://jellyfin.lan:8096' };
+    const delays = [];
+    const realTimeout = p.sandbox.setTimeout;
+    p.sandbox.setTimeout = (fn, ms) => { delays.push(ms); return realTimeout(fn, ms); };
+    p.run();
+    let waited = 0;
+    while (waited < 120000 && p.live()[0]) {
+        p.live()[0].onerror();
+        if (!p.pending()) break;
+        waited += delays[delays.length - 1];
+        p.turn();
+    }
+    ok('it is still trying after two minutes of failed loads (' + Math.round(waited / 1000) + ' s)',
+       waited >= 120000 && p.live().length === 1);
+    const gaps = delays.slice();
+    ok('each wait is longer than the last until a cap (' + gaps.slice(0, 8).join(', ') + ' ms)',
+       gaps.length > 2 && gaps.every((g, i) => i === 0 || g >= gaps[i - 1]) && gaps[1] > gaps[0]);
+    ok('no wait is longer than a minute', gaps.every(g => g <= 60000));
+}
+
+{
+    // A server with no Bonfire: it fails for good. The loader stops inside the same
+    // ten minutes as the server poll, and says so once.
+    const p = page();
+    p.window.ApiClient = { serverAddress: () => 'http://jellyfin.lan:8096' };
+    const delays = [];
+    const realTimeout = p.sandbox.setTimeout;
+    p.sandbox.setTimeout = (fn, ms) => { delays.push(ms); return realTimeout(fn, ms); };
+    p.run();
+    let rounds = 0;
+    while (p.live()[0] && rounds < 1000) { p.live()[0].onerror(); p.turn(); rounds++; }
+    const total = delays.reduce((a, b) => a + b, 0);
+    ok('against a server with no Bonfire it stops (' + rounds + ' tries, ' + Math.round(total / 1000) + ' s)',
+       p.pending() === 0 && rounds < 1000 && total <= 600000);
+    ok('and the console says it gave up, once',
+       p.warnings.length === 1 && /gave up|giving up|stopped/i.test(p.warnings[0]));
 }
 
 console.log('\n── It stops looking eventually ─────────────────────────────────');

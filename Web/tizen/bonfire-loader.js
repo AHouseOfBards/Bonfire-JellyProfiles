@@ -19,7 +19,7 @@
  *
  * Full steps are in docs/troubleshooting.md under "Samsung Tizen".
  *
- * WHY ES5. Tizen 4 runs Chromium 56. One token newer than the engine and the whole file
+ * WHY ES5. Bonfire's floor is Chromium 53 (Tizen 4 itself runs 56). One token newer than the engine and the whole file
  * fails to parse, silently. tests/js/tizenloader.js runs tests/js/jsbaseline.js on it.
  */
 (function () {
@@ -32,9 +32,13 @@
     // remote allows; after that the app has been left on a screen with no server, and
     // polling for ever would only cost battery.
     var MAX_POLLS = 1200;
+    var MAX_RETRY_MS = 600000;
+    var RETRY_FIRST_MS = 2000;
+    var RETRY_MAX_MS = 60000;
 
     var polls = 0;
     var failures = 0;
+    var retried = 0;
 
     /// The server jellyfin-web is connected to, without a trailing slash, or null while
     /// it has not chosen one. Read defensively: on the server-selection screen ApiClient
@@ -87,9 +91,18 @@
         script.onerror = function () {
             // The server could not be reached or has no Bonfire. Remove the tag so the
             // next poll can try again — a television often starts before the network.
+            // Five quick tries used to give up after about ten seconds, well before a TV's
+            // network is up; the wait now doubles to a minute, inside the same ten minutes.
             if (script.parentNode) script.parentNode.removeChild(script);
             failures++;
-            if (failures < 5) setTimeout(tick, POLL_MS * 4);
+            var wait = Math.min(RETRY_FIRST_MS * Math.pow(2, failures - 1), RETRY_MAX_MS);
+            if (retried + wait <= MAX_RETRY_MS) {
+                retried += wait;
+                setTimeout(tick, wait);
+            } else if (window.console && console.warn) {
+                console.warn('Bonfire loader: gave up after ' + failures + ' failed loads from '
+                    + address + '. Check the server is up and has Bonfire installed.');
+            }
         };
         (document.head || document.documentElement).appendChild(script);
         return true;
