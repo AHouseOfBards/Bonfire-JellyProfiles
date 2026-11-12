@@ -211,8 +211,54 @@ if (helper != null)
                 var threw3 = false;
                 try { Write("b", Url("image/png", PngBytes)); }
                 catch (Exception) { threw3 = true; }
-                Ok("nor does saving over a name that has one", !threw3 && File.Exists(Path.Combine(wdir, "b.png")));
+                // r2-10-05: any stale variant that cannot be removed is a failed save, not a
+                // silent success (the new file is written; the caller is told).
+                Ok("saving over a name that has an undeletable variant reports a failed save", threw3);
             }
+
+            // r2-10-05: a stale .jpg that cannot be deleted outranks a new .png in
+            // FindImageFile, so the save has to report failure rather than succeed while the
+            // old picture keeps showing.
+            File.WriteAllBytes(Path.Combine(wdir, "c.jpg"), JpegBytes);
+            using (new FileStream(Path.Combine(wdir, "c.jpg"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                var threw4 = false;
+                try { Write("c", Url("image/png", PngBytes)); }
+                catch (Exception) { threw4 = true; }
+                Ok("a stale higher-ranked file that cannot be deleted fails the save", threw4);
+            }
+        }
+
+        // r2-10-05: the temp name was fixed per file, so two saves of one profile at once
+        // moved each other's bytes into place. Ten at once must all succeed and leave no
+        // temp file behind.
+        {
+            var cdir = Path.Combine(dir, "concurrent");
+            Directory.CreateDirectory(cdir);
+            var tasks = Enumerable.Range(0, 10).Select(_ => System.Threading.Tasks.Task.Run(() =>
+            {
+                try { write.Invoke(controller, new object[] { cdir, "p", Url("image/png", PngBytes), null, "test" }); return null; }
+                catch (Exception ex) { return (ex.InnerException ?? ex).Message; }
+            })).ToArray();
+            System.Threading.Tasks.Task.WaitAll(tasks);
+            var errors = tasks.Select(t => t.Result).Where(m => m != null).ToList();
+            Ok("ten simultaneous saves of one name all succeed (" + string.Join("; ", errors.Take(1)) + ")", errors.Count == 0);
+            Ok("and leave no temp file behind", !Directory.GetFiles(cdir, "*.tmp").Any());
+        }
+
+        // r2-10-07: the save and the check read a data URL through one parse, so a header
+        // that only mentions a type is refused by both.
+        {
+            var check = baseType.GetMethod("CheckProfileImage", Any);
+            Ok("CheckProfileImage is reachable", check != null);
+            string Check(string url) => (string)check.Invoke(controller, new object[] { Guid.NewGuid(), url, null });
+            Ok("the check accepts a real PNG", Check(Url("image/png", PngBytes)) == null);
+            Ok("the check refuses a type that only contains a known one", Check(Url("image/png-evil", PngBytes)) != null);
+            Ok("the check refuses a JPEG declared as PNG", Check(Url("image/png", JpegBytes)) != null);
+            Ok("the check refuses text declared as PNG",
+               Check(Url("image/png", System.Text.Encoding.UTF8.GetBytes("<script>"))) != null);
+            Ok("the check refuses a parameter that mentions a type",
+               Check("data:image/svg+xml;x=image/png;base64," + Convert.ToBase64String(PngBytes)) != null);
         }
     }
     finally
@@ -232,6 +278,10 @@ Console.WriteLine("── An external image URL cannot carry CSS or markup chara
         Ok("an http URL containing '" + c + "' is refused", !V("https://example.com/a" + c + "b.png"));
     Ok("an http URL containing a quote is still refused", !V("https://example.com/a\"b.png"));
     Ok("a non-http scheme is still refused", !V("ftp://example.com/a.png"));
+    // r2-10-06: Uri.TryCreate drops a tab, CR or LF inside the URL; the raw string is what
+    // gets stored.
+    foreach (var c in new[] { '\t', '\n', '\r' })
+        Ok("an http URL containing control character " + (int)c + " is refused", !V("https://example.com/a" + c + "b.png"));
 }
 
 Console.WriteLine();

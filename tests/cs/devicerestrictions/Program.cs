@@ -595,6 +595,9 @@ if (decodeLegacy != null)
 
     // And a name somebody actually typed must survive intact.
     Ok("a real plus in a real name is left alone", D("Pixel 8 Pro+") == "Pixel 8 Pro+");
+    // r2-09-05: a trailing or leading plus with no spaces is a name, not an encoded space.
+    Ok("TV+ keeps its plus", D("TV+") == "TV+");
+    Ok("a leading plus is kept", D("+Box") == "+Box");
     Ok("an ordinary name is untouched", D("Living room TV") == "Living room TV");
     Ok("an empty name stays empty", D("") == "");
     Ok("null is handled", D(null) == "");

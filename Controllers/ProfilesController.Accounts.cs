@@ -89,19 +89,18 @@ namespace Jellyfin.Profiles.Controllers
             // somebody else's account disabled by typing wrong passwords on purpose. The rate
             // limit above is what stops guessing here.
             var account = _userManager.GetUserByName(username);
-            if (account != null && !PasswordChecksHere(account))
-            {
-                // LDAP, SSO and the like keep the password somewhere Bonfire can't ask
-                // without going through the lockout. Said in the same words as a wrong
-                // password or an unknown name: a message of its own, needing no password,
-                // let anyone in a household learn which usernames exist (R-1069). An
-                // administrator can still add such an account from the dashboard.
-                return BadRequest(CredentialsWrongMessage);
-            }
 
+            // An unknown name, an account turned off and one whose password lives in LDAP or
+            // SSO (which Bonfire can't ask without going through the lockout) all answer in
+            // the same words as a wrong password, so a name can't be probed (R-1069). They
+            // also hash a password first, so they take as long as a wrong one: answering at
+            // once told them apart by the clock (r2-10-04). An administrator can still add
+            // an LDAP account from the dashboard.
             if (account == null
+                || !PasswordChecksHere(account)
                 || (_userManager.GetUserDto(account, string.Empty).Policy?.IsDisabled ?? false))
             {
+                SpendPasswordTime(request.Password!);
                 return BadRequest(CredentialsWrongMessage);
             }
             if (!await PasswordMatchesAsync(account, request.Password!).ConfigureAwait(false))
@@ -327,6 +326,21 @@ namespace Jellyfin.Profiles.Controllers
             var id = account.AuthenticationProviderId ?? string.Empty;
             return id.EndsWith(".DefaultAuthenticationProvider", StringComparison.Ordinal)
                 || string.Equals(id, typeof(Auth.BonfirePinAuthenticationProvider).FullName, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Does the work of one password check against nothing, at Jellyfin's own cost
+        /// (PBKDF2 over SHA-512, 210,000 rounds), so a refusal that never reached a real
+        /// hash is not quicker than one that did.
+        /// </summary>
+        internal static void SpendPasswordTime(string password)
+        {
+            System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(
+                password ?? string.Empty,
+                new byte[16],
+                210000,
+                System.Security.Cryptography.HashAlgorithmName.SHA512,
+                64);
         }
 
         /// <summary>

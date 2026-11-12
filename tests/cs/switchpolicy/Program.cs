@@ -438,6 +438,34 @@ Ok("a management permission the master lacks is removed", profile.EnableSubtitle
 Ok("and one the master has is not granted", profile.EnableContentDeletion == false);
 Ok("a profile is never an administrator", profile.IsAdministrator == false);
 
+// r2-09-03: without EnableContentDeletion, deletion is limited to the listed folders, so a
+// profile's list may never name a folder its master cannot delete from.
+{
+    var f1 = Guid.NewGuid().ToString("N");
+    var f2 = Guid.NewGuid().ToString("N");
+    var f3 = Guid.NewGuid().ToString("N");
+
+    var mRestricted = new MediaBrowser.Model.Users.UserPolicy { EnableContentDeletion = false, EnableContentDeletionFromFolders = new[] { f1 } };
+    var pAll = new MediaBrowser.Model.Users.UserPolicy { EnableContentDeletion = true };
+    Inherit(mRestricted, pAll);
+    Ok("deletes-everywhere profile of a folder-limited master gets the master's folders",
+        !pAll.EnableContentDeletion && pAll.EnableContentDeletionFromFolders.SequenceEqual(new[] { f1 }));
+
+    var pList = new MediaBrowser.Model.Users.UserPolicy { EnableContentDeletion = false, EnableContentDeletionFromFolders = new[] { f1, f2, f3 } };
+    Inherit(mRestricted, pList);
+    Ok("a profile's own list is cut down to the master's", pList.EnableContentDeletionFromFolders.SequenceEqual(new[] { f1 }));
+
+    var mNone = new MediaBrowser.Model.Users.UserPolicy { EnableContentDeletion = false };
+    var pList2 = new MediaBrowser.Model.Users.UserPolicy { EnableContentDeletion = false, EnableContentDeletionFromFolders = new[] { f2 } };
+    Inherit(mNone, pList2);
+    Ok("a master with no deletion leaves the profile none", pList2.EnableContentDeletionFromFolders.Length == 0);
+
+    var mAll = new MediaBrowser.Model.Users.UserPolicy { EnableContentDeletion = true };
+    var pList3 = new MediaBrowser.Model.Users.UserPolicy { EnableContentDeletion = false, EnableContentDeletionFromFolders = new[] { f2 } };
+    Inherit(mAll, pList3);
+    Ok("a master that deletes everywhere keeps the profile's own list", pList3.EnableContentDeletionFromFolders.SequenceEqual(new[] { f2 }));
+}
+
 Console.WriteLine();
 Console.WriteLine("── A profile's rating never exceeds its master's ───────────────");
 

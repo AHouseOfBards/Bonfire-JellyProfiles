@@ -292,6 +292,29 @@ Ok("one that signs in through LDAP or SSO is refused in the same words, so a nam
 var nobody = Call("AddAccountLink", HOME, B(("Username", "NoSuchPerson"), ("Password", "dpw"), ("MasterPin", "1234")));
 Ok("and the words are those for a name that does not exist", nobody.status == rq.status && (string)nobody.value == (string)rq.value, Text(nobody));
 Ok("and its password isn't tried anywhere", !world.ProviderCalls.Contains("Directory") && world.AuthCalls.Count == 0);
+
+// r2-10-04: these three refusals used to return before any hash was computed, so the
+// answer time told an unknown name, a disabled account and an LDAP one from a wrong
+// password. Each now spends a real hash first. The household's own PIN check costs a hash
+// too, so the baseline is a call that stops right after it (no username); a refusal has to
+// take at least a hash longer than that. The fake provider here does not hash.
+{
+    long Time(string name, string ip)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Call("AddAccountLink", HOME, B(("Username", name), ("Password", "timing-probe"), ("MasterPin", "1234")), ip: ip);
+        sw.Stop();
+        return sw.ElapsedMilliseconds;
+    }
+    Time("", "10.7.0.1");
+    var baseline = Math.Min(Time("", "10.7.0.2"), Time("", "10.7.0.3"));
+    var k = 4;
+    foreach (var name in new[] { "NoSuchPerson", "Gone", "Directory" })
+    {
+        var took = Time(name, "10.7.0." + k++);
+        Ok("a refused " + name + " takes a hash longer than the PIN check alone (" + took + " ms vs " + baseline + ")", took >= baseline + 15);
+    }
+}
 var added = (IEnumerable)P(r.value, "Added");
 Ok("and the reply lists it", added != null && added.Cast<object>().Any(a => (Guid)P(a, "UserId") == DAD && (string)P(a, "Name") == "Dad"));
 r = Call("AddAccountLink", HOME, B(("Username", "Dad"), ("Password", "dadpw"), ("MasterPin", "1234")));

@@ -1355,6 +1355,10 @@ namespace Jellyfin.Profiles.Controllers
             destination.EnableRemoteControlOfOtherUsers &= source.EnableRemoteControlOfOtherUsers;
             destination.EnableSharedDeviceControl &= source.EnableSharedDeviceControl;
             destination.EnableLiveTvManagement &= source.EnableLiveTvManagement;
+            // EnableContentDeletion means every folder; without it, only the folders in
+            // EnableContentDeletionFromFolders (BaseItem.IsAuthorizedToDelete), and an empty
+            // list means none. That list is never copied, so it is narrowed to the master's here.
+            var destinationDeletesAnywhere = destination.EnableContentDeletion;
             destination.EnableContentDeletion &= source.EnableContentDeletion;
             destination.EnableCollectionManagement &= source.EnableCollectionManagement;
             destination.EnableSubtitleManagement &= source.EnableSubtitleManagement;
@@ -1362,7 +1366,22 @@ namespace Jellyfin.Profiles.Controllers
             destination.EnablePublicSharing &= source.EnablePublicSharing;
             if (!destination.EnableContentDeletion)
             {
-                destination.EnableContentDeletionFromFolders = Array.Empty<string>();
+                var masterFolders = source.EnableContentDeletionFromFolders ?? Array.Empty<string>();
+                if (source.EnableContentDeletion)
+                {
+                    // The master deletes everywhere, so the profile's own list is no wider.
+                    destination.EnableContentDeletionFromFolders ??= Array.Empty<string>();
+                }
+                else if (destinationDeletesAnywhere)
+                {
+                    destination.EnableContentDeletionFromFolders = masterFolders.ToArray();
+                }
+                else
+                {
+                    destination.EnableContentDeletionFromFolders =
+                        (destination.EnableContentDeletionFromFolders ?? Array.Empty<string>())
+                        .Intersect(masterFolders, StringComparer.OrdinalIgnoreCase).ToArray();
+                }
             }
         }
 
@@ -2149,7 +2168,18 @@ namespace Jellyfin.Profiles.Controllers
 
             try
             {
-                var decoded = WebUtility.UrlDecode(name);
+                // A plus at either end cannot be an encoded space between words: "TV+" is a
+                // name, "Pixel+8" is not.
+                var protectedName = name;
+                if (protectedName.EndsWith("+", StringComparison.Ordinal))
+                {
+                    protectedName = protectedName.Substring(0, protectedName.Length - 1) + "%2B";
+                }
+                if (protectedName.StartsWith("+", StringComparison.Ordinal))
+                {
+                    protectedName = "%2B" + protectedName.Substring(1);
+                }
+                var decoded = WebUtility.UrlDecode(protectedName);
                 return string.IsNullOrWhiteSpace(decoded) ? name : decoded;
             }
             catch (Exception)
@@ -2589,7 +2619,10 @@ namespace Jellyfin.Profiles.Controllers
                // ) ; \ space { } are refused as well (R-1110): the URL ends up inside a CSS
                // url(...) in places, where any of them would end the value or start a rule.
                // Checked on the trimmed value, which is what gets stored.
-               && value.Trim().IndexOfAny(new[] { '"', '\'', '<', '>', ')', ';', '\\', ' ', '{', '}' }) < 0;
+               && value.Trim().IndexOfAny(new[] { '"', '\'', '<', '>', ')', ';', '\\', ' ', '{', '}' }) < 0
+               // Uri.TryCreate quietly drops a tab, CR or LF inside the URL, so the raw string
+               // it accepted would be stored with them still in it (r2-10-06).
+               && !value.Trim().Any(char.IsControl);
 
         // ── Image storage ───────────────────────────────────────────────────────────
         // Every stored image is written twice: a full-size master and a small thumbnail.
@@ -2639,14 +2672,32 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// Decodes a <c>data:image/…;base64,…</c> payload. Returns null for anything that is
         /// not a well-formed, in-budget image in a format we are willing to store.
+        /// <para>Callers that want the reason use <see cref="ParseImageDataUrl"/>, which is
+        /// the one place the header is read and the bytes decoded.</para>
         /// </summary>
         protected (byte[] Bytes, string Extension)? DecodeImageDataUrl(string? dataUrl, string context)
         {
+            var parsed = ParseImageDataUrl(dataUrl, context);
+            return parsed.Error == null ? (parsed.Bytes!, parsed.Extension!) : null;
+        }
+
+        /// <summary>
+        /// The single parse of an image data URL: the exact declared type, the base64, the
+        /// size budget and the file signature. Answers the bytes and extension, or the
+        /// message a person is shown. <see cref="CheckProfileImage"/> and
+        /// <see cref="DecodeImageDataUrl"/> both read it, so the check and the save cannot
+        /// disagree about what is acceptable.
+        /// </summary>
+        protected (byte[]? Bytes, string? Extension, string? Error) ParseImageDataUrl(string? dataUrl, string context)
+        {
+            const string notSupported = "Not a supported image.";
+            const string unreadable = "That image could not be read.";
+
             if (string.IsNullOrEmpty(dataUrl) ||
-                !dataUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return null;
+                !dataUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return (null, null, notSupported);
 
             var commaIndex = dataUrl.IndexOf(',');
-            if (commaIndex < 0) return null;
+            if (commaIndex < 0) return (null, null, unreadable);
 
             var header = dataUrl.Substring(0, commaIndex);
 
@@ -2672,7 +2723,7 @@ namespace Jellyfin.Profiles.Controllers
                 _logger.LogWarning(
                     "ProfilesPlugin: Rejected image for {Context} — '{Header}' is not a format this plugin stores.",
                     context, header.Length > 64 ? header.Substring(0, 64) : header);
-                return null;
+                return (null, null, notSupported);
             }
 
             try
@@ -2683,7 +2734,7 @@ namespace Jellyfin.Profiles.Controllers
                     _logger.LogWarning(
                         "ProfilesPlugin: Image for {Context} is {Size} bytes, over the {Limit} byte limit. Rejected.",
                         context, bytes.Length, MaxProfileImageBytes);
-                    return null;
+                    return (null, null, "That image is too large.");
                 }
 
                 // The bytes have to be what the header says. The file is served from this
@@ -2694,14 +2745,14 @@ namespace Jellyfin.Profiles.Controllers
                     _logger.LogWarning(
                         "ProfilesPlugin: Rejected image for {Context} — the data is not a {Extension} file.",
                         context, extension);
-                    return null;
+                    return (null, null, notSupported);
                 }
-                return (bytes, extension);
+                return (bytes, extension, null);
             }
             catch (FormatException ex)
             {
                 _logger.LogWarning(ex, "ProfilesPlugin: Image for {Context} was not valid base64.", context);
-                return null;
+                return (null, null, unreadable);
             }
         }
 
@@ -2734,8 +2785,9 @@ namespace Jellyfin.Profiles.Controllers
             => DeleteImageFilesExcept(folder, baseName, null);
 
         /// <summary>As <see cref="DeleteImageFiles"/>, sparing the named files.</summary>
-        private static void DeleteImageFilesExcept(string folder, string baseName, ISet<string>? keep)
+        private static bool DeleteImageFilesExcept(string folder, string baseName, ISet<string>? keep)
         {
+            var allGone = true;
             foreach (var ext in StorableImageExtensions)
             {
                 foreach (var name in new[] { $"{baseName}{ext}", $"{baseName}{ThumbSuffix}{ext}" })
@@ -2749,9 +2801,11 @@ namespace Jellyfin.Profiles.Controllers
                     catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                     {
                         System.Diagnostics.Trace.TraceWarning("ProfilesPlugin: Could not delete image {0}: {1}", p, ex.Message);
+                        allGone = false;
                     }
                 }
             }
+            return allGone;
         }
 
         /// <summary>
@@ -2788,7 +2842,12 @@ namespace Jellyfin.Profiles.Controllers
 
             // Stale variants go last, so a format change cannot leave the previous file
             // shadowing the new one.
-            DeleteImageFilesExcept(folder, baseName, kept);
+            // A stale file that cannot be removed fails the save: FindImageFile prefers .jpg,
+            // so a leftover one would keep showing instead of the picture just written.
+            if (!DeleteImageFilesExcept(folder, baseName, kept))
+            {
+                throw new IOException("A previous picture for " + baseName + " could not be removed.");
+            }
 
             return master.Value.Extension;
         }
@@ -2796,11 +2855,26 @@ namespace Jellyfin.Profiles.Controllers
         private static void PlaceImageFile(string folder, string name, byte[] bytes)
         {
             var target = Path.Combine(folder, name);
-            var temp = target + ".tmp";
+            // A name of its own per write: two saves of one profile at once used to share one
+            // temp file and could move each other's bytes into place.
+            var temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
                 System.IO.File.WriteAllBytes(temp, bytes);
-                System.IO.File.Move(temp, target, true);
+                // Windows refuses a replace while another replace of the same name is in
+                // flight, so a second save of the same picture at once gets a few tries.
+                for (var attempt = 1; ; attempt++)
+                {
+                    try
+                    {
+                        System.IO.File.Move(temp, target, true);
+                        break;
+                    }
+                    catch (Exception ex) when (attempt < 8 && (ex is IOException || ex is UnauthorizedAccessException))
+                    {
+                        System.Threading.Thread.Sleep(15 * attempt);
+                    }
+                }
             }
             catch
             {
@@ -2905,7 +2979,7 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// Why a picture can't be saved for <paramref name="profileId"/>, or null. Writes
         /// nothing. The same rules <see cref="SaveProfileImage"/> applies, asked first so a
-        /// request that would be refused is refused before anything else in it is done.
+        /// request that would be refused is refused before anything else in it is done. A data URL is judged by <see cref="ParseImageDataUrl"/>, the parse the save uses, so the two agree.
         /// </summary>
         protected string? CheckProfileImage(Guid profileId, string? input, string? currentImage)
         {
@@ -2926,22 +3000,7 @@ namespace Jellyfin.Profiles.Controllers
             if (IsValidImageUrl(input)) return null;
             if (!input.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return "Not a supported image.";
 
-            var comma = input.IndexOf(',');
-            if (comma < 0) return "That image could not be read.";
-            var header = input.Substring(0, comma);
-            if (!StorableImageFormats.Any(f => header.Contains(f.Mime, StringComparison.OrdinalIgnoreCase)))
-                return "Not a supported image.";
-
-            try
-            {
-                return Convert.FromBase64String(input.Substring(comma + 1)).Length > MaxProfileImageBytes
-                    ? "That image is too large."
-                    : null;
-            }
-            catch (FormatException)
-            {
-                return "That image could not be read.";
-            }
+            return ParseImageDataUrl(input, $"profile {profileId}").Error;
         }
 
         private static bool IsOwnImageUrl(Guid profileId, string url)
