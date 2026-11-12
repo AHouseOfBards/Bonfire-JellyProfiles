@@ -141,8 +141,9 @@ A custom theme can have one picture behind the switcher. Built-in themes don't.
   lightness lies between those two, because a grey picture of that lightness gives 1:1. A
   `dim` too low for the theme's colours can't be saved.
 - An exported theme file leaves the picture out, because the file is on this server, not
-  in the theme. Importing one never brings a picture; replacing a theme keeps the one it
-  had. A configuration backup restored on another server drops it too.
+  in the theme; it keeps `"image": { "dim": … }` so an import can say to upload one.
+  Importing never brings a picture; replacing a theme keeps the one it had. A
+  configuration backup restored on another server drops it too.
 
 ## Shape
 

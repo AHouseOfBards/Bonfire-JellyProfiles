@@ -5791,9 +5791,13 @@
                 const id = theme && /^[a-z0-9-]{1,40}$/.test(String(theme.id)) ? theme.id : 'theme';
                 // The background image is a file on this server, not part of the theme's
                 // text, so the file leaves it out rather than name a picture another
-                // server does not have (docs/themes.md, "Background image").
+                // server does not have (docs/themes.md, "Background image"). Its dim stays,
+                // as the sign there was one: without it the import cannot say to upload it,
+                // and the usual case (export here, import there) said nothing.
                 const copy = JSON.parse(JSON.stringify(theme || {}));
-                if (copy.background && typeof copy.background === 'object') delete copy.background.image;
+                const bg = copy.background && typeof copy.background === 'object' ? copy.background : null;
+                if (bg && bg.image && typeof bg.image === 'object') bg.image = { dim: bg.image.dim };
+                else if (bg) delete bg.image;
                 const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -5829,14 +5833,20 @@
                     const data = page._themes.data;
                     const id = typeof parsed.id === 'string' ? parsed.id : '';
                     const existing = (data.custom || []).filter(function (c) { return c.id === id; })[0];
-                    // A file never brings a picture (exportTheme leaves it out). One written by
-                    // hand would name a file this server may not have, so it is dropped; a
-                    // theme being replaced keeps the picture it has.
-                    const bg = parsed.background && typeof parsed.background === 'object' ? parsed.background : null;
+                    // A file never brings a picture (exportTheme leaves only its dim). One written
+                    // by hand would name a file this server may not have, so it is dropped; a
+                    // theme being replaced keeps the picture it has, even from a file with no
+                    // background at all (which the server then asks to have one, in the editor,
+                    // with the picture still there). A file that had a picture and lands
+                    // without one says to upload it.
+                    let bg = parsed.background && typeof parsed.background === 'object' ? parsed.background : null;
                     const hadPhoto = !!(bg && bg.image);
                     if (bg) delete bg.image;
                     const kept = existing ? getThemePath(existing.theme, 'background.image') : null;
-                    if (bg && kept && typeof kept === 'object') bg.image = JSON.parse(JSON.stringify(kept));
+                    if (kept && typeof kept === 'object') {
+                        if (!bg) bg = parsed.background = {};
+                        bg.image = JSON.parse(JSON.stringify(kept));
+                    }
                     const editInstead = function (problems) {
                         openThemeEditor(page, importedThemeDraft(parsed), existing ? 'edit' : 'new');
                         if (problems) {

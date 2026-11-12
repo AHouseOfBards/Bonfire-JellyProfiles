@@ -766,11 +766,64 @@ async function part8() {
         const withPic = JSON.parse(JSON.stringify(bonfireFile));
         withPic.background.image = { file: 'a'.repeat(32) + '.jpg', dim: 0.85 };
         if (ex) ex.exportTheme(withPic);
-        ok('an exported file leaves the picture out', !!blobText && JSON.parse(blobText).background && !JSON.parse(blobText).background.image
-            && !!withPic.background.image, blobText && blobText.slice(0, 80));
-        ok('an import drops a picture the file names, and keeps the replaced theme\'s',
-            /function importThemeFile[\s\S]*?if \(bg\) delete bg\.image;[\s\S]*?bg\.image = JSON\.parse\(JSON\.stringify\(kept\)\)/.test(script));
-        ok('and says so when it dropped one', /importedNoPhoto/.test(script) && /hadPhoto && !\(bg && bg\.image\)/.test(script));
+        const exported = blobText ? JSON.parse(blobText) : null;
+        ok('an exported file leaves the picture out', !!exported && !!exported.background && !(exported.background.image && exported.background.image.file)
+            && !!withPic.background.image.file, blobText && blobText.slice(0, 80));
+        // But says there was one, or the import on the other end cannot tell the household
+        // to upload it: the note used to show only for a file naming a picture, which no
+        // exported file ever did.
+        ok('and marks that the theme had one', !!exported && !!exported.background.image, JSON.stringify(exported && exported.background));
+
+        // The import, run: what is sent, and what the administrator is told. These replace
+        // two assertions that matched the function's source text.
+        const imp = lift(['getThemePath', 'importedThemeDraft', 'importThemeFile'], {
+            FileReader: function () { this.readAsText = text => { this.result = text; this.onload(); }; },
+            ApiClient: { getUrl: u => '/' + u, ajax: a => { imp.sent.push(JSON.parse(a.data)); return { then: okFn => okFn({}) }; } },
+            showThemeStatus: (p, sel, msg) => { imp.said.push(msg); },
+            askFirst: () => ({ then: fn => fn() }), themeDisplayName: (d, id) => id,
+            loadThemes() {}, refreshClientThemes() {}, readThemeError: () => ({ then() {} }),
+            openThemeEditor: (p, draft) => { imp.drafts.push(draft); }, showThemeProblems() {}
+        });
+        function importOnce(fileTheme, existing) {
+            imp.sent = []; imp.said = []; imp.drafts = [];
+            const page = { _themes: { data: { custom: existing ? [{ id: existing.id, theme: existing }] : [] } } };
+            imp.importThemeFile(page, JSON.stringify(fileTheme));
+            return { sent: imp.sent[0], said: imp.said[0] || '' };
+        }
+        function asFile(th) { blobText = null; ex.exportTheme(th); return JSON.parse(blobText); }
+        const pic = { file: 'b'.repeat(32) + '.jpg', dim: 0.85 };
+        const custom = Object.assign(JSON.parse(JSON.stringify(bonfireFile)), { id: 'den', aliases: [], name: { text: 'Den' } });
+        if (imp && ex) {
+            const withPhoto = JSON.parse(JSON.stringify(custom));
+            withPhoto.background.image = pic;
+            const file = asFile(withPhoto);
+
+            const fresh = importOnce(file, null);
+            ok('an exported theme with a picture, imported new, is sent without one', !!fresh.sent && !(fresh.sent.background && fresh.sent.background.image),
+                JSON.stringify(fresh.sent && fresh.sent.background));
+            ok('and the administrator is told to upload it', /upload it/.test(fresh.said), fresh.said);
+
+            const plain = importOnce(asFile(custom), null);
+            ok('a theme that never had a picture says only that it was imported', !!plain.said && !/upload/.test(plain.said), plain.said);
+
+            const replaced = importOnce(file, withPhoto);
+            ok('replacing a theme keeps the picture it had', !!replaced.sent && !!replaced.sent.background.image
+                && replaced.sent.background.image.file === pic.file, JSON.stringify(replaced.sent && replaced.sent.background));
+            ok('and does not ask for it again', !/upload/.test(replaced.said), replaced.said);
+
+            const noBg = JSON.parse(JSON.stringify(custom));
+            delete noBg.background;
+            const bare = importOnce(noBg, withPhoto);
+            const keptBare = (bare.sent && bare.sent.background) || (imp.drafts[0] && imp.drafts[0].background);
+            ok('a file with no background object keeps the replaced theme\'s picture too', !!keptBare && !!keptBare.image && keptBare.image.file === pic.file,
+                JSON.stringify(bare.sent && bare.sent.background));
+
+            const named = JSON.parse(JSON.stringify(custom));
+            named.background.image = { file: 'c'.repeat(32) + '.jpg', dim: 0.9 };
+            const hand = importOnce(named, null);
+            ok('a file naming a picture by hand has it dropped', !!hand.sent && !hand.sent.background.image, JSON.stringify(hand.sent && hand.sent.background));
+            ok('and says so', /upload it/.test(hand.said), hand.said);
+        } else ok('export and import are on the page', false);
         const pt = lift(['themeProblemText']);
         ok('a picture the server does not have is said plainly', !!pt && pt.themeProblemText({ path: 'background.image.file', code: 'image', detail: '' }) === 'This image isn\'t on the server. Upload it again.');
     }
