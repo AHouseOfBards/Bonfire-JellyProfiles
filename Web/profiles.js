@@ -3918,19 +3918,21 @@
             // Jellyfin has to mean signing out of Bonfire too, or the next person at the
             // machine inherits the switcher.
             document.addEventListener('usersignedout', () => {
-                try {
-                    this.clearMasterState();
-                    localStorage.removeItem(this.config.activeSessionKey);
-                    localStorage.removeItem(this.config.switcherModeKey);
-                    this._switcherPrefs = null;
-                    // Learned from the same response as the preferences, so it goes with them.
-                    this._panicLinkAvailable = null;
-                    localStorage.removeItem(this.config.libraryArtKey);
-                    // Names, avatars and the household's tiles: the next person at a shared
-                    // browser must not be able to read them (R-1310).
-                    localStorage.removeItem('jellyfin_profiles_cached_list');
-                    this.clearProfileSession();
-                } catch (e) { /* ignore storage errors */ }
+                // One try per step: a failure in one (blocked storage, a throwing
+                // sessionStorage) used to skip every step after it, including the removal
+                // of the household's cached list below (R-1310).
+                const step = fn => { try { fn(); } catch (e) { /* ignore storage errors */ } };
+                step(() => this.clearMasterState());
+                step(() => localStorage.removeItem(this.config.activeSessionKey));
+                step(() => localStorage.removeItem(this.config.switcherModeKey));
+                this._switcherPrefs = null;
+                // Learned from the same response as the preferences, so it goes with them.
+                this._panicLinkAvailable = null;
+                step(() => localStorage.removeItem(this.config.libraryArtKey));
+                // Names, avatars and the household's tiles: the next person at a shared
+                // browser must not be able to read them (R-1310).
+                step(() => localStorage.removeItem('jellyfin_profiles_cached_list'));
+                step(() => this.clearProfileSession());
             });
 
             // 500 ms is sufficient because viewshow, popstate and hashchange already cover
