@@ -1436,7 +1436,10 @@ namespace Jellyfin.Profiles.Controllers
                     if (!string.IsNullOrEmpty(id)) whitelisted.Add(id);
 
             return config.KnownDevices.RemoveAll(d =>
-                now - d.LastSeen > DeviceRetention && !whitelisted.Contains(d.DeviceId));
+                now - d.LastSeen > DeviceRetention
+                && !whitelisted.Contains(d.DeviceId)
+                // A merge keeps the old id as an alias, and a profile may still name it.
+                && !(d.Aliases ?? new List<string>()).Any(a => !string.IsNullOrEmpty(a) && whitelisted.Contains(a.Trim())));
         }
 
         /// <summary>

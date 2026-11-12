@@ -193,6 +193,28 @@ if (prune != null)
        removed == devices.Length - survivors.Count);
 
     Console.WriteLine();
+    Console.WriteLine("── A whitelist entry naming an alias protects the record ───────");
+
+    {
+        // A merge keeps the old id as an alias of the surviving record; a profile's list
+        // may still name the old id. Dropping that record would widen the profile.
+        var aliasCfg = Activator.CreateInstance(cfgType);
+        var aliasKnown = (IList)cfgType.GetProperty("KnownDevices").GetValue(aliasCfg);
+        var merged = Device("new-id", 900);
+        ((IList<string>)deviceType.GetProperty("Aliases").GetValue(merged)).Add("Old-Id");
+        aliasKnown.Add(merged);
+        aliasKnown.Add(Device("unrelated", 900));
+        var aliasMap = Activator.CreateInstance(mappingType);
+        ((IList)mappingType.GetProperty("AllowedDeviceIds").GetValue(aliasMap)).Add("old-id");
+        ((IList)cfgType.GetProperty("Mappings").GetValue(aliasCfg)).Add(aliasMap);
+
+        prune.Invoke(null, new object[] { aliasCfg, now });
+        var ids = aliasKnown.Cast<object>().Select(d => (string)deviceType.GetProperty("DeviceId").GetValue(d)).ToList();
+        Ok("keeps a record whose alias a profile names", ids.Contains("new-id"));
+        Ok("still drops the unrelated old record", !ids.Contains("unrelated"));
+    }
+
+    Console.WriteLine();
     Console.WriteLine("── An empty whitelist does not protect everything ──────────────");
 
     // If "no restriction" were folded into the protected set as a wildcard, nothing would
