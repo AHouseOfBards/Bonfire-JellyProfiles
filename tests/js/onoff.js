@@ -49,24 +49,26 @@ function boot(off) {
     env.sandbox.navigator = { userAgent: 'test', language: 'en' };
     const PP = env.PP;
     const calls = {};
+    const reals = {};
     ['bindEvents', 'injectStyles', 'loadSwitcherPrefs', 'checkRoute', 'loadLocale', '_startPageChecks', 'applyPanicDisable']
         .forEach(name => {
             const real = PP[name];
             calls[name] = 0;
             if (typeof real !== 'function') return;
+            reals[name] = real;
             PP[name] = function () {
                 calls[name]++;
                 // The teardown runs for real; the rest only counts, so nothing reaches past the stub DOM.
                 return name === 'applyPanicDisable' ? real.apply(this, arguments) : undefined;
             };
         });
-    return { env, PP, calls };
+    return { env, PP, calls, reals };
 }
 
 (async () => {
     console.log('\n-- Off ---------------------------------------------------------');
     {
-        const { env, PP, calls } = boot(true);
+        const { env, PP, calls, reals } = boot(true);
         const html = env.sandbox.document.documentElement;
         html.setAttribute('data-jpf-cover', '');
         env.sandbox.localStorage.setItem(PP.config.switcherModeKey, '{"askOnStartup":true}');
@@ -93,6 +95,16 @@ function boot(off) {
         const builtIns = preview ? preview.builtIns() : [];
         const css = builtIns.length ? preview.css(builtIns[0]) : '';
         ok('and it still draws a theme', typeof css === 'string' && css.length > 0, builtIns.length + ' built-ins');
+        // The previews' own rules (.jpf-theme-preview) and the expanded view's copy of the
+        // gate's rules live in the stylesheet, which init skipped. The first preview call
+        // puts it in; the count above holds that an ordinary page never gets it.
+        // The shared stub drops what is appended to <head>; keep it, so the sheet can be found.
+        const doc = env.sandbox.document, inHead = {}, byId = doc.getElementById;
+        doc.head.appendChild = node => { if (node && node.id) inHead[node.id] = node; return node; };
+        doc.getElementById = id => inHead[id] || byId(id);
+        PP.injectStyles = reals.injectStyles;
+        if (builtIns.length) preview.css(builtIns[0]);
+        ok('a preview while off puts the stylesheet in', !!env.sandbox.document.getElementById('jpf-styles'));
     }
 
     console.log('\n-- On ----------------------------------------------------------');

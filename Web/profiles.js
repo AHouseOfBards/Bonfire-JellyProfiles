@@ -13470,12 +13470,18 @@
     /// so a phone shows two tiles a row there too. The page works without this, minus the
     /// preview, when the script was not injected.
     if (typeof window !== 'undefined') {
+        // Turned off, init returns before injectStyles, and the previews' own rules
+        // (.jpf-theme-preview) and the gate's rules the expanded view copies from #jpf-styles
+        // live in that sheet: the Themes tab drew unstyled. So the first preview call puts it
+        // in. Only then, so an ordinary page while off still gets nothing of ours.
+        // injectStyles is idempotent, so on it is a lookup.
+        const previewSheet = () => { if (BONFIRE_OFF) ProfilesPlugin.injectStyles(); };
         window.BonfireThemePreview = {
-            css: theme => themeCss(theme, BONFIRE_THEMES.patterns || {}),
+            css: theme => { previewSheet(); return themeCss(theme, BONFIRE_THEMES.patterns || {}); },
             // A background picture the editor's preview names, fetched and marked as the
             // pickers' are, so the preview shows it exactly when they would.
             photo: file => ProfilesPlugin.loadThemePhoto(file),
-            fit: el => ProfilesPlugin.fitGateToScreen(el),
+            fit: el => { previewSheet(); return ProfilesPlugin.fitGateToScreen(el); },
             builtIns: () => JSON.parse(JSON.stringify(Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])),
             refresh: () => {
                 ProfilesPlugin._customThemesLoad = null;
