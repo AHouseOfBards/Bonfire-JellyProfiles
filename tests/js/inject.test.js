@@ -152,6 +152,7 @@ const source = require('./_lib').readClientBundle(fs.readFileSync(SRC, 'utf8'));
 installDom();
 
 let P = null;
+let sheetText = null;
 try {
     P = loadPlugin(source);
 } catch (e) {
@@ -175,6 +176,7 @@ if (P) {
 
     if (sheet) {
         const css = sheet.textContent || sheet.innerHTML || '';
+        sheetText = css;
         // A floor, and the reason for it has changed. It used to guard against a literal
         // cut off at the first stray backtick — the defect that shipped 1.5.2 dead — and
         // 60,000 sat just under the inline sheet's ~68,500. The stylesheet is a real .css
@@ -333,6 +335,67 @@ if (at !== -1) {
             'found ' + stray + ' — each one ends the literal early');
         ok(literal.indexOf('${') === -1,
             'the stylesheet template literal contains no ${} interpolation');
+    }
+}
+
+// 5b. What a stray character in Web/styles.css can still break.
+//
+// Assertion 5 above is dead code since the stylesheet left the script: PublishStyles splices
+// it in as a JSON string, so no character in the CSS can end a JavaScript literal, and the
+// `injectStyles: function` / backtick search finds nothing to examine. The splice is total in
+// JS terms. What is left is CSS's own grammar, and it fails silently in the browser: an
+// unterminated /* comment, an unterminated string, or one unbalanced brace makes the parser
+// swallow everything after it. The sheet injected is styles.css + '\n' + the themes' CSS, so
+// that is the themes (every screen's colours) and every rule below the defect. Nothing throws,
+// nothing logs, and injectStyles() reports success.
+function cssDefects(css) {
+    const out = [];
+    const stack = [];
+    let line = 1;
+    for (let i = 0; i < css.length; i++) {
+        const c = css[i];
+        if (c === '\n') line++;
+        if (c === '/' && css[i + 1] === '*') {
+            const end = css.indexOf('*/', i + 2);
+            if (end === -1) { out.push('unterminated comment opened on line ' + line); return out; }
+            for (let k = i; k < end; k++) if (css[k] === '\n') line++;
+            i = end + 1;
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            let j = i + 1;
+            while (j < css.length && css[j] !== c && css[j] !== '\n') j += css[j] === '\\' ? 2 : 1;
+            if (css[j] !== c) { out.push('unterminated string opened on line ' + line); return out; }
+            i = j;
+            continue;
+        }
+        if (c === '{' || c === '(' || c === '[') stack.push({ c: c, line: line });
+        else if (c === '}' || c === ')' || c === ']') {
+            const want = c === '}' ? '{' : c === ')' ? '(' : '[';
+            const top = stack.pop();
+            if (!top || top.c !== want) { out.push('stray ' + c + ' on line ' + line); return out; }
+        }
+    }
+    if (stack.length) out.push('unclosed ' + stack[stack.length - 1].c + ' opened on line ' + stack[stack.length - 1].line);
+    return out;
+}
+{
+    const L = require('./_lib');
+    // The detector has to be able to go red, or the checks below are decoration.
+    ok(cssDefects('a { b: c; /* open').length === 1, 'cssDefects sees an unterminated comment');
+    ok(cssDefects('a { b: "c; }').length === 1, 'cssDefects sees an unterminated string');
+    ok(cssDefects('a { b: c; }}').length === 1, 'cssDefects sees a stray close brace');
+    ok(cssDefects('a { b: c; ').length === 1, 'cssDefects sees an unclosed brace');
+    ok(cssDefects('a { content: "}{/*"; } /* } */ b[x="y"] { c: d(e) }').length === 0,
+        'cssDefects leaves braces inside strings and comments alone');
+
+    const own = cssDefects(L.stylesOnly());
+    ok(own.length === 0, 'Web/styles.css has no unterminated comment or string and balanced braces',
+        own.join('; ') + ' - everything after it, themes included, is swallowed by the browser');
+    if (typeof sheetText === 'string') {
+        const whole = cssDefects(sheetText);
+        ok(whole.length === 0, 'the sheet injectStyles writes (styles.css + themes) is well formed',
+            whole.join('; '));
     }
 }
 
