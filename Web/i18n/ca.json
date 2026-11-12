@@ -1182,7 +1182,7 @@
   "admin.email.clear": "Elimina",
   "admin.email.clearTitle": "Vols eliminar aquesta adreça?",
   "admin.email.clearConfirm": "{name} deixarà de rebre codis i avisos.",
-  "admin.email.needsEmail": "Necessita un correu que funcioni. Configura'l a Avisos.",
+  "admin.email.needsEmail": "Necessita un correu que funcioni. Configura'l a Configuració.",
   "admin.status.emailUntested": "El correu està configurat però no s'ha provat, així que no s'envia res.",
   "admin.status.sendTest": "Envia una prova",
   "admin.viewing.title": "Límits de visualització",

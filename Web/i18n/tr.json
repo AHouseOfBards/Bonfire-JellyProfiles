@@ -1182,7 +1182,7 @@
   "admin.email.clear": "Kaldır",
   "admin.email.clearTitle": "Bu adres kaldırılsın mı?",
   "admin.email.clearConfirm": "{name} artık kod ve bildirim almayacak.",
-  "admin.email.needsEmail": "Çalışan bir e-posta gerekir. Bildirimler'de ayarlayın.",
+  "admin.email.needsEmail": "Çalışan bir e-posta gerekir. Kurulum'da ayarlayın.",
   "admin.status.emailUntested": "E-posta ayarlandı ama test edilmedi, bu yüzden hiçbir şey gönderilmiyor.",
   "admin.status.sendTest": "Test gönder",
   "admin.viewing.title": "İzleme sınırları",

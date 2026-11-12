@@ -1182,7 +1182,7 @@
   "admin.email.clear": "Retirer",
   "admin.email.clearTitle": "Retirer cette adresse ?",
   "admin.email.clearConfirm": "{name} ne recevra plus de codes ni d'avis.",
-  "admin.email.needsEmail": "Nécessite un e-mail fonctionnel. Configurez-le dans Avis.",
+  "admin.email.needsEmail": "Nécessite un e-mail fonctionnel. Configurez-le dans Configuration.",
   "admin.status.emailUntested": "L'e-mail est configuré mais pas testé, donc rien n'est envoyé.",
   "admin.status.sendTest": "Envoyer un test",
   "admin.viewing.title": "Limites de visionnage",

@@ -1182,7 +1182,7 @@
   "admin.email.clear": "Usuń",
   "admin.email.clearTitle": "Usunąć ten adres?",
   "admin.email.clearConfirm": "{name} przestanie dostawać kody i powiadomienia.",
-  "admin.email.needsEmail": "Wymaga działającego e-maila. Skonfiguruj go w Powiadomieniach.",
+  "admin.email.needsEmail": "Wymaga działającego e-maila. Skonfiguruj go w Konfiguracji.",
   "admin.status.emailUntested": "E-mail jest skonfigurowany, ale nie przetestowany, więc nic nie jest wysyłane.",
   "admin.status.sendTest": "Wyślij test",
   "admin.viewing.title": "Limity oglądania",
