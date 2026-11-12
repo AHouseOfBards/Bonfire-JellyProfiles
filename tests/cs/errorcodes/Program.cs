@@ -282,6 +282,30 @@ foreach (var (text, code) in new[]
     Ok("\"" + text[..Math.Min(40, text.Length)] + "…\" is " + code, For(400, text) == code, For(400, text));
 }
 
+// r2-07-05: a message that echoes a name somebody chose is coded by its sentence, not by the
+// name. Each echoing message is built with every other rule's text as the name, one at a time.
+foreach (var (template, code) in new[]
+{
+    ("This is the only device allowed for {0}. Allow another device for those profiles first, or clear their device list.", "device_in_use"),
+    ("Bonfire already has a font called {0}.", "font_taken"),
+    ("Bonfire already has a font called {0}. Delete it first.", "font_taken"),
+})
+{
+    var swallowed = new List<string>();
+    foreach (var r in (System.Collections.IEnumerable)codes.GetField("Rules", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).GetValue(null))
+    {
+        var needle = (string)r.GetType().GetField("Item1").GetValue(r);
+        // The two echoing sentences come first and are told apart by nothing but order, so
+        // one named after the other is the one case left out.
+        var ruleCode = (string)r.GetType().GetField("Item2").GetValue(r);
+        if (ruleCode == code || ruleCode == "device_in_use" || ruleCode == "font_taken") continue;
+        var got = For(400, string.Format(template, needle));
+        if (got != code) swallowed.Add(needle + " -> " + got);
+    }
+    Ok("\"" + template[..30] + "…\" stays " + code + " whatever the name says",
+       swallowed.Count == 0, swallowed.Count + " names change it, first: " + swallowed.FirstOrDefault());
+}
+
 // Announcement refusals come from Announcements.Validate, handed in as a variable. Ask the
 // validator for each one rather than copying its wording here, so a reworded message is
 // checked as it now reads.

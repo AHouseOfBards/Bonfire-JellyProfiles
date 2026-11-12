@@ -31,6 +31,14 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>A rule: when the message contains this text, this is its code. First match wins.</summary>
         internal static readonly IReadOnlyList<(string Contains, string Code)> Rules = new[]
         {
+            // Messages that echo a name somebody chose come first. First match wins, and a
+            // profile called "Invalid PIN", or a font whose family is, would otherwise be
+            // coded by its own name instead of by the sentence around it. r2-07-05.
+            // device_in_use is forgetting a device that is the only one a profile may be opened
+            // on; the sentence names the profiles, so a client says it in general.
+            ("This is the only device allowed for", "device_in_use"),
+            ("Bonfire already has a font called", "font_taken"),
+
             // Who is asking.
             ("Only the master profile can", "not_main_account"),
             ("Only administrators can", "admin_only"),
@@ -57,9 +65,6 @@ namespace Jellyfin.Profiles.Controllers
             ("account is turned off", "profile_disabled"),
             ("too many active sessions", "too_many_sessions"),
             ("Couldn't sign in to that profile", "sign_in_failed"),
-            // Forgetting a device that is the only one a profile may be opened on. The
-            // sentence names the profiles; the code cannot, so a client says it in general.
-            ("This is the only device allowed for", "device_in_use"),
 
             // Creating and editing.
             ("Maximum profile limit", "profile_limit"),
@@ -178,7 +183,6 @@ namespace Jellyfin.Profiles.Controllers
             ("A font name can use", "font_invalid"),
             ("That font is larger than", "font_invalid"),
             ("Choose a WOFF2 font file", "font_invalid"),
-            ("Bonfire already has a font called", "font_taken"),
             ("Delete a font first", "font_limit"),
             ("No such font", "font_not_found"),
             ("A theme uses that font", "font_in_use"),
