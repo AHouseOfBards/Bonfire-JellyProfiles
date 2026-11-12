@@ -325,13 +325,35 @@ namespace Jellyfin.Profiles
 
         private static readonly System.Threading.SemaphoreSlim ReconcileGate = new(1, 1);
 
-        private void ReconcileAuthProvidersCore()
+        /// <summary>
+        /// Plugin uninstall: puts Jellyfin's own provider back on every account Bonfire bound.
+        /// An account left bound to a provider that is no longer loaded is refused its real
+        /// password everywhere. Never throws; an uninstall must not be stopped by this.
+        /// </summary>
+        internal static void RestoreProvidersForUninstall()
+        {
+            var self = _current;
+            if (self == null) return;
+
+            try
+            {
+                ReconcileGate.Wait();
+                try { self.ReconcileAuthProvidersCore(forceOff: true); }
+                finally { ReconcileGate.Release(); }
+            }
+            catch (Exception ex)
+            {
+                self._logger.LogError(ex, "ProfilesPlugin: could not put Jellyfin's authentication provider back before uninstall.");
+            }
+        }
+
+        private void ReconcileAuthProvidersCore(bool forceOff = false)
         {
             var config = Plugin.Instance?.Configuration;
             if (config?.Mappings == null) return;
 
             var ours = typeof(BonfirePinAuthenticationProvider).FullName!;
-            var enabled = config.EnableClientPinLogin;
+            var enabled = config.EnableClientPinLogin && !forceOff;
 
             List<ProfileMapping> rows;
             lock (ProfilesBaseController.ConfigLock)
@@ -397,7 +419,11 @@ namespace Jellyfin.Profiles
 
             foreach (var masterId in rows.Select(m => m.MasterUserId).Where(id => id != Guid.Empty).Distinct())
             {
+                // Never an administrator: if Bonfire is removed or fails to load, a bound
+                // account's real password stops working, and an administrator locked out that
+                // way cannot repair anyone else. An administrator already bound is put back.
                 var qualifies = enabled
+                    && !IsAdministrator(masterId)
                     && rows.Any(m => m.ProfileUserId == masterId && m.MasterUserId == masterId
                                      && !string.IsNullOrEmpty(m.PinHash))
                     && rows.Any(m => m.MasterUserId == masterId && m.ProfileUserId != masterId);
@@ -458,6 +484,22 @@ namespace Jellyfin.Profiles
                     "ProfilesPlugin: re-pointed {Count} account(s) at the authentication provider the "
                     + "TVs & Apps settings call for.",
                     changed);
+            }
+        }
+
+        private bool IsAdministrator(Guid userId)
+        {
+            try
+            {
+                var user = _userManager.GetUserById(userId);
+                return user != null
+                    && Jellyfin.Data.UserEntityExtensions.HasPermission(user,
+                        Jellyfin.Database.Implementations.Enums.PermissionKind.IsAdministrator);
+            }
+            catch (Exception)
+            {
+                // Cannot tell: leave it unbound, the safe side.
+                return true;
             }
         }
 

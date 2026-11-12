@@ -114,6 +114,10 @@ An account with no password, such as an SSO account, keeps Quick Connect on its 
   sign-in plugin. If a directory user has that name, LDAP may count the PIN as a failed
   attempt for them, so give profiles names no directory user has.
 
+## Can't sign in with the password after removing Bonfire
+
+If "PIN sign-in on other apps" was on, Bonfire set some accounts to its own sign-in provider. Uninstalling puts them back. If one was missed, or Bonfire failed to load, go to **Dashboard → Users →** the user **→ Authentication provider** and choose **Default**.
+
 ## Where do I get avatars?
 
 Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them

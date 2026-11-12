@@ -916,6 +916,40 @@ if (reconcile != null)
     Ok("and bound again once it sets one", users[MASTER].AuthenticationProviderId == providerType.FullName,
        users[MASTER].AuthenticationProviderId);
 
+    // ni-S-A1: an administrator is never bound (a removed or unloaded Bonfire would refuse its
+    // real password everywhere), and one already bound is put back. Uninstall restores all.
+    var ADM = Guid.NewGuid();
+    var ADMKID = Guid.NewGuid();
+    var admUser = MakeUser(ADM, "admin");
+    Jellyfin.Data.UserEntityExtensions.SetPermission(admUser, Jellyfin.Database.Implementations.Enums.PermissionKind.IsAdministrator, true);
+    users[ADM] = admUser;
+    users[ADMKID] = MakeUser(ADMKID, "admin_kids");
+    mappings.Add(Mapping(ADM, ADM, "1357"));
+    mappings.Add(Mapping(ADMKID, ADM, null));
+    reconcile.Invoke(task, null);
+    Ok("an administrator master is never bound", users[ADM].AuthenticationProviderId
+       == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider", users[ADM].AuthenticationProviderId);
+    users[ADM].AuthenticationProviderId = providerType.FullName;
+    reconcile.Invoke(task, null);
+    Ok("an administrator already bound is put back on Jellyfin's provider", users[ADM].AuthenticationProviderId
+       == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider", users[ADM].AuthenticationProviderId);
+    Ok("its profiles stay bound", users[ADMKID].AuthenticationProviderId == providerType.FullName,
+       users[ADMKID].AuthenticationProviderId);
+    var restore = taskType.GetMethod("RestoreProvidersForUninstall", Any);
+    Ok("the task exposes the uninstall restore", restore != null);
+    if (restore != null)
+    {
+        Ok("(precondition) the feature is on and accounts are bound",
+           users[MASTER].AuthenticationProviderId == providerType.FullName
+           && users[KID].AuthenticationProviderId == providerType.FullName);
+        restore.Invoke(null, null);
+        var stillBound = users.Where(kv => kv.Value.AuthenticationProviderId == providerType.FullName).Select(kv => kv.Value.Username).ToList();
+        Ok("uninstall puts Jellyfin's provider back on every bound account", stillBound.Count == 0, string.Join(", ", stillBound));
+        reconcile.Invoke(task, null);
+    }
+    foreach (var m in mappings.Cast<object>().Where(m => (Guid)mappingType.GetProperty("MasterUserId").GetValue(m) == ADM).ToList()) mappings.Remove(m);
+    users.Remove(ADM); users.Remove(ADMKID);
+
     // Delegation goes to Jellyfin's own provider, so a master that signs in some other way
     // (LDAP, SSO) must never be bound: its real password would then be checked by a
     // provider that has never heard of it.

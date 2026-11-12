@@ -13,6 +13,16 @@ namespace Jellyfin.Profiles
     public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
         public override string Name => "Bonfire";
+
+        /// <summary>
+        /// Accounts bound to Bonfire's sign-in provider would be refused their real password
+        /// once it is gone, so Jellyfin's own provider is put back first.
+        /// </summary>
+        public override void OnUninstalling()
+        {
+            ProfilesBootstrapTask.RestoreProvidersForUninstall();
+            base.OnUninstalling();
+        }
         public override Guid Id => Guid.Parse("b1462fca-774b-4b13-8d02-e2d4f2bc18b9");
 
         public static Plugin? Instance { get; private set; }
