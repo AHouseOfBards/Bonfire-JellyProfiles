@@ -96,7 +96,9 @@ const ADMIN = {
             // and the Advanced view's search box.
             'teSearch',
             // and the File menu in the bar.
-            'teFile', 'teFileDownload', 'teFileLoad', 'teFileInput']
+            'teFile', 'teFileDownload', 'teFileLoad', 'teFileInput',
+            // and the "More" links from Simple into Advanced, and the follow hint that is one.
+            'teFollowHint', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]', '.jpf-te-lbtn[button]']
     },
     setup: {
         // Owner decision 2026-11-12: first-time setup, switcher, avatar library, email.

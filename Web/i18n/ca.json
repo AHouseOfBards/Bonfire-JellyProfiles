@@ -1386,5 +1386,7 @@
   "admin.themes.resetGroup": "Restableix el grup",
   "admin.themes.nChanged": "{n} canviats",
   "admin.themes.baseTitle": "Parteix d'un altre tema",
-  "admin.themes.baseConfirm": "Això substitueix els teus canvis per l'aspecte d'aquell tema."
+  "admin.themes.baseConfirm": "Això substitueix els teus canvis per l'aspecte d'aquell tema.",
+  "admin.themes.moreLink": "Més",
+  "admin.themes.advancedNarrow": "Les opcions avançades necessiten una finestra més ampla."
 }

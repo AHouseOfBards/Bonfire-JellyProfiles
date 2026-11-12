@@ -1386,5 +1386,7 @@
   "admin.themes.resetGroup": "Przywróć grupę",
   "admin.themes.nChanged": "Zmieniono: {n}",
   "admin.themes.baseTitle": "Zacznij od innego motywu",
-  "admin.themes.baseConfirm": "To zastąpi Twoje zmiany wyglądem tego motywu."
+  "admin.themes.baseConfirm": "To zastąpi Twoje zmiany wyglądem tego motywu.",
+  "admin.themes.moreLink": "Więcej",
+  "admin.themes.advancedNarrow": "Tryb zaawansowany wymaga szerszego okna."
 }

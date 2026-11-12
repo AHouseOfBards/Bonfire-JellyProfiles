@@ -1386,5 +1386,7 @@
   "admin.themes.resetGroup": "Grubu sıfırla",
   "admin.themes.nChanged": "{n} değişti",
   "admin.themes.baseTitle": "Başka bir temadan başla",
-  "admin.themes.baseConfirm": "Bu, değişikliklerinizi o temanın görünümüyle değiştirir."
+  "admin.themes.baseConfirm": "Bu, değişikliklerinizi o temanın görünümüyle değiştirir.",
+  "admin.themes.moreLink": "Daha fazla",
+  "admin.themes.advancedNarrow": "Gelişmiş görünüm için pencere daha geniş olmalı."
 }

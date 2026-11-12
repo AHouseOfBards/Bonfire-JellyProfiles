@@ -322,7 +322,8 @@ async function main() {
         // 3. At 480 px the bar still fits, with the rare buttons behind the "..." menu.
         await c.page('Emulation.setDeviceMetricsOverride', { width: 480, height: 800, deviceScaleFactor: 1, mobile: false });
         await wait(300);
-        await ev("var l = [].slice.call(document.querySelectorAll('#teAdvancedFields .jpf-te-field')).pop(); l.scrollIntoView({ block: 'end' }); 0");
+        // Advanced is not there at 480 px (part 4 below), so the foot of the form is Simple's.
+        await ev("var l = [].slice.call(document.querySelectorAll('#teSimple .jpf-te-field')).pop(); l.scrollIntoView({ block: 'end' }); 0");
         await ev(frame);
         const narrow = await ev(`(function () { var b = document.getElementById('teBar'); if (!b) return { missing: true }; var r = b.getBoundingClientRect();
             var kids = [].slice.call(b.querySelectorAll('button, #teBarName')).filter(function (e) { return e.getBoundingClientRect().width > 0; });
@@ -346,6 +347,41 @@ async function main() {
             await ev(CLICK(Q('#teMenu [data-more="teCancel"]')));
             return (await ev("document.getElementById('themeEditor').classList.contains('jpf-hidden')")) === true;
         })());
+        // 4. "More" links from Simple into Advanced, and Advanced only on wide windows.
+        await c.page('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+        await wait(300);
+        await ev("document.getElementById('themeNew').click()");
+        await wait(600);
+        await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="simple"]')));
+        const MORE = `(function () { var f = document.getElementById('teFont').closest('.jpf-te-field'); return f.querySelector('.jpf-te-link'); })()`;
+        ok('each Simple control has a More link, and so does the follow hint', (await ev(`document.querySelectorAll('#teSimple .jpf-te-field .jpf-te-link').length >= 11 && document.getElementById('teFollowHint').tagName === 'BUTTON'`)) === true);
+        await ev("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = false; })");
+        await ev(`(function(){ var l = ${MORE}; l.click(); })()`);
+        await wait(100);
+        const at1 = await ev(`(function () { var g = document.querySelector('#teAdvancedFields details.jpf-te-group[data-group="admin.themes.group.type"]');
+            return { view: ${ED}.view, adv: !document.getElementById('teAdvanced').classList.contains('jpf-hidden'), open: g.open, others: [].slice.call(document.querySelectorAll('#teAdvancedFields details')).filter(function (d) { return d.open && d !== g; }).length }; })()`);
+        ok('More on Font opens Advanced at the Type group, and only it', at1.view === 'advanced' && at1.adv && at1.open && at1.others === 0, JSON.stringify(at1));
+        await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="simple"]')));
+        await ev(CLICK(Q('#teFollowHint')));
+        await wait(100);
+        ok('the follow hint opens the Colours group', (await ev(`${ED}.view === 'advanced' && document.querySelector('#teAdvancedFields details[data-group="admin.themes.group.colours"]').open`)) === true);
+        // Narrowing with Advanced open drops to Simple and keeps the draft.
+        await ev(SET(Q('#teName'), 'Kept draft', 'input'));
+        await c.page('Emulation.setDeviceMetricsOverride', { width: 899, height: 900, deviceScaleFactor: 1, mobile: false });
+        await wait(400);
+        const n899 = await ev(`(function () { var tab = document.querySelector('#themeEditor .jpf-te-mode[data-view="advanced"]'), line = document.getElementById('teNarrow');
+            return { view: ${ED}.view, tab: getComputedStyle(tab).display, line: getComputedStyle(line).display, text: line.textContent.trim(), name: ${ED}.draft.name,
+                link: getComputedStyle(document.querySelector('#teSimple .jpf-te-link')).display, simple: !document.getElementById('teSimple').classList.contains('jpf-hidden') }; })()`);
+        ok('at 899 px Advanced is hidden and one line says why', n899.tab === 'none' && n899.line !== 'none' && n899.text === 'Advanced needs a wider window.', JSON.stringify(n899));
+        ok('narrowing with Advanced open drops to Simple and keeps the draft', n899.view === 'simple' && n899.simple && JSON.stringify(n899.name).indexOf('Kept draft') >= 0, JSON.stringify(n899));
+        ok('and the More links go with it', n899.link === 'none', JSON.stringify(n899));
+        ok('Save and the File menu are still there', (await ev("getComputedStyle(document.getElementById('teSave')).display !== 'none' && getComputedStyle(document.getElementById('teFile')).display !== 'none'")) === true);
+        await c.page('Emulation.setDeviceMetricsOverride', { width: 900, height: 900, deviceScaleFactor: 1, mobile: false });
+        await wait(400);
+        const n900 = await ev(`(function () { var tab = document.querySelector('#themeEditor .jpf-te-mode[data-view="advanced"]'); return { tab: getComputedStyle(tab).display, line: getComputedStyle(document.getElementById('teNarrow')).display }; })()`);
+        ok('at 900 px the Advanced tab is there and the line is not', n900.tab !== 'none' && n900.line === 'none', JSON.stringify(n900));
+        await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="advanced"]')));
+        ok('and Advanced opens', (await ev(`${ED}.view`)) === 'advanced');
         const consoleErrors = await ev('1').then(() => 0);
         void consoleErrors;
     } finally {

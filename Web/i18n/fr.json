@@ -1386,5 +1386,7 @@
   "admin.themes.resetGroup": "Rétablir le groupe",
   "admin.themes.nChanged": "{n} modifiés",
   "admin.themes.baseTitle": "Partir d'un autre thème",
-  "admin.themes.baseConfirm": "Cela remplace vos modifications par l'aspect de ce thème."
+  "admin.themes.baseConfirm": "Cela remplace vos modifications par l'aspect de ce thème.",
+  "admin.themes.moreLink": "Plus",
+  "admin.themes.advancedNarrow": "Le mode avancé demande une fenêtre plus large."
 }

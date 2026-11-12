@@ -559,10 +559,25 @@
     #profilesConfigurationPage .jpf-te-checks { margin-top: 0.5em; }
     #profilesConfigurationPage .jpf-te-side-title { margin: 1em 0 0.25em; }
     #profilesConfigurationPage .jpf-te-colors {
-        display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr));
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr));
         gap: 10px 16px; margin-bottom: 1.5em;
     }
     #profilesConfigurationPage .jpf-te-color { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; }
+    /* "More" on a Simple control opens Advanced at its group; the follow hint is the same
+       link in words. Advanced is not there below 900 px, so neither are they. */
+    #profilesConfigurationPage .jpf-te-link { margin-top: 4px; padding: 2px 8px; font-size: 0.8rem; opacity: 0.85; }
+    #profilesConfigurationPage .jpf-te-color .jpf-te-link { margin: 0 0 0 auto; }
+    #profilesConfigurationPage .jpf-te-hintlink {
+        font: inherit; font-size: 0.9rem; padding: 0; margin: 0 0 1em; border: 0; background: transparent;
+        color: inherit; opacity: 0.8; text-align: left; text-decoration: underline; cursor: pointer;
+    }
+    #profilesConfigurationPage .jpf-te-link:focus-visible, #profilesConfigurationPage .jpf-te-hintlink:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
+    #profilesConfigurationPage .jpf-te-narrow { display: none; margin: 0 0 1em; }
+    @media (max-width: 899px) {
+        #profilesConfigurationPage .jpf-te-mode[data-view="advanced"],
+        #profilesConfigurationPage .jpf-te-link, #profilesConfigurationPage .jpf-te-hintlink { display: none; }
+        #profilesConfigurationPage .jpf-te-narrow { display: block; }
+    }
     /* The colour squares are buttons that open the popup below, not input type=color: that
        opens a different native dialog in every browser. */
     #profilesConfigurationPage .jpf-te .jpf-te-sw {
@@ -1295,6 +1310,7 @@
                         <button type="button" class="jpf-te-mode" role="tab" data-view="simple" data-i18n="admin.themes.simple">Simple</button>
                         <button type="button" class="jpf-te-mode" role="tab" data-view="advanced" data-i18n="admin.themes.advanced">Advanced</button>
                     </div>
+                    <div class="fieldDescription jpf-te-narrow" id="teNarrow" data-i18n="admin.themes.advancedNarrow">Advanced needs a wider window.</div>
                     <!-- The preview comes first and the row runs right to left: beside the
                          fields on a wide page, above them when it wraps, and sticky either way,
                          so a change can be seen without scrolling to it. It sat under every
@@ -1321,24 +1337,29 @@
                                     <label class="jpf-te-color jpf-te-field" data-paths="colors.accent colors.accentFocus colors.onAccent colors.ring parts.button2.focus">
                                         <button type="button" class="jpf-te-sw" id="teAccent" data-simple="accent" aria-haspopup="dialog"></button>
                                         <span data-i18n="admin.themes.accent">Accent</span>
+                                        <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                     </label>
                                     <label class="jpf-te-color jpf-te-field" data-paths="background.fill colors.panel scheme">
                                         <button type="button" class="jpf-te-sw" id="teBg1" data-simple="bg1" aria-haspopup="dialog"></button>
                                         <span data-i18n="admin.themes.bgTop">Background, top</span>
+                                        <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                     </label>
                                     <label class="jpf-te-color jpf-te-field" data-paths="background.layers">
                                         <button type="button" class="jpf-te-sw" id="teBg2" data-simple="bg2" aria-haspopup="dialog"></button>
                                         <span data-i18n="admin.themes.bgBottom">Background, bottom</span>
+                                        <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                     </label>
                                     <label class="jpf-te-color jpf-te-field" data-paths="colors.text1 colors.text2 colors.text3 colors.name colors.nameFocus parts.button2.text parts.addTile.text">
                                         <button type="button" class="jpf-te-sw" id="teText" data-simple="text" aria-haspopup="dialog"></button>
                                         <span data-i18n="admin.themes.text">Text</span>
+                                        <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                     </label>
                                 </div>
-                                <div class="fieldDescription" id="teFollowHint" data-i18n="admin.themes.followHint">Related colors follow the ones you pick.</div>
+                                <button type="button" class="jpf-te-hintlink" id="teFollowHint" data-paths="colors.accent" data-i18n="admin.themes.followHint">Related colors follow the ones you pick.</button>
                                 <div class="selectContainer jpf-te-field" data-paths="type.font">
                                     <label class="selectLabel" for="teFont" data-i18n="admin.themes.font">Font</label>
                                     <select is="emby-select" id="teFont" data-simple="font"></select>
+                                    <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                 </div>
                                 <div class="selectContainer jpf-te-field" data-paths="shape.avatar">
                                     <label class="selectLabel" for="teAvatar" data-i18n="admin.themes.tile">Tile shape</label>
@@ -1348,6 +1369,7 @@
                                         <option value="square" data-i18n="admin.themes.tileSquare">Square</option>
                                         <option value="leaf" data-i18n="admin.themes.tileLeaf">Leaf</option>
                                     </select>
+                                    <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                 </div>
                                 <div class="selectContainer jpf-te-field" data-paths="shape.button">
                                     <label class="selectLabel" for="teButton" data-i18n="admin.themes.button">Button shape</label>
@@ -1356,19 +1378,23 @@
                                         <option value="rounded" data-i18n="admin.themes.buttonRounded">Rounded</option>
                                         <option value="square" data-i18n="admin.themes.buttonSquare">Square</option>
                                     </select>
+                                    <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                 </div>
                                 <div class="selectContainer jpf-te-field" data-paths="decorations">
                                     <label class="selectLabel" for="tePattern" data-i18n="admin.themes.pattern">Pattern</label>
                                     <select is="emby-select" id="tePattern" data-simple="pattern"></select>
+                                    <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                 </div>
                                 <!-- Filled by themePhotoControlHtml, the same control Advanced shows under Background. -->
                                 <div class="jpf-te-field jpf-te-photo" data-paths="background.image" id="teSimplePhoto"></div>
+                                <button type="button" class="jpf-te-lbtn jpf-te-link" data-paths="background.image" data-i18n="admin.themes.moreLink">More</button>
                                 <div class="selectContainer jpf-te-field" data-paths="layout.profiles">
                                     <label class="selectLabel" for="teProfiles" data-i18n="admin.themes.layoutProfiles">Profiles</label>
                                     <select is="emby-select" id="teProfiles" data-simple="profiles">
                                         <option value="tiles" data-i18n="admin.themes.layoutTiles">Tiles in a row</option>
                                         <option value="list" data-i18n="admin.themes.layoutList">A list, one per line</option>
                                     </select>
+                                    <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                 </div>
                                 <div class="selectContainer jpf-te-field" data-paths="layout.align">
                                     <label class="selectLabel" for="teAlign" data-i18n="admin.themes.layoutAlign">Title and profiles</label>
@@ -1376,6 +1402,7 @@
                                         <option value="center" data-i18n="admin.themes.layoutCenter">Centered</option>
                                         <option value="left" data-i18n="admin.themes.layoutLeft">Aligned left</option>
                                     </select>
+                                    <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                 </div>
                                 <div class="selectContainer jpf-te-field" data-paths="layout.size">
                                     <label class="selectLabel" for="teSize" data-i18n="admin.themes.layoutSize">Tile size</label>
@@ -1384,6 +1411,7 @@
                                         <option value="medium" data-i18n="admin.themes.layoutMedium">Medium</option>
                                         <option value="large" data-i18n="admin.themes.layoutLarge">Large</option>
                                     </select>
+                                    <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                 </div>
                                 <div class="selectContainer jpf-te-field" data-paths="layout.logo">
                                     <label class="selectLabel" for="teLogo" data-i18n="admin.themes.layoutLogo">Logo corner</label>
@@ -1393,6 +1421,7 @@
                                         <option value="bottom-left" data-i18n="admin.themes.layoutBottomLeft">Bottom left</option>
                                         <option value="bottom-right" data-i18n="admin.themes.layoutBottomRight">Bottom right</option>
                                     </select>
+                                    <button type="button" class="jpf-te-lbtn jpf-te-link" data-i18n="admin.themes.moreLink">More</button>
                                 </div>
                             </div>
                             <div class="jpf-te-advanced jpf-hidden" id="teAdvanced">
@@ -6515,10 +6544,42 @@
                 });
             }
 
+            /// Advanced is for windows 900 px wide and over, by the window and not the device:
+            /// its rows and Reset buttons do not fit a phone. The CSS hides the tab at the same
+            /// width; this is what the script asks, so the two cannot disagree about the number.
+            function themeAdvancedWide() {
+                try { return !window.matchMedia || window.matchMedia('(min-width: 900px)').matches; } catch (e) { return true; }
+            }
+
+            /// "More" on a Simple control: Advanced, at the group that holds what it drives.
+            /// The first path it drives that Advanced has a row for decides which.
+            function openThemeAdvancedAt(page, paths) {
+                const ed = page._themeEditor;
+                if (!ed || !themeAdvancedWide()) return;
+                setThemeEditorView(page, 'advanced');
+                const search = page.querySelector('#teSearch');
+                if (search.value) { search.value = ''; themeFilterAdvanced(page); }
+                const rows = Array.prototype.slice.call(page.querySelectorAll('#teAdvancedFields .jpf-te-adv'));
+                let group = null;
+                String(paths || '').split(' ').filter(Boolean).some(function (p) {
+                    const row = rows.filter(function (r) {
+                        return (r.getAttribute('data-paths') || '').split(' ').some(function (o) { return o && (themePathOwns(o, p) || themePathOwns(p, o)); });
+                    })[0];
+                    group = row ? row.closest('details') : null;
+                    return !!group;
+                });
+                if (!group) return;
+                group.open = true;
+                if (group.scrollIntoView) group.scrollIntoView({ block: 'start' });
+                const summary = group.querySelector('summary');
+                if (summary && summary.focus) summary.focus();
+            }
+
             function setThemeEditorView(page, view) {
                 const ed = page._themeEditor;
                 if (!ed) return;
                 closeColorPopup(page, false);
+                if (view === 'advanced' && !themeAdvancedWide()) view = 'simple';
                 ed.view = view === 'advanced' ? 'advanced' : 'simple';
                 page.querySelector('#teSimple').classList.toggle('jpf-hidden', ed.view !== 'simple');
                 page.querySelector('#teAdvanced').classList.toggle('jpf-hidden', ed.view !== 'advanced');
@@ -7587,6 +7648,19 @@
                 page.querySelectorAll('#themeEditor .jpf-te-mode').forEach(function (b) {
                     b.addEventListener('click', function () { setThemeEditorView(page, b.getAttribute('data-view')); });
                 });
+                page.querySelector('#teSimple').addEventListener('click', function (e) {
+                    const b = e.target.closest ? e.target.closest('.jpf-te-link, .jpf-te-hintlink') : null;
+                    const owner = b && b.closest('[data-paths]');
+                    if (owner) openThemeAdvancedAt(page, owner.getAttribute('data-paths'));
+                });
+                // The window narrowed with Advanced open: back to Simple, the draft as it was.
+                if (window.matchMedia) {
+                    const wide = window.matchMedia('(min-width: 900px)');
+                    const narrowed = function () {
+                        if (!wide.matches && page._themeEditor && page._themeEditor.view === 'advanced') setThemeEditorView(page, 'simple');
+                    };
+                    if (wide.addEventListener) wide.addEventListener('change', narrowed); else if (wide.addListener) wide.addListener(narrowed);
+                }
                 page.querySelector('#teExpand').addEventListener('click', function () { openThemeExpanded(page); });
                 page.querySelector('#teCount').addEventListener('click', function () { jumpToThemeProblem(page); });
                 page.querySelector('#teMore').addEventListener('click', function () { toggleThemeMenu(page, false); });

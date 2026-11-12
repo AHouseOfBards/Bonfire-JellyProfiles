@@ -295,7 +295,9 @@ const AT_LAST_FIELD = `(async function () {
   await new Promise(function (r) { setTimeout(r, 300); });
   [].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = true; });
   await new Promise(function (r) { setTimeout(r, 200); });
-  document.querySelector('#teAdvancedFields > :last-child').scrollIntoView({ block: 'end' });
+  // Below 900 px there is no Advanced (2026-11-12): the foot of the form is Simple's.
+  var wide = !window.matchMedia || window.matchMedia('(min-width: 900px)').matches;
+  document.querySelector(wide ? '#teAdvancedFields > :last-child' : '#teSimple > :last-child').scrollIntoView({ block: 'end' });
   await new Promise(function (r) { setTimeout(r, 250); });
   var side = document.querySelector('#themeEditor .jpf-te-side').getBoundingClientRect();
   var card = document.querySelector('#tePreview .jpf-theme-preview').getBoundingClientRect();
