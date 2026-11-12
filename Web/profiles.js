@@ -1225,6 +1225,7 @@
         'avatar.positionYourPicture': 'Position your avatar',
         'avatar.dragOrArrows': 'Drag or use arrows to move. Slider zooms. Press OK when done.',
         'avatar.usePicture': 'Use avatar',
+        'avatar.cropFailed': 'That picture can\'t be used. Try another.',
         'avatar.fromThisServer': 'From this server',
         'avatar.fromThisDevice': 'From this device',
         'avatar.uploadPicture': 'Upload an avatar',
@@ -8324,6 +8325,20 @@
             });
         },
 
+        /// D-pad Enter/Space presses a colour dot. The modal content is one element for the
+        /// whole session and Create and Edit both draw into it, so the listener is added
+        /// once; each visit used to add another.
+        _bindColorDotKeys: function (content) {
+            if (content._jpfDotKeys) return;
+            content._jpfDotKeys = true;
+            content.addEventListener('keydown', (e) => {
+                if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('jpf-color-dot')) {
+                    e.preventDefault();
+                    e.target.click();
+                }
+            });
+        },
+
         /// A field from a server reply in either casing: o.sentTo or o.SentTo.
         _field: function (o, k) {
             if (!o) return undefined;
@@ -8453,9 +8468,16 @@
                 status.textContent = text || '';
                 status.style.color = bad ? 'var(--jpf-danger)' : '';
             };
-            const run = (path, body, done) => this._emailCall(path, body)
-                .then(reply => { data = reply; editing = false; draw(); if (done) say(done); })
-                .catch(err => say(err.message, true));
+            // One call at a time: a second tap on Send while the first was in flight sent
+            // a second code email.
+            let busy = false;
+            const run = (path, body, done) => {
+                if (busy) return;
+                busy = true;
+                return this._emailCall(path, body)
+                    .then(reply => { busy = false; data = reply; editing = false; draw(); if (done) say(done); })
+                    .catch(err => { busy = false; say(this._failText(err, err.message), true); });
+            };
 
             const draw = () => {
                 if (!document.body.contains(slot)) return;
@@ -8497,7 +8519,8 @@
                                 <button type="button" id="account-email-change" class="profiles-btn jpf-btn-secondary">${t('accountEmail.change')}</button>
                                 <button type="button" id="account-email-remove" class="profiles-btn jpf-btn-secondary">${t('accountEmail.remove')}</button>
                             </div>
-                            ${field('pinResetEnabled') === true ? `<div class="jpf-form-hint">${t('accountEmail.resetHint')}</div>` : ''}                        </div>
+                            ${field('pinResetEnabled') === true ? `<div class="jpf-form-hint">${t('accountEmail.resetHint')}</div>` : ''}
+                        </div>
                         ${this.renderFold('account-email-more', t('accountEmail.moreSummary'), `
                             ${box('account-email-lockout', field('notifyLockout') !== false, t('accountEmail.notifyLockout'))}
                             ${box('account-email-device', field('notifyNewDevice') !== false, t('accountEmail.notifyNewDevice'))}
@@ -8560,7 +8583,7 @@
                         body[pair[1]] = el.checked;
                         this._emailCall('account/email/notifications', body)
                             .then(reply => { data = reply; say(t('account.saved')); })
-                            .catch(err => { el.checked = !el.checked; say(err.message, true); });
+                            .catch(err => { el.checked = !el.checked; say(this._failText(err, err.message), true); });
                     });
                 });
                 this.initTVCheckboxes(slot);
@@ -8571,9 +8594,6 @@
                 .catch(() => { /* no section; the rest of the page works without it */ });
         },
 
-        // onError: optional callback(message) invoked on a failed switch.
-        // Callers capture their own DOM references via closure so we never re-query
-        // the DOM inside an async callback (which can race against overlay teardown).
         /// Puts the picker into "working on it" while a switch is in flight.
         ///
         /// The switch is a round trip to the server and then a full page reload. On a phone
@@ -8656,6 +8676,9 @@
             return t('errors.savingHours') + (why ? ' ' + why : '');
         },
 
+        // onError: optional callback(message) invoked on a failed switch.
+        // Callers capture their own DOM references via closure so we never re-query
+        // the DOM inside an async callback (which can race against overlay teardown).
         executeProfileSwitch: function (profileId, pin, onError) {
             if (this._switchLock) return;
 
@@ -9056,6 +9079,8 @@
         /// Supports all three input modes the supported clients need: mouse drag, touch
         /// drag, and D-pad (arrows pan, +/- zoom, and the zoom slider is focusable).
         showCropDialog: function (img, onDone) {
+            // Two quick picks used to open two dialogs, one on top of the other.
+            if (this._cropClose) this._cropClose();
             const VIEW = 260;
             const preferPng = this._hasTransparency(img);
 
@@ -9238,21 +9263,32 @@
             });
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
-                const spec = this.imageSpec();
-                const thumbCanvas = this._cropCanvas(img, VIEW, crop, spec.thumbSize);
+                let result;
+                // A canvas tainted by a picture from another origin throws on read-back.
+                // Left uncaught it threw before close(), and the dialog stayed up with
+                // a button that did nothing.
+                try {
+                    const spec = this.imageSpec();
+                    const thumbCanvas = this._cropCanvas(img, VIEW, crop, spec.thumbSize);
 
-                // Read from the cropped result, not the source. Cropping into the opaque
-                // middle of a cut-out leaves a picture with nothing transparent about it,
-                // and the background decision has to describe what will actually be shown.
-                // preferPng stays on the source, where being over-eager costs only bytes.
-                const cutout = this._alphaProfile(thumbCanvas).cutout;
+                    // Read from the cropped result, not the source. Cropping into the opaque
+                    // middle of a cut-out leaves a picture with nothing transparent about it,
+                    // and the background decision has to describe what will actually be shown.
+                    // preferPng stays on the source, where being over-eager costs only bytes.
+                    const cutout = this._alphaProfile(thumbCanvas).cutout;
 
-                const image = this.renderCrop(img, VIEW, crop, spec.masterSize, preferPng);
-                const thumb = preferPng
-                    ? thumbCanvas.toDataURL('image/png')
-                    : thumbCanvas.toDataURL('image/jpeg', spec.jpegQuality);
+                    const image = this.renderCrop(img, VIEW, crop, spec.masterSize, preferPng);
+                    const thumb = preferPng
+                        ? thumbCanvas.toDataURL('image/png')
+                        : thumbCanvas.toDataURL('image/jpeg', spec.jpegQuality);
+                    result = { image: image, thumb: thumb, cutout: cutout };
+                } catch (err) {
+                    close();
+                    this.showAlert(t('errors.error'), t('avatar.cropFailed'));
+                    return;
+                }
                 close();
-                onDone({ image: image, thumb: thumb, cutout: cutout });
+                onDone(result);
             });
 
             setTimeout(() => view.focus(), 50);
@@ -9837,7 +9873,7 @@
                         <div class="jpf-library-checklist">
                             ${normalizedLibs.map(lib => `
                                 <label class="jpf-library-check-label">
-                                    <input type="checkbox" class="library-checkbox" value="${lib.id}" />
+                                    <input type="checkbox" class="library-checkbox" value="${escapeHtml(lib.id)}" />
                                     <span>${escapeHtml(lib.name)}</span>
                                 </label>
                             `).join('')}
@@ -9913,13 +9949,7 @@
                     });
                 }
 
-                // Support D-pad Enter/Space select on color dots
-                content.addEventListener('keydown', (e) => {
-                    if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('jpf-color-dot')) {
-                        e.preventDefault();
-                        e.target.click();
-                    }
-                });
+                this._bindColorDotKeys(content);
 
                 // Select all libraries logic for creation
                 const selectAllCheckbox = document.getElementById('create-select-all-libraries');
@@ -10245,9 +10275,9 @@
                                     isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
                                 }
                                 return `
-                                    <div class="jpf-libart-row" data-lib="${lib.id}">
+                                    <div class="jpf-libart-row" data-lib="${escapeHtml(lib.id)}">
                                         <label class="jpf-library-check-label jpf-libart-check">
-                                            <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
+                                            <input type="checkbox" class="library-checkbox" value="${escapeHtml(lib.id)}" ${isChecked ? 'checked' : ''} />
                                             <span class="jpf-libart-thumb" aria-hidden="true"></span>
                                             <span class="jpf-libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
                                         </label>
@@ -10356,13 +10386,7 @@
                     },
                     { enabled: !!profile.transparentAvatar });
 
-                // Support D-pad Enter/Space select on color dots
-                content.addEventListener('keydown', (e) => {
-                    if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('jpf-color-dot')) {
-                        e.preventDefault();
-                        e.target.click();
-                    }
-                });
+                this._bindColorDotKeys(content);
 
                 // Select all libraries logic for edit
                 const selectAllCheckbox = document.getElementById('edit-select-all-libraries');
@@ -10593,7 +10617,13 @@
                             });
                         }
                         return artworkEditor.save(profile.profileUserId)
-                            // The profile is saved by now: a failure here is the hours only.
+                            // The profile is saved by now, so a failure in the artwork is said
+                            // as that and the hours and the refresh still run. Uncaught, it
+                            // fell to the outer catch, which says the profile did not save.
+                            .catch(err => {
+                                this.showAlert(t('errors.error'), this._failText(err, t('errors.couldNotSaveArtwork')));
+                            })
+                            // A failure here is the hours only.
                             .then(() => viewingEditor.save().catch(err => {
                                 this.showAlert(t('errors.error'), this._hoursFailText(err));
                             }))
@@ -11057,11 +11087,13 @@
             toggle('account-lan-bypass', 'bypassPinOnLocalNetwork');
 
             const lockSel = content.querySelector('#account-lockout-select');
+            // What the select showed when drawn. main.lockoutMinutes can be absent, and
+            // String(undefined) put "undefined" into the select after a failed save.
+            let savedLockout = lockSel.value;
             lockSel.addEventListener('change', () => {
-                const before = main.lockoutMinutes;
                 saveAccount({ lockoutMinutes: parseInt(lockSel.value, 10) }).then(ok => {
-                    if (ok) say(t('account.saved'));
-                    else { lockSel.value = String(before); this.revealFold(lockSel); }
+                    if (ok) { savedLockout = lockSel.value; say(t('account.saved')); }
+                    else { lockSel.value = savedLockout; this.revealFold(lockSel); }
                 });
             });
 

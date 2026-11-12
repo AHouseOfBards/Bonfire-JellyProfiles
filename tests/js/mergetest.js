@@ -51,8 +51,8 @@ check('row keeps the mode select', /class="jpf-libart-mode"/.test(row), true);
 check('row keeps the Choose button', /jpf-libart-choose/.test(row), true);
 check('row keeps the thumbnail', /class="jpf-libart-thumb"/.test(row), true);
 check('the checkbox and the select name the same library',
-    /class="library-checkbox" value="\$\{lib\.id\}"/.test(row)
-    && /data-lib="\$\{lib\.id\}"/.test(row), true);
+    /class="library-checkbox" value="\$\{escapeHtml\(lib\.id\)\}"/.test(row)
+    && /data-lib="\$\{escapeHtml\(lib\.id\)\}"/.test(row), true);
 // The <label> wrapper supplies the accessible name now, so an aria-label would
 // make a screen reader announce the library twice.
 check('the label names the checkbox, not a duplicate aria-label',
