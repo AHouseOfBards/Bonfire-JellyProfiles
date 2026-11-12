@@ -62,18 +62,31 @@
                 mechanism: { mode: 'middleware', restartRequired: false, middlewareActive: true }
             };
         },
-        'admin/sessions': function () { return []; },
+        // Rows for the lists whose buttons sit at the row's end (tests/js/buttonedge.js).
+        'admin/sessions': function () {
+            return [
+                { userId: ALEX, deviceId: 'dev-1', username: 'Alex', deviceName: 'Living Room TV', client: 'Jellyfin webOS', lastActivity: '2026-11-04T19:02:00Z', isSubProfile: false },
+                { userId: '22222222222222222222222222222222', deviceId: 'dev-2', username: 'Sam', isSubProfile: true, masterUsername: 'Alex',
+                  deviceName: 'A phone with a rather long name to show how a row copes', client: 'Jellyfin Android', lastActivity: '2026-11-04T18:40:00Z', nowPlaying: 'A film with a long title' }];
+        },
         'admin/audit-logs': function () {
             return [
                 { timestamp: '2026-11-04T19:02:00Z', masterUsername: 'Alex', targetUsername: 'Rosalind', deviceName: 'Living Room TV', client: 'Jellyfin webOS', ipAddress: '192.168.1.44' },
                 { timestamp: '2026-11-04T18:40:00Z', masterUsername: 'Jo', targetUsername: 'Kids', deviceName: 'Chrome', client: 'Jellyfin Web', ipAddress: '192.168.1.50' }];
         },
         'avatars': function () { return []; },
-        'admin/announcements': function () { return []; },
+        'admin/announcements': function () {
+            return [{ id: 'a1', message: 'The server is closed on Sunday morning for an update.', severity: 'info', showing: true },
+                    { id: 'a2', message: 'A second, older notice.', severity: 'warning', showing: false }];
+        },
         'themes': function () { return themes; },
         'admin/themes': function () {
             return { 'default': 'bonfire', profilesCanChoose: true, maxCustomThemes: 40, maxCustomFonts: 20, maxFontBytes: 2097152,
-                builtIn: (themes && themes.themes || []).map(function (t) { return { id: t.id, hidden: false }; }), custom: [], fonts: [],
+                builtIn: (themes && themes.themes || []).map(function (t) { return { id: t.id, hidden: false }; }),
+                custom: [{ id: 'shop', theme: { id: 'shop', name: 'Shop sign', background: { fill: '#223344' } }, problems: [] },
+                         { id: 'harvest-two', theme: { id: 'harvest-two', name: 'Harvest, the second', background: { fill: '#442211' } }, problems: [] }],
+                fonts: [{ family: 'Shop Sign', file: '0123456789abcdef0123456789abcdef.woff2', url: '/plugins/profiles/themes/fonts/0123456789abcdef0123456789abcdef.woff2',
+                          weightMin: 400, weightMax: 700, fallback: 'serif', usedBy: [] }],
                 builtInFonts: (themes && themes.fonts || []).map(function (f) { return f.family; }) };
         },
         'admin/maintenance': function () { return { enabled: false, message: '', untilUtc: null, startedUtc: null, stopPlayback: false }; },
