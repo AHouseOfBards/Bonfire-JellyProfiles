@@ -15,7 +15,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          # Use a token with push access so the manifest commit can be pushed
+          # The default token; `permissions: contents: write` above is what lets it push
+          # the manifest commit. Not a request for a separate token.
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # Both, because the plugin multi-targets net9.0 and net10.0. Only the net9.0
@@ -46,6 +47,16 @@ jobs:
 
       - name: Validate translations
         run: node Web/i18n/validate.js
+
+      # CI's other check. tests/run.sh has already built the plugin, so binchk reads that
+      # DLL (SKIP_BUILD) and resolves its Jellyfin members against 10.11 and 12.x. The
+      # shared-library copy check is also inside run.sh; it is named here as well so that
+      # dropping it from the runner cannot quietly drop it from a release.
+      - name: Check the plugin against newer Jellyfin
+        run: SKIP_BUILD=1 bash tests/binchk.sh
+
+      - name: Check the vendored Campground.Shared copy
+        run: sh Campground.Shared/check-shared.sh
 
       - name: Build (Release)
         run: dotnet build -c Release
