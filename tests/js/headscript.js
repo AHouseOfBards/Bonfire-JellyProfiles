@@ -66,6 +66,13 @@ ok('it opens with the tag the injector looks for', tag.indexOf('<script id="jpf-
 ok('and closes', /<\/script>$/.test(tag));
 ok('with a body of a plausible size (' + tag.length + ' chars)', tag.length > 300);
 
+// The script is written into index.html between <script> tags. The first </script> inside
+// it ends the tag there, wherever the text came from, and the parse check below cannot see
+// it because it runs on the body alone. An HTML comment opener does the same in old engines.
+ok('the only </script> in it is the closing tag', tag.indexOf('</script>') === tag.length - '</script>'.length,
+    'found one at ' + tag.indexOf('</script>') + ' of ' + tag.length);
+ok('and it contains no <!-- that an HTML parser would treat as a comment', tag.indexOf('<!--') === -1);
+
 const body = tag.replace(/^<script id="jpf-eh">/, '').replace(/<\/script>$/, '');
 
 let syntaxError = null;
@@ -152,6 +159,31 @@ ok('and to dark', noBg.style.colorScheme === 'dark');
        r.style.background === '#101010');
 });
 
+// The list above refuses what is plainly not a colour. The regex has four ways to be wrong
+// that none of those four inputs reach - an edge anchor dropped, a character class that
+// gains a bracket, a hex length that stops being bounded, rgba no longer accepted - so
+// the colours it must take and the near-misses it must refuse are both named. Every
+// refused value below fails the pattern in exactly one way.
+[
+    ['#fff', 'a short hex'], ['#ffffff', 'a long hex'], ['#ffffffff', 'a hex with alpha'],
+    ['rgb(0, 0, 0)', 'rgb with spaces'], ['rgba(0,0,0,.5)', 'rgba'],
+    ['rgb(10%,20%,30%)', 'rgb in percent']
+].forEach(function (pair) {
+    const r = run({ 'jpf-sw': '1', 'jpf-bg': pair[0] + '|light' });
+    ok(pair[1] + ' (' + pair[0] + ') is painted as it was left', r.style.background === pair[0]);
+});
+[
+    ['#ff', 'a hex that is too short'], ['#fffffffff', 'a hex that is too long'],
+    ['#ggg', 'a hex with a letter that is not a digit'], ['xrgb(0,0,0)', 'text before the colour'],
+    ['rgb(0,0,0))', 'text after the colour'], ['rgb((0)', 'a bracket inside rgb()'],
+    ['rgb(0;0)', 'a semicolon inside rgb()'], ['rgb(a,b,c)', 'letters inside rgb()'],
+    ['rgb(0,0,0) url(x)', 'a second value after the colour']
+].forEach(function (pair) {
+    const r = run({ 'jpf-sw': '1', 'jpf-bg': pair[0] + '|dark' });
+    ok(pair[1] + ' (' + pair[0] + ') falls back to the default (' + r.style.background + ')',
+       r.style.background === '#101010');
+});
+
 const oddScheme = run({ 'jpf-sw': '1', 'jpf-bg': '#ffffff|sideways' });
 ok('an unrecognised colour-scheme becomes dark rather than being passed through',
    oddScheme.style.colorScheme === 'dark');
@@ -164,7 +196,10 @@ ok('at 1.5 seconds, not four — four seconds of nothing on a TV reads as a cras
    + '(' + (armed.timeouts[0] || {}).ms + 'ms)',
    armed.timeouts.length === 1 && armed.timeouts[0].ms === 1500);
 
+ok('the pending failsafe is recorded where profiles.js can cancel it',
+   armed.sandbox.__jpReveal === 1);
 armed.timeouts[0].fn();
+ok('once it has fired it no longer claims to be pending', armed.sandbox.__jpReveal === null);
 ok('and it puts the page back', armed.style.opacity === ''
    && armed.style.background === '' && armed.style.colorScheme === '');
 
