@@ -330,6 +330,12 @@ namespace Jellyfin.Profiles.Auth
                 // A PIN, an empty box or a switch refreshes, never makes a device known.
                 // A sign-in with no note at all (SSO's own endpoint) counts as a password
                 // one. See RequestDevice.MayMakeDeviceKnown.
+                //
+                // The note is there only while this runs inside the sign-in's own request
+                // (SessionStarted, through Task.Run). A handover noticed from SessionActivity,
+                // up to ten seconds later on another request, has none and counts as a
+                // password one, so it may grant (R2-01-02). Left so on purpose: refusing it
+                // would stop a television taken over by a profile ever being recorded.
                 var mayGrant = RequestDevice.MayMakeDeviceKnown()
                     // A profile approving a Quick Connect code vouches for a device its household
                     // never signed in on. A main account approving is a real sign-in (Android TV).

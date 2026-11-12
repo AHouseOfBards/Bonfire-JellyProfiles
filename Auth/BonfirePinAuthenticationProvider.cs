@@ -541,11 +541,6 @@ namespace Jellyfin.Profiles.Auth
                && value.All(char.IsAsciiDigit);
 
         /// <summary>
-        /// Counts one PIN attempt against this account and says whether it may be made: the
-        /// account's one allowance, shared with the web (<see cref="Controllers.PinBudget"/>).
-        /// Counted before the PIN is checked, so parallel guesses cannot all pass together.
-        /// </summary>
-        /// <summary>
         /// Replaces an old unsalted hash with a salted one after its PIN has just matched,
         /// as the web path does. <paramref name="snapshot"/> is a copy, so the live row is
         /// found again under the lock and only changed if it still holds the hash that
@@ -575,6 +570,11 @@ namespace Jellyfin.Profiles.Auth
             }
         }
 
+        /// <summary>
+        /// Counts one PIN attempt against this account and says whether it may be made: the
+        /// account's one allowance, shared with the web (<see cref="Controllers.PinBudget"/>).
+        /// Counted before the PIN is checked, so parallel guesses cannot all pass together.
+        /// </summary>
         internal static bool BeginPinAttempt(Guid userId) => Controllers.PinBudget.TryBegin(userId);
 
         /// <summary>A PIN was right: the account's allowance starts again.</summary>
