@@ -1460,12 +1460,14 @@ namespace Jellyfin.Profiles.Controllers
         {
             var whitelisted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var m in config.Mappings)
-                foreach (var id in m.AllowedDeviceIds)
-                    if (!string.IsNullOrEmpty(id)) whitelisted.Add(id);
+                // Every other reader trims these and tolerates a null list; a padded id
+                // here let its device row be pruned while a profile still named it.
+                foreach (var id in m.AllowedDeviceIds ?? new List<string>())
+                    if (!string.IsNullOrWhiteSpace(id)) whitelisted.Add(id.Trim());
 
             return config.KnownDevices.RemoveAll(d =>
                 now - d.LastSeen > DeviceRetention
-                && !whitelisted.Contains(d.DeviceId)
+                && !whitelisted.Contains((d.DeviceId ?? "").Trim())
                 // A merge keeps the old id as an alias, and a profile may still name it.
                 && !(d.Aliases ?? new List<string>()).Any(a => !string.IsNullOrEmpty(a) && whitelisted.Contains(a.Trim())));
         }

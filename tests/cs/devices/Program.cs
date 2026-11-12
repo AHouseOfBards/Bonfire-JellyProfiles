@@ -214,6 +214,28 @@ if (prune != null)
         Ok("still drops the unrelated old record", !ids.Contains("unrelated"));
     }
 
+    // r2-09-02: every other reader trims a list's ids and tolerates a null list.
+    {
+        var padCfg = Activator.CreateInstance(cfgType);
+        var padKnown = (IList)cfgType.GetProperty("KnownDevices").GetValue(padCfg);
+        padKnown.Add(Device("padded-tv", 900));
+        padKnown.Add(Device("unrelated-2", 900));
+        var padMaps = (IList)cfgType.GetProperty("Mappings").GetValue(padCfg);
+        var padded = Activator.CreateInstance(mappingType);
+        ((IList)mappingType.GetProperty("AllowedDeviceIds").GetValue(padded)).Add("  padded-tv ");
+        padMaps.Add(padded);
+        var nullList = Activator.CreateInstance(mappingType);
+        mappingType.GetProperty("AllowedDeviceIds").SetValue(nullList, null);
+        padMaps.Add(nullList);
+
+        object threw = null;
+        try { prune.Invoke(null, new object[] { padCfg, now }); } catch (Exception ex) { threw = ex.GetBaseException().Message; }
+        var padIds = padKnown.Cast<object>().Select(d => (string)deviceType.GetProperty("DeviceId").GetValue(d)).ToList();
+        Ok("a profile with a null device list does not stop the prune (" + (threw ?? "ok") + ")", threw == null);
+        Ok("keeps a record a profile names with stray spaces around the id", padIds.Contains("padded-tv"));
+        Ok("and still drops the unrelated one", !padIds.Contains("unrelated-2"));
+    }
+
     Console.WriteLine();
     Console.WriteLine("── An empty whitelist does not protect everything ──────────────");
 
