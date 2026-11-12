@@ -219,6 +219,23 @@ jobs:
             *) echo "::error::Checksum is all zeros — refusing to publish an uninstallable release."; exit 1 ;;
           esac
 
+          # The beta feed is the newest three entries; every older build stays downloadable
+          # from its GitHub release. Everyone on the beta repository fetches this file, and
+          # the plugin page lists every entry in it. Sorted by version first so it keeps the
+          # newest three whatever order the file is in. Beta only: main's manifest is the
+          # stable milestone list, and trimming it would withdraw releases people are on.
+          # tests/js/betafeed.js fails if this block stops pruning or runs on the wrong channel.
+          if [ "$BRANCH" = "beta" ]; then
+            jq '.[0].versions |= (sort_by(.version | split(".") | map(tonumber)) | reverse | .[:3])' \
+               manifest.json > manifest.tmp.json
+            mv manifest.tmp.json manifest.json
+            if [ "$(jq --arg v "$V" '[.[0].versions[] | select(.version == $v)] | length' manifest.json)" -ne 1 ]; then
+              echo "::error::${V} is not among the newest three entries; refusing to prune it out of the beta feed."
+              exit 1
+            fi
+            echo "Beta feed now: $(jq -r '[.[0].versions[].version] | join(", ")' manifest.json)"
+          fi
+
           echo "Manifest entry for ${V} on '${BRANCH}':"
           jq --arg v "$V" '.[0].versions[] | select(.version == $v)' manifest.json
 
