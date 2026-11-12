@@ -87,7 +87,9 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>The uploaded picture a theme file's pattern names, or null for none or a built-in one.</summary>
         public static string? FileOf(JsonNode? theme)
         {
-            if (theme?["decorations"] is not JsonArray list) return null;
+            // Kind checks, as ThemeBackground.FileOf: the indexer throws on an array or a bare
+            // value, and a theme body of [1] reached here as a 500 instead of the validator's 400.
+            if (theme is not JsonObject t || t["decorations"] is not JsonArray list) return null;
             foreach (var d in list)
             {
                 if (d is JsonObject o && o["name"] is JsonValue n && n.TryGetValue<string>(out var name) && name == "pattern"
@@ -105,7 +107,7 @@ namespace Jellyfin.Profiles.Configuration
         public static List<string> FilesOf(JsonNode? theme)
         {
             var found = new List<string>();
-            if (theme?["decorations"] is not JsonArray list) return found;
+            if (theme is not JsonObject t || t["decorations"] is not JsonArray list) return found;
             foreach (var d in list)
             {
                 if (d is JsonObject o && o["name"] is JsonValue n && n.TryGetValue<string>(out var name) && (name == "pattern" || name == "pattern2")
@@ -184,7 +186,7 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public static bool DropMissing(JsonNode? theme)
         {
-            if (theme?["decorations"] is not JsonArray list) return false;
+            if (theme is not JsonObject t || t["decorations"] is not JsonArray list) return false;
             var dropped = false;
             for (var i = list.Count - 1; i >= 0; i--)
             {
