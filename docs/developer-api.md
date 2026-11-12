@@ -1078,6 +1078,11 @@ Every device already on one of the household's allowed lists is included, even i
 hasn't been seen for months. One with no record left comes back as "Previously allowed
 device" with a `lastSeen` of `0001-01-01`.
 
+The English placeholders ("Unrecognised device", "Previously allowed device", "Not seen
+recently") come with a code beside them so a client can translate: `nameCode`
+(`unrecognised`, `previouslyAllowed`) and `clientCode` (`notSeenRecently`). Both are left
+out for an ordinary device.
+
 **When you save a profile, keep allowed devices you weren't shown.** An empty
 `allowedDeviceIds` means any device, so dropping them removes the restriction.
 
