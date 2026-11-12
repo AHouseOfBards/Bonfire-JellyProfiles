@@ -67,7 +67,7 @@ namespace Jellyfin.Profiles.Configuration
         public const string HighContrastId = Themes.HighContrast;
 
         /// <summary>The decorations schema 1 knows. docs/themes.md, "Decorations".</summary>
-        public static readonly string[] Decorations = { "pattern", "rings", "frost", "twinkle" };
+        public static readonly string[] Decorations = { "pattern", "pattern2", "rings", "frost", "twinkle" };
 
         // \z, not $: in .NET `$` also matches before a final newline, so "dark\n" would pass.
         private static readonly Regex IdRegex = new(@"^[a-z0-9-]{1,40}\z", RegexOptions.CultureInvariant);
@@ -687,7 +687,16 @@ namespace Jellyfin.Profiles.Configuration
                     switch (name)
                     {
                         case "pattern":
-                            Obj(d, at, true, "name", "image", "size", "drift", "seconds");
+                        case "pattern2":
+                            // pattern2 is a second pattern, drawn above the first (2.0). Same
+                            // fields; it needs the first, which it sits above.
+                            Obj(d, at, true, "name", "image", "size", "drift", "seconds", "opacity");
+                            Num(d, at, "opacity", false, 0.1, 1);
+                            if (name == "pattern2" && !list.Any(x => x is JsonObject p && p["name"] is JsonValue pn && pn.TryGetValue<string>(out var s) && s == "pattern"))
+                            {
+                                Add(at, "range", "Needs a pattern decoration under it.");
+                            }
+
                             var image = Str(d, at, "image", true);
                             if (image != null && !_patterns.Contains(image) && !ThemePattern.IsFileName(image)) Add(at + ".image", "pattern", "Must be one of the pictures Bonfire holds, or one you uploaded.");
                             Num(d, at, "size", true, 16, 1024);

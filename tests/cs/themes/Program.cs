@@ -451,7 +451,24 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                t => { t["decorations"]!.AsArray().Clear(); t["decorations"]!.AsArray().Add(Twinkle(8)); }, "decorations[0]", "range");
         Caught("a twinkle with a value it does not have",
                t => { var d = Twinkle(8); d["colour"] = "#ffffff"; t["decorations"]!.AsArray().Add(d); }, "decorations[1].colour", "unknown");
-        Caught("an address in the name", t => t["name"] = new System.Text.Json.Nodes.JsonObject { ["text"] = "https://example.com" }, "name.text", "address");
+        // pattern2 and opacity (2.0): a second pattern above the first, each layer's opacity 0.1 to 1.
+        System.Text.Json.Nodes.JsonObject Second(string image) => new System.Text.Json.Nodes.JsonObject
+            { ["name"] = "pattern2", ["image"] = image, ["size"] = 120, ["drift"] = "none" };
+        var withSecond = Harvest();
+        var firstImage = (string)withSecond["decorations"]![0]!["image"]!;
+        withSecond["decorations"]!.AsArray().Add(Second(firstImage));
+        withSecond["decorations"]![0]!["opacity"] = 0.5;
+        Ok("a second pattern and an opacity are accepted", ThemeCatalog.Validate(withSecond).Count == 0,
+           string.Join("; ", ThemeCatalog.Validate(withSecond).Select(p => p.Path + " " + p.Code)));
+        Caught("an opacity under 0.1", t => t["decorations"]![0]!["opacity"] = 0.05, "decorations[0].opacity", "range");
+        Caught("an opacity over 1", t => t["decorations"]![0]!["opacity"] = 1.5, "decorations[0].opacity", "range");
+        Caught("a second pattern with no picture Bonfire holds",
+               t => t["decorations"]!.AsArray().Add(Second("skulls")), "decorations[1].image", "pattern");
+        Caught("a second pattern with nothing under it",
+               t => { t["decorations"]!.AsArray().Clear(); t["decorations"]!.AsArray().Add(Second(firstImage)); }, "decorations[0]", "range");
+        Caught("two second patterns",
+               t => { t["decorations"]!.AsArray().Add(Second(firstImage)); t["decorations"]!.AsArray().Add(Second(firstImage)); }, "decorations[2]", "range");
+        Caught("an address in the name", t => t["name"] =new System.Text.Json.Nodes.JsonObject { ["text"] = "https://example.com" }, "name.text", "address");
         Caught("an address in a field nothing reads",
                t => t["colors"]!["glow"] = "url(//x)", "colors.glow", "address");
         Caught("a name with a key and a text", t => t["name"]!["text"] = "Mine", "name", "missing");

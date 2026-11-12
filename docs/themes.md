@@ -249,10 +249,11 @@ don't know.
 
 | Name | Values | What it draws |
 | --- | --- | --- |
-| `pattern` | `image`, `size`, `drift` | A picture repeated behind the switcher, faint. `image` is a file from `GET /themes`. `size` is one picture's width and height in pixels. `drift` is `none`, or `down` with `seconds` for one picture's height. |
+| `pattern` | `image`, `size`, `drift`, `opacity` | A picture repeated behind the switcher, faint. `image` is a file from `GET /themes`. `size` is one picture's width and height in pixels. `drift` is `none`, or `down` with `seconds` (4 to 600) for one picture's height. `opacity` is optional, 0.1 to 1, and 1 when left out. |
+| `pattern2` | the same as `pattern` | A second pattern, drawn above the first, with its own picture, size, drift and opacity. Needs a `pattern`, and a theme has at most one. Without a `pattern2` a theme is exactly as it was. |
 | `rings` | `gradients`, `gap` | Each profile gets a gradient ring of its own: profile 1 takes the first, profile 2 the second, and so on, starting over at the end. Not the Add tile. `gap` is the colour of the thin space between the ring and the picture. |
 | `frost` | `blur` | Dialogs blur what's behind them by `blur` pixels, and the second kind of button by two thirds of that. |
-| `twinkle` | `seconds` | The pattern fades slowly down and back up, one cycle in `seconds` (2 to 120), with a second copy of it shifted so the stars don't all dim at once. Needs a `pattern`. |
+| `twinkle` | `seconds` | The pattern fades slowly down and back up, one cycle in `seconds` (2 to 120), with a second copy of it shifted so the stars don't all dim at once. Needs a `pattern`. It fades the first pattern from its own `opacity`. With a `pattern2` the shifted copy is not drawn and only the first pattern fades. |
 
 ### Pattern pictures
 

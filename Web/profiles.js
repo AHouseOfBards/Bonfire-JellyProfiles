@@ -625,6 +625,18 @@
                 ? String(typeof pluginUrl === 'function' ? pluginUrl('/plugins/profiles/themes/pattern-files/' + pattern.image) : '/plugins/profiles/themes/pattern-files/' + pattern.image).replace(/["\\\n\r]/g, '')
                 : null);
         const patternSize = pattern ? num(pattern.size, 240) : 240;
+        // A second pattern, drawn above the first (::after, where the first is ::before). Only a
+        // theme that has one gets any of its rules or variables, so every theme without it is
+        // written exactly as before. It needs the first: the validator says so, and so does this.
+        const pattern2 = patternImage ? deco('pattern2') : null;
+        const pattern2Image = pattern2 && typeof pattern2.image === 'string' && patterns
+            && typeof patterns[pattern2.image] === 'string' && /^data:image\/svg\+xml,[^"\\]*$/.test(patterns[pattern2.image])
+            ? patterns[pattern2.image] : null;
+        const pattern2Size = pattern2Image ? num(pattern2.size, 240) : 240;
+        // 0.1 to 1, and 1 (today's look) writes nothing.
+        const layerOpacity = d => (d && typeof d.opacity === 'number' && d.opacity >= 0.1 && d.opacity < 1 ? d.opacity : 1);
+        const patternOpacity = layerOpacity(pattern);
+        const pattern2Opacity = layerOpacity(pattern2);
         const ac = rgbOf(accent);
         // The danger colour as a base for tints, and the select's arrow in the text colour.
         // The arrow is a picture, so it cannot follow a token: it was one fixed white, and
@@ -710,6 +722,11 @@
             ['--jpf-deco', patternImage ? 'url("' + patternImage + '")' : 'none'],
             ['--jpf-deco-size', patternSize + 'px']
         ];
+        if (patternImage && patternOpacity < 1) vars.push(['--jpf-deco-opacity', String(patternOpacity)]);
+        if (pattern2Image) {
+            vars.push(['--jpf-deco2', 'url("' + pattern2Image + '")'], ['--jpf-deco2-size', pattern2Size + 'px']);
+            if (pattern2Opacity < 1) vars.push(['--jpf-deco2-opacity', String(pattern2Opacity)]);
+        }
 
         // On the attribute and on body, because the base tokens are declared on body too
         // and a declaration on body beats one inherited from html. Bonfire also on :root:
@@ -912,6 +929,20 @@
                 + '    ' + sel + ' .btn-secondary {\n        -webkit-backdrop-filter: blur(' + small + 'px) saturate(160%);\n        backdrop-filter: blur(' + small + 'px) saturate(160%);\n    }\n}\n';
         }
 
+        // The second pattern's layer: the first's rule (styles.css, "Seasonal decoration") on
+        // ::after, for this theme only. Its own picture, size and opacity; z-index -1 in the same
+        // stacking context, and later in tree order, so it is drawn over the first.
+        if (pattern2Image) {
+            const gateAfter = sel + ' #profiles-gate-overlay::after';
+            const previewAfter = '.jpf-theme-preview' + sel + '::after';
+            css += gateAfter + ',\n' + previewAfter + ' {\n    content: \'\';\n    position: absolute;\n'
+                + '    top: 0;\n    right: 0;\n    bottom: 0;\n    left: 0;\n'
+                + '    background-image: var(--jpf-deco2);\n    background-size: var(--jpf-deco2-size) var(--jpf-deco2-size);\n'
+                + '    opacity: var(--jpf-deco2-opacity, 1);\n    pointer-events: none;\n    z-index: -1;\n}\n'
+                + gateAfter + ' {\n    position: fixed;\n}\n'
+                + previewAfter + ' {\n    background-size: calc(var(--jpf-deco2-size) * 0.45) calc(var(--jpf-deco2-size) * 0.45);\n}\n';
+        }
+
         // A drifting pattern comes down, slowly: a transform on a layer one tile taller
         // than the screen, so the compositor moves it and nothing is repainted; one tile a
         // loop, so it joins up. Not on a flat television (jpf-flat: a TV that cannot afford
@@ -939,6 +970,21 @@
                 + '@keyframes ' + anim + ' {\n    from { transform: translateY(0); }\n    to { transform: translateY(' + patternSize + 'px); }\n}\n';
         }
 
+        // The second pattern drifts the same way, on ::after, by its own size and seconds. The
+        // keyframes are named by size, so two layers of one size share one pair.
+        if (pattern2Image && pattern2.drift === 'down') {
+            const seconds2 = num(pattern2.seconds, 32);
+            const anim2 = 'jpf-drift-' + String(pattern2Size).replace(/[^0-9a-z]/gi, '-');
+            css += '@media (prefers-reduced-motion: no-preference) {\n'
+                + '    ' + sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay::after {\n'
+                + '        top: -' + pattern2Size + 'px;\n        will-change: transform;\n'
+                + '        -webkit-animation: ' + anim2 + ' ' + seconds2 + 's linear infinite;\n'
+                + '        animation: ' + anim2 + ' ' + seconds2 + 's linear infinite;\n    }\n}\n'
+                + '@-webkit-keyframes ' + anim2 + ' {\n    from { -webkit-transform: translateY(0); transform: translateY(0); }\n'
+                + '    to { -webkit-transform: translateY(' + pattern2Size + 'px); transform: translateY(' + pattern2Size + 'px); }\n}\n'
+                + '@keyframes ' + anim2 + ' {\n    from { transform: translateY(0); }\n    to { transform: translateY(' + pattern2Size + 'px); }\n}\n';
+        }
+
         // twinkle: a slow fade of the pattern between two layers, so the stars do not all
         // dim together. The pattern's own layer eases down to 45% and back; a second copy
         // of it, shifted by a third of a tile so its stars fall in other places, rises to
@@ -952,18 +998,30 @@
             const over = sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay';
             const run = name => '        -webkit-animation: ' + name + ' ' + period + 's ease-in-out infinite;\n'
                 + '        animation: ' + name + ' ' + period + 's ease-in-out infinite;\n';
+            // The layer's own opacity scales both fades, so a faint pattern twinkles from its
+            // faintness and not from full. At 1 every name and number is what it always was.
+            // With a second pattern, ::after is that pattern's layer, so the shifted copy is
+            // not drawn and the first layer's fade is all the twinkle there is.
+            const tag = patternOpacity < 1 ? '-o' + String(patternOpacity).replace(/[^0-9]/g, '') : '';
+            const sc = x => String(Math.round(x * patternOpacity * 1000) / 1000);
+            const nameA = 'jpf-twinkle' + tag, nameB = 'jpf-twinkle-b' + tag;
+            const keyframes = '@-webkit-keyframes ' + nameA + ' {\n    0%, 100% { opacity: ' + sc(1) + '; }\n    50% { opacity: ' + sc(0.45) + '; }\n}\n'
+                + '@keyframes ' + nameA + ' {\n    0%, 100% { opacity: ' + sc(1) + '; }\n    50% { opacity: ' + sc(0.45) + '; }\n}\n';
+            if (pattern2Image) {
+                css += '@media (prefers-reduced-motion: no-preference) {\n'
+                    + '    ' + over + '::before {\n        will-change: opacity;\n' + run(nameA) + '    }\n}\n' + keyframes;
+                return css;
+            }
             css += '@media (prefers-reduced-motion: no-preference) {\n'
-                + '    ' + over + '::before {\n        will-change: opacity;\n' + run('jpf-twinkle') + '    }\n'
+                + '    ' + over + '::before {\n        will-change: opacity;\n' + run(nameA) + '    }\n'
                 + '    ' + over + '::after {\n        content: \'\';\n        position: fixed;\n'
                 + '        top: 0;\n        right: 0;\n        bottom: 0;\n        left: 0;\n'
                 + '        background-image: var(--jpf-deco);\n        background-size: var(--jpf-deco-size) var(--jpf-deco-size);\n'
                 + '        background-position: calc(var(--jpf-deco-size) / 2) calc(var(--jpf-deco-size) / 3);\n'
                 + '        pointer-events: none;\n        z-index: -1;\n        opacity: 0;\n        will-change: opacity;\n'
-                + run('jpf-twinkle-b') + '    }\n}\n'
-                + '@-webkit-keyframes jpf-twinkle {\n    0%, 100% { opacity: 1; }\n    50% { opacity: 0.45; }\n}\n'
-                + '@keyframes jpf-twinkle {\n    0%, 100% { opacity: 1; }\n    50% { opacity: 0.45; }\n}\n'
-                + '@-webkit-keyframes jpf-twinkle-b {\n    0%, 100% { opacity: 0; }\n    50% { opacity: 0.6; }\n}\n'
-                + '@keyframes jpf-twinkle-b {\n    0%, 100% { opacity: 0; }\n    50% { opacity: 0.6; }\n}\n';
+                + run(nameB) + '    }\n}\n' + keyframes
+                + '@-webkit-keyframes ' + nameB + ' {\n    0%, 100% { opacity: 0; }\n    50% { opacity: ' + sc(0.6) + '; }\n}\n'
+                + '@keyframes ' + nameB + ' {\n    0%, 100% { opacity: 0; }\n    50% { opacity: ' + sc(0.6) + '; }\n}\n';
         }
         return css;
     }
