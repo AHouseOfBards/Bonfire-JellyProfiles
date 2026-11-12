@@ -93,9 +93,31 @@ async function main() {
         await c.evaluate("document.querySelector('#themeEditor .jpf-te-mode[data-view=advanced]').click()");
         await wait(500);
         ok('Advanced has no Id box either', (await c.evaluate("!document.querySelector('#teAdvancedFields [data-path=id]') && !document.getElementById('teId')")) === true);
+        // Eight groups named for what they style (owner, 2026-11-12); only Colors starts open,
+        // and the groups a viewer opens are remembered (localStorage, per viewer).
+        const GROUPS = "[].slice.call(document.querySelectorAll('#teAdvancedFields > details')).map(function(d){ return (d.getAttribute('data-group') || '').replace('admin.themes.group.', '') + '=' + d.querySelector('summary').textContent + (d.open ? '*' : ''); }).join('|')";
+        ok('Advanced is eight groups named for what they style, Colors open',
+            (await c.evaluate(GROUPS)) === 'colours=Colors*|background=Background|tiles=Tiles and layout|names=Names|type=Type|buttons=Buttons|cards=Cards and text boxes|decorations=Decorations', await c.evaluate(GROUPS));
+        await c.evaluate("document.querySelector('#teAdvancedFields details[data-group$=\"names\"] summary').click()");
+        await wait(300);
+        const savedGroups = await c.evaluate("localStorage.getItem('bonfire-theme-groups')");
+        ok('opening a group saves which are open', savedGroups === '["admin.themes.group.colours","admin.themes.group.names"]');
+        // The scene clears storage on every load (tests/screens/dashboard.js), so the saved
+        // value is put back, as the same browser would still hold it.
+        await c.open('http://127.0.0.1:' + s.port + '/dashboard?tab=look&device=desktop&theme=dark', 'desktop');
+        await c.evaluate("[].slice.call(document.querySelectorAll('details')).forEach(function(d){ if (d.querySelector('#themeEditor')) d.open = true; })");
+        await c.evaluate("new Promise(function(r){var s=document.createElement('script'); s.src='/bonfire.js'; s.onload=r; s.onerror=r; document.head.appendChild(s);})");
+        await c.evaluate('window.__bonfire.injectStyles()');
+        await c.evaluate("localStorage.setItem('bonfire-theme-groups', " + JSON.stringify(savedGroups) + ")");
+        await c.evaluate("document.getElementById('themeNew').click()");
+        await wait(600);
+        await c.evaluate("document.querySelector('#themeEditor .jpf-te-mode[data-view=advanced]').click()");
+        await wait(500);
+        ok('and a new visit opens those groups again', (await c.evaluate(GROUPS)).replace(/=[^|*]*/g, '') === 'colours*|background|tiles|names*|type|buttons|cards|decorations', await c.evaluate(GROUPS));
+
         await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function(d){ d.open = true; })");
         await wait(300);
-        const adv = await c.evaluate(PREVIEW_WITH('#teAdvancedFields > :last-child'));
+        const adv =await c.evaluate(PREVIEW_WITH('#teAdvancedFields > :last-child'));
         ok('in Advanced, with every section open, the preview is on screen at the last field', adv.inView, JSON.stringify(adv));
 
         // The same on a phone: the preview may sit above the fields, but it must stay on screen.

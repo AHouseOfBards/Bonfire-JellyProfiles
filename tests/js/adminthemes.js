@@ -451,8 +451,8 @@ function part5() {
         ok('a value the server would refuse is not written to layout.' + k, e.layout[k] === undefined);
     });
     const advanced = [];
-    fns.themeFieldList().forEach(g => { if (g[0] === 'admin.themes.group.layout') g[1].forEach(f => advanced.push(f[0] + ' ' + JSON.stringify(f[2]))); });
-    Object.keys(LAYOUT).forEach(k => ok('Advanced\'s Layout section has layout.' + k + ' with the same values',
+    fns.themeFieldList().forEach(g => { if (g[0] === 'admin.themes.group.tiles') g[1].forEach(f => advanced.push(f[0] + ' ' + JSON.stringify(f[2]))); });
+    Object.keys(LAYOUT).forEach(k => ok('Advanced\'s Tiles and layout section has layout.' + k + ' with the same values',
         advanced.indexOf('layout.' + k + ' ' + JSON.stringify(LAYOUT[k])) !== -1, advanced.join(' | ')));
 
     // Advanced: every field a built-in theme uses has a control, and every control is a field.
@@ -489,16 +489,23 @@ function part5() {
     ok('no field was added or removed by grouping: the same ' + BEFORE.length + ', each once',
         JSON.stringify(NOW.slice().sort()) === JSON.stringify(BEFORE), 'now ' + NOW.length + ', before ' + BEFORE.length);
     const keys = fields.map(g => g[0].replace('admin.themes.group.', ''));
-    ok('the headings name the section: accent, text, surfaces, buttons, cards, inputs',
-        ['accent', 'text', 'surfaces', 'buttons', 'cards', 'inputs', 'background'].every(k => keys.indexOf(k) !== -1), keys.join());
-    ok('no heading is a catch-all: none holds more than 12 fields', fields.every(g => g[1].length <= 12),
-        fields.filter(g => g[1].length > 12).map(g => g[0] + ' ' + g[1].length).join());
+    // Regrouped 2026-11-12 (owner): eight sections named for what they style on the profile
+    // screen, in this order, and none with a single field.
+    ok('the eight groups, in order: colours, background, tiles, names, type, buttons, cards, decorations',
+        JSON.stringify(keys) === JSON.stringify(['colours', 'background', 'tiles', 'names', 'type', 'buttons', 'cards', 'decorations']), keys.join());
+    const small = fields.filter(g => g[1].length < 2 && g[0] !== 'admin.themes.group.decorations');
+    ok('no group but Decorations (a single list of cards) holds a single field', small.length === 0, small.map(g => g[0]).join());
+    ok('no heading is a catch-all: none holds more than 22 fields', fields.every(g => g[1].length <= 22),
+        fields.filter(g => g[1].length > 22).map(g => g[0] + ' ' + g[1].length).join());
     ok('and the old catch-alls "colors" and "parts" are gone', keys.indexOf('colors') === -1 && keys.indexOf('parts') === -1);
     const where = p => keys[fields.findIndex(g => g[1].some(f => f[0] === p))];
     ok('each field is under the section its name says',
-        where('colors.accent') === 'accent' && where('colors.text2') === 'text' && where('colors.panel') === 'surfaces'
-        && where('parts.button2.focus.fill') === 'buttons' && where('parts.card.fill') === 'cards' && where('parts.input.line') === 'inputs'
-        && where('parts.addTile.fill') === 'addtile' && where('colors.danger') === 'status');
+        where('scheme') === 'colours' && where('colors.accent') === 'colours' && where('colors.panel') === 'colours' && where('colors.danger') === 'colours'
+        && where('colors.nameFocus') === 'names' && where('type.name.scale') === 'names'
+        && where('shape.avatar.kind') === 'tiles' && where('layout.logo') === 'tiles' && where('focus.glow') === 'tiles'
+        && where('type.title.scale') === 'type' && where('depth.title') === 'type'
+        && where('parts.button2.focus.fill') === 'buttons' && where('parts.addTile.fill') === 'buttons' && where('type.button.case') === 'buttons'
+        && where('parts.card.fill') === 'cards' && where('parts.input.line') === 'cards' && where('shape.radius.small') === 'cards');
     ok('a problem inside a list belongs to the list', fns.themePathOwns('background.layers', 'background.layers[0].stops[1].color')
        && !fns.themePathOwns('background.fill', 'background.fillx'));
 

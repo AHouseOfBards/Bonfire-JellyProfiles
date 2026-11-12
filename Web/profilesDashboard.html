@@ -2106,21 +2106,14 @@
                 'admin.themes.pattern.confetti': 'Confetti',
                 'admin.themes.pattern.moons': 'Moons',
                 'admin.themes.pattern.waves': 'Waves',
-                'admin.themes.group.file': 'Light or dark',
-                'admin.themes.group.accent': 'Accent',
-                'admin.themes.group.text': 'Text',
-                'admin.themes.group.surfaces': 'Panels and borders',
-                'admin.themes.group.status': 'Status colors',
                 'admin.themes.group.background': 'Background',
-                'admin.themes.group.shape': 'Shape',
                 'admin.themes.group.type': 'Type',
-                'admin.themes.group.depth': 'Depth and focus',
                 'admin.themes.group.buttons': 'Buttons',
-                'admin.themes.group.addtile': 'Add-profile tile',
-                'admin.themes.group.cards': 'Cards and sheets',
-                'admin.themes.group.inputs': 'Text boxes',
-                'admin.themes.group.layout': 'Layout',
                 'admin.themes.group.decorations': 'Decorations',
+                'admin.themes.group.colours': 'Colors',
+                'admin.themes.group.tiles': 'Tiles and layout',
+                'admin.themes.group.names': 'Names',
+                'admin.themes.group.cards': 'Cards and text boxes',
                 'admin.themes.previewText': 'Secondary text',
                 'admin.themes.previewPrimary': 'Continue',
                 'admin.themes.previewSecondary': 'Cancel',
@@ -4451,42 +4444,43 @@
                 const colours = function (keys) {
                     return keys.map(function (k) { return colour('colors.' + k); });
                 };
-                // Sections, in the order an administrator reaches for them. Every field is
-                // under the heading that says what it is for; none is a catch-all.
+                // Eight sections, named for what they style on the profile screen (owner,
+                // 2026-11-12); the fields are the same as when there were fifteen, and
+                // adminthemes.js checks that none was added or lost. Each is under the heading
+                // that says what it is for; none is a catch-all, and none holds one field.
                 return [
-                    ['admin.themes.group.file', [pick('scheme', ['dark', 'light'])]],
-                    ['admin.themes.group.accent', colours(['accent', 'accentFocus', 'onAccent', 'ring'])],
-                    ['admin.themes.group.text', colours(['text1', 'text2', 'text3', 'name', 'nameFocus'])],
-                    ['admin.themes.group.surfaces', colours(['panel', 'surface1', 'surface2', 'surface3', 'border1', 'border2', 'border3', 'shadow'])],
-                    ['admin.themes.group.status', colours(['danger', 'warning'])],
+                    ['admin.themes.group.colours', [pick('scheme', ['dark', 'light'])]
+                        .concat(colours(['accent', 'accentFocus', 'onAccent', 'text1', 'text2', 'text3',
+                            'panel', 'surface1', 'surface2', 'surface3', 'border1', 'border2', 'border3', 'shadow', 'danger', 'warning']))],
                     ['admin.themes.group.background', [colour('background.fill'), ['background.layers', 'json'], ['background.image', 'photo']]],
-                    ['admin.themes.group.shape', [
-                        num('shape.radius.small', 0, 64, 1), num('shape.radius.medium', 0, 64, 1), num('shape.radius.large', 0, 64, 1),
+                    ['admin.themes.group.tiles', [
                         pick('shape.avatar.kind', ['circle', 'square', 'rounded', 'leaf']), num('shape.avatar.radius', 0, 200, 1),
-                        num('shape.ringWidth', 0, 12, 1),
-                        pick('shape.button.kind', ['pill', 'rounded', 'square']), num('shape.button.radius', 0, 64, 1),
-                        num('shape.input.radius', 0, 64, 1)]],
-                    ['admin.themes.group.type', [
-                        ['type.font.family', 'font'], pick('type.font.fallback', ['sans-serif', 'serif', 'rounded']),
-                        num('type.title.weight', 100, 900, 100), num('type.title.spacing', -0.2, 0.5, 0.01), num('type.title.scale', 0.5, 2, 0.05),
-                        num('type.name.weight', 100, 900, 100), num('type.name.scale', 0.5, 2, 0.05), num('type.name.opacity', 0.5, 1, 0.05),
-                        pick('type.button.case', ['none', 'upper']), num('type.button.spacing', -0.2, 0.5, 0.01),
-                        num('type.button.weight', 100, 900, 100)]],
-                    ['admin.themes.group.depth', [shadow('depth.avatar'), shadow('depth.title'), shadow('depth.sheet'),
-                        num('focus.scale', 1, 1.25, 0.01), shadow('focus.glow')]],
-                    ['admin.themes.group.buttons', [colour('parts.button2.fill'), colour('parts.button2.text')]
-                        .concat(border('parts.button2.border'),
-                            [colour('parts.button2.focus.fill'), colour('parts.button2.focus.text')],
-                            border('parts.button2.focus.border'), [shadow('parts.button2.focus.glow')])],
-                    ['admin.themes.group.addtile', [colour('parts.addTile.fill')]
-                        .concat(border('parts.addTile.border'), [colour('parts.addTile.text'), colour('parts.addTile.focusFill')])],
-                    ['admin.themes.group.cards', [colour('parts.card.fill'), colour('parts.card.line'), colour('parts.sheet.fill')]
-                        .concat(border('parts.sheet.border'))],
-                    ['admin.themes.group.inputs', [colour('parts.input.fill'), colour('parts.input.line')]],
-                    ['admin.themes.group.layout', [pick('layout.households', ['panels', 'open']),
+                        num('shape.ringWidth', 0, 12, 1), colour('colors.ring'), shadow('depth.avatar'),
+                        num('focus.scale', 1, 1.25, 0.01), shadow('focus.glow'),
+                        pick('layout.households', ['panels', 'open']),
                         pick('layout.profiles', ['tiles', 'list']), pick('layout.align', ['center', 'left']),
                         pick('layout.size', ['small', 'medium', 'large']),
                         pick('layout.logo', ['top-left', 'top-right', 'bottom-left', 'bottom-right'])]],
+                    ['admin.themes.group.names', [colour('colors.name'), colour('colors.nameFocus'),
+                        num('type.name.weight', 100, 900, 100), num('type.name.scale', 0.5, 2, 0.05), num('type.name.opacity', 0.5, 1, 0.05)]],
+                    ['admin.themes.group.type', [
+                        ['type.font.family', 'font'], pick('type.font.fallback', ['sans-serif', 'serif', 'rounded']),
+                        num('type.title.weight', 100, 900, 100), num('type.title.spacing', -0.2, 0.5, 0.01), num('type.title.scale', 0.5, 2, 0.05),
+                        shadow('depth.title')]],
+                    ['admin.themes.group.buttons', [
+                        pick('shape.button.kind', ['pill', 'rounded', 'square']), num('shape.button.radius', 0, 64, 1),
+                        pick('type.button.case', ['none', 'upper']), num('type.button.spacing', -0.2, 0.5, 0.01),
+                        num('type.button.weight', 100, 900, 100),
+                        colour('parts.button2.fill'), colour('parts.button2.text')]
+                        .concat(border('parts.button2.border'),
+                            [colour('parts.button2.focus.fill'), colour('parts.button2.focus.text')],
+                            border('parts.button2.focus.border'), [shadow('parts.button2.focus.glow')],
+                            [colour('parts.addTile.fill')], border('parts.addTile.border'),
+                            [colour('parts.addTile.text'), colour('parts.addTile.focusFill')])],
+                    ['admin.themes.group.cards', [colour('parts.card.fill'), colour('parts.card.line'), colour('parts.sheet.fill')]
+                        .concat(border('parts.sheet.border'), [shadow('depth.sheet'),
+                            num('shape.radius.small', 0, 64, 1), num('shape.radius.medium', 0, 64, 1), num('shape.radius.large', 0, 64, 1),
+                            num('shape.input.radius', 0, 64, 1), colour('parts.input.fill'), colour('parts.input.line')])],
                     ['admin.themes.group.decorations', [['decorations', 'json']]]
                 ];
             }
@@ -6061,8 +6055,9 @@
                 if (box.dataset.built) return;
                 box.dataset.built = '1';
                 let n = 0;
+                const openGroups = themeOpenGroups();
                 box.innerHTML = themeFieldList().map(function (group, g) {
-                    return '<details class="jpf-te-group"' + (g === 1 ? ' open' : '') + '><summary>' +
+                    return '<details class="jpf-te-group" data-group="' + group[0] + '"' + (openGroups.indexOf(group[0]) !== -1 ? ' open' : '') + '><summary>' +
                         escapeHtml(t(group[0])) + '</summary>' +
                         group[1].map(function (f) {
                             const path = f[0], kind = f[1], opt = f[2];
@@ -6122,6 +6117,32 @@
                                 (hintHtml ? '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div>' : '') + '</div>';
                         }).join('') + '</details>';
                 }).join('');
+                // Which groups are open is remembered per viewer. A toggle does not bubble, so
+                // it is caught on the way down. While a search is typed the groups are opened
+                // and shut for it, which is not the viewer's choice and is not saved.
+                box.addEventListener('toggle', function () {
+                    if (box.dataset.searching) return;
+                    themeSaveOpenGroups(box);
+                }, true);
+            }
+
+            const THEME_GROUPS_KEY = 'bonfire-theme-groups';
+
+            /// The groups to show open: what this viewer left open last time, or Colors
+            /// the first time. Storage can be blocked or hand-edited, so only keys of real
+            /// groups from an array are believed.
+            function themeOpenGroups() {
+                const known = themeFieldList().map(function (g) { return g[0]; });
+                let saved = null;
+                try { saved = JSON.parse(localStorage.getItem(THEME_GROUPS_KEY)); } catch (e) { /* blocked or not JSON */ }
+                if (!Array.isArray(saved)) return [known[0]];
+                return saved.filter(function (k) { return known.indexOf(k) !== -1; });
+            }
+
+            function themeSaveOpenGroups(box) {
+                const open = Array.prototype.filter.call(box.querySelectorAll('details.jpf-te-group'), function (d) { return d.open; })
+                    .map(function (d) { return d.getAttribute('data-group'); });
+                try { localStorage.setItem(THEME_GROUPS_KEY, JSON.stringify(open)); } catch (e) { /* private mode */ }
             }
 
             /// Puts the draft into the controls of one view. Called on opening and on every
