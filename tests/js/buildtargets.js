@@ -120,12 +120,15 @@ ok('CI actually runs the harnesses against the net10.0 build',
     const ps = fs.readFileSync(path.join(L.ROOT, 'tests', 'run.ps1'), 'utf8');
     ok('run.sh runs net9.0 by default and net10.0 for cs10',
        /^TFM="net9\.0"\s*$/m.test(sh) && /^\[ "\$WHICH" = "cs10" \] && TFM="net10\.0"\s*$/m.test(sh));
-    ok('run.ps1 runs net9.0 by default and net10.0 for cs10',
-       /\$tfm = if \(\$Which -eq 'cs10'\) \{ 'net10\.0' \} else \{ 'net9\.0' \}/.test(ps));
-    ok('run.sh hands the framework to every harness it runs',
-       sh.split('\n').filter(l => /dotnet run --project/.test(l)).every(l => /-p:BonfireTfm="\$TFM"/.test(l)));
-    ok('run.ps1 hands the framework to every harness it runs',
-       ps.split('\n').filter(l => /dotnet run --project/.test(l)).every(l => /-p:BonfireTfm=\$tfm/.test(l)));
+    // run.ps1 is a wrapper over run.sh: it must pass the argument through and carry no
+    // framework logic of its own, or there are two runners to keep in step again.
+    ok('run.ps1 hands its argument to run.sh and keeps no framework logic',
+       /& \$bash \$script \$Which/.test(ps) && !/net9\.0|net10\.0|dotnet/.test(ps.replace(/<#[\s\S]*?#>/, '')));
+    // Zero matching lines would pass an every(), so the build lines are required to exist.
+    const build = sh.split('\n').filter(l => /dotnet msbuild tests\/cs\/build-all\.proj/.test(l)
+        || /^\s+-p:Configuration=Release/.test(l));
+    ok('run.sh builds the C# harnesses for the chosen framework',
+       build.length > 0 && build.some(l => /-p:BonfireTfm="\$TFM"/.test(l)) && !/dotnet run --project/.test(sh));
 }
 
 console.log('\n── the harnesses can be pointed at either build ────────────────');

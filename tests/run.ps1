@@ -6,101 +6,35 @@
         tests\run.ps1 cs        # just the C# ones, against the net9.0 build that ships
         tests\run.ps1 cs10      # the same set, against the net10.0 build
 
-    The plugin multi-targets net9.0 and net10.0 — Jellyfin 10.11.x runs on .NET 9 and 12.0
-    on .NET 10. net9.0 is what ships, because it is the only one of the two that loads on
-    both servers, so `all` runs the C# set against that one. `cs10` is what proves the
-    other build is not merely compiling.
+    This hands over to tests/run.sh through Git Bash. It used to be a second copy of the
+    runner, and a second copy is how the desk and the pipeline come to disagree about what
+    "the tests pass" means: the parallel JavaScript run, the one-pass C# build, the
+    one-full-run-at-a-time lock and the no-totals-line check would each have had to be
+    written twice. BONFIRE_JOBS, BONFIRE_LOCK_WAIT and SKIP_BUILD are read by run.sh as
+    they are here.
 
-    The C# harnesses reference bin\Release\<tfm>\Jellyfin.Profiles.dll, so the plugin is
-    built first unless $env:SKIP_BUILD is set.
+    Needs Git for Windows (bash). The WSL bash that ships in System32 is not used: it would
+    run the tests inside Linux against a Windows checkout.
 #>
 param([string]$Which = 'all')
 
-$ErrorActionPreference = 'Continue'
-$root = Split-Path -Parent $PSScriptRoot
-Push-Location $root
-
-$failed = New-Object System.Collections.Generic.List[string]
-$ran = 0
-
-# The framework the C# harnesses load the plugin from. They set their own TargetFramework
-# from it too, because a net9 harness cannot load a net10 assembly.
-$tfm = if ($Which -eq 'cs10') { 'net10.0' } else { 'net9.0' }
-
-function Invoke-Harness {
-    param([string]$Label, [scriptblock]$Body)
-    Write-Host ("  {0,-14} " -f $Label) -NoNewline
-    $out = & $Body 2>&1
-    $script:ran++
-    $text = ($out | ForEach-Object { [string]$_ }) -join "`n"
-    if ($LASTEXITCODE -eq 0 -and ($text.Trim() -eq '' -or $text -match '(?i)(^|[^0-9.])0 (passed|checks|assertions)|pass 0([^0-9]|$)')) {
-        # Exit 0 with nothing said, or zero checks counted, proved nothing.
-        $script:failed.Add($Label)
-        Write-Host 'FAILED (asserted nothing)'
-    } elseif ($LASTEXITCODE -eq 0 -and (($text -split "`n" | Where-Object { $_.Trim() -ne '' } | Select-Object -Last 1) -notmatch '[0-9]+ passed|pass [0-9]+, fail [0-9]+|^\s*SKIPPED')) {
-        # Exit 0 without ending on a totals line: it stopped early.
-        $script:failed.Add($Label)
-        Write-Host 'FAILED (no totals line)'
-        $out | Select-Object -Last 5 | ForEach-Object { Write-Host ('        ' + $_) }
-    } elseif ($LASTEXITCODE -eq 0) {
-        $tail = ($out | Select-Object -Last 1)
-        if ($null -ne $tail) { Write-Host ([string]$tail).Trim() } else { Write-Host 'ok' }
-    } else {
-        $script:failed.Add($Label)
-        Write-Host 'FAILED'
-        $out | Select-Object -Last 25 | ForEach-Object { Write-Host ('        ' + $_) }
-    }
+$bash = $null
+$candidates = @(
+    (Join-Path $env:ProgramFiles 'Git\bin\bash.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Git\bin\bash.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Programs\Git\bin\bash.exe')
+)
+foreach ($c in $candidates) { if ($c -and (Test-Path $c)) { $bash = $c; break } }
+if (-not $bash) {
+    $found = Get-Command bash.exe -ErrorAction SilentlyContinue |
+        Where-Object { $_.Source -notmatch '\\Windows\\System32\\' } | Select-Object -First 1
+    if ($found) { $bash = $found.Source }
+}
+if (-not $bash) {
+    Write-Host 'tests\run.ps1 needs Git for Windows (bash.exe) to run tests/run.sh. Install it, or run tests/run.sh from Git Bash.'
+    exit 2
 }
 
-try {
-    if ($Which -ne 'js') {
-        Write-Host '-- Building the plugin (Release) ------------------------------'
-        if (-not $env:SKIP_BUILD) {
-            dotnet build -c Release -warnaserror --nologo -v q | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host '  build FAILED'
-                dotnet build -c Release -warnaserror --nologo -v q
-                exit 1
-            }
-        }
-        Write-Host '  ok'
-        Write-Host ''
-    }
-
-    if ($Which -eq 'all' -or $Which -eq 'js') {
-        Write-Host '-- JavaScript ------------------------------------------------'
-        # _lib.js and _stubdom.js are shared plumbing (any _*.js is). *.verify.js needs the network and refreshes what the
-        # offline checks compare against — it is a maintenance tool, not a gate.
-        # *.scan.js surveys the source and prints what it finds; it asserts nothing and
-        # always exits 0, so counting it would add a harness that can never go red.
-        Get-ChildItem (Join-Path $root 'tests\js\*.js') |
-            Where-Object { $_.Name -notlike '_*' -and $_.Name -notlike '*.verify.js' -and $_.Name -notlike '*.scan.js' } |
-            ForEach-Object {
-                $p = $_.FullName
-                Invoke-Harness ($_.BaseName) { node $p }
-            }
-        Write-Host ''
-    }
-
-    if ($Which -eq 'all' -or $Which -eq 'cs' -or $Which -eq 'cs10') {
-        Write-Host "-- C# (against the $tfm build) -------------------------------"
-        Get-ChildItem (Join-Path $root 'tests\cs') -Directory | ForEach-Object {
-            $p = $_.FullName
-            Invoke-Harness ($_.Name) {
-                dotnet run --project $p -c Release --nologo "-p:BonfireTfm=$tfm"
-            }
-        }
-        Write-Host ''
-    }
-
-    Write-Host '--------------------------------------------------------------'
-    if ($failed.Count -eq 0) {
-        Write-Host "  $ran harnesses, all green."
-        exit 0
-    }
-    Write-Host "  $ran harnesses, $($failed.Count) failed: $($failed -join ', ')"
-    exit 1
-}
-finally {
-    Pop-Location
-}
+$script = Join-Path $PSScriptRoot 'run.sh'
+& $bash $script $Which
+exit $LASTEXITCODE
