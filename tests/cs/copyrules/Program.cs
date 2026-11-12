@@ -406,6 +406,9 @@ Console.WriteLine();
 Console.WriteLine("── A source with no rules ───────────────────────────────────────");
 {
     Set(srcRow, "Viewing", null);
+    // No rating record: its limit was never chosen on the form, so the account is the source.
+    Set(srcRow, "OwnRating", null);
+    Set(srcRow, "LastAppliedRating", null);
     Set(srcRow, "BlockedTags", new List<string>());
     Set(srcRow, "AllLibraries", true);
     world.Policies[SRC] = new UserPolicy { EnableAllFolders = true, MaxParentalRating = null };
@@ -416,6 +419,71 @@ Console.WriteLine("── A source with no rules ──────────�
     r = Copy(SRC, DST);
     Ok("copying a profile with no limits removes the target's", r.status == 200 && Row(dstRow, "Viewing") == null, r.status + " " + r.message + " " + Sig(dstRow));
     Ok("and its rating limit and tags", world.Policies[DST].MaxParentalRating == null && !world.Policies[DST].BlockedTags.Contains("own"), Acct(DST));
+}
+
+// ── A source that follows the main account (r2-11-03) ──────────────────────
+Console.WriteLine();
+Console.WriteLine("── A source that follows the main account ───────────────────────");
+{
+    Type ratingT = asm.GetType("Jellyfin.Profiles.Configuration.ProfileRating", true);
+    object Rating(int? score, int? sub)
+    {
+        var x = Activator.CreateInstance(ratingT);
+        ratingT.GetProperty("Score").SetValue(x, score);
+        ratingT.GetProperty("SubScore").SetValue(x, sub);
+        return x;
+    }
+    object ScoreOf(object x) => x == null ? "null" : ratingT.GetProperty("Score").GetValue(x) ?? "none";
+
+    world.Policies[MAIN].MaxParentalRating = 9;
+    Set(srcRow, "AllLibraries", true);
+    Set(srcRow, "OwnRating", null);                 // follows the main account
+    Set(srcRow, "LastAppliedRating", Rating(9, null));
+    world.Policies[SRC] = new UserPolicy { EnableAllFolders = true, MaxParentalRating = 9 };
+    Set(dstRow, "OwnRating", Rating(3, null));
+    world.Policies[DST] = new UserPolicy { MaxParentalRating = 3 };
+    r = Copy(SRC, DST);
+    Ok("copying a profile that follows the main account succeeds", r.status == 200, r.status + " " + r.message);
+    Ok("the target follows too, it is not pinned to today's value", Row(dstRow, "OwnRating") == null, "OwnRating=" + ScoreOf(Row(dstRow, "OwnRating")));
+    Ok("and the account carries what the main account allows now", world.Policies[DST].MaxParentalRating == 9, Acct(DST));
+
+    // A source with a rating of its own, and a sub-rating: both arrive as they are.
+    Set(srcRow, "OwnRating", Rating(7, 2));
+    world.Policies[SRC] = new UserPolicy { EnableAllFolders = true, MaxParentalRating = 7, MaxParentalSubRating = 2 };
+    r = Copy(SRC, DST);
+    Ok("a source with its own rating hands it over, sub-rating included",
+        r.status == 200 && world.Policies[DST].MaxParentalRating == 7 && world.Policies[DST].MaxParentalSubRating == 2
+        && Row(dstRow, "OwnRating") != null && (int?)ratingT.GetProperty("SubScore").GetValue(Row(dstRow, "OwnRating")) == 2, Acct(DST));
+    world.Policies[MAIN].MaxParentalRating = null;
+    Set(srcRow, "OwnRating", null);
+    Set(srcRow, "LastAppliedRating", null);
+}
+
+// ── The target is checked again before its account is written (r2-11-04) ────
+Console.WriteLine();
+Console.WriteLine("── A target that leaves the household mid-copy ──────────────────");
+{
+    world.Policies[SRC] = new UserPolicy { EnableAllFolders = true, MaxParentalRating = 12 };
+    world.Policies[DST] = new UserPolicy { MaxParentalRating = 3 };
+    // The moment the route reads the target's account, another request moves the profile.
+    world.OnDto = id => { if (id == DST) { Set(dstRow, "MasterUserId", OTHER); world.OnDto = null; } };
+    r = Copy(SRC, DST);
+    Ok("a target that has left is refused", r.status == 401, r.status + " " + r.message);
+    Ok("and its account was not written", world.Policies[DST].MaxParentalRating == 3, Acct(DST));
+    world.OnDto = null;
+    Set(dstRow, "MasterUserId", MAIN);
+}
+
+// ── Delete answers once (r2-11-07) ──────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Delete: unknown and foreign get one answer ───────────────────");
+{
+    var unknown = Call("DeleteProfile", $"{{\"profileId\":\"{Guid.NewGuid()}\",\"masterPin\":\"{PIN}\"}}");
+    var foreign = Call("DeleteProfile", $"{{\"profileId\":\"{FOREIGN}\",\"masterPin\":\"{PIN}\"}}");
+    Ok("a profile that does not exist is refused", unknown.status == 401 || unknown.status == 404, unknown.status + " " + unknown.message);
+    Ok("another household's gets the same status and words", unknown.status == foreign.status && unknown.message == foreign.message,
+        unknown.status + " " + unknown.message + " vs " + foreign.status + " " + foreign.message);
+    Ok("and that profile is still there", mappings.Contains(foreignRow));
 }
 
 try { Directory.Delete(tempDir, true); } catch { }
@@ -436,6 +504,7 @@ public class World
     public Dictionary<Guid, User> Users = new();
     public Dictionary<Guid, UserPolicy> Policies = new();
     public List<Guid> Libraries = new();
+    public Action<Guid> OnDto;      // lets a test act at the moment an account is read
 
     public void Add(Guid id, string name, UserPolicy policy)
     {
@@ -485,6 +554,7 @@ public class WorldProxy : DispatchProxy
                 return W.Users.Values.ToList();
             case "GetUserDto":
                 var user = (User)args[0];
+                W.OnDto?.Invoke(user.Id);
                 return new UserDto
                 {
                     Id = user.Id,

@@ -118,7 +118,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     ProfileUserId = linkedId,
                     ProfileName = linkedUser.Username,
-                    AvatarInitial = string.IsNullOrEmpty(linkedUser.Username) ? "M" : linkedUser.Username.Substring(0, 1).ToUpper(),
+                    AvatarInitial = AvatarInitialOf(linkedUser.Username, "M"),
                     AvatarColor = linkedMapping?.AvatarColor ?? "#00A4DC",
                     TransparentAvatar = linkedMapping?.TransparentAvatar ?? false,
                     // The stored choice, not the resolved one: the form shows "server default"
@@ -192,7 +192,7 @@ namespace Jellyfin.Profiles.Controllers
                             {
                                 m.ProfileUserId,
                                 m.ProfileName,
-                                AvatarInitial = string.IsNullOrEmpty(m.ProfileName) ? "?" : m.ProfileName.Substring(0, 1).ToUpper(),
+                                AvatarInitial = AvatarInitialOf(m.ProfileName, "?"),
                                 m.AvatarColor,
                                 m.TransparentAvatar,
                                 Theme = ownerView ? m.Theme : null,
@@ -243,7 +243,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     ProfileUserId = addedId,
                     ProfileName = addedUser.Username,
-                    AvatarInitial = string.IsNullOrEmpty(addedUser.Username) ? "?" : addedUser.Username.Substring(0, 1).ToUpper(),
+                    AvatarInitial = AvatarInitialOf(addedUser.Username, "?"),
                     AvatarColor = row?.AvatarColor ?? "#00A4DC",
                     TransparentAvatar = row?.TransparentAvatar ?? false,
                     Theme = (string?)null,
@@ -541,6 +541,12 @@ namespace Jellyfin.Profiles.Controllers
             await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
             await _userManager.UpdateConfigurationAsync(targetUser.Id, targetConfig).ConfigureAwait(false);
 
+            // The picture is written before the lock: disk work does not belong inside it
+            // (r2-11-05). The rollback below removes it again.
+            var profileImageUrl = !string.IsNullOrEmpty(request.AvatarLibraryId)
+                ? CopyLibraryAvatarToProfile(targetUser.Id, request.AvatarLibraryId).Url
+                : SaveProfileImage(targetUser.Id, request.ProfileImage, request.ProfileImageThumb).Url;
+
             // Add new mapping entry
             lock (ConfigLock)
             {
@@ -583,9 +589,7 @@ namespace Jellyfin.Profiles.Controllers
                     AllowedTags = profileAllowedTags,
                     BypassPinOnLocalNetwork = request.BypassPinOnLocalNetwork ?? false,
                     AllowedDeviceIds = newDeviceIds ?? new List<string>(),
-                    ProfileImage = !string.IsNullOrEmpty(request.AvatarLibraryId)
-                        ? CopyLibraryAvatarToProfile(targetUser.Id, request.AvatarLibraryId).Url
-                        : SaveProfileImage(targetUser.Id, request.ProfileImage, request.ProfileImageThumb).Url
+                    ProfileImage = profileImageUrl
                 });
 
                 Plugin.Instance?.SaveConfiguration();
@@ -596,6 +600,12 @@ namespace Jellyfin.Profiles.Controllers
                 lock (ConfigLock)
                 {
                     config.Mappings.RemoveAll(m => m.ProfileUserId == targetUser.Id);
+                }
+                // The picture written for it goes too. Best effort, like the account below.
+                try { SaveProfileImage(targetUser.Id, null); }
+                catch (Exception cleanup)
+                {
+                    _logger.LogWarning(cleanup, "ProfilesPlugin: could not remove the picture left by a failed profile create for {User}.", systemUsername);
                 }
                 try { await _userManager.DeleteUserAsync(targetUser.Id).ConfigureAwait(false); }
                 catch (Exception cleanup)
@@ -616,10 +626,19 @@ namespace Jellyfin.Profiles.Controllers
             });
         }
 
+        /// <summary>
+        /// The letter shown on a profile that has no picture: the first text element, upper-cased
+        /// without regard to the server's culture. Substring(0, 1) cut a surrogate pair in half
+        /// and ToUpper() followed the culture, so a Turkish server turned "i" into a dotted capital (r2-11-08).
+        /// </summary>
+        internal static string AvatarInitialOf(string? name, string whenEmpty) =>
+            string.IsNullOrEmpty(name)
+                ? whenEmpty
+                : System.Globalization.StringInfo.GetNextTextElement(name).ToUpperInvariant();
+
         [HttpPost("delete")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> DeleteProfile([FromBody] DeleteProfileRequest request)
         {
             var config = Plugin.Instance?.Configuration;
@@ -647,13 +666,12 @@ namespace Jellyfin.Profiles.Controllers
 
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
+            // One answer for a profile that does not exist and one that is not this household's,
+            // so the route cannot be used to find out which (r2-11-07). As /copy-rules answers.
             var mapping = FindMapping(request.ProfileId);
-            if (mapping == null) return NotFound("Profile not found.");
-
-            // Verify mapping ownership
-            if (mapping.MasterUserId != masterUserId)
+            if (mapping == null || mapping.MasterUserId != masterUserId)
             {
-                return Unauthorized("Unauthorized profile deletion attempt.");
+                return Unauthorized(OtherHouseholdMessage);
             }
 
             // Delete underlying native system user.
@@ -686,17 +704,14 @@ namespace Jellyfin.Profiles.Controllers
                     // root cause of users seeing deletion always fail.
                     try
                     {
-                        var activeSessions = _sessionManager.Sessions
-                            .Where(s => s.UserId == request.ProfileId)
-                            .ToList();
-                        // Revoke each session's token so Jellyfin considers them dead.
+                        // Revoke the user's tokens so Jellyfin considers every session dead.
                         // This prevents DeleteUserAsync from throwing due to an active session.
-                        foreach (var session in activeSessions)
+                        // One call revokes them all, so it is made once, if there is a session.
+                        if (_sessionManager.Sessions.Any(s => s.UserId == request.ProfileId))
                         {
                             try
                             {
                                 await _sessionManager.RevokeUserTokens(request.ProfileId, null).ConfigureAwait(false);
-                                break; // RevokeUserTokens revokes ALL tokens for the user; no need to loop
                             }
                             catch (Exception sessionEx)
                             {
@@ -750,9 +765,8 @@ namespace Jellyfin.Profiles.Controllers
 
             if (userFullyDeleted)
             {
-                // Clean up static profile image if any
-                SaveProfileImage(request.ProfileId, null);
-
+                // The mapping goes first, so a failure after this leaves a stray picture and not
+                // a mapping to an account that is gone (r2-11-05).
                 lock (ConfigLock)
                 {
                     var mappingToRemove = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
@@ -762,6 +776,9 @@ namespace Jellyfin.Profiles.Controllers
                         Plugin.Instance?.SaveConfiguration();
                     }
                 }
+
+                // The static profile image, if any. Disk work, so outside ConfigLock.
+                SaveProfileImage(request.ProfileId, null);
 
                 // What it had watched today, kept per profile, would stay in viewing_usage.json (R-1023).
                 // Outside ConfigLock: the tracker's own lock is never taken inside it.

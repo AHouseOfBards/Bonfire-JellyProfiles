@@ -752,7 +752,8 @@ Deletes a profile and its Jellyfin account.
 A profile made from an existing account (`deleteWithProfile` false) is not deleted: the
 account stays and signs in on its own with `password`, or a random one if that's empty.
 
-Returns `200`. `500` if the account couldn't be deleted; it's disabled instead, so it can't
+Returns `200`. `403 not_your_profile` for a profile that isn't in your household, whether or
+not it exists. `500` if the account couldn't be deleted; it's disabled instead, so it can't
 be signed in to, and the profile stays listed so you can try again.
 
 ### `GET /plugins/profiles/libraries`

@@ -93,7 +93,30 @@ namespace Jellyfin.Profiles.Controllers
             // Limits with no main PIN to switch them off again are refused, as /limits/{id} refuses them.
             if (viewing != null && viewing.IsLimited && !MainHasPin(masterUserId, config)) return BadRequest(MainPinRequiredMessage);
 
-            var requestedRating = sourcePolicy.MaxParentalRating;
+            // The rating as the source holds it. A source that follows the main account has no
+            // rating of its own, and the target follows too: copying what the source's account
+            // happens to carry would pin the target to today's value (r2-11-03). A source with
+            // no record at all (its rating was set in Dashboard -> Users) has only the account
+            // to copy from.
+            var sourceOwn = source.OwnRating;
+            bool followsMain = sourceOwn == null && source.LastAppliedRating != null;
+            int? requestedRating;
+            int? requestedSubRating;
+            if (sourceOwn != null)
+            {
+                requestedRating = sourceOwn.Score;
+                requestedSubRating = sourceOwn.SubScore;
+            }
+            else if (followsMain)
+            {
+                requestedRating = masterPolicy.MaxParentalRating;
+                requestedSubRating = masterPolicy.MaxParentalSubRating;
+            }
+            else
+            {
+                requestedRating = sourcePolicy.MaxParentalRating;
+                requestedSubRating = sourcePolicy.MaxParentalSubRating;
+            }
             var allLibraries = source.AllLibraries
                 || (source.EnabledFolders == null && sourcePolicy.EnableAllFolders);
             var listedFolders = source.EnabledFolders ?? (sourcePolicy.EnabledFolders ?? Array.Empty<Guid>()).ToList();
@@ -103,11 +126,17 @@ namespace Jellyfin.Profiles.Controllers
 
             var targetPolicy = _userManager.GetUserDto(targetUser, string.Empty).Policy;
             ProfileRating? ratingChosen = null;
-            if (requestedRating != targetPolicy.MaxParentalRating)
+            if (sourceOwn != null || followsMain)
             {
                 targetPolicy.MaxParentalRating = requestedRating;
-                targetPolicy.MaxParentalSubRating = null;
-                ratingChosen = new ProfileRating { Score = requestedRating };
+                targetPolicy.MaxParentalSubRating = requestedSubRating;
+                ratingChosen = sourceOwn?.Copy();
+            }
+            else if (requestedRating != targetPolicy.MaxParentalRating)
+            {
+                targetPolicy.MaxParentalRating = requestedRating;
+                targetPolicy.MaxParentalSubRating = requestedSubRating;
+                ratingChosen = new ProfileRating { Score = requestedRating, SubScore = requestedSubRating };
             }
 
             (targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating) = ClampRating(
@@ -123,6 +152,15 @@ namespace Jellyfin.Profiles.Controllers
                 ? ApplyInheritedFolders(_libraryManager, masterPolicy, targetPolicy, keepOwned: true)
                 : ApplyListedFolders(_libraryManager, masterPolicy, listedFolders, targetPolicy, keepOwned: true);
 
+            // Checked again, with the gate held and just before the account is written: a
+            // profile deleted or moved since the first look must not be changed (r2-11-04).
+            // The check under the lock below stays, for what happens during the write.
+            lock (ConfigLock)
+            {
+                var again = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.TargetProfileId);
+                if (!IsSubProfileOf(again, masterUserId)) return Unauthorized(OtherHouseholdMessage);
+            }
+
             await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
 
             lock (ConfigLock)
@@ -130,8 +168,9 @@ namespace Jellyfin.Profiles.Controllers
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.TargetProfileId);
                 if (!IsSubProfileOf(row, masterUserId)) return Unauthorized(OtherHouseholdMessage);
 
-                if (ratingChosen != null)
+                if (ratingChosen != null || followsMain)
                 {
+                    // Null for a target that follows the main account, as the source does.
                     row!.OwnRating = ratingChosen;
                     row.LastAppliedRating = ratingWritten;
                 }

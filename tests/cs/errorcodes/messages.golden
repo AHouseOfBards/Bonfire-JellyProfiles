@@ -150,6 +150,5 @@ Unauthorized|not_main_account|Only the master profile can rename devices.
 Unauthorized|not_main_account|Only the master profile can update Bonfire settings.
 Unauthorized|not_your_profile|That profile does not belong to this account.
 Unauthorized|not_your_profile|Unauthorized profile PIN verification.
-Unauthorized|not_your_profile|Unauthorized profile deletion attempt.
 Unauthorized|not_your_profile|Unauthorized profile switch attempt.
 Unauthorized|not_your_profile|Unauthorized profile update attempt.
