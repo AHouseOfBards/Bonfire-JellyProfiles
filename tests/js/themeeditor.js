@@ -107,6 +107,7 @@ async function main() {
         await wait(600);
         const phone = await c.evaluate(PREVIEW_WITH('#tePattern'));
         ok('on a phone the preview is on screen at the last control', phone.inView, JSON.stringify(phone));
+        await advancedControlChecks(c, s);
         await previewSizeChecks(c, s);
         await pickerChecks(c, s);
         await expandChecks(c, s);
@@ -157,6 +158,58 @@ async function openEditor(c, s, device, before) {
     await c.evaluate("document.getElementById('themeNew').click()");
     await wait(600);
     await c.evaluate(frame);
+}
+
+// ── Advanced's controls say how they are filled (owner, 1.9.0.4-beta) ─────────────
+// Shadows and bounded numbers were raw JSON and number boxes. Each control must write the
+// value the old box wrote for the same input: a slider the same number, a shadow's small
+// boxes the same object JSON.parse gave, None the null the box took.
+const ADV_FIELD = p => `document.querySelector('#teAdvancedFields [data-path="${p}"]')`;
+const DRAFT = p => `(function(){ var d = document.getElementById('profilesConfigurationPage')._themeEditor.draft; return JSON.stringify(${JSON.stringify(p)}.split('.').reduce(function (o, k) { return o && typeof o === 'object' ? o[k] : undefined; }, d)); })()`;
+const SET = (sel, v, ev) => `(function(){ var e = ${sel}; if (!e) return false; if (e.type === 'checkbox') e.checked = ${JSON.stringify(v)}; else e.value = ${JSON.stringify(v)}; e.dispatchEvent(new Event('${ev || 'input'}', { bubbles: true })); return true; })()`;
+
+async function advancedControlChecks(c, s) {
+    console.log('\n  Advanced controls');
+    await openEditor(c, s, 'desktop');
+    await c.evaluate("document.querySelector('#themeEditor .jpf-te-mode[data-view=advanced]').click()");
+    await wait(300);
+    // A bounded number is a slider with its value shown, and writes the number.
+    const r = await c.evaluate(`(function(){ var e = ${ADV_FIELD('shape.radius.small')}; return e ? { type: e.type, min: e.min, max: e.max } : null; })()`);
+    ok('a bounded number is a slider from its schema range', !!r && r.type === 'range' && r.min === '0' && r.max === '64', JSON.stringify(r));
+    await c.evaluate(SET(ADV_FIELD('shape.radius.small'), '14'));
+    ok('the slider writes the number the box wrote', (await c.evaluate(DRAFT('shape.radius.small'))) === '14');
+    ok('and shows its value beside it', (await c.evaluate(`(function(){ var e = ${ADV_FIELD('shape.radius.small')}; var o = e && e.parentNode.querySelector('.jpf-te-val'); return o ? o.textContent : null; })()`)) === '14');
+    await c.evaluate(SET(ADV_FIELD('focus.scale'), '1.12'));
+    ok('a fractional slider writes the fraction', (await c.evaluate(DRAFT('focus.scale'))) === '1.12');
+
+    // A shadow: small labelled boxes, each writing its key; together the object the box wrote.
+    const text = '{"x":1,"y":-2,"blur":30,"spread":0,"opacity":0.5,"color":"#11223380"}';
+    const want = JSON.parse(text);
+    for (const k of ['x', 'y', 'blur', 'spread', 'opacity', 'color']) {
+        const done = await c.evaluate(SET(ADV_FIELD('depth.avatar.' + k), String(want[k])));
+        ok('depth.avatar has a box for ' + k, done === true);
+    }
+    const got = JSON.parse((await c.evaluate(DRAFT('depth.avatar'))) || 'null');
+    ok('the shadow boxes write the object the JSON box wrote', !!got && Object.keys(want).every(k => got[k] === want[k]) && Object.keys(got).length === Object.keys(want).length,
+        JSON.stringify(got));
+    await c.evaluate(SET(ADV_FIELD('depth.avatar'), true, 'change'));
+    ok('None writes null, as the box did', (await c.evaluate(DRAFT('depth.avatar'))) === 'null');
+    ok('and greys out the boxes', await c.evaluate(`(function(){ var e = ${ADV_FIELD('depth.avatar.x')}; return !!e && e.disabled === true; })()`));
+    await c.evaluate(SET(ADV_FIELD('depth.avatar'), false, 'change'));
+    ok('unticking None brings the boxes\' values back', (await c.evaluate(DRAFT('depth.avatar.blur'))) === '30');
+    for (const p of ['depth.title', 'depth.sheet', 'focus.glow', 'parts.button2.focus.glow']) {
+        ok(p + ' is a shadow, not a JSON box', await c.evaluate(`(function(){ var n = ${ADV_FIELD(p)}; return !!${ADV_FIELD(p + '.blur')} && !!n && n.type === 'checkbox'; })()`));
+    }
+
+    // Only the free-form lists stay JSON, and every field says how it is filled.
+    const json = await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields textarea')).map(function (e) { return e.getAttribute('data-path'); })");
+    ok('only the free-form lists are JSON', JSON.stringify(json) === JSON.stringify(['background.layers', 'decorations']), JSON.stringify(json));
+    const hints = await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields .jpf-te-adv:not(.jpf-te-photo)')).map(function (f) { var h = f.querySelector('.jpf-te-hint'); var c = h ? h.cloneNode(true) : null; if (c) [].slice.call(c.querySelectorAll('.jpf-te-example')).forEach(function (x) { x.parentNode.removeChild(x); }); return { p: f.getAttribute('data-paths'), h: c ? c.textContent.replace(/\\s+/g, ' ').trim() : '' }; })");
+    // The JSON example is code, not words, and is checked on its own below.
+    const bad = hints.filter(x => !x.h || x.h.split(' ').length >= 10);
+    ok('every Advanced field has a hint under ten words', hints.length > 50 && bad.length === 0, bad.slice(0, 5).map(x => x.p + ': "' + x.h + '"').join('; ') + ' of ' + hints.length);
+    const ex = await c.evaluate("[].slice.call(document.querySelectorAll('#teAdvancedFields .jpf-te-example')).map(function (e) { try { return Array.isArray(JSON.parse(e.textContent)); } catch (x) { return false; } })");
+    ok('the JSON lists show an example that parses', ex.length === 2 && ex.every(Boolean), JSON.stringify(ex));
 }
 
 // ── The preview's size and place (owner, 1.9.0.4-beta) ───────────────────────────

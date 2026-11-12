@@ -542,11 +542,25 @@
     #profilesConfigurationPage .jpf-te-msg { flex-basis: 100%; color: var(--jpf-bad); font-size: 0.85rem; margin-top: 4px; }
     #profilesConfigurationPage .jpf-te-group { margin: 0 0 0.5em; }
     #profilesConfigurationPage .jpf-te-group > summary { cursor: pointer; font-weight: 600; padding: 0.45em 0; }
+    /* The path above its control, then the hint: with the preview taking 45% of the editor
+       there is no room for the path beside a shadow's boxes or a slider. */
     #profilesConfigurationPage .jpf-te-adv {
-        display: grid; grid-template-columns: minmax(10em, 15em) minmax(0, 1fr);
-        align-items: center; gap: 4px 12px; padding: 4px 0;
+        display: grid; grid-template-columns: minmax(0, 1fr);
+        align-items: center; gap: 4px 12px; padding: 6px 0;
     }
-    #profilesConfigurationPage .jpf-te-adv .jpf-te-msg { grid-column: 2; }
+    #profilesConfigurationPage .jpf-te-adv .jpf-te-msg { grid-column: 1; }
+    /* Each Advanced field says how it is filled, under its control. */
+    #profilesConfigurationPage .jpf-te-adv .jpf-te-hint { grid-column: 1; margin: 0 0 4px; padding: 0; }
+    #profilesConfigurationPage .jpf-te-hint code { font-size: 0.8rem; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-te-range { flex: 1 1 auto; min-width: 0; margin: 0; accent-color: var(--jpf-accent); }
+    #profilesConfigurationPage .jpf-te-val { flex: 0 0 3.5em; text-align: right; font-variant-numeric: tabular-nums; }
+    #profilesConfigurationPage .jpf-te-shadow { display: flex; flex-wrap: wrap; align-items: flex-end; margin: -4px 0 0 -8px; }
+    #profilesConfigurationPage .jpf-te-sub { display: flex; flex-direction: column; margin: 4px 0 0 8px; font-size: 0.85rem; }
+    #profilesConfigurationPage .jpf-te-sub .jpf-te-input { width: 4.5em; padding: 4px 6px; }
+    #profilesConfigurationPage .jpf-te-sub-color .jpf-te-input { width: 7em; }
+    #profilesConfigurationPage .jpf-te-none { flex-direction: row; align-items: center; flex-basis: 100%; }
+    #profilesConfigurationPage .jpf-te-none .jpf-te-input { width: auto; margin: 0 6px 0 0; }
+    #profilesConfigurationPage .jpf-te-shadow .jpf-te-input:disabled, #profilesConfigurationPage .jpf-te-shadow .jpf-te-pick:disabled { opacity: 0.4; }
     #profilesConfigurationPage .jpf-te-adv-label code { font-size: 0.85rem; overflow-wrap: anywhere; }
     #profilesConfigurationPage .jpf-te-pair { display: flex; align-items: center; gap: 8px; }
     #profilesConfigurationPage .jpf-te-input { width: 100%; box-sizing: border-box; margin: 0; }
@@ -750,6 +764,7 @@
         #profilesConfigurationPage .jpf-ann-buttons { grid-column: 1; grid-row: auto; }
         #profilesConfigurationPage .jpf-te-adv { grid-template-columns: 1fr; }
         #profilesConfigurationPage .jpf-te-adv .jpf-te-msg { grid-column: 1; }
+        #profilesConfigurationPage .jpf-te-adv .jpf-te-hint { grid-column: 1; }
     }
 
     /* Troubleshoot. */
@@ -2027,6 +2042,20 @@
                 'admin.themes.sample3': 'Kids',
                 'admin.themes.pickDialog': 'Pick a color',
                 'admin.themes.pickFor': 'Pick a color for {name}',
+                'admin.themes.hint.color': 'Pick, or type #rrggbb or #rrggbbaa.',
+                'admin.themes.hint.range': 'Drag to set, {min} to {max}.',
+                'admin.themes.hint.choice': 'Choose from the list.',
+                'admin.themes.hint.font': 'Uploaded fonts are listed too.',
+                'admin.themes.hint.shadow': 'Sizes in pixels, opacity 0 to 1.',
+                'admin.themes.hint.layers': 'A JSON list of gradients, first on top.',
+                'admin.themes.hint.decorations': 'A JSON list. [] for none.',
+                'admin.themes.shadow.none': 'None',
+                'admin.themes.shadow.x': 'X',
+                'admin.themes.shadow.y': 'Y',
+                'admin.themes.shadow.blur': 'Blur',
+                'admin.themes.shadow.spread': 'Spread',
+                'admin.themes.shadow.opacity': 'Opacity',
+                'admin.themes.shadow.color': 'Color',
                 'admin.themes.pickPresets': 'Preset colors',
                 'admin.themes.pickShade': 'Shade',
                 'admin.themes.pickShadeValue': 'Saturation {s}%, brightness {v}%',
@@ -4204,10 +4233,14 @@
             const THEME_PREVIEW_ID = 'jpf--editor-preview';
 
             /// Every field of a theme file that Advanced shows, in the order of docs/themes.md:
-            /// [group's string key, [[path, kind, options]]]. A list or a shadow is edited as JSON, because
-            /// its shape varies (a shadow may be null; a layer may be linear or radial).
+            /// [group's string key, [[path, kind, options]]]. A bounded number is a slider and a
+            /// shadow is small boxes with a None tick (ThemeValidator.Shadow's ranges). Only the
+            /// lists stay JSON, because their shape varies (a layer may be linear or radial; each
+            /// decoration has its own values). Every one was a JSON or number box until 1.9.0.4-beta,
+            /// and themeeditor.js checks each control writes what the box wrote.
             function themeFieldList() {
                 const colour = function (path) { return [path, 'color']; };
+                const shadow = function (path) { return [path, 'shadow']; };
                 const num = function (path, min, max, step) { return [path, 'number', [min, max, step]]; };
                 const pick = function (path, values) { return [path, 'choice', values]; };
                 const border = function (path) {
@@ -4237,12 +4270,12 @@
                         num('type.name.weight', 100, 900, 100), num('type.name.scale', 0.5, 2, 0.05), num('type.name.opacity', 0.5, 1, 0.05),
                         pick('type.button.case', ['none', 'upper']), num('type.button.spacing', -0.2, 0.5, 0.01),
                         num('type.button.weight', 100, 900, 100)]],
-                    ['admin.themes.group.depth', [['depth.avatar', 'json'], ['depth.title', 'json'], ['depth.sheet', 'json'],
-                        num('focus.scale', 1, 1.25, 0.01), ['focus.glow', 'json']]],
+                    ['admin.themes.group.depth', [shadow('depth.avatar'), shadow('depth.title'), shadow('depth.sheet'),
+                        num('focus.scale', 1, 1.25, 0.01), shadow('focus.glow')]],
                     ['admin.themes.group.buttons', [colour('parts.button2.fill'), colour('parts.button2.text')]
                         .concat(border('parts.button2.border'),
                             [colour('parts.button2.focus.fill'), colour('parts.button2.focus.text')],
-                            border('parts.button2.focus.border'), [['parts.button2.focus.glow', 'json']])],
+                            border('parts.button2.focus.border'), [shadow('parts.button2.focus.glow')])],
                     ['admin.themes.group.addtile', [colour('parts.addTile.fill')]
                         .concat(border('parts.addTile.border'), [colour('parts.addTile.text'), colour('parts.addTile.focusFill')])],
                     ['admin.themes.group.cards', [colour('parts.card.fill'), colour('parts.card.line'), colour('parts.sheet.fill')]
@@ -5459,21 +5492,53 @@
                             if (kind === 'photo') return '<div class="jpf-te-field jpf-te-adv jpf-te-photo" data-paths="' + path + '">' + themePhotoControlHtml() + '</div>';
                             const id = 'teField' + (n++);
                             const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '"';
-                            let control;
+                            const colourPair = function (p, a) {
+                                return '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + p + '" aria-haspopup="dialog" aria-label="' + escapeHtml(t('admin.themes.pickFor', { name: p })) + '"></button>' +
+                                    '<input type="text" class="emby-input jpf-te-input"' + a + ' spellcheck="false" maxlength="9" /></span>';
+                            };
+                            let control, hint;
                             if (kind === 'color') {
-                                control = '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + path + '" aria-haspopup="dialog" aria-label="' + escapeHtml(t('admin.themes.pickFor', { name: path })) + '"></button>' +
-                                    '<input type="text" class="emby-input jpf-te-input"' + attrs + ' spellcheck="false" maxlength="9" /></span>';
+                                control = colourPair(path, attrs);
+                                hint = t('admin.themes.hint.color');
                             } else if (kind === 'number') {
-                                control = '<input type="number" class="emby-input jpf-te-input"' + attrs +
-                                    ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" />';
+                                control = '<span class="jpf-te-pair"><input type="range" class="jpf-te-input jpf-te-range"' + attrs +
+                                    ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" /><output class="jpf-te-val" for="' + id + '"></output></span>';
+                                hint = t('admin.themes.hint.range', { min: opt[0], max: opt[1] });
                             } else if (kind === 'choice' || kind === 'font') {
                                 control = '<select class="emby-select emby-select-withcolor jpf-te-input"' + attrs + '><option value="">—</option>' +
                                     (opt || []).map(function (v) { return '<option value="' + v + '">' + v + '</option>'; }).join('') + '</select>';
+                                hint = t(kind === 'font' ? 'admin.themes.hint.font' : 'admin.themes.hint.choice');
+                            } else if (kind === 'shadow') {
+                                // One box per key of ThemeValidator.Shadow, each writing its own
+                                // path, and None for null. An empty box leaves its key out.
+                                const box = function (k, key, min, max, step) {
+                                    const sid = id + k;
+                                    return '<label class="jpf-te-sub" for="' + sid + '"><span>' + escapeHtml(t(key)) + '</span>' +
+                                        '<input type="number" class="emby-input jpf-te-input" id="' + sid + '" data-path="' + path + '.' + k + '" data-kind="number"' +
+                                        ' min="' + min + '" max="' + max + '" step="' + step + '" /></label>';
+                                };
+                                control = '<div class="jpf-te-shadow">' +
+                                    '<label class="jpf-te-sub jpf-te-none"><input type="checkbox" class="jpf-te-input"' + attrs + ' /><span>' + escapeHtml(t('admin.themes.shadow.none')) + '</span></label>' +
+                                    box('x', 'admin.themes.shadow.x', -100, 100, 1) + box('y', 'admin.themes.shadow.y', -100, 100, 1) +
+                                    box('blur', 'admin.themes.shadow.blur', 0, 100, 1) + box('spread', 'admin.themes.shadow.spread', -50, 50, 1) +
+                                    box('opacity', 'admin.themes.shadow.opacity', 0, 1, 0.05) +
+                                    '<label class="jpf-te-sub jpf-te-sub-color" for="' + id + 'color"><span>' + escapeHtml(t('admin.themes.shadow.color')) + '</span>' +
+                                    colourPair(path + '.color', ' id="' + id + 'color" data-path="' + path + '.color" data-kind="color"') + '</label></div>';
+                                hint = t('admin.themes.hint.shadow');
                             } else {
                                 control = '<textarea class="emby-textarea jpf-te-input jpf-te-json"' + attrs + ' rows="3" spellcheck="false"></textarea>';
+                                // A short example of the list's shape. Code, not words, so not translated.
+                                const example = path === 'decorations'
+                                    ? '[{"name": "frost", "blur": 12}]'
+                                    : '[{"type": "linear", "angle": 180, "stops": [{"color": "#1f0f08", "at": 0}, {"color": "#42200e", "at": 100}]}]';
+                                hint = escapeHtml(t(path === 'decorations' ? 'admin.themes.hint.decorations' : 'admin.themes.hint.layers')) +
+                                    ' <code class="jpf-te-example">' + escapeHtml(example) + '</code>';
+                                hint = { html: hint };
                             }
+                            const hintHtml = typeof hint === 'object' ? hint.html : escapeHtml(hint);
                             return '<div class="jpf-te-field jpf-te-adv" data-paths="' + path + '">' +
-                                '<label class="jpf-te-adv-label" for="' + id + '"><code>' + path + '</code></label>' + control + '</div>';
+                                '<label class="jpf-te-adv-label" for="' + id + '"><code>' + path + '</code></label>' + control +
+                                '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div></div>';
                         }).join('') + '</details>';
                 }).join('');
             }
@@ -5533,7 +5598,15 @@
                         if (typeof value === 'string' && value && names.indexOf(value) === -1) names.push(value);
                         fillSelect(el, [['', '—']].concat(names.map(function (f) { return [f, f]; })));
                     }
-                    if (kind === 'json') {
+                    if (kind === 'shadow') {
+                        el.checked = value === null;
+                    } else if (el.type === 'range') {
+                        // A slider cannot be empty: one with no value sits at its start and
+                        // writes nothing until moved. The number shown is the file's own, even
+                        // one out of range, so the server's problem about it reads true.
+                        el.value = typeof value === 'number' ? String(value) : el.min;
+                        el.parentNode.querySelector('.jpf-te-val').textContent = value === undefined || value === null ? '—' : String(value);
+                    } else if (kind === 'json') {
                         el.value = value === undefined ? '' : JSON.stringify(value, null, 2);
                     } else if (kind === 'number') {
                         el.value = typeof value === 'number' ? String(value) : '';
@@ -5546,7 +5619,17 @@
                         setSwatch(pick, themeRgb(six) ? six.toLowerCase() : '#000000');
                     }
                 });
+                page.querySelectorAll('#teAdvancedFields input[data-kind="shadow"]').forEach(function (el) { shadowBoxesEnabled(el); });
                 ed.jsonErrors = {};
+            }
+
+            /// A shadow's boxes are greyed out while None is ticked.
+            function shadowBoxesEnabled(none) {
+                const wrap = none.closest('.jpf-te-shadow');
+                if (!wrap) return;
+                wrap.querySelectorAll('.jpf-te-input, .jpf-te-pick').forEach(function (b) {
+                    if (b !== none) b.disabled = none.checked;
+                });
             }
 
             function setThemeEditorView(page, view) {
@@ -5602,7 +5685,19 @@
                     const path = el.getAttribute('data-path');
                     const kind = el.getAttribute('data-kind');
                     const raw = el.value.trim();
-                    if (kind === 'json') {
+                    if (kind === 'shadow') {
+                        // None is null, as the JSON box took it. Unticking puts back the
+                        // shadow it replaced, or none at all if there was none.
+                        ed.shadowKept = ed.shadowKept || {};
+                        if (el.checked) {
+                            const cur = getThemePath(draft, path);
+                            if (cur && typeof cur === 'object') ed.shadowKept[path] = cur;
+                            setThemePath(draft, path, null);
+                        } else {
+                            setThemePath(draft, path, ed.shadowKept[path]);
+                        }
+                        shadowBoxesEnabled(el);
+                    } else if (kind === 'json') {
                         delete ed.jsonErrors[path];
                         if (raw === '') setThemePath(draft, path, undefined);
                         else {
@@ -5611,6 +5706,7 @@
                     } else if (kind === 'number') {
                         // Not a number is sent as typed, so the server names it.
                         setThemePath(draft, path, raw === '' ? undefined : (isFinite(Number(raw)) ? Number(raw) : raw));
+                        if (el.type === 'range') el.parentNode.querySelector('.jpf-te-val').textContent = raw;
                     } else {
                         setThemePath(draft, path, raw === '' ? undefined : raw);
                         if (kind === 'color' && themeRgb(raw.slice(0, 7)) && (raw.length === 7 || raw.length === 9)) {
