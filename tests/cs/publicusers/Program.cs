@@ -376,6 +376,18 @@ if (resolve != null)
         null, null, DeviceManagerStub.Create("tv-1", MASTER, DateTime.UtcNow), config, NullLogger.Instance
     });
     Ok("a request with no Authorization header resolves to nothing", noHeader.Count == 0);
+
+    // The route is anonymous, so a decline is routine and must not fill the Information log (r2-05-02).
+    {
+        var declineLog = new CapLogger<object>();
+        resolve.Invoke(null, new object[] { null, null, DeviceManagerStub.Create("tv-1", MASTER, DateTime.UtcNow), config, declineLog });
+        resolve.Invoke(null, new object[] { string.Format(HEADER_FMT, "tv-unknown"), null, DeviceManagerStub.Create("tv-1", MASTER, DateTime.UtcNow), config, declineLog });
+        resolve.Invoke(null, new object[] { string.Format(HEADER_FMT, "tv-1"), null, DeviceManagerStub.Create("tv-1", STRANGER, DateTime.UtcNow), config, declineLog });
+        Ok("declining an anonymous user-list request logs nothing above Debug",
+           declineLog.Lines.Count > 0 && !declineLog.Lines.Any(l => l.StartsWith("Information") || l.StartsWith("Warning")), declineLog.All);
+        Ok("and no line claims to show a header it does not", !declineLog.All.Contains("Header was", StringComparison.Ordinal), declineLog.All);
+    }
+
     // Off means off, whatever else is true.
     cfgType.GetProperty("EnableClientProfileList").SetValue(config, false);
     Ok("and nothing resolves while the setting is off", Resolve("tv-1", MASTER).Count == 0);

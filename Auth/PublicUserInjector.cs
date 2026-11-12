@@ -66,7 +66,10 @@ namespace Jellyfin.Profiles.Auth
 
             if (config?.Mappings == null || !config.EnableClientProfileList)
             {
-                logger?.LogInformation(
+                // Debug, here and for the other declines below: the route is anonymous, so
+                // anybody can make each of them happen, and Information is for what an
+                // administrator would act on.
+                logger?.LogDebug(
                     "ProfilesPlugin: user list requested, but showing profiles on sign-in screens is off.");
                 return none;
             }
@@ -75,10 +78,12 @@ namespace Jellyfin.Profiles.Auth
                 authorizationHeader, embyAuthorizationHeader, "DeviceId");
             if (string.IsNullOrWhiteSpace(deviceId))
             {
-                logger?.LogInformation(
+                // Both header names are read, so say what each held, not just the first.
+                logger?.LogDebug(
                     "ProfilesPlugin: user list requested with no DeviceId in the Authorization header, "
-                    + "so the household cannot be identified. Header was: {Header}",
-                    string.IsNullOrEmpty(authorizationHeader) ? "(absent)" : "present but carried no DeviceId");
+                    + "so the household cannot be identified. Authorization: {Header}; X-Emby-Authorization: {EmbyHeader}",
+                    string.IsNullOrEmpty(authorizationHeader) ? "absent" : "present, no DeviceId",
+                    string.IsNullOrEmpty(embyAuthorizationHeader) ? "absent" : "present, no DeviceId");
                 return none;
             }
 
@@ -109,7 +114,7 @@ namespace Jellyfin.Profiles.Auth
 
             if (seenUserId == Guid.Empty)
             {
-                logger?.LogInformation(
+                logger?.LogDebug(
                     "ProfilesPlugin: user list requested by device {DeviceId}, which nobody has signed in on yet. "
                     + "Sign in as the account that owns the profiles once on this device.",
                     deviceId);
@@ -142,7 +147,7 @@ namespace Jellyfin.Profiles.Auth
             {
                 // Nobody Bonfire knows. Every other account on the server lands here, which
                 // is what keeps them out of a household they have nothing to do with.
-                logger?.LogInformation(
+                logger?.LogDebug(
                     "ProfilesPlugin: user list requested by device {DeviceId}, last used by {UserId} "
                     + "(per {Source}), which is not a Bonfire account. Nothing added.",
                     deviceId, seenUserId, seenFrom);
