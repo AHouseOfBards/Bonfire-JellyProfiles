@@ -99,7 +99,8 @@ namespace Jellyfin.Profiles.Auth
             var nameKey = target["Name"] != null ? "Name" : target["name"] != null ? "name" : null;
             if (nameKey == null) return null;
 
-            var was = target[nameKey]?.GetValue<string>();
+            // A Name that is not a string is not ours to interpret, as in Text().
+            if (target[nameKey] is not JsonValue nameValue || !nameValue.TryGetValue<string>(out var was)) return null;
             if (string.Equals(was, friendly, StringComparison.Ordinal)) return null;
 
             target[nameKey] = friendly;

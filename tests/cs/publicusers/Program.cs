@@ -1102,6 +1102,12 @@ if (rewrite != null)
        meCamel != null && meCamel.Contains("\"family\"", StringComparison.Ordinal)
        && !meCamel.Contains("Bard_Family", StringComparison.Ordinal), meCamel);
 
+    // A Name that is not a string (r2-03-06) is left alone, not thrown on.
+    string notAString;
+    try { notAString = Run2("{\"Name\":42,\"Id\":\"" + CHILD.ToString("N") + "\"}") ?? "<untouched>"; }
+    catch (Exception ex) { notAString = "threw " + (ex.InnerException ?? ex).GetType().Name; }
+    Ok("a Name that is not a string is left as it is", notAString == "<untouched>", notAString);
+
     // POST /Users/AuthenticateByName — the user is nested under an AuthenticationResult,
     // and this is the body that a PIN login stores.
     var auth = Run2("{\"User\":{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("N")
