@@ -616,6 +616,21 @@
     #profilesConfigurationPage .jpf-te-pair { display: flex; align-items: center; gap: 8px; }
     #profilesConfigurationPage .jpf-te-input { width: 100%; box-sizing: border-box; margin: 0; }
     #profilesConfigurationPage .jpf-te-json { font-family: monospace; font-size: 0.85rem; min-height: 4.5em; resize: vertical; }
+    /* Decorations and background layers: a card each, built by renderThemeLists. */
+    #profilesConfigurationPage .jpf-te-card { border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 6px; padding: 8px 10px; margin: 0 0 8px; }
+    #profilesConfigurationPage .jpf-te-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 600; margin: 0 0 4px; }
+    #profilesConfigurationPage .jpf-te-head input { margin: 0; }
+    #profilesConfigurationPage .jpf-te-reason { display: block; font-size: 0.85rem; opacity: 0.7; }
+    #profilesConfigurationPage .jpf-te-lrow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 4px 0; }
+    #profilesConfigurationPage .jpf-te-lname { flex: 0 0 9em; font-size: 0.9rem; }
+    #profilesConfigurationPage .jpf-te-lrow .jpf-te-pair { flex: 1 1 8em; min-width: 0; }
+    #profilesConfigurationPage .jpf-te-lrow select.jpf-te-input { flex: 1 1 8em; width: auto; }
+    #profilesConfigurationPage .jpf-te-lbtn { font: inherit; font-size: 0.85rem; padding: 4px 10px; border-radius: 4px; cursor: pointer;
+        border: 1px solid rgba(128, 128, 128, 0.5); background: transparent; color: inherit; }
+    #profilesConfigurationPage .jpf-te-lbtn:disabled { opacity: 0.4; cursor: default; }
+    #profilesConfigurationPage .jpf-te-head .jpf-te-lbtn { margin-left: auto; }
+    #profilesConfigurationPage .jpf-te-head .jpf-te-lbtn + .jpf-te-lbtn { margin-left: 0; }
+    #profilesConfigurationPage .jpf-te-jsonbtn { margin: 4px 0; }
     #profilesConfigurationPage .jpf-te-problems { font-size: 0.9rem; }
     #profilesConfigurationPage .jpf-te-problems ul { margin: 0; padding-left: 1.2em; }
     #profilesConfigurationPage .jpf-te-problems li { margin: 0 0 6px; color: var(--jpf-bad); overflow-wrap: anywhere; }
@@ -2125,6 +2140,36 @@
                 'admin.themes.hint.shadow': 'Sizes in pixels, opacity 0 to 1.',
                 'admin.themes.hint.layers': 'A JSON list of gradients, first on top.',
                 'admin.themes.hint.decorations': 'A JSON list. [] for none.',
+                'admin.themes.deco.pattern': 'Pattern',
+                'admin.themes.deco.pattern2': 'Second pattern',
+                'admin.themes.deco.rings': 'Rings',
+                'admin.themes.deco.frost': 'Frost',
+                'admin.themes.deco.twinkle': 'Twinkle',
+                'admin.themes.deco.image': 'Picture',
+                'admin.themes.deco.size': 'Size',
+                'admin.themes.deco.drift': 'Drift',
+                'admin.themes.deco.seconds': 'Seconds per cycle',
+                'admin.themes.deco.opacity': 'Opacity',
+                'admin.themes.deco.blur': 'Blur',
+                'admin.themes.deco.gap': 'Gap color',
+                'admin.themes.deco.thickness': 'Ring thickness',
+                'admin.themes.deco.ring': 'Ring {n}',
+                'admin.themes.deco.addRing': 'Add ring',
+                'admin.themes.deco.needsPattern': 'Needs a pattern first.',
+                'admin.themes.list.json': 'Edit as JSON',
+                'admin.themes.list.cards': 'Edit with controls',
+                'admin.themes.layer.title': 'Layer {n}',
+                'admin.themes.layer.add': 'Add layer',
+                'admin.themes.layer.remove': 'Remove',
+                'admin.themes.layer.up': 'Move up',
+                'admin.themes.layer.down': 'Move down',
+                'admin.themes.layer.type': 'Type',
+                'admin.themes.layer.angle': 'Angle',
+                'admin.themes.layer.shape': 'Shape',
+                'admin.themes.layer.x': 'Across',
+                'admin.themes.layer.y': 'Down',
+                'admin.themes.layer.stop': 'Stop {n}',
+                'admin.themes.layer.addStop': 'Add stop',
                 'admin.themes.shadow.none': 'None',
                 'admin.themes.shadow.x': 'X',
                 'admin.themes.shadow.y': 'Y',
@@ -4374,7 +4419,8 @@
                 const keys = String(path).split('.');
                 let o = obj;
                 for (let i = 0; i < keys.length - 1; i++) {
-                    if (!o[keys[i]] || typeof o[keys[i]] !== 'object' || Array.isArray(o[keys[i]])) {
+                    // A list is stepped into by an index ("decorations.1.size"), and only by one.
+                    if (!o[keys[i]] || typeof o[keys[i]] !== 'object' || (Array.isArray(o[keys[i]]) && !/^\d+$/.test(keys[i + 1]))) {
                         if (value === undefined) return;
                         o[keys[i]] = {};
                     }
@@ -5552,6 +5598,253 @@
                 wrap.querySelector('.jpf-te-xclose').focus();
             }
 
+            // ── Decorations and background layers as controls (2.0) ─────────────────────
+            // Both were JSON boxes. Each is now cards of the same controls the rest of Advanced
+            // uses (sliders, selects, Bonfire's own colour picker), written to the draft by
+            // path, so the generic fill and edit code above and below handle them: a path may
+            // run through a list ("decorations.1.size"). Adding, removing and moving rebuild the
+            // cards, since the controls themselves change. "Edit as JSON" swaps in the old box,
+            // for pasting a theme; it is checked as it always was.
+            const THEME_DECO_ORDER = ['pattern', 'pattern2', 'rings', 'frost', 'twinkle'];
+            // Written out, so each key is one the checks can see is used.
+            const THEME_DECO_LABEL = {
+                pattern: 'admin.themes.deco.pattern', pattern2: 'admin.themes.deco.pattern2', rings: 'admin.themes.deco.rings',
+                frost: 'admin.themes.deco.frost', twinkle: 'admin.themes.deco.twinkle'
+            };
+
+            function themeDecoDefault(name, patterns) {
+                if (name === 'pattern' || name === 'pattern2') {
+                    return { name: name, image: patterns[0] || '', size: name === 'pattern' ? 240 : 120, drift: 'none' };
+                }
+                if (name === 'rings') return { name: 'rings', gradients: [['#ffb347', '#ff6a3d']], gap: '#000000' };
+                if (name === 'frost') return { name: 'frost', blur: 24 };
+                return { name: 'twinkle', seconds: 8 };
+            }
+
+            function themeDecoList(draft) {
+                if (!Array.isArray(draft.decorations)) draft.decorations = [];
+                return draft.decorations;
+            }
+
+            function themeDecoIndex(list, name) {
+                for (let i = 0; i < list.length; i++) if (list[i] && list[i].name === name) return i;
+                return -1;
+            }
+
+            /// Turns a decoration on or off. Off keeps what it had, to come back as it was. Without
+            /// a pattern there is nothing for a second pattern or a twinkle to be drawn on, so
+            /// they go with it.
+            function toggleThemeDeco(page, name, on) {
+                const ed = page._themeEditor;
+                const list = themeDecoList(ed.draft);
+                ed.decoKept = ed.decoKept || {};
+                const at = themeDecoIndex(list, name);
+                if (on && at === -1) {
+                    const item = ed.decoKept[name] || themeDecoDefault(name, themePatterns(page));
+                    if (name === 'pattern') list.unshift(item); else list.push(item);
+                } else if (!on && at !== -1) {
+                    ed.decoKept[name] = list[at];
+                    list.splice(at, 1);
+                    if (name === 'pattern') {
+                        ['pattern2', 'twinkle'].forEach(function (n) {
+                            const k = themeDecoIndex(list, n);
+                            if (k !== -1) { ed.decoKept[n] = list[k]; list.splice(k, 1); }
+                        });
+                    }
+                }
+            }
+
+            function teControl(page, kind, path, opt, disabled) {
+                const id = 'teList' + (page._teListN = (page._teListN || 0) + 1);
+                const attrs = ' id="' + id + '" data-path="' + path + '" data-kind="' + kind + '" data-key="' + path + '"' + (disabled ? ' disabled' : '');
+                if (kind === 'color') {
+                    return '<span class="jpf-te-pair"><button type="button" class="jpf-te-sw jpf-te-pick" data-pick="' + path + '" aria-haspopup="dialog" aria-label="' +
+                        escapeHtml(t('admin.themes.pickFor', { name: path })) + '"></button>' +
+                        '<input type="text" class="emby-input jpf-te-input"' + attrs + ' spellcheck="false" maxlength="9" /></span>';
+                }
+                if (kind === 'number') {
+                    return '<span class="jpf-te-pair"><input type="range" class="jpf-te-input jpf-te-range"' + attrs +
+                        ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" /><output class="jpf-te-val" for="' + id + '"></output></span>';
+                }
+                return '<select class="emby-select emby-select-withcolor jpf-te-input"' + attrs + '>' +
+                    opt.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('') + '</select>';
+            }
+
+            function teRow(labelKey, control, vars) {
+                return '<div class="jpf-te-lrow"><span class="jpf-te-lname">' + escapeHtml(t(labelKey, vars)) + '</span>' + control + '</div>';
+            }
+
+            function teButton(act, labelKey, extra, disabled) {
+                return '<button type="button" class="jpf-te-lbtn" data-list-act="' + act + '" data-key="act-' + act + (extra || '').replace(/[^0-9a-z-]/g, '-') +
+                    '" data-at="' + (extra || '') + '"' + (disabled ? ' disabled' : '') + '>' + escapeHtml(t(labelKey)) + '</button>';
+            }
+
+            function themeDecorationsHtml(page, draft) {
+                const list = Array.isArray(draft.decorations) ? draft.decorations : [];
+                const patterns = themePatterns(page);
+                const hasPattern = themeDecoIndex(list, 'pattern') !== -1;
+                return THEME_DECO_ORDER.map(function (name) {
+                    const i = themeDecoIndex(list, name);
+                    const on = i !== -1 && !!list[i] && typeof list[i] === 'object';
+                    const blocked = !hasPattern && !on && (name === 'pattern2' || name === 'twinkle');
+                    const p = 'decorations.' + i + '.';
+                    let body = '';
+                    if (on && (name === 'pattern' || name === 'pattern2')) {
+                        const images = patterns.slice();
+                        if (typeof list[i].image === 'string' && list[i].image && images.indexOf(list[i].image) === -1) images.push(list[i].image);
+                        const drifting = list[i].drift === 'down';
+                        body = teRow('admin.themes.deco.image', teControl(page, 'choice', p + 'image', images)) +
+                            teRow('admin.themes.deco.size', teControl(page, 'number', p + 'size', [16, 1024, 1])) +
+                            teRow('admin.themes.deco.opacity', teControl(page, 'number', p + 'opacity', [0.1, 1, 0.05])) +
+                            teRow('admin.themes.deco.drift', teControl(page, 'choice', p + 'drift', ['none', 'down'])) +
+                            teRow('admin.themes.deco.seconds', teControl(page, 'number', p + 'seconds', [4, 600, 1], !drifting));
+                    } else if (on && name === 'rings') {
+                        const g = Array.isArray(list[i].gradients) ? list[i].gradients : [];
+                        body = g.map(function (pair, k) {
+                            return '<div class="jpf-te-lrow jpf-te-ring"><span class="jpf-te-lname">' + escapeHtml(t('admin.themes.deco.ring', { n: k + 1 })) + '</span>' +
+                                teControl(page, 'color', p + 'gradients.' + k + '.0') + teControl(page, 'color', p + 'gradients.' + k + '.1') +
+                                teButton('rm-ring', 'admin.themes.layer.remove', i + '-' + k, g.length <= 1) + '</div>';
+                        }).join('') +
+                            '<div class="jpf-te-lrow">' + teButton('add-ring', 'admin.themes.deco.addRing', String(i), g.length >= 12) + '</div>' +
+                            teRow('admin.themes.deco.gap', teControl(page, 'color', p + 'gap')) +
+                            teRow('admin.themes.deco.thickness', teControl(page, 'number', 'shape.ringWidth', [0, 12, 1]));
+                    } else if (on && name === 'frost') {
+                        body = teRow('admin.themes.deco.blur', teControl(page, 'number', p + 'blur', [0, 60, 1]));
+                    } else if (on && name === 'twinkle') {
+                        body = teRow('admin.themes.deco.seconds', teControl(page, 'number', p + 'seconds', [2, 120, 1]));
+                    }
+                    return '<div class="jpf-te-card"><label class="jpf-te-head"><input type="checkbox" data-deco-on="' + name + '"' +
+                        (on ? ' checked' : '') + (blocked ? ' disabled' : '') + ' /> <span>' + escapeHtml(t(THEME_DECO_LABEL[name])) + '</span></label>' +
+                        (blocked ? '<span class="jpf-te-reason">' + escapeHtml(t('admin.themes.deco.needsPattern')) + '</span>' : '') + body + '</div>';
+                }).join('');
+            }
+
+            function themeLayersHtml(page, draft) {
+                const layers = Array.isArray(draft.background && draft.background.layers) ? draft.background.layers : [];
+                return layers.map(function (layer, i) {
+                    if (!layer || typeof layer !== 'object') return '';
+                    const p = 'background.layers.' + i + '.';
+                    const radial = layer.type === 'radial';
+                    const stops = Array.isArray(layer.stops) ? layer.stops : [];
+                    return '<div class="jpf-te-card"><div class="jpf-te-head"><span>' + escapeHtml(t('admin.themes.layer.title', { n: i + 1 })) + '</span>' +
+                        teButton('up', 'admin.themes.layer.up', String(i), i === 0) + teButton('down', 'admin.themes.layer.down', String(i), i === layers.length - 1) +
+                        teButton('rm-layer', 'admin.themes.layer.remove', String(i)) + '</div>' +
+                        teRow('admin.themes.layer.type', teControl(page, 'choice', p + 'type', ['linear', 'radial'])) +
+                        (radial
+                            ? teRow('admin.themes.layer.shape', teControl(page, 'choice', p + 'shape', ['circle', 'ellipse'])) +
+                              teRow('admin.themes.layer.x', teControl(page, 'number', p + 'x', [0, 100, 1])) +
+                              teRow('admin.themes.layer.y', teControl(page, 'number', p + 'y', [0, 100, 1]))
+                            : teRow('admin.themes.layer.angle', teControl(page, 'number', p + 'angle', [0, 360, 1]))) +
+                        stops.map(function (s, k) {
+                            return '<div class="jpf-te-lrow jpf-te-ring"><span class="jpf-te-lname">' + escapeHtml(t('admin.themes.layer.stop', { n: k + 1 })) + '</span>' +
+                                teControl(page, 'color', p + 'stops.' + k + '.color') + teControl(page, 'number', p + 'stops.' + k + '.at', [0, 100, 1]) +
+                                teButton('rm-stop', 'admin.themes.layer.remove', i + '-' + k, stops.length <= 2) + '</div>';
+                        }).join('') +
+                        '<div class="jpf-te-lrow">' + teButton('add-stop', 'admin.themes.layer.addStop', String(i), stops.length >= 8) + '</div></div>';
+                }).join('') + '<div class="jpf-te-lrow">' + teButton('add-layer', 'admin.themes.layer.add', '', layers.length >= 6) + '</div>';
+            }
+
+            /// Builds the cards of both lists from the draft, or leaves them hidden behind the JSON
+            /// box while it is the one being used.
+            function renderThemeLists(page) {
+                const ed = page._themeEditor;
+                ed.jsonOpen = ed.jsonOpen || {};
+                page.querySelectorAll('#teAdvancedFields .jpf-te-cards').forEach(function (cards) {
+                    const path = cards.getAttribute('data-list');
+                    const field = cards.parentNode;
+                    const open = !!ed.jsonOpen[path];
+                    const box = field.querySelector('textarea');
+                    cards.classList.toggle('jpf-hidden', open);
+                    if (box) box.classList.toggle('jpf-hidden', !open);
+                    field.querySelector('.jpf-te-jsonbtn').textContent = t(open ? 'admin.themes.list.cards' : 'admin.themes.list.json');
+                    if (!open) cards.innerHTML = path === 'decorations' ? themeDecorationsHtml(page, ed.draft) : themeLayersHtml(page, ed.draft);
+                });
+            }
+
+            /// Rebuilds the cards and puts the keyboard back where it was.
+            function rebuildThemeLists(page) {
+                const active = document.activeElement;
+                const key = active && active.getAttribute ? active.getAttribute('data-key') : null;
+                closeColorPopup(page, false);
+                fillThemeEditor(page);
+                if (key) {
+                    const again = page.querySelector('#teAdvancedFields [data-key="' + key + '"]');
+                    if (again && !again.disabled) again.focus();
+                }
+            }
+
+            /// A list's button: Edit as JSON, add, remove, move.
+            function themeListAction(page, btn) {
+                const ed = page._themeEditor;
+                const act = btn.getAttribute('data-list-act');
+                const at = String(btn.getAttribute('data-at') || '').split('-').map(Number);
+                const draft = ed.draft;
+                if (act === 'json') {
+                    const path = btn.getAttribute('data-list');
+                    // A box that does not parse cannot be turned back into cards.
+                    if (ed.jsonOpen && ed.jsonOpen[path] && ed.jsonErrors[path]) return;
+                    ed.jsonOpen = ed.jsonOpen || {};
+                    ed.jsonOpen[path] = !ed.jsonOpen[path];
+                    rebuildThemeLists(page);
+                    return;
+                }
+                const layers = function () {
+                    if (!draft.background || typeof draft.background !== 'object') draft.background = {};
+                    if (!Array.isArray(draft.background.layers)) draft.background.layers = [];
+                    return draft.background.layers;
+                };
+                const list = themeDecoList(draft);
+                if (act === 'add-ring' && list[at[0]] && Array.isArray(list[at[0]].gradients) && list[at[0]].gradients.length < 12) {
+                    list[at[0]].gradients.push(['#ffb347', '#ff6a3d']);
+                } else if (act === 'rm-ring' && list[at[0]] && Array.isArray(list[at[0]].gradients) && list[at[0]].gradients.length > 1) {
+                    list[at[0]].gradients.splice(at[1], 1);
+                } else if (act === 'add-layer' && layers().length < 6) {
+                    layers().push({ type: 'linear', angle: 180, stops: [{ color: '#1f0f08', at: 0 }, { color: '#42200e', at: 100 }] });
+                } else if (act === 'rm-layer') {
+                    layers().splice(at[0], 1);
+                } else if (act === 'up' && at[0] > 0) {
+                    layers().splice(at[0] - 1, 0, layers().splice(at[0], 1)[0]);
+                } else if (act === 'down' && at[0] < layers().length - 1) {
+                    layers().splice(at[0] + 1, 0, layers().splice(at[0], 1)[0]);
+                } else if (act === 'add-stop' && layers()[at[0]] && Array.isArray(layers()[at[0]].stops) && layers()[at[0]].stops.length < 8) {
+                    const s = layers()[at[0]].stops;
+                    s.push({ color: (s[s.length - 1] && s[s.length - 1].color) || '#42200e', at: 100 });
+                } else if (act === 'rm-stop' && layers()[at[0]] && Array.isArray(layers()[at[0]].stops) && layers()[at[0]].stops.length > 2) {
+                    layers()[at[0]].stops.splice(at[1], 1);
+                } else {
+                    return;
+                }
+                rebuildThemeLists(page);
+                themeDraftChanged(page);
+            }
+
+            /// After a choice that changes which controls exist: a layer's type, a pattern's drift.
+            function themeListFollowUp(page, path) {
+                const draft = page._themeEditor.draft;
+                let m = /^background\.layers\.(\d+)\.type$/.exec(path);
+                if (m) {
+                    const layer = (draft.background.layers || [])[Number(m[1])];
+                    if (!layer) return;
+                    if (layer.type === 'radial') {
+                        delete layer.angle;
+                        if (layer.shape === undefined) layer.shape = 'circle';
+                        if (layer.x === undefined) layer.x = 50;
+                        if (layer.y === undefined) layer.y = 50;
+                    } else {
+                        delete layer.shape; delete layer.x; delete layer.y;
+                        if (layer.angle === undefined) layer.angle = 180;
+                    }
+                    rebuildThemeLists(page);
+                    return;
+                }
+                m = /^decorations\.(\d+)\.drift$/.exec(path);
+                if (m) {
+                    const d = (draft.decorations || [])[Number(m[1])];
+                    if (d && d.drift === 'down' && d.seconds === undefined) d.seconds = 32;
+                    rebuildThemeLists(page);
+                }
+            }
+
             /// Advanced's fields, built once: they are the same for every theme.
             function buildThemeAdvanced(page) {
                 const simplePhoto = page.querySelector('#teSimplePhoto');
@@ -5602,7 +5895,10 @@
                                     colourPair(path + '.color', ' id="' + id + 'color" data-path="' + path + '.color" data-kind="color"') + '</label></div>';
                                 hint = t('admin.themes.hint.shadow');
                             } else {
-                                control = '<textarea class="emby-textarea jpf-te-input jpf-te-json"' + attrs + ' rows="3" spellcheck="false"></textarea>';
+                                // The cards stand in front of the box; Edit as JSON swaps them (renderThemeLists).
+                                control = '<div class="jpf-te-cards" data-list="' + path + '"></div>' +
+                                    '<button type="button" class="jpf-te-lbtn jpf-te-jsonbtn" data-list-act="json" data-list="' + path + '"></button>' +
+                                    '<textarea class="emby-textarea jpf-te-input jpf-te-json jpf-hidden"' + attrs + ' rows="3" spellcheck="false"></textarea>';
                                 // A short example of the list's shape. Code, not words, so not translated.
                                 const example = path === 'decorations'
                                     ? '[{"name": "frost", "blur": 12}]'
@@ -5665,6 +5961,7 @@
                     return;
                 }
                 const fonts = themeFonts(page);
+                renderThemeLists(page);
                 page.querySelectorAll('#teAdvancedFields .jpf-te-input').forEach(function (el) {
                     const path = el.getAttribute('data-path');
                     const kind = el.getAttribute('data-kind');
@@ -5748,6 +6045,9 @@
                     ed.draft.id = keep.id;
                     ed.draft.name = keep.name;
                     fillThemeEditor(page);
+                } else if (el.getAttribute('data-deco-on')) {
+                    toggleThemeDeco(page, el.getAttribute('data-deco-on'), el.checked);
+                    rebuildThemeLists(page);
                 } else if (el.getAttribute('data-simple')) {
                     simpleThemeEdit(draft, el.getAttribute('data-simple'), el.value, themeFonts(page));
                 } else if (el.getAttribute('data-pick')) {
@@ -5783,11 +6083,18 @@
                         // Not a number is sent as typed, so the server names it.
                         setThemePath(draft, path, raw === '' ? undefined : (isFinite(Number(raw)) ? Number(raw) : raw));
                         if (el.type === 'range') el.parentNode.querySelector('.jpf-te-val').textContent = raw;
+                        // One value, two places to reach it (the ring's thickness is also under Shape).
+                        Array.prototype.forEach.call(page.querySelectorAll('#teAdvancedFields input[type="range"][data-path="' + path + '"]'), function (o) {
+                            if (o === el) return;
+                            o.value = raw;
+                            o.parentNode.querySelector('.jpf-te-val').textContent = raw;
+                        });
                     } else {
                         setThemePath(draft, path, raw === '' ? undefined : raw);
                         if (kind === 'color' && themeRgb(raw.slice(0, 7)) && (raw.length === 7 || raw.length === 9)) {
                             setSwatch(el.parentNode.querySelector('.jpf-te-pick'), raw.slice(0, 7).toLowerCase());
                         }
+                        if (kind === 'choice') themeListFollowUp(page, path);
                     }
                 } else {
                     return false;
@@ -6456,6 +6763,8 @@
                 editor.addEventListener('input', edited);
                 editor.addEventListener('change', edited);
                 editor.addEventListener('click', function (e) {
+                    const listBtn = e.target.closest ? e.target.closest('[data-list-act]') : null;
+                    if (listBtn && page._themeEditor) { if (!listBtn.disabled) themeListAction(page, listBtn); return; }
                     const swatch = e.target.closest ? e.target.closest('.jpf-te-sw') : null;
                     if (swatch) { openColorPopup(page, swatch); return; }
                     const act = e.target.closest && e.target.closest('[data-photo-act]');
