@@ -338,7 +338,6 @@
     #profilesConfigurationPage .jpf-chip .material-icons { font-size: 16px; }
     #profilesConfigurationPage .jpf-ann-text { width: 100%; resize: vertical; }
     #profilesConfigurationPage .jpf-gs-title { margin: 0 0 8px; font-size: 1.05em; font-weight: 600; }
-    #profilesConfigurationPage .jpf-ob-steps { margin: 0.5em 0 1.5em; max-width: 40em; }
     #profilesConfigurationPage .jpf-logo-current { margin: 0.5em 0 1em; }
     #profilesConfigurationPage .jpf-logo-current img { display: block; max-width: 16em; max-height: 5em; border-radius: 0.5em; }
     #profilesConfigurationPage .jpf-logo-current.jpf-logo-square img { border-radius: 0; }
@@ -358,6 +357,28 @@
     #profilesConfigurationPage .jpf-ob-box { display: inline-flex; align-items: center; margin-left: 1.5em; cursor: pointer; }
     #profilesConfigurationPage .jpf-ob-box input { margin: 0 0.4em 0 0; }
     #profilesConfigurationPage .jpf-ob-box input:disabled + span { opacity: 0.45; }
+    /* The built-in and custom theme lists as a grid of cards (owner, 1.9.0.4 eye test: one
+       narrow column left most of a wide monitor empty). min() keeps a track from being
+       wider than a 360px phone's list. A card is the preview on top, the name, then Hide. */
+    #profilesConfigurationPage .jpf-theme-cards,
+    #profilesConfigurationPage .jpf-te-list.jpf-theme-cards {
+        display: grid; max-width: none; gap: 1em;
+        grid-template-columns: repeat(auto-fill, minmax(min(15em, 100%), 1fr));
+        margin: 0.5em 0 1.5em;
+    }
+    #profilesConfigurationPage .jpf-theme-cards > .fieldDescription { grid-column: 1 / -1; }
+    #profilesConfigurationPage .jpf-theme-cards > .jpf-ob-row,
+    #profilesConfigurationPage .jpf-theme-cards > .jpf-te-item {
+        flex-direction: column; align-items: stretch; flex-wrap: nowrap; min-width: 0;
+        padding: 0.8em; border: 1px solid var(--jpf-w14); border-radius: 8px;
+    }
+    #profilesConfigurationPage .jpf-theme-cards > .jpf-ob-row .jpf-theme-preview { flex: none; width: auto; margin: 0 0 0.6em; }
+    #profilesConfigurationPage .jpf-theme-cards .jpf-ob-name { flex: 1 1 auto; overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-theme-cards .jpf-ob-box { margin: 0.6em 0 0; }
+    #profilesConfigurationPage .jpf-theme-cards .jpf-te-item-name,
+    #profilesConfigurationPage .jpf-theme-cards .jpf-te-item-meta { overflow-wrap: anywhere; }
+    #profilesConfigurationPage .jpf-theme-cards > .jpf-te-item { align-items: flex-start; }
+    #profilesConfigurationPage .jpf-theme-cards > .jpf-te-item .jpf-grow { width: 100%; }
     #profilesConfigurationPage .jpf-ann-dates {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1101,10 +1122,10 @@
 
                 <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.builtIn">Built-in themes</h3>
                 <div class="fieldDescription" data-i18n="admin.themes.builtInHint">Profiles aren't offered a hidden theme.</div>
-                <div class="jpf-ob-steps" id="themesBuiltIn"></div>
+                <div class="jpf-theme-cards" id="themesBuiltIn"></div>
 
                 <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.custom">Your themes</h3>
-                <div class="jpf-te-list" id="themesCustom"></div>
+                <div class="jpf-te-list jpf-theme-cards" id="themesCustom"></div>
                 <div class="jpf-actions">
                     <button is="emby-button" type="button" class="raised" id="themeNew" data-i18n="admin.themes.new">New theme</button>
                     <button is="emby-button" type="button" class="raised" id="themeImport" data-i18n="admin.themes.import">Import</button>
