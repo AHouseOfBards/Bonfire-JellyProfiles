@@ -386,6 +386,16 @@ function part5() {
        && layer.stops[0].color === '#f4f1ea' && layer.stops[1].color === '#202020');
     const v = fns.simpleThemeValues(d);
     ok('and Simple reads back what it wrote', v.bg1 === '#f4f1ea' && v.bg2 === '#202020');
+    // A background colour is not the background image: dropping the image here made the
+    // save delete its file as unused. Both branches, the gradient and the single fill.
+    const withPhoto = JSON.parse(JSON.stringify(bonfireFile));
+    withPhoto.background.image = { file: 'abc.jpg', dim: 0.4 };
+    fns.simpleThemeEdit(withPhoto, 'bg1', '#336699', []);
+    const afterTwo = JSON.stringify(withPhoto.background.image);
+    fns.simpleThemeEdit(withPhoto, 'bg2', '#336699', []);
+    ok('changing a background colour keeps the background image, gradient and fill alike',
+       afterTwo === '{"file":"abc.jpg","dim":0.4}' && JSON.stringify(withPhoto.background.image) === afterTwo,
+       afterTwo + ' / ' + JSON.stringify(withPhoto.background.image));
 
     fns.simpleThemeEdit(d, 'text', '#222222', []);
     ok('text sets all three steps and the name', d.colors.text1 === '#222222' && d.colors.text2 === '#222222b3'

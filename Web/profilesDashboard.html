@@ -4358,10 +4358,14 @@
                     const bottom = control === 'bg2' ? hex : now.bg2;
                     // Two colours top to bottom, or one. Whatever layers the starting theme
                     // had go: Simple cannot show them, so it should not keep them unseen.
+                    // The background image stays: Simple shows it, and dropping it here
+                    // made the save delete the file as unused.
+                    const image = draft.background && typeof draft.background === 'object' ? draft.background.image : undefined;
                     draft.background = top === bottom ? { fill: top, layers: [] } : {
                         fill: top,
                         layers: [{ type: 'linear', angle: 180, stops: [{ color: top, at: 0 }, { color: bottom, at: 100 }] }]
                     };
+                    if (image !== undefined) draft.background.image = image;
                     setThemePath(draft, 'colors.panel', top);
                     draft.scheme = themeLuminance(themeMix(top, bottom, 0.5)) > 0.4 ? 'light' : 'dark';
                 } else if (control === 'text') {
