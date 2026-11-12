@@ -599,6 +599,9 @@ Ok("PlaybackInfo is what starts playback", Kind("/Items/" + item + "/PlaybackInf
 Ok("so is a video stream", Kind("/Videos/" + item + "/stream.mkv") == "VideoStream" && Kind("/Videos/" + item + "/main.m3u8") == "VideoStream");
 Ok("an item page's extra parts and trickplay are browsing", Kind("/Videos/" + item + "/AdditionalParts") == "None"
    && Kind("/Videos/" + item + "/Trickplay/320/0.jpg") == "None");
+Ok("trickplay anywhere but right after the id is a stream (r2-06-01)",
+   Kind("/Videos/" + item + "/hls1/Trickplay/0.mp4") == "VideoStream"
+   && Kind("/Videos/" + item + "/hls1/main/AdditionalParts") == "VideoStream");
 Ok("music is not limited", Kind("/Audio/" + item + "/stream.mp3") == "None");
 Ok("nor is browsing", Kind("/Users/" + KID + "/Items") == "None" && Kind("/Items/" + item) == "None");
 Ok("nor reports", Kind("/Sessions/Playing/Progress") == "None");

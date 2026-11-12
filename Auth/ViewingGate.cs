@@ -72,8 +72,11 @@ namespace Jellyfin.Profiles.Auth
                 var start = at + "/Videos/".Length;
                 var end = path.IndexOf('/', start);
                 if (!Guid.TryParse(end < 0 ? path[start..] : path[start..end], out _)) return Kind.None;
-                if (path.EndsWith("/AdditionalParts", StringComparison.OrdinalIgnoreCase)
-                    || path.Contains("/Trickplay/", StringComparison.OrdinalIgnoreCase)) return Kind.None;
+                // Exactly those two routes, by position: hls1 has an unused playlistId segment, so
+                // /Videos/{id}/hls1/Trickplay/0.mp4 is a video stream, not trickplay (r2-06-01).
+                var rest = end < 0 ? "" : path[(end + 1)..];
+                if (rest.Equals("AdditionalParts", StringComparison.OrdinalIgnoreCase)
+                    || rest.StartsWith("Trickplay/", StringComparison.OrdinalIgnoreCase)) return Kind.None;
                 return Kind.VideoStream;
             }
             if (path.EndsWith("/PlaybackInfo", StringComparison.OrdinalIgnoreCase)
