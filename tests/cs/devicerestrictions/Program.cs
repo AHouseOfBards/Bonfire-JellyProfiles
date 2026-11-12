@@ -184,11 +184,12 @@ if (parse != null)
     Ok("the scheme prefix is matched case-insensitively",
        P("mediabrowser Client=\"Low\", DeviceId=\"lc1\"", null, "DeviceId") == "lc1"
        && P("EMBY Client=\"Low\", DeviceId=\"lc2\"", null, "Client") == "Low");
-    // A repeated parameter must answer one way every time, and it is the first. The device
+    // A repeated parameter must answer one way every time, and it is the last, because that
+    // is what Jellyfin's GetParts does (r2-08-04; this once pinned the first). The device
     // check reads DeviceId from here; which of two it reads must not depend on header order
     // being shuffled by a proxy that appends.
-    Ok("a repeated parameter answers with the first",
-       P("MediaBrowser DeviceId=\"first\", Client=\"c\", DeviceId=\"second\"", null, "DeviceId") == "first");
+    Ok("a repeated parameter answers with the last",
+       P("MediaBrowser DeviceId=\"first\", Client=\"c\", DeviceId=\"second\"", null, "DeviceId") == "second");
     // Base64 device ids end in '='. Quoted, the sign is part of the value; the parameters
     // after it must still line up.
     var padded = "MediaBrowser Client=\"Web\", DeviceId=\"YWJjZA==\", Version=\"1\", Token=\"t==\"";
