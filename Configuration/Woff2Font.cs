@@ -231,7 +231,9 @@ namespace Jellyfin.Profiles.Configuration
                     if (c >= start && c <= end) return glyph + (uint)(c - start) != 0;
                 }
 
-                return false;
+                // A format 12 table with a gap here is not an answer when the font also
+                // carries a BMP table: some fonts list only part of the range in 12. r2-22-04.
+                if (bmp < 0) return false;
             }
 
             if (bmp < 0) throw new InvalidDataException("That font has no Unicode character map.");

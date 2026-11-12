@@ -133,6 +133,13 @@ namespace Jellyfin.Profiles.Configuration
             return rgb;
         }
 
+        // Static: the sampler asks about three million points on the first draw, and a new
+        // array for each of the two loops was most of the garbage. r2-21-01.
+        private static readonly double[] GridCentres = { 0.39, 0.61 };
+
+        // A node that is not a string reads as no text, as Colour does, and never throws. r2-21-02.
+        private static string? Text(JsonNode? node) => node is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+
         /// <summary>True when the point (0–1 across, 0–1 down) is part of the glyph.</summary>
         internal static bool Inside(TileGlyph glyph, double x, double y)
         {
@@ -154,9 +161,9 @@ namespace Jellyfin.Profiles.Configuration
                 default:
                 {
                     // Four rounded squares.
-                    foreach (var cx in new[] { 0.39, 0.61 })
+                    foreach (var cx in GridCentres)
                     {
-                        foreach (var cy in new[] { 0.39, 0.61 })
+                        foreach (var cy in GridCentres)
                         {
                             if (RoundedSquare(x, y, cx, cy, 0.09, 0.025)) return true;
                         }
@@ -207,14 +214,14 @@ namespace Jellyfin.Profiles.Configuration
             // in, as CSS does; List.Sort makes no such promise.
             var sorted = stops.OrderBy(x => x.At).ToArray();
 
-            if ((string?)layer["type"] == "radial")
+            if (Text(layer["type"]) == "radial")
             {
                 // An ellipse sized to the farthest corner, as CSS draws one by default.
                 var cx = Number(layer["x"], 50) / 100;
                 var cy = Number(layer["y"], 50) / 100;
                 var rx = Math.Max(cx, 1 - cx) * Math.Sqrt(2);
                 var ry = Math.Max(cy, 1 - cy) * Math.Sqrt(2);
-                if ((string?)layer["shape"] == "circle") rx = ry = Math.Sqrt(Sq(Math.Max(cx, 1 - cx)) + Sq(Math.Max(cy, 1 - cy)));
+                if (Text(layer["shape"]) == "circle") rx = ry = Math.Sqrt(Sq(Math.Max(cx, 1 - cx)) + Sq(Math.Max(cy, 1 - cy)));
                 return new Layer(true, cx, cy, rx, ry, 0, 0, 0, sorted);
             }
 

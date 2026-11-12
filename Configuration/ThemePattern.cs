@@ -58,7 +58,7 @@ namespace Jellyfin.Profiles.Configuration
             {
                 info = ThemeLogo.Sniff(bytes);
             }
-            catch (InvalidDataException e) when (e.Message.Contains("animated", StringComparison.Ordinal))
+            catch (InvalidDataException e) when (ThemeLogo.IsAnimated(e))
             {
                 throw new InvalidDataException("A pattern picture can't be animated.", e);
             }

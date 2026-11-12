@@ -124,7 +124,7 @@ namespace Jellyfin.Profiles.Configuration
             {
                 var length = U32(b, at);
                 var type = Ascii(b, at + 4);
-                if (type == "acTL") throw new InvalidDataException("A logo can't be animated.");
+                if (type == "acTL") throw AnimatedImageException("A logo can't be animated.");
                 if (type == "IDAT") break;
                 var next = (long)at + 12 + length;
                 if (next > b.Length) break;
@@ -170,7 +170,7 @@ namespace Jellyfin.Profiles.Configuration
             {
                 // Bit 1 of the feature flags: an animation. A GIF is refused for being one, so
                 // an animated WebP is too; a logo does not move.
-                if ((b[20] & 0x02) != 0) throw new InvalidDataException("A logo can't be animated.");
+                if ((b[20] & 0x02) != 0) throw AnimatedImageException("A logo can't be animated.");
                 var w = 1 + (b[24] | (b[25] << 8) | (b[26] << 16));
                 var h = 1 + (b[27] | (b[28] << 8) | (b[29] << 16));
                 return new LogoImageInfo(".webp", "image/webp", w, h);
@@ -200,5 +200,21 @@ namespace Jellyfin.Profiles.Configuration
         private static uint U32(byte[] b, int at) =>
             at + 4 > b.Length ? throw new IndexOutOfRangeException()
                 : ((uint)b[at] << 24) | ((uint)b[at + 1] << 16) | ((uint)b[at + 2] << 8) | b[at + 3];
+
+        /// <summary>
+        /// The refusal for an animated image. InvalidDataException is sealed, so it carries a
+        /// flag in <see cref="Exception.Data"/> that <see cref="IsAnimated"/> reads: a caller
+        /// can tell it from a bad image without matching the English message. r2-20-06.
+        /// </summary>
+        private static InvalidDataException AnimatedImageException(string message)
+        {
+            var e = new InvalidDataException(message);
+            e.Data[AnimatedKey] = true;
+            return e;
+        }
+
+        private const string AnimatedKey = "Bonfire.Animated";
+
+        internal static bool IsAnimated(InvalidDataException e) => e.Data.Contains(AnimatedKey);
     }
 }

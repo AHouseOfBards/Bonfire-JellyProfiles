@@ -24,7 +24,11 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>When playback is allowed. Starts empty: see <see cref="OnboardingSettings"/>
         /// for why a list here may never be filled by a constructor.</summary>
-        public List<ViewingWindow> Windows { get; set; } = new();
+        public List<ViewingWindow> Windows { get => _windows; set => _windows = value ?? new(); }
+
+        // Never null, whatever a body or a hand-edited file holds: Evaluate and CopyRules read it
+        // without a guard. r2-21-04.
+        private List<ViewingWindow> _windows = new();
 
         /// <summary>Minutes of video a day. 0 is no limit.</summary>
         public int DailyMinutes { get; set; }
@@ -42,7 +46,7 @@ namespace Jellyfin.Profiles.Configuration
         public ViewingRules Copy()
         {
             var copy = (ViewingRules)MemberwiseClone();
-            copy.Windows = Windows?.Select(w => w.Copy()).ToList() ?? new List<ViewingWindow>();
+            copy.Windows = Windows.Select(w => w.Copy()).ToList();
             return copy;
         }
 

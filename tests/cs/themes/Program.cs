@@ -468,7 +468,14 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                t => { t["decorations"]!.AsArray().Clear(); t["decorations"]!.AsArray().Add(Second(firstImage)); }, "decorations[0]", "range");
         Caught("two second patterns",
                t => { t["decorations"]!.AsArray().Add(Second(firstImage)); t["decorations"]!.AsArray().Add(Second(firstImage)); }, "decorations[2]", "range");
-        Caught("an address in the name", t => t["name"] =new System.Text.Json.Nodes.JsonObject { ["text"] = "https://example.com" }, "name.text", "address");
+        // r2-21-03: the name is shown as text everywhere, so a name that merely contains an address
+        // word ("Url(s) of fun", "https://example.com") is a name. Every other field is still checked.
+        foreach (var named in new[] { "https://example.com", "Url(s) of fun" })
+        {
+            var tn = Harvest();
+            tn["name"] = new System.Text.Json.Nodes.JsonObject { ["text"] = named };
+            Ok("a name that reads like an address is accepted: " + named, !ThemeCatalog.Validate(tn).Any(p => p.Code == "address"));
+        }
         Caught("an address in a field nothing reads",
                t => t["colors"]!["glow"] = "url(//x)", "colors.glow", "address");
         Caught("a name with a key and a text", t => t["name"]!["text"] = "Mine", "name", "missing");

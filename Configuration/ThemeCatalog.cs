@@ -50,7 +50,7 @@ namespace Jellyfin.Profiles.Configuration
         /// <para>
         /// Serialized with the default encoder, which escapes everything outside ASCII and
         /// the characters HTML gives meaning to. That keeps U+2028 and U+2029 out of the
-        /// script (a syntax error before ES2019, which is every Chromium 68 television), and
+        /// script (a syntax error before ES2019, which is every television down to the Chromium 53 floor), and
         /// leaves nothing in a theme's text that can end the script it sits in.
         /// </para>
         /// </summary>
@@ -302,7 +302,7 @@ namespace Jellyfin.Profiles.Configuration
             var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var custom in config.CustomThemes)
             {
-                if (custom == null || string.IsNullOrEmpty(custom.Json) || !seen.Add(custom.Id ?? string.Empty)) continue;
+                if (custom == null || string.IsNullOrEmpty(custom.Json) || seen.Contains(custom.Id ?? string.Empty)) continue;
                 if (CustomParsed.Count > 500) CustomParsed.Clear();
                 var parsed = CustomParsed.GetOrAdd(fontsKey + "\u0002" + custom.Json, _ =>
                 {
@@ -318,7 +318,8 @@ namespace Jellyfin.Profiles.Configuration
 
                     return node is JsonObject o && ValidateCustom(o, config).Count == 0 ? (JsonObject)Materialise(o)! : null;
                 });
-                if (parsed != null && parsed["id"] is JsonValue v && v.TryGetValue<string>(out var id) && id == custom.Id)
+                // Added to seen only now: an invalid first copy of an id must not hide a valid second. r2-20-04.
+                if (parsed != null && parsed["id"] is JsonValue v && v.TryGetValue<string>(out var id) && id == custom.Id && seen.Add(custom.Id ?? string.Empty))
                     list.Add(parsed);
             }
 

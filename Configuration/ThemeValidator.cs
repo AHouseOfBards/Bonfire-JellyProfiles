@@ -759,6 +759,12 @@ namespace Jellyfin.Profiles.Configuration
                     case JsonArray a:
                         for (int i = 0; i < a.Count; i++) NoAddresses(a[i], path + "[" + i + "]");
                         break;
+                    // The name a person typed, shown as text everywhere (textContent, or escaped
+                    // before it goes into markup: Web/profiles.js themeName, the dashboard's
+                    // themeDisplayName). It is never fetched, so "Url(s) of fun" is a name,
+                    // not an address. r2-21-03.
+                    case JsonValue when path == "name.text":
+                        break;
                     case JsonValue v when v.TryGetValue<string>(out var s):
                         var low = s.ToLowerInvariant();
                         if (low.Contains("://", StringComparison.Ordinal) || low.StartsWith("//", StringComparison.Ordinal)
