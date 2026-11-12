@@ -5,9 +5,15 @@
 #nullable enable
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Campground.Shared.Registry;
+using Campground.Shared.Storage;
+using MediaBrowser.Common.Plugins;
+using PluginStatus = MediaBrowser.Model.Plugins.PluginStatus;
 
 namespace Campground.Shared.Contracts
 {
@@ -30,8 +36,14 @@ namespace Campground.Shared.Contracts
     /// <list type="bullet">
     /// <item>Unknown users, users who aren't Bonfire profiles, and admins get <c>Allowed = true</c>. That is the
     /// provider's job.</item>
-    /// <item>With no provider, or a call that fails or times out, the caller treats the user as allowed:
-    /// <see cref="CanPlayNowAsync"/> does exactly that. Standalone means allowed.</item>
+    /// <item>With Bonfire not installed or disabled, the user is allowed: standalone means allowed. When there is
+    /// no answer (no provider, or it throws or times out), <see cref="CanPlayNowAsync"/> allows everyone except a
+    /// user in the set Bonfire published with <see cref="PublishLimited"/>. "Installed" comes from Jellyfin's plugin
+    /// list when the caller passed it to <see cref="Initialize"/>: Bonfire absent, Disabled or Deleted is off, any
+    /// other state (Active, Restart, Malfunctioned, NotSupported) is on, so a Bonfire that failed to start still
+    /// blocks a limited profile. Without <see cref="Initialize"/>, a registered provider stands in for "installed". That user is refused with <see cref="Reasons.LimitsUnavailable"/>, no
+    /// <c>Until</c>, and <c>GraceSeconds</c> as the provider last gave it (300 if it never did). The set is kept in
+    /// the registry and in a file, so a restart doesn't lose it; a missing or unreadable file is an empty set.</item>
     /// <item>The provider counts every activity with a <c>UserId</c> (<see cref="Sessions.ListActivities"/>) against
     /// that user's daily limit, unless <see cref="Activity.Paused"/>. Activities with no <c>UserId</c> count against
     /// nobody.</item>
@@ -45,6 +57,29 @@ namespace Campground.Shared.Contracts
     {
         internal const string CanPlayNowOp = "canPlayNow";
 
+        /// <summary>Registry section holding the published limited set and the last grace given per user.</summary>
+        internal const string LimitedSection = "limits";
+
+        /// <summary>Bonfire's plugin id in Jellyfin's plugin list.</summary>
+        internal static readonly Guid BonfireGuid = Guid.Parse("b1462fca-774b-4b13-8d02-e2d4f2bc18b9");
+
+        private static IPluginManager? _plugins;
+
+        /// <summary>
+        /// Optional: lets this copy ask Jellyfin whether Bonfire is installed and enabled, so a limited profile is
+        /// still refused when Bonfire is installed but hasn't registered (it failed at start-up, or is between an
+        /// in-process restart and its <see cref="Provide"/> call). Without it, "no provider" is read as "no Bonfire".
+        /// Pass null to undo it.
+        /// </summary>
+        internal static void Initialize(IPluginManager? plugins) => _plugins = plugins;
+
+        private const string LimitedKey = "limited";
+        private const string GracePrefix = "grace:";
+        private const string LimitedFileName = "limits-limited.json";
+        private const int DefaultGraceSeconds = 300;
+
+        private sealed record LimitedFile(string[] Users);
+
         /// <summary>The fail-open answer: allowed, nothing to say.</summary>
         internal static readonly LimitsDecision Allowed = new(true, null, null, 0);
 
@@ -54,6 +89,7 @@ namespace Campground.Shared.Contracts
             internal const string OutsideViewingHours = "outside_viewing_hours";
             internal const string DailyLimitReached = "daily_limit_reached";
             internal const string Maintenance = "maintenance";
+            internal const string LimitsUnavailable = "limits_unavailable";
         }
 
         /// <summary>
@@ -66,12 +102,137 @@ namespace Campground.Shared.Contracts
             {
                 var answer = await Capabilities.TryInvokeAsync<LimitsDecision>(
                     CapabilityNames.Limits, CanPlayNowOp, new LimitsQuery(userId, deviceKey), timeout: timeout, ct: ct).ConfigureAwait(false);
-                return answer ?? Allowed;
+                if (answer != null)
+                {
+                    if (answer.Allowed is false || answer.GraceSeconds > 0)
+                    {
+                        CampgroundRegistry.Section(LimitedSection)[GracePrefix + userId.ToString("N")] = answer.GraceSeconds;
+                    }
+
+                    return answer;
+                }
+
+                return NoAnswer(userId);
             }
             catch (Exception) when (!ct.IsCancellationRequested)
             {
+                return NoAnswer(userId);
+            }
+        }
+
+        /// <summary>
+        /// For the provider (Bonfire): the user ids that have viewing hours or a daily limit. Replaces the whole set.
+        /// Call it at start-up and whenever the settings change. It goes to the registry and to a file under the
+        /// Campground folder, so the set is there after a restart and before the provider answers. Never throws.
+        /// </summary>
+        internal static void PublishLimited(IEnumerable<Guid> userIds)
+        {
+            var ids = userIds.Distinct().Select(g => g.ToString("N")).OrderBy(s => s, StringComparer.Ordinal).ToArray();
+            CampgroundRegistry.Section(LimitedSection)[LimitedKey] = CampgroundRegistry.ToJson(ids);
+            try
+            {
+                if (CampgroundPaths.IsInitialized)
+                {
+                    LimitedStore().Save(new LimitedFile(ids));
+                }
+            }
+            catch (Exception)
+            {
+                // The registry copy is current; only a restart before the next publish would miss the file.
+            }
+        }
+
+        /// <summary>
+        /// The limited set: the registry's copy, else the file's (and that is then kept in the registry). Empty when
+        /// there is neither, or the file is unreadable.
+        /// </summary>
+        internal static IReadOnlyCollection<Guid> ReadLimited()
+        {
+            var section = CampgroundRegistry.Section(LimitedSection);
+            string[]? ids = null;
+            if (section.TryGetValue(LimitedKey, out var held) && held is JsonElement e)
+            {
+                ids = CampgroundRegistry.FromJson<string[]>(e);
+            }
+
+            if (ids == null)
+            {
+                try
+                {
+                    ids = CampgroundPaths.IsInitialized ? LimitedStore().Load<LimitedFile>()?.Users : null;
+                }
+                catch (Exception)
+                {
+                    ids = null;
+                }
+
+                if (ids != null)
+                {
+                    section.TryAdd(LimitedKey, CampgroundRegistry.ToJson(ids));
+                }
+            }
+
+            return (ids ?? Array.Empty<string>())
+                .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty)
+                .Where(g => g != Guid.Empty)
+                .ToArray();
+        }
+
+        private static AtomicJsonFile LimitedStore() => new(System.IO.Path.Combine(CampgroundPaths.Root, LimitedFileName));
+
+        // The provider gave no answer. Allowed, unless Bonfire is there and enabled and this user is one it limits.
+        private static LimitsDecision NoAnswer(Guid userId)
+        {
+            try
+            {
+                if (!BonfireIsOn() || !ReadLimited().Contains(userId))
+                {
+                    return Allowed;
+                }
+
+                var grace = DefaultGraceSeconds;
+                if (CampgroundRegistry.Section(LimitedSection).TryGetValue(GracePrefix + userId.ToString("N"), out var g) && g is int seconds)
+                {
+                    grace = seconds;
+                }
+
+                return new LimitsDecision(false, Reasons.LimitsUnavailable, null, grace);
+            }
+            catch (Exception)
+            {
                 return Allowed;
             }
+        }
+
+        // With Jellyfin's plugin list: on unless Bonfire is absent, Disabled or Deleted there (an older copy marked
+        // Superseded is not the live one). Without it: on when a provider is registered and its announcement is up.
+        // Either way Bonfire's own off switches (the emergency brake) count as off.
+        private static bool BonfireIsOn()
+        {
+            var plugins = _plugins;
+            string? id;
+            if (plugins != null)
+            {
+                var live = plugins.Plugins.Any(p => p.Id == BonfireGuid
+                    && p.Manifest.Status is not (PluginStatus.Disabled or PluginStatus.Deleted or PluginStatus.Superseded));
+                if (!live)
+                {
+                    return false;
+                }
+
+                id = PluginIds.Bonfire;
+                var announced = PluginRegistry.List().FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.Ordinal));
+                return announced == null || (announced.Status.Enabled && !announced.Status.EmergencyDisabled);
+            }
+
+            id = Capabilities.ProviderOf(CapabilityNames.Limits);
+            if (id == null)
+            {
+                return false;
+            }
+
+            var plugin = PluginRegistry.List().FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.Ordinal));
+            return plugin != null && plugin.Status.Enabled && !plugin.Status.EmergencyDisabled;
         }
 
         /// <summary>For the provider (Bonfire): offers the capability.</summary>

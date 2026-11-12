@@ -1,6 +1,6 @@
 {
-  "version": "0.12.1",
-  "source": "AHouseOfBards/Campground-Coordination/shared@1be80b4",
+  "version": "0.13.0",
+  "source": "AHouseOfBards/Campground-Coordination/shared@948f890",
   "files": {
     ".gitattributes": "1ea2fafadea69b70c1902348304671bd72de834d7a3c661488a3f819fa1f92ea",
     "Campground.Shared.props": "d1c91ac69491a2b3433d52a06dee7af1d838c89e10238e3032abf706fc823e73",
@@ -10,7 +10,7 @@
     "src/Contracts/EncoderLedger.cs": "bf1a0257c0860ce2cc91e323667c0f139d8aebeac080542e3c40b1c56386dd7a",
     "src/Contracts/Household.cs": "8504d2b2546fba83f1a5f15de5213747b0166ad1b4e65ed625c34c58c3d2bdeb",
     "src/Contracts/Https.cs": "4024db8cd4b6fc9f034faa78883964fe6fb58ea64b950f68c3a4a6b9e5002311",
-    "src/Contracts/Limits.cs": "a8d33cc75cb903d584d326e88886da6070bbbf584b8129108f714cedd008048e",
+    "src/Contracts/Limits.cs": "5160706c20633fc797ab02cf5d1100b4dd4ee15d0812396ff2fccaa6bd6943da",
     "src/Contracts/MediaIdentity.cs": "911790823fc6b4cd72fbd013b86f9bc94cf6feb02fadadfadca14d947df8649a",
     "src/Contracts/Ports.cs": "3265ea412838cee83f66b3fc1a9e35e3ced687adf395610850d8c3df45636b1c",
     "src/Contracts/Sessions.cs": "cb9b80ea2a14ab5c41063face9560294fdc377ec03c94074e657375e2c7e4c03",
@@ -27,7 +27,7 @@
     "src/Registry/CampgroundRegistry.cs": "e263bebb8f031532600250c70d55b09f7ec46e4f2c08e74b59683feb91ce07ed",
     "src/Registry/Capabilities.cs": "d67045f1ca62f49f7ff853bad2bc5bad2a8337a33324e375f9dcc66c206f1fb0",
     "src/Registry/Ownership.cs": "d5bb6d5f043ab9dc6ae139d15ef337b999beb7a1bc6aca7f387b521c0c877f81",
-    "src/Registry/PluginRegistry.cs": "c4597888353532e0847fc6ae084a5f391a850e8370ccb04abe73463d0e950365",
+    "src/Registry/PluginRegistry.cs": "a589e6837828b6e6fdee4fcc77af9f39e088983217bf72a3e5aad64ad8c90a50",
     "src/Security/AccessChecks.cs": "c199e7de8e3366d603e9dac14111d91c9f8692035e8fb3240fd0ea2745b72fa9",
     "src/Security/AuthorizationHeader.cs": "8d770969e037227af349a1fdb5ec3ca63162230d668ed391d3e096cb8d6669d5",
     "src/Security/RateLimiter.cs": "f5509feda4ddf3970428001dbcfb10931f2e1d5fd12d8fb3d8505c69f2e54976",
@@ -37,6 +37,6 @@
     "src/Storage/AtomicJsonFile.cs": "05fc972220c3334eae06d77b03719b51ec0556d2684795ef78cf793ef2d480df",
     "src/Storage/CampgroundPaths.cs": "c2e740c6dbbee1780964676e793d96efe998a2d9e0a47c2ee6e044a9429eb983",
     "src/Storage/UserDataCleanup.cs": "4dce215c4c44ab47ac568a2ac24a31e99437f879749e55e42b66b64a25eb2558",
-    "web/campground.js": "ff49cfabf8e80d4d54cd3abbfe1574bdaa4af12cdeca249e1f69a55075000a10"
+    "web/campground.js": "6fc0ab5d7a7852f4bc7f3ff76bd384768662e8030365e8b2dcd6379e467c47c0"
   }
 }

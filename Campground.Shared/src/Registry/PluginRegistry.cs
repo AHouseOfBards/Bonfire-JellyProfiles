@@ -126,6 +126,6 @@ namespace Campground.Shared.Registry
     internal static class CampgroundShared
     {
         /// <summary>Kept equal to the package version by CI (shared-release.yml checks the tag).</summary>
-        internal const string Version = "0.12.1";
+        internal const string Version = "0.13.0";
     }
 }
