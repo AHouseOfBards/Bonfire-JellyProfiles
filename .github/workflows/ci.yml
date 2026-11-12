@@ -15,20 +15,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Both, because the plugin multi-targets. Jellyfin 10.11.x runs on .NET 9 and 12.0
       # runs on .NET 10, and the C# harnesses run on whichever runtime the build they are
       # loading was compiled for — a net9 harness cannot load a net10 assembly.
       - name: Setup .NET 9 and 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: |
             9.0.x
             10.0.x
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
 
