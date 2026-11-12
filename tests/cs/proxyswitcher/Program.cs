@@ -898,6 +898,25 @@ var after = Get("/UserViews");
 Ok("and the next request finds the picker, not a dead profile",
    !after.reachedJellyfin && Names(after.body) == "Profiles", Names(after.body));
 
+// A 401 is not always the token (r2-04-01): a plugin route that refuses a request answers
+// 401 too, and that used to put the child back on the picker. Only a token Jellyfin no longer
+// has does.
+{
+    Children(IdOf(Children(IdOf(after.body, "Profiles")), "Open"));
+    var profileId = sessionLog.Minted.Last();
+    var profileToken = "tok-" + N(profileId);
+    deviceTokens[profileToken] = (profileId, "Moonfin for Android TV");
+    var refusedRoute = Get("/Revoked");
+    var still = Get("/UserViews");
+    Ok("a route that answers 401 while the profile's token is good leaves the child in the profile",
+       refusedRoute.status == 401 && still.reachedJellyfin && Names(still.body).StartsWith("Movies"), refusedRoute.status + " " + Names(still.body));
+    deviceTokens.Remove(profileToken);
+    Get("/Revoked");
+    var gone = Get("/UserViews");
+    Ok("and one whose token Jellyfin no longer has still goes back to the picker", !gone.reachedJellyfin && Names(gone.body) == "Profiles", Names(gone.body));
+    after = gone;
+}
+
 // A main account turned off in Dashboard -> Users shuts its profiles too (R-1135). The
 // picker checked only the profile's own account, which is never the one that was turned off.
 var mintedBefore = sessionLog.Minted.Count;

@@ -540,6 +540,20 @@ namespace Jellyfin.Profiles.Auth
             if (context.Response.StatusCode != StatusCodes.Status401Unauthorized) return;
             if (!ReferenceEquals(session.Acting, acting) || acting.Token == session.MasterToken) return;
 
+            // Any route can answer 401 (a plugin's own refusal, say) without the token being
+            // at fault. Ask Jellyfin whether it still has the profile's token, and leave only
+            // if it does not. Cannot tell (no device manager, or the lookup threw) is the old
+            // answer: leave, since back at the picker is the safe side of a doubt.
+            try
+            {
+                var row = services.Devices?.GetDevices(new DeviceQuery { AccessToken = acting.Token })?.Items?.FirstOrDefault();
+                if (row != null && row.UserId == acting.ProfileId) return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug(ex, "ProfilesPlugin: could not check the profile's token after a 401; leaving the profile.");
+            }
+
             logger.LogInformation(
                 "ProfilesPlugin: the picker's session for profile {ProfileId} was refused by Jellyfin; back to the picker.",
                 acting.ProfileId);
