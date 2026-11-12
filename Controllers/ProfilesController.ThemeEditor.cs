@@ -135,10 +135,20 @@ namespace Jellyfin.Profiles.Controllers
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
+                var (oldText, oldAlt, oldCorners) = (config.LogoText, config.LogoAlt, config.LogoCorners);
                 if (hasText) config.LogoText = text;
                 if (hasAlt) config.LogoAlt = alt;
                 if (hasCorners) config.LogoCorners = corners!;
-                Plugin.Instance?.SaveConfiguration();
+                try
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                catch
+                {
+                    // Not saved, so not changed: the live object would otherwise say what disk does not.
+                    (config.LogoText, config.LogoAlt, config.LogoCorners) = (oldText, oldAlt, oldCorners);
+                    throw;
+                }
                 return Ok(JsonNode.Parse(ThemeCatalog.LogoPayload(config).ToJsonString()));
             }
         }
@@ -228,7 +238,15 @@ namespace Jellyfin.Profiles.Controllers
                 if (config == null) return BadRequest("Plugin configuration missing.");
                 old = config.LogoImage;
                 config.LogoImage = null;
-                Plugin.Instance?.SaveConfiguration();
+                try
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                catch
+                {
+                    config.LogoImage = old;
+                    throw;
+                }
                 if (old != null) DeleteLogoFile(old);   // under the lock, as the upload does (R-1083)
             }
 
@@ -412,9 +430,20 @@ namespace Jellyfin.Profiles.Controllers
                 // kept is exactly what was checked, without the whitespace.
                 var json = node!.ToJsonString();
                 var before = ThemeBackground.FileOf(existing?.Json);
+                var oldJson = existing?.Json;
+                CustomTheme? added = null;
                 if (existing != null) existing.Json = json;
-                else config.CustomThemes.Add(new CustomTheme { Id = id, Json = json });
-                Plugin.Instance?.SaveConfiguration();
+                else config.CustomThemes.Add(added = new CustomTheme { Id = id, Json = json });
+                try
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                catch
+                {
+                    if (added != null) config.CustomThemes.Remove(added);
+                    else existing!.Json = oldJson!;
+                    throw;
+                }
                 // After the save, so a save that throws leaves the old picture where the
                 // configuration still names it.
                 if (before != image) DropUnusedBackground(before, config);
@@ -441,8 +470,17 @@ namespace Jellyfin.Profiles.Controllers
 
                 // Profiles keep the id they chose. Resolve shows them the default while the
                 // theme is gone, and a theme saved again under the same id gives it back.
-                config.CustomThemes.Remove(existing);
-                Plugin.Instance?.SaveConfiguration();
+                var at = config.CustomThemes.IndexOf(existing);
+                config.CustomThemes.RemoveAt(at);
+                try
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                catch
+                {
+                    config.CustomThemes.Insert(at, existing);
+                    throw;
+                }
                 DropUnusedBackground(ThemeBackground.FileOf(existing.Json), config);
             }
 
@@ -483,8 +521,17 @@ namespace Jellyfin.Profiles.Controllers
                 if (ids.Contains(Themes.Normalize(config.DefaultTheme, config)))
                     return BadRequest("That's the default theme. Choose another default first.");
 
+                var oldHidden = config.HiddenThemes;
                 config.HiddenThemes = ids;
-                Plugin.Instance?.SaveConfiguration();
+                try
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                catch
+                {
+                    config.HiddenThemes = oldHidden;
+                    throw;
+                }
                 return Ok(new { hidden = ids });
             }
         }
@@ -614,8 +661,17 @@ namespace Jellyfin.Profiles.Controllers
                 if (ThemesUsing(font.Family, config).Count > 0)
                     return BadRequest("A theme uses that font. Change or delete the theme first.");
 
-                config.CustomFonts.Remove(font);
-                Plugin.Instance?.SaveConfiguration();
+                var fontAt = config.CustomFonts.IndexOf(font);
+                config.CustomFonts.RemoveAt(fontAt);
+                try
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                catch
+                {
+                    config.CustomFonts.Insert(fontAt, font);
+                    throw;
+                }
 
                 // Named by a checked hash, so the join cannot leave the folder.
                 var path = Path.Combine(ThemeCatalog.CustomFontFolder, file);

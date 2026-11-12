@@ -749,6 +749,50 @@ Ok("a font whose save throws leaves no file and no list entry",
    live.CustomFonts.Count == 0
    && (!Directory.Exists(ThemeCatalog.CustomFontFolder) || Directory.GetFiles(ThemeCatalog.CustomFontFolder).Length == 0));
 
+// r2-15-05: a save that throws leaves the live configuration as it was, on every route
+// that changes it (the upload routes already did).
+{
+    string Failing(Func<object> call)
+    {
+        StubXml.Fail = true;
+        try { call(); } catch (Exception) { }
+        finally { StubXml.Fail = false; }
+        return "";
+    }
+
+    Failing(() => Call(As(true), "SaveCustomTheme", "rb-new", Json(Custom("rb-new"))));
+    Ok("a new theme whose save throws is not listed", !live.CustomThemes.Any(c => c.Id == "rb-new"));
+
+    Call(As(true), "SaveCustomTheme", "rb-edit", Json(AtRevision("rb-edit", "harvest", 1, "First")));
+    var jsonBefore = live.CustomThemes.First(c => c.Id == "rb-edit").Json;
+    var edited2 = AtRevision("rb-edit", "harvest", null, "Changed");
+    Failing(() => Call(As(true), "SaveCustomTheme", "rb-edit", Json(edited2)));
+    Ok("an edited theme whose save throws keeps its old text", live.CustomThemes.First(c => c.Id == "rb-edit").Json == jsonBefore);
+
+    Failing(() => Call(As(true), "DeleteCustomTheme", "rb-edit"));
+    Ok("a deleted theme whose save throws is still listed", live.CustomThemes.Any(c => c.Id == "rb-edit"));
+    Call(As(true), "DeleteCustomTheme", "rb-edit");
+
+    var hiddenBefore = live.HiddenThemes.ToList();
+    Failing(() => Call(As(true), "SetHiddenThemes", Json(new JsonObject { ["hidden"] = new JsonArray("glass") })));
+    Ok("a hidden list whose save throws is unchanged", live.HiddenThemes.SequenceEqual(hiddenBefore));
+
+    var textBefore = live.LogoText;
+    Failing(() => Call(As(true), "SetThemeLogo", Json(new JsonObject { ["text"] = "Lost" })));
+    Ok("logo text whose save throws is unchanged", live.LogoText == textBefore);
+
+    Call(As(true, Png(400, 120)), "UploadThemeLogo");
+    var logoBefore = live.LogoImage;
+    Failing(() => Call(As(true), "DeleteThemeLogo"));
+    Ok("a removed logo whose save throws is still named", logoBefore != null && live.LogoImage == logoBefore);
+    Call(As(true), "DeleteThemeLogo");
+
+    Call(As(true, good), "UploadThemeFont", "serif", true, null);
+    Failing(() => Call(As(true), "DeleteThemeFont", fileName));
+    Ok("a deleted font whose save throws is still listed", live.CustomFonts.Any(f => f.File == fileName));
+    Call(As(true), "DeleteThemeFont", fileName);
+}
+
 // GET /themes answers with what the routes made.
 Call(As(true), "SaveCustomTheme", "after", Json(Custom("after")));
 var getThemes = Call(As(false), "GetThemes", (string)null);
