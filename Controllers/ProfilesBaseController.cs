@@ -653,7 +653,7 @@ namespace Jellyfin.Profiles.Controllers
         protected bool ManagementAllowed(
             Guid masterUserId, PluginConfiguration config, string? bodyPin, out ActionResult? refusal, bool settingOwnPin = false)
         {
-            var masterMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
+            var masterMapping = MappingIn(config, masterUserId);
             if (masterMapping == null || string.IsNullOrEmpty(masterMapping.PinHash))
             {
                 if (config.RequireMainPin && !settingOwnPin)
@@ -680,8 +680,33 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>Whether this main account has set a PIN.</summary>
-        internal static bool MainHasPin(Guid masterUserId, PluginConfiguration config) =>
-            config.Mappings.Any(m => m.ProfileUserId == masterUserId && !string.IsNullOrEmpty(m.PinHash));
+        internal static bool MainHasPin(Guid masterUserId, PluginConfiguration config)
+        {
+            var row = MappingIn(config, masterUserId);
+            return row != null && !string.IsNullOrEmpty(row.PinHash);
+        }
+
+        /// <summary>
+        /// The row for <paramref name="userId"/>, found with <see cref="ConfigLock"/> held: the
+        /// create, delete and copy-rules routes change the list under it, and an unlocked
+        /// enumeration meets that as "Collection was modified" (r2-11-02).
+        /// </summary>
+        internal static ProfileMapping? MappingIn(PluginConfiguration config, Guid userId)
+        {
+            lock (ConfigLock)
+            {
+                return config.Mappings.FirstOrDefault(m => m.ProfileUserId == userId);
+            }
+        }
+
+        /// <summary>How many profiles <paramref name="masterUserId"/> has made, counted under <see cref="ConfigLock"/>.</summary>
+        internal static int ProfileCountOf(PluginConfiguration config, Guid masterUserId)
+        {
+            lock (ConfigLock)
+            {
+                return config.Mappings.Count(m => m.MasterUserId == masterUserId && m.ProfileUserId != masterUserId);
+            }
+        }
 
         /// <summary>Refusal text when the administrator requires main PINs and this account has none.</summary>
         internal const string MainPinRequiredMessage = "Set a PIN for your account first.";

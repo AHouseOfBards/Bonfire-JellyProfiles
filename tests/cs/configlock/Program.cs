@@ -464,6 +464,46 @@ Ok("the vendored Campground.Shared never names Bonfire's plugin or configuration
    sharedFiles.Length > 0 && reaching.Length == 0);
 
 Console.WriteLine();
+Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02) ──────");
+{
+    // The routes that add and remove mappings do it under ConfigLock, so a reader that
+    // enumerates without it can meet "Collection was modified", and the profile-limit
+    // count can be torn. Each reader is run while the harness holds the real lock: it must
+    // wait. One that walks the list unlocked returns at once.
+    var realLock = baseCtl.GetField("ConfigLock", Any).GetValue(null);
+    var cfg = Activator.CreateInstance(cfgType);
+    var mapT = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+    var list = (System.Collections.IList)cfgType.GetProperty("Mappings").GetValue(cfg);
+    var someone = Guid.NewGuid();
+    var row = Activator.CreateInstance(mapT);
+    mapT.GetProperty("ProfileUserId").SetValue(row, someone);
+    mapT.GetProperty("MasterUserId").SetValue(row, someone);
+    list.Add(row);
+
+    void WaitsForLock(string name, string method, object[] args)
+    {
+        var m = baseCtl.GetMethod(method, Any);
+        if (m == null) { Ok(name + " (no such method " + method + ")", false); return; }
+        var held = new ManualResetEventSlim(false);
+        var letGo = new ManualResetEventSlim(false);
+        var holder = new Thread(() => { lock (realLock) { held.Set(); letGo.Wait(10000); } });
+        holder.Start(); held.Wait(5000);
+        var returned = new ManualResetEventSlim(false);
+        var caller = new Thread(() => { try { m.Invoke(null, args); } catch { } returned.Set(); });
+        caller.Start();
+        var through = returned.Wait(1000);
+        letGo.Set();
+        var after = returned.Wait(5000);
+        holder.Join(5000); caller.Join(5000);
+        Ok(name + " waits while ConfigLock is held elsewhere", !through && after);
+    }
+
+    WaitsForLock("MainHasPin", "MainHasPin", new object[] { someone, cfg });
+    WaitsForLock("MappingIn (the main-PIN check's lookup)", "MappingIn", new object[] { cfg, someone });
+    WaitsForLock("ProfileCountOf (the profile-limit count)", "ProfileCountOf", new object[] { cfg, someone });
+}
+
+Console.WriteLine();
 Console.WriteLine("── Every save happens while the lock is held ───────────────────");
 
 // Holding the lock for the mutation and then dropping it before persisting puts the

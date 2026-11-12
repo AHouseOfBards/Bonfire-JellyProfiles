@@ -411,7 +411,7 @@ namespace Jellyfin.Profiles.Controllers
 
             // Enforce max profiles limit
             var maxProfiles = GetMaxProfilesForUser(masterUserId, config);
-            var existingCount = config.Mappings.Count(m => m.MasterUserId == masterUserId && m.ProfileUserId != masterUserId);
+            var existingCount = ProfileCountOf(config, masterUserId);
             if (existingCount >= maxProfiles)
             {
                 return BadRequest($"Maximum profile limit of {maxProfiles} reached.");
@@ -1205,11 +1205,12 @@ namespace Jellyfin.Profiles.Controllers
                 else
                 {
                     var mapping = FindMapping(user.Id);
-                    var limitOverride = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == user.Id)?.MaxProfiles;
                     List<Guid> added;
                     bool inBonfire;
+                    int? limitOverride;
                     lock (ConfigLock)
                     {
+                        limitOverride = config.UserProfileLimitOverrides?.FirstOrDefault(o => o.UserId == user.Id)?.MaxProfiles;
                         added = AccountLinks.In(config, user.Id);
                         inBonfire = config.BonfireGroups.Any(g => g.OwnerUserId == user.Id || g.MemberUserIds.Contains(user.Id));
                     }
