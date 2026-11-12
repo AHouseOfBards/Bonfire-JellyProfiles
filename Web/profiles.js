@@ -5795,6 +5795,7 @@
                 // replaces is the backstop's.
                 if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
+                this._listNoticeShown = false;
                 // The household's own master: the master tile that is not a linked Bonfire.
                 // Only its id is kept — see readMasterState.
                 const ownMaster = normalized.find(p => p.isMaster && !p.isBonfire);
@@ -5813,7 +5814,12 @@
                 // the home screen is the honest state, but nothing told the person why the
                 // picker they expected is not there. Not for an expired session: that has
                 // its own screen, and a notice over it would be wrong.
-                if (!(err && err.message === 'Unauthorized')) this._showListNotice();
+                // Once until a list loads: the retry below runs every 30 s and the note
+                // came back with every one of them.
+                if (!(err && err.message === 'Unauthorized') && !this._listNoticeShown) {
+                    this._listNoticeShown = true;
+                    this._showListNotice();
+                }
                 // No gate is coming from this attempt. The poll will try again after
                 // POLL_RETRY_MS and the home screen shows in between — which is the honest
                 // state of things. _requestList has already set the pause for a failed
