@@ -117,9 +117,10 @@ namespace Jellyfin.Profiles
         /// second timer takes it down regardless. It is a pseudo-element under the gate's
         /// z-index rather than <c>opacity:0</c> on the document, so the gate can draw over
         /// it while it is still up and nothing jellyfin-web paints underneath is held hidden
-        /// from focus or layout. Its colour is <c>--jpf-gate-bg</c>, with the gate's current
-        /// gradient as the fallback; the same rule is <c>GATE_COVER_CSS</c> in profiles.js,
-        /// and tests/js/gatecover.js fails if the two differ.
+        /// from focus or layout. Its colour is the cached theme's gate background, or with no
+        /// theme known jellyfin-web's plain page colour, never a theme the household did not
+        /// choose; the same rule is <c>GATE_COVER_CSS</c> in profiles.js, and
+        /// tests/js/gatecover.js fails if the two differ.
         /// </para>
         /// </summary>
         internal const string HeadScript =
@@ -205,15 +206,24 @@ namespace Jellyfin.Profiles
                         "&&/^[a-z0-9#(),.%\\s-]{1,2000}$/i.test(th.bg[k])&&!/url|image/i.test(th.bg[k]))tb[k]=th.bg[k];" +
                     "for(i=0;tu&&sv&&!tt&&i<sv.length;i++)if(sv[i]&&sv[i].AccessToken&&sv[i].UserId&&typeof tu[n(sv[i].UserId)]==='string')tt=tu[n(sv[i].UserId)];" +
                     "if(tt&&tb.hasOwnProperty(tt))h.setAttribute('data-jpf-theme',tt);" +
+                    // With no theme known the cover is plain, in jellyfin-web's own page
+                    // colour: the one profiles.js stored at the last switch (light or dark),
+                    // else #101010 from the rule below. It was Bonfire's gradient, which put
+                    // the wrong theme on screen before the household's own (1.9.0.4-beta).
+                    // Only a colour, as for the switch hide above.
+                    "var pc=(localStorage.getItem('jpf-bg')||'').split('|')[0]||'';" +
+                    "if(/^(#[0-9a-fA-F]{3,8}|rgba?\\([\\d\\s.,%]+\\))$/.test(pc))tc+='html[data-jpf-cover]::before{background:'+pc+'}';" +
                     // Quoted, because an id may start with a digit, which is not an
                     // identifier. Escaped as \" so no double quote meets a semicolon, which
                     // is where tests/js/headscript.js decides this constant ends.
                     "for(k in tb)if(tb.hasOwnProperty(k))tc+='html[data-jpf-cover][data-jpf-theme=\"'+k+'\"]::before{background:'+tb[k]+'}';" +
                     "var s=document.createElement('style');" +
                     "s.id='jpf-cover-css';" +
-                    // content: comes last on purpose. A quote followed by a semicolon is
-                    // where tests/js/headscript.js decides this constant ends.
-                    "s.textContent='html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#121521;background:var(--jpf-gate-bg,radial-gradient(ellipse at 50% 100%,rgba(255,154,74,0.278) 0%,rgba(255,154,74,0) 55%),linear-gradient(180deg,#0f1220 0%,#1b1925 55%,#33201a 100%));content:\"\"}'+tc;" +
+                    // content: comes before the closing brace on purpose. A quote followed
+                    // by a semicolon is where tests/js/headscript.js decides this constant
+                    // ends. The theme's own background only once something has put a theme
+                    // on the page; the rules in tc come after, and win.
+                    "s.textContent='html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#101010;content:\"\"}html[data-jpf-cover][data-jpf-theme]::before{background:var(--jpf-gate-bg,#101010)}'+tc;" +
                     "(document.head||h).appendChild(s);" +
                     "h.setAttribute('data-jpf-cover','');" +
                     "var u=function(){h.removeAttribute('data-jpf-cover');clearTimeout(window.__jpCoverT);window.__jpCoverT=null;};" +

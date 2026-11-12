@@ -216,6 +216,10 @@ function makePage(opts) {
         if (/plugins\/profiles\/switch/.test(url)) {
             return ['switch', respond({ activeProfileToken: 'kid-token', jellyfinUserId: KID })];
         }
+        // The administrator's own themes, with their own delay when a test gives one.
+        if (/plugins\/profiles\/themes\?part=custom/.test(url) && opts.customThemes) {
+            return ['custom', respond(opts.customThemes)];
+        }
         return [null, respond({})];
     }
     function fetchImpl(url) {
@@ -359,11 +363,14 @@ function makePage(opts) {
 async function coldStart(opts) {
     opts = opts || {};
     const page = makePage(opts);
-    const seen = { visibleAt: [], coverMaxMs: 0, coverFrom: null, everCovered: false };
+    const seen = { visibleAt: [], coverMaxMs: 0, coverFrom: null, everCovered: false, coverThemes: [] };
     const sample = t => {
         if (page.homeVisible()) seen.visibleAt.push(t);
         const c = page.html.getAttribute('data-jpf-cover') !== null;
         if (c) {
+            // Every theme the cover wore while it was up, in order, without repeats.
+            const th = page.html.getAttribute('data-jpf-theme');
+            if (seen.coverThemes[seen.coverThemes.length - 1] !== th) seen.coverThemes.push(th);
             seen.everCovered = true;
             if (seen.coverFrom === null) seen.coverFrom = t;
             seen.coverMaxMs = Math.max(seen.coverMaxMs, t - seen.coverFrom);
@@ -590,6 +597,24 @@ console.log('\n── 4. The cover always comes down ─────────
         seen.everCovered && seen.coverMaxMs < 1000, 'up for ' + seen.coverMaxMs + ' ms');
 }
 {
+    // Reported on 1.9.0.4-beta: the cover showed Bonfire, empty, before the household's
+    // own theme. A theme an administrator made is cached by the head script, but its
+    // block arrives with themes?part=custom, and the preferences naming it answered first:
+    // applyTheme turned the name it did not know yet into Bonfire, on the cover.
+    const mine = JSON.parse(fs.readFileSync(path.join(L.ROOT, 'Web', 'themes', 'harvest.json'), 'utf8'));
+    mine.id = 'mine';
+    mine.name = { text: 'Mine' };
+    const storage = baseStorage({ jellyfin_profiles_theme: JSON.stringify({
+        last: 'mine', users: { [MASTER.replace(/-/g, '')]: 'mine' },
+        bg: { mine: 'linear-gradient(180deg, #203040 0%, #203040 100%)' } }) });
+    const { seen } = await coldStart({ storage, serverPrefs: { theme: 'mine', defaultTheme: 'bonfire' },
+        customThemes: { themes: [mine], fonts: [], hidden: [] },
+        server: { preferences: 50, custom: 700, list: 1200 }, runFor: 2000 });
+    ok('a theme an administrator made is on the cover from the first frame to the last, never Bonfire',
+        seen.everCovered && seen.coverThemes.length === 1 && seen.coverThemes[0] === 'mine',
+        'the cover wore: ' + seen.coverThemes.join(' -> '));
+}
+{
     // Token expired: jellyfin-web goes to the sign-in page instead of home.
     const { page, seen } = await coldStart({ storage: baseStorage(), user: null, homeAt: 1e9, runFor: 1500,
         events: [{ at: 300, run: p => { p.location.pathname = '/web/login.html'; p.sandbox.history.pushState(); p.plugin.checkRoute(); } }] });
@@ -620,18 +645,22 @@ console.log('\n── 5. One rule, in the gate\'s colour ───────�
 
     const css = L.extractCss(js);
     const gate = (/#profiles-gate-overlay\s*\{[^}]*?background:\s*([^;]+);/.exec(css) || [])[1] || '';
-    const fallback = (/var\(--jpf-gate-bg,(radial-gradient\([^;]*\))\)/.exec(headRule) || [])[1] || '';
-    // Since themes, the gate reads --jpf-gate-bg, and Bonfire's value for it lives in the
-    // block every theme starts from rather than the first token block resolveCssValue
-    // reads. The cover's fallback must be that value: it is what shows before any theme.
-    const bonfireBg = (/:root, body, \[data-jpf-theme="bonfire"\]\s*\{[^}]*?--jpf-gate-bg:\s*([^;]+);/.exec(css) || [])[1];
-    const squash = s => L.resolveCssValue(css, s)
-        .replace(/^var\(--jpf-gate-bg\)$/, bonfireBg || 'var(--jpf-gate-bg)')
-        .replace(/\s+/g, '').replace(/^var\(--jpf-gate-bg,(.*)\)$/, '$1');
-    ok('and its colour is the gate\'s background, so dropping it under the gate shows nothing',
-        !!fallback && squash(gate) === squash(fallback),
-        'gate: ' + gate + '\n          cover: ' + fallback);
-    ok('through --jpf-gate-bg, so a theme can set both in one place', /var\(--jpf-gate-bg,/.test(headRule));
+    // Two rules. With a theme on the page the cover is that theme's --jpf-gate-bg, which is
+    // what the gate draws, so dropping the cover under the gate shows nothing. With none it
+    // is jellyfin-web's own plain page colour: until 1.9.0.4 it fell back to Bonfire's
+    // gradient, which a household with another theme saw, empty, before its own.
+    const rules = headRule.split('}').filter(Boolean).map(r => {
+        const at = r.indexOf('{');
+        return { sel: r.slice(0, at), body: r.slice(at + 1) };
+    });
+    const themed = rules.filter(r => r.sel === 'html[data-jpf-cover][data-jpf-theme]::before')[0];
+    const plain = rules.filter(r => r.sel === 'html[data-jpf-cover]::before')[0];
+    ok('and with a theme on, its colour is the gate\'s background, so dropping it under the gate shows nothing',
+        !!themed && gate.trim() === 'var(--jpf-gate-bg)' && /^background:var\(--jpf-gate-bg,#101010\)$/.test(themed.body),
+        'gate: ' + gate + '\n          cover: ' + (themed ? themed.body : 'no themed rule'));
+    ok('with none, jellyfin-web\'s plain #101010 and no theme\'s colours',
+        !!plain && /background:#101010;/.test(plain.body) && (plain.body.match(/background:/g) || []).length === 1
+        && !/gradient|var\(/.test(plain.body), plain ? plain.body : 'no plain rule');
 }
 
 console.log('');

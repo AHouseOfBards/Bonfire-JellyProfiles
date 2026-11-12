@@ -484,7 +484,13 @@ if (constants && names.every(n => methods[n])) {
     w.obj.applyTheme('CRIMSON');
     ok('applyTheme lowercases a known id', w.attrs['data-jpf-theme'] === 'crimson');
     w.obj.applyTheme('neon');
-    ok('and turns an unknown one into bonfire, never an id the sheet lacks', w.attrs['data-jpf-theme'] === 'bonfire');
+    // Before themes?part=custom has answered, an unknown name may be a theme an
+    // administrator made that is still on its way: the page is left as it was.
+    ok('an unknown one before the custom themes answer: left as it was, never an id the sheet lacks',
+        w.attrs['data-jpf-theme'] === 'crimson', String(w.attrs['data-jpf-theme']));
+    w.obj._customThemesAnswered = true;
+    w.obj.applyTheme('neon');
+    ok('and after they answer it turns into bonfire, never an id the sheet lacks', w.attrs['data-jpf-theme'] === 'bonfire');
 
     w = makeWorld('aaaa-1111');
     w.obj._setThemeSettings({ askOnStartup: true });
@@ -603,7 +609,10 @@ const headBody = (function () {
 // The one colour it may hold is jellyfin-web's own page colour, its fallback for a stored
 // background that is not a colour; Jellyfin Dark's plain background is that same #101010,
 // so that single assignment is taken out before looking, and nothing else is.
-const headWithoutFallback = headBody.split("b='#101010';").join('');
+// The cover's plain rule, for a page with no theme known yet, is that same colour; its two
+// exact declarations are taken out the same way.
+const headWithoutFallback = headBody.split("b='#101010';").join('')
+    .split('z-index:99998;background:#101010;').join('').split('var(--jpf-gate-bg,#101010)').join('');
 ok('the head script\'s one fallback colour is jellyfin-web\'s #101010, once',
    headBody.split("b='#101010';").length === 2);
 ok('the head script carries no theme\'s background of its own',
@@ -666,7 +675,9 @@ if (headBody) {
     const unknown = runHead({ users: { aaaa1111: 'neon' }, bg: allBg });
     ok('a theme with no cached background is not applied', unknown.attrs['data-jpf-theme'] === undefined);
     const none = runHead(undefined);
-    ok('no cache: the cover is Bonfire\'s, as before', none.attrs['data-jpf-theme'] === undefined
+    // Was Bonfire's gradient: the wrong theme on screen before the household's own. What
+    // it paints is measured in a real browser by tests/js/coverframe.js.
+    ok('no cache: the cover goes up with no theme on it', none.attrs['data-jpf-theme'] === undefined
        && 'data-jpf-cover' in none.attrs);
     const older = runHead({ last: 'glass', users: { aaaa1111: 'glass' } });
     ok('a cache from before 1.7.2, with no backgrounds: Bonfire\'s cover, no theme put on early',

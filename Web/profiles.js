@@ -1821,10 +1821,12 @@
     // for a page without it — the Tizen package loads this script from the server long
     // after its own index.html has run. tests/js/gatecover.js fails if the two differ.
     //
-    // The colour is the gate's, through --jpf-gate-bg so a theme can set it in one place.
-    // The plain colour first is for an engine without custom properties, which would
-    // otherwise drop the whole declaration and paint nothing.
-    const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#121521;background:var(--jpf-gate-bg,radial-gradient(ellipse at 50% 100%,rgba(255,154,74,0.278) 0%,rgba(255,154,74,0) 55%),linear-gradient(180deg,#0f1220 0%,#1b1925 55%,#33201a 100%));content:""}';
+    // The colour is the gate's, through --jpf-gate-bg so a theme can set it in one place,
+    // but only once a theme is on the page. Before that it is jellyfin-web's own plain
+    // #101010: the fallback was Bonfire's gradient, so a household with another theme saw
+    // Bonfire, empty, before its own (1.9.0.4-beta). The plain rule is also what an engine
+    // without custom properties keeps when it drops the second.
+    const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#101010;content:""}html[data-jpf-cover][data-jpf-theme]::before{background:var(--jpf-gate-bg,#101010)}';
 
     // How long the cover may stay up without the gate arriving. Each holder (the head
     // script, and profiles.js once it starts fetching the list) gets this long; a cover
@@ -5029,6 +5031,14 @@
             // Kept as asked, so a custom theme that arrives after this is put on then.
             this._wantedTheme = String(theme || '').toLowerCase();
             const id = normalizeTheme(theme);
+            // A name this page does not know yet may be a theme an administrator made,
+            // whose block comes with themes?part=custom — and the preferences naming it
+            // often answer first. Turning it into Bonfire here put Bonfire on the startup
+            // cover, empty, before the household's own theme (1.9.0.4-beta). So until that
+            // answer is in, the page is left as it is (the head script's cached theme, or
+            // the plain cover), and useCustomThemes applies it then, Bonfire included.
+            this._themeDeferred = !!this._wantedTheme && id !== this._wantedTheme && !this._customThemesAnswered;
+            if (this._themeDeferred) return;
             // Its picture, if it is a custom theme with one: once per page, so a no-op after.
             this.loadThemePhotoOf(id);
             if (root.getAttribute('data-jpf-theme') !== id) {
@@ -5106,12 +5116,16 @@
             // Whether themes with a special animation may use it. Two arguments: the
             // class is added or removed, whatever it was.
             try { document.documentElement.classList.toggle('jpf-rich-motion', read('richThemeMotion') === true); } catch (e) { /* no document */ }
-            this.applyTheme(settings.theme);
+            // As sent, not normalised, so a custom theme still on its way is waited for
+            // rather than drawn as Bonfire.
+            this.applyTheme(read('theme'));
             this.injectFonts();
 
             try {
                 const userId = (typeof ApiClient !== 'undefined' && ApiClient) ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
-                if (userId) {
+                // Not while that theme is waited for: the cache would say Bonfire, and the
+                // next start's cover would wear it.
+                if (userId && !this._themeDeferred) {
                     const cache = this._readThemeCache();
                     // Re-inserted so the most recent is last, and capped: a browser that
                     // has seen many accounts keeps only the most recent twenty.
@@ -13318,6 +13332,8 @@
                     // Offline: keep the cached copy, and let the next call ask again. The
                     // failure used to be kept as the answer for the life of the page (R-1251).
                     this._customThemesLoad = null;
+                    // Nothing more is coming on this load: stop waiting for a theme.
+                    this._customThemesSettled();
                 });
             return this._customThemesLoad;
         },
@@ -13346,7 +13362,11 @@
                     else localStorage.removeItem(this.config.customThemesKey);
                 } catch (e) { /* storage full or blocked */ }
             }
-            if (!changed) return;
+            if (!changed) {
+                if (store) this._customThemesSettled();
+                return;
+            }
+            if (store) this._customThemesAnswered = true;
 
             this.drawLogo(null);
             // Not before the stylesheet is in: injectStyles puts this block after it.
@@ -13355,6 +13375,16 @@
             else if (this._wantedTheme) this.applyTheme(this._wantedTheme);
             // The same theme id may now have other colours.
             this.fitLogoBacking();
+        },
+
+        /// The server has answered themes?part=custom (or cannot, this load), with nothing
+        /// new: a theme applyTheme was waiting for is put on now, which for a name the
+        /// answer does not hold is Bonfire.
+        _customThemesSettled: function () {
+            this._customThemesAnswered = true;
+            if (!this._themeDeferred) return;
+            if (this._lastThemePrefs) this._setThemeSettings(this._lastThemePrefs);
+            else if (this._wantedTheme) this.applyTheme(this._wantedTheme);
         },
 
         /// The server's logo, top right of the gate (1.7.2). On the gate itself, not inside

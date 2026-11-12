@@ -50,7 +50,7 @@ function method(name) {
 }
 
 const FUNCS = ['readCustomThemes', 'offeredThemes', 'offeredChoice', 'themeNameText', 'customFontFaceCss', 'customThemesCss'];
-const METHODS = ['restoreCustomThemes', 'loadCustomThemes', 'useCustomThemes', 'applyCustomThemesCss', 'applyTheme', 'drawLogo', 'loadThemePhoto', 'loadThemePhotoOf'];
+const METHODS = ['restoreCustomThemes', 'loadCustomThemes', 'useCustomThemes', '_customThemesSettled', 'applyCustomThemesCss', 'applyTheme', 'drawLogo', 'loadThemePhoto', 'loadThemePhotoOf'];
 console.log('\n── The pieces are in the client ──────────────────────────────');
 FUNCS.forEach(n => ok(n + ' is in profiles.js', new RegExp('function\\s+' + n + '\\s*\\(').test(SRC)));
 METHODS.forEach(n => ok(n + ' is a method', !!method(n)));
@@ -322,7 +322,10 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     let w = world({}, answer);
     w.obj.restoreCustomThemes();
     w.obj.applyTheme('mine');
-    ok('first visit: Bonfire until the server answers', w.attrs['data-jpf-theme'] === 'bonfire');
+    // It was Bonfire, which put Bonfire on the startup cover before the household's own
+    // theme (1.9.0.4-beta). Nothing is put on until the answer is in.
+    ok('first visit: no theme put on until the server answers, not Bonfire', w.attrs['data-jpf-theme'] === undefined,
+        String(w.attrs['data-jpf-theme']));
     w.addSheet();
     await w.obj.loadCustomThemes();
     ok('it asks for ?part=custom', w.fetched.length === 1 && w.fetched[0] === '/plugins/profiles/themes?part=custom', w.fetched.join());
@@ -370,6 +373,16 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     ok('a theme deleted on the server: Bonfire, the block gone, the copy emptied',
         w.attrs['data-jpf-theme'] === 'bonfire' && !w.els['jpf-themes-custom']
         && JSON.parse(w.store.jellyfin_profiles_custom_themes).themes.length === 0);
+
+    // Waited for, and the answer is the copy the device already had, without it: Bonfire.
+    w = world({ jellyfin_profiles_custom_themes: '{"themes":[],"fonts":[],"hidden":[]}' }, { themes: [], fonts: [], hidden: [] });
+    w.obj.restoreCustomThemes();
+    w.obj.applyTheme('gone');
+    const waited = w.attrs['data-jpf-theme'] === undefined;
+    w.addSheet();
+    await w.obj.loadCustomThemes();
+    ok('a name waited for that an unchanged answer does not hold: Bonfire once it is in',
+        waited && w.attrs['data-jpf-theme'] === 'bonfire', String(w.attrs['data-jpf-theme']));
 
     // Too large to keep.
     const big = { themes: [], fonts: [], hidden: [] };
@@ -420,7 +433,7 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     {
         let calls = 0;
         const holder = new Function('fetch', 'pluginUrl',
-            'const obj = { _customThemesLoad: null, useCustomThemes() {}, loadCustomThemes: function (' + method('loadCustomThemes').params + ') {'
+            'const obj = { _customThemesLoad: null, useCustomThemes() {}, _customThemesSettled() {}, loadCustomThemes: function (' + method('loadCustomThemes').params + ') {'
             + method('loadCustomThemes').body + '} };\nreturn obj;')(
             () => { calls++; return calls === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve({ ok: true, json: () => Promise.resolve({}) }); },
             v => v);
