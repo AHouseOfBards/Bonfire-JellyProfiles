@@ -199,6 +199,7 @@ var byHand = new Dictionary<string, object>
     ["UserProfileLimitOverrides"] = ListOf(T("UserProfileLimitOverride"), Item("UserProfileLimitOverride", ("UserId", MASTER), ("MaxProfiles", 9))),
     ["AvatarLibrary"] = ListOf(T("AvatarLibraryItem"), Item("AvatarLibraryItem", ("Id", "a1"), ("DisplayName", "Fox"))),
     ["QuickConnectSharedDeviceNames"] = new List<string> { "SHIELD Android TV" },
+    ["ServiceFingerprints"] = new List<string> { "jfa-go|jfa-go" },
     ["ProxyClients"] = new List<string> { "moonfin" },
     ["HouseholdsSeenLocally"] = new List<Guid> { MASTER },
     // Trusted addresses (2.0, #42): a backup that drops them puts the PIN back on Grandma's TV.

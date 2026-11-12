@@ -472,9 +472,34 @@ before = Sent();
 Service("svc-jfago", "jfa-go", OTHER);
 Ok("a device not yet judged a player is not mailed at once", Sent() == before);
 notePlayer.Invoke(null, new object[] { "svc-jfago", false });
-Ok("and is never mailed once judged not a player", Sent() == before);
+Ok("and is not mailed on being judged not a player", Sent() == before);
 notePlayer.Invoke(null, new object[] { "svc-jfago", true });
-Ok("a later playback start does not bring back a notice already dropped", Sent() == before);
+Ok("but a playback start within its ten minutes sends the notice that was held", Sent() == before + 1 && Last().To == "other@example.com", (Sent() - before) + "");
+
+// A device judged not a player teaches Bonfire what a service looks like: its client and
+// name. A later new device with the same pair is never mailed, held or not.
+void Seen(string id, string name, string client) =>
+    registry.GetMethod("RecordAndSave").Invoke(null, new object[] { id, name, client, OTHER, null });
+before = Sent();
+Seen("svc-learn-1", "Request Bot", "bot-client");
+notePlayer.Invoke(null, new object[] { "svc-learn-1", false });
+Seen("svc-learn-2", "Request Bot", "bot-client");
+notePlayer.Invoke(null, new object[] { "svc-learn-2", true });
+Ok("a new device that looks like a learned service is never mailed, even if it later plays", Sent() == before, (Sent() - before) + "");
+Seen("svc-learn-3", "Request Bot", "Other-Client");
+notePlayer.Invoke(null, new object[] { "svc-learn-3", true });
+Ok("the same name under another client is a different thing and is mailed", Sent() == before + 1, (Sent() - before) + "");
+
+// The list is kept with the configuration, and it cannot grow without end.
+var fpProp = cfgType.GetProperty("ServiceFingerprints");
+Ok("the learned services are stored with the configuration", fpProp != null && fpProp.GetValue(config) != null);
+for (var i = 0; i < 150; i++)
+{
+    Seen("svc-fill-" + i, "Name " + i, "client-" + i);
+    notePlayer.Invoke(null, new object[] { "svc-fill-" + i, false });
+}
+var fpCount = fpProp == null ? -1 : ((System.Collections.ICollection)fpProp.GetValue(config)).Count;
+Ok("and is bounded", fpCount > 0 && fpCount <= 100, fpCount + " kept");
 
 before = Sent();
 registry.GetMethod("RecordAndSave").Invoke(null, new object[] { "dev-late", "Late tablet", "Jellyfin Web", OTHER, null });

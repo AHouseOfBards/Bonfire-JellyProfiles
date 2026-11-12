@@ -981,6 +981,7 @@ namespace Jellyfin.Profiles.Auth
         {
             var isNew = false;
             bool? judged = null;
+            var looksLikeService = false;
             string? heldId = null;
             lock (ProfilesBaseController.ConfigLock)
             {
@@ -1006,11 +1007,12 @@ namespace Jellyfin.Profiles.Auth
                     var recorded = Row(config.KnownDevices, id);
                     judged = recorded?.CanPlay;
                     heldId = recorded?.DeviceId ?? id;
+                    looksLikeService = judged == null && IsLearnedService(config, deviceName, client);
                 }
             }
 
             // Outside the lock: it takes a snapshot, and sends on its own task.
-            if (isNew && ownerId != Guid.Empty && judged != false)
+            if (isNew && ownerId != Guid.Empty && judged != false && !looksLikeService)
             {
                 var label = string.IsNullOrWhiteSpace(deviceName) ? (client ?? string.Empty) : deviceName!;
                 if (judged == true)
@@ -1051,16 +1053,21 @@ namespace Jellyfin.Profiles.Auth
             HeldNewDevices[owner.ToString("N") + ":" + HeldKey(deviceId)] = (owner, deviceId, label, now, logger);
         }
 
-        /// <summary>The device was judged: send each household's held notice for it, or drop them.</summary>
+        /// <summary>
+        /// The device was judged a player: send each household's held notice for it. A device
+        /// judged not a player keeps its notice for what is left of its ten minutes, because
+        /// the judgement at sixty seconds is only "no capabilities yet": a playback start in
+        /// that time is what proves it a player after all.
+        /// </summary>
         private static void ReleaseHeld(string? canonicalId, bool canPlay)
         {
-            if (HeldNewDevices.IsEmpty) return;
+            if (!canPlay || HeldNewDevices.IsEmpty) return;
             var suffix = ":" + HeldKey(canonicalId);
             foreach (var kv in HeldNewDevices.ToArray())
             {
                 if (!kv.Key.EndsWith(suffix, StringComparison.Ordinal)) continue;
                 if (!HeldNewDevices.TryRemove(kv.Key, out var held)) continue;
-                if (canPlay && DateTime.UtcNow - held.At <= HeldNoticeLife)
+                if (DateTime.UtcNow - held.At <= HeldNoticeLife)
                     Mail.Notifications.NewDevice(held.Owner, held.Id, held.Label, held.Logger);
             }
         }
@@ -1102,6 +1109,41 @@ namespace Jellyfin.Profiles.Auth
             return true;
         }
 
+        /// <summary>How many service fingerprints are kept; the oldest goes first.</summary>
+        internal const int MaxServiceFingerprints = 100;
+
+        private static string? Fingerprint(string? deviceName, string? client)
+        {
+            var name = (deviceName ?? string.Empty).Trim().ToLowerInvariant();
+            var app = (client ?? string.Empty).Trim().ToLowerInvariant();
+            return name.Length == 0 && app.Length == 0 ? null : app + "|" + name;
+        }
+
+        /// <summary>Whether a device with this client and name matches one already judged a service.</summary>
+        private static bool IsLearnedService(PluginConfiguration config, string? deviceName, string? client)
+        {
+            var fp = Fingerprint(deviceName, client);
+            return fp != null && config.ServiceFingerprints != null && config.ServiceFingerprints.Contains(fp);
+        }
+
+        /// <summary>
+        /// A device judged not a player records its client and name as what a service looks
+        /// like; one later judged a player takes its fingerprint back out, so a real app that
+        /// was slow to report is not remembered as a service. Returns true when the list changed.
+        /// <b>Caller holds <see cref="ProfilesBaseController.ConfigLock"/>.</b>
+        /// </summary>
+        private static bool LearnService(PluginConfiguration config, KnownDevice row, bool canPlay)
+        {
+            var fp = Fingerprint(row.DeviceName, row.Client);
+            if (fp == null) return false;
+            config.ServiceFingerprints ??= new List<string>();
+            if (canPlay) return config.ServiceFingerprints.Remove(fp);
+            if (row.CanPlay != false || config.ServiceFingerprints.Contains(fp)) return false;
+            config.ServiceFingerprints.Add(fp);
+            while (config.ServiceFingerprints.Count > MaxServiceFingerprints) config.ServiceFingerprints.RemoveAt(0);
+            return true;
+        }
+
         /// <summary><see cref="NotePlayer"/>, taking the lock and saving as the plugin does.</summary>
         public static void NotePlayerAndSave(string? deviceId, bool canPlay)
         {
@@ -1110,8 +1152,11 @@ namespace Jellyfin.Profiles.Auth
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return;
-                if (NotePlayer(config, deviceId, canPlay)) Plugin.Instance?.SaveConfiguration();
-                canonical = Row(config.KnownDevices, deviceId?.Trim())?.DeviceId ?? deviceId;
+                var changed = NotePlayer(config, deviceId, canPlay);
+                var row = Row(config.KnownDevices, deviceId?.Trim());
+                if (row != null) changed |= LearnService(config, row, canPlay);
+                if (changed) Plugin.Instance?.SaveConfiguration();
+                canonical = row?.DeviceId ?? deviceId;
             }
 
             // Outside the lock, as the sighting's own notice is.

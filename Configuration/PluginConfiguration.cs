@@ -43,6 +43,14 @@ namespace Jellyfin.Profiles.Configuration
 
         public List<ProfileMapping> Mappings { get; set; } = new List<ProfileMapping>();
         public List<KnownDevice> KnownDevices { get; set; } = new List<KnownDevice>();
+
+        /// <summary>
+        /// What a service that signs in as a household looks like (jfa-go and the like),
+        /// learned: the client and device name of a device that was judged not a player,
+        /// lower-cased and joined with a bar. A later new device with the same pair is not
+        /// announced by email. Bounded (Auth.DeviceRegistry.MaxServiceFingerprints), oldest first out.
+        /// </summary>
+        public List<string> ServiceFingerprints { get; set; } = new List<string>();
         public List<BonfireGroup> BonfireGroups { get; set; } = new List<BonfireGroup>();
 
         /// <summary>Other accounts shown in a household's switcher (issue #39). See <see cref="LinkedAccount"/>.</summary>
@@ -92,6 +100,7 @@ namespace Jellyfin.Profiles.Configuration
             var copy = (PluginConfiguration)MemberwiseClone();
             copy.Mappings = Mappings?.Select(m => m.CopyForReading()).ToList() ?? new List<ProfileMapping>();
             copy.KnownDevices = KnownDevices?.ToList() ?? new List<KnownDevice>();
+            copy.ServiceFingerprints = ServiceFingerprints?.ToList() ?? new List<string>();
             copy.BonfireGroups = BonfireGroups?.ToList() ?? new List<BonfireGroup>();
             copy.LinkedAccounts = LinkedAccounts?.Select(l => l.Copy()).ToList() ?? new List<LinkedAccount>();
             copy.HouseholdsSeenLocally = HouseholdsSeenLocally?.ToList() ?? new List<Guid>();
