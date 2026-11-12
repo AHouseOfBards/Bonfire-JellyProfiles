@@ -121,8 +121,8 @@ async function main() {
         await wait(300);
         ok('an upload is sent as the file itself, with its type', (await ev('window.__patternPosts.length')) === 2 && (await ev('window.__patternPosts[1].type')) === 'image/png');
         ok('and the pattern then names the stored file', (await draft('decorations.0.image')) === HASH, await draft('decorations.0.image'));
-        ok('the list offers it, selected, as "Your picture"', (await ev(`${select('decorations.0.image')}.value`)) === HASH
-            && (await ev(`${optionOf('decorations.0.image', HASH)}.textContent`)) === 'Your picture');
+        ok('the list offers it, selected, as "Your image"', (await ev(`${select('decorations.0.image')}.value`)) === HASH
+            && (await ev(`${optionOf('decorations.0.image', HASH)}.textContent`)) === 'Your image');
         ok('and the picture name is not shown as a file name anywhere in the card', (await ev(`${Q('#teAdvancedFields [data-list="decorations"]')}.textContent.indexOf(${JSON.stringify(HASH)})`)) === -1);
         await ev(CLICK(on('pattern2')));
         ok('the second pattern can pick the first one\'s upload', (await ev(`!!${optionOf('decorations.1.image', HASH)}`)) === true);
@@ -137,7 +137,7 @@ async function main() {
         await ev(SET(path('decorations'), JSON.stringify([{ name: 'pattern', image: 'ef'.repeat(16) + '.png', size: 240, drift: 'none' }])));
         await ev(CLICK(Q('#teAdvancedFields .jpf-te-jsonbtn[data-list="decorations"]')));
         ok('a theme naming an uploaded file shows it selected', (await ev(`${select('decorations.0.image')}.value`)) === 'ef'.repeat(16) + '.png'
-            && (await ev(`${select('decorations.0.image')}.selectedOptions[0].textContent`)).indexOf('Your picture') === 0);
+            && (await ev(`${select('decorations.0.image')}.selectedOptions[0].textContent`)).indexOf('Your image') === 0);
         await ev(CLICK(on('pattern'))); await ev(CLICK(on('pattern')));
         await ev(SET(path('decorations.0.size'), '100'));
 

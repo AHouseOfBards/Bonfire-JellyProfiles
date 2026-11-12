@@ -319,11 +319,18 @@ function tagOf(id) {
         await env14.settle();
         ok('an expired session is not announced as an unreachable server', !noteNode() && P14._expired === true);
 
-        // A list that arrives later makes the note wrong.
+        // Another failure before any list has loaded stays quiet: the home page retries
+        // every 30 s and the note used to come back with each one (ni-C2b). A success in
+        // between re-arms it; tests/js/listnoticeonce.js holds that half.
         sb.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
         P14.fetchAndRenderProfiles(sb.ApiClient, 'main', 'tok', true);
         await env14.settle();
-        ok('another failure brings it back', !!noteNode());
+        ok('another failure with no list in between does not bring it back', !noteNode());
+        // Put a note up again (as a success in between would allow) so the gate has one to take down.
+        P14._listNoticeShown = false;
+        P14.fetchAndRenderProfiles(sb.ApiClient, 'main', 'tok', true);
+        await env14.settle();
+        ok('re-armed, a failure shows it again', !!noteNode());
         try { P14.showProfileOverlay([]); } catch (e) { /* the drawing is not under test */ }
         ok('a gate drawn afterwards takes it down', !noteNode());
     }

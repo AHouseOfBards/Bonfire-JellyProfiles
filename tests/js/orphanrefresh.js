@@ -71,7 +71,7 @@ const none = { orphans: [], deadGroups: [], deadMembers: [] };
 const oneImage = scan(Object.assign({}, none, { unusedImages: 1 }),
     { removedMappings: 0, removedGroups: 0, removedMembers: 0, removedImages: 1 });
 const button = (oneImage.before.match(/<button[^>]*><span>([^<]*)</) || [])[1] || '';
-ok('an image found alone is listed', /background image/.test(oneImage.before), oneImage.before);
+ok('an image found alone is listed', /theme image/.test(oneImage.before), oneImage.before);
 ok('and the button does not call it a record', button !== '' && !/record/i.test(button), button);
 ok('the confirmation says how many images went', /image[^.]*: 1\b/.test(oneImage.after), oneImage.after);
 
