@@ -13,7 +13,7 @@
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Enter, Escape and the arrow keys now work on older TV browsers.\n- Viewing hours no longer run an hour long on the night the clocks go back.\n- Add Profile and Edit Profile no longer fail silently or save the wrong libraries.\n- A change to a main account now reaches its profiles straight away.\n- An eight-digit PIN no longer scrolls inside its box.\n- Errors that meant the server could not be reached now say so.\n- The admin page is readable under Jellyfin's light themes.\n- Screen readers name more buttons and lists.\n- Security and privacy fixes.\n\n**Changed**\n\n- Profile accounts no longer show in Dashboard → Users. Households links to them.\n- The Apps tab in the admin page is now Clients.\n- Shorter, plainer wording on the profile screen and the admin page.\n- Bonfire uses less server CPU and memory.\n\n**Added**\n\n- Bonfire can be turned off and on in the Status tab. New installs start off so you can finish setup first.\n- Custom themes can have a background picture, with a dim slider.\n- Custom themes can show profiles as a list, align left, and choose a tile size and logo corner.\n- The theme editor has its own colour picker and can expand its preview to the full profile screen.\n- The server logo can have rounded or square corners.\n- The switch log is kept for 90 days, and an administrator can delete it.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.9.0.4/Jellyfin.Profiles.zip",
-        "checksum": "0",
+        "checksum": "2b776509783431797e2e071357b68064",
         "timestamp": "2026-11-12T02:41:57Z"
       },
       {
