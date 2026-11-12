@@ -4570,6 +4570,11 @@
                 // The head script has almost certainly already taken the key; this is the
                 // copy that actually outlives it.
                 try { window.__jpSwitching = 0; } catch (e) { /* ignore */ }
+                // The mirror of the profile token is only believed while that flag is up,
+                // so it has no job now. Left in localStorage it was a readable copy of a
+                // bearer token that outlived the switch, for any script on the origin.
+                // The in-memory and session copies stay; only the mirror goes.
+                try { localStorage.removeItem(this.SESSION_MIRROR_PREFIX + this.config.activeSessionKey); } catch (e) { /* ignore */ }
             }
 
             if (window.__jpReveal) {

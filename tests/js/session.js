@@ -262,7 +262,7 @@ ok('and the profile info with it',
 // finds whether they do the right thing. Both copies of the flag go when the reload it was
 // raised for has landed, neither while another reload is in flight.
 function reveal(reloading) {
-    const pg = load({ [SWITCHING]: '1' }, {});
+    const pg = load({ [SWITCHING]: '1', ['jpf-persist-' + ACTIVE]: JSON.stringify({ v: 'tok', t: Date.now() }) }, {});
     pg.sandbox.__jpSwitching = 1;
     pg.sandbox.document.documentElement.style.opacity = '0';
     pg.plugin._viewShowFired = true;
@@ -277,6 +277,10 @@ ok('and clears the window global the mirror reads', !landed.sandbox.__jpSwitchin
 const inFlight = reveal(true);
 ok('but with another reload in flight it removes neither',
     inFlight.localStorage.data[SWITCHING] === '1' && !!inFlight.sandbox.__jpSwitching);
+ok('the reveal deletes the localStorage copy of the profile token (r2-26-03)',
+    landed.localStorage.data['jpf-persist-' + ACTIVE] === undefined);
+ok('but keeps it while another reload is in flight',
+    typeof inFlight.localStorage.data['jpf-persist-' + ACTIVE] === 'string');
 
 // ── The revert loop, and why there is no backstop for it any more ─────────────
 //
