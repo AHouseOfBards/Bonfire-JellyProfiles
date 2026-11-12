@@ -808,6 +808,7 @@
   "admin.backup.title": "Copia de seguridad",
   "admin.backup.lede": "Exportar lo guarda todo salvo la contraseña del correo y el código de emergencia. Importar lo reemplaza todo salvo esos dos. El archivo contiene los PIN cifrados, así que guárdalo en privado.",
   "admin.backup.export": "Exportar",
+  "admin.backup.includePins": "Incluir los PIN",
   "admin.backup.import": "Importar",
   "admin.cancel": "Cancelar",
   "admin.error": "Error",

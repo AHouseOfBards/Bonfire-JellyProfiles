@@ -1727,6 +1727,10 @@
                             <span data-i18n="admin.backup.import">Import</span>
                         </button>
                         <input type="file" id="importConfigFile" accept="application/json,.json" hidden />
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="exportIncludePins" checked />
+                            <span data-i18n="admin.backup.includePins">Include PINs</span>
+                        </label>
                     </div>
                     <div class="jpf-result jpf-block-end" id="backupResult"></div>
                 </details>
@@ -3471,7 +3475,9 @@
 
                 exportBtn.addEventListener('click', function () {
                     Dashboard.showLoadingMsg();
-                    ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/config/export'))
+                    const pinsBox = page.querySelector('#exportIncludePins');
+                    const includePins = !pinsBox || pinsBox.checked;
+                    ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/admin/config/export', { includePins: includePins }))
                         .then(function (data) {
                             Dashboard.hideLoadingMsg();
                             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });

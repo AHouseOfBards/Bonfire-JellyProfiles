@@ -808,6 +808,7 @@
   "admin.backup.title": "Còpia de seguretat",
   "admin.backup.lede": "Exportar ho desa tot excepte la contrasenya del correu i el codi d'emergència. Importar ho substitueix tot excepte aquests dos. El fitxer conté els PIN xifrats, així que guarda'l en privat.",
   "admin.backup.export": "Exporta",
+  "admin.backup.includePins": "Inclou els PIN",
   "admin.backup.import": "Importa",
   "admin.cancel": "Cancel·la",
   "admin.error": "Error",

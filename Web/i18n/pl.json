@@ -808,6 +808,7 @@
   "admin.backup.title": "Kopia zapasowa",
   "admin.backup.lede": "Eksport zapisuje wszystko oprócz hasła poczty i kodu awaryjnego. Import zastępuje wszystko oprócz tych dwóch. Plik zawiera zaszyfrowane kody PIN, więc trzymaj go w tajemnicy.",
   "admin.backup.export": "Eksportuj",
+  "admin.backup.includePins": "Dołącz kody PIN",
   "admin.backup.import": "Importuj",
   "admin.cancel": "Anuluj",
   "admin.error": "Błąd",

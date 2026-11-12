@@ -1676,7 +1676,7 @@ namespace Jellyfin.Profiles.Controllers
         [HttpGet("admin/config/export")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult ExportConfiguration()
+        public ActionResult ExportConfiguration([FromQuery] bool includePins = true)
         {
             var adminError = RequireAdministrator("export the configuration");
             if (adminError != null) return adminError;
@@ -1701,6 +1701,13 @@ namespace Jellyfin.Profiles.Controllers
                 configuration = config.SnapshotForReading();
                 configuration.Email.Password = null!;
                 configuration.PanicCodeHash = null;
+                // Ticked off on the dashboard for a file that is going somewhere careless: a
+                // short PIN is recovered from its hash. A row with no hash keeps the server's
+                // own PIN on import (r2-12-02).
+                if (!includePins)
+                {
+                    foreach (var m in configuration.Mappings) m.PinHash = null;
+                }
             }
 
             return Ok(new
@@ -1835,7 +1842,20 @@ namespace Jellyfin.Profiles.Controllers
                 // uses.
                 // Each section is written only if the file actually carried it. A default
                 // value from a failed or partial bind must never overwrite a real one.
-                if (hasMappings) config.Mappings = mappings;
+                if (hasMappings)
+                {
+                    // A file exported without PINs has none on any row, and must not clear the
+                    // PIN a row has here: the row keeps the server's own (r2-12-02).
+                    var livePins = (config.Mappings ?? new List<ProfileMapping>())
+                        .Where(l => !string.IsNullOrEmpty(l.PinHash))
+                        .GroupBy(l => l.ProfileUserId).ToDictionary(g => g.Key, g => g.First().PinHash);
+                    foreach (var m in mappings)
+                    {
+                        if (string.IsNullOrEmpty(m.PinHash) && livePins.TryGetValue(m.ProfileUserId, out var keptPin))
+                            m.PinHash = keptPin;
+                    }
+                    config.Mappings = mappings;
+                }
                 Auth.ViewingTracker.Invalidate();
                 if (hasGroups) config.BonfireGroups = groups;
                 if (TryProperty(root, "LinkedAccounts", out _))

@@ -251,7 +251,7 @@ void Overwrite(object target, object source, IEnumerable<string> only = null)
 }
 
 Overwrite(live, changed);
-var exported = (ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), null));
+var exported = (ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), new object[] { true }));
 var body = JsonSerializer.SerializeToElement(exported.Value);
 var snapshot = Settable().ToDictionary(p => p.Name, p => Json(p.GetValue(live)));
 snapshot["Email"] = NoPw(snapshot["Email"]);
@@ -297,7 +297,7 @@ Console.WriteLine("── The SMTP password ────────────
     string LivePassword() => (string)passwordProp.GetValue(cfgType.GetProperty("Email").GetValue(live));
 
     Overwrite(live, changed);
-    var exportRaw = ((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), null))).Value;
+    var exportRaw = ((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), new object[] { true }))).Value;
     var exportJson = JsonSerializer.Serialize(exportRaw);
     // Serialised now: the route may hand back the live object, which the next line resets.
     var exportFile = JsonSerializer.SerializeToElement(exportRaw);
@@ -349,7 +349,7 @@ Console.WriteLine("── The emergency code ───────────�
     bool HasFlag(JsonElement r, string name) => r.TryGetProperty(name, out var v) && (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False);
 
     Overwrite(live, changed);
-    var raw = ((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), null))).Value;
+    var raw = ((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), new object[] { true }))).Value;
     var panicFile = JsonSerializer.SerializeToElement(raw);
     var inner = panicFile.GetProperty("configuration");
     Ok("the export holds no emergency code", !JsonSerializer.Serialize(raw).Contains("panic-hash")
@@ -568,6 +568,55 @@ Console.WriteLine("── Pictures the backup names ─────────�
     var lib = ((IList)cfgType.GetProperty("AvatarLibrary").GetValue(live)).Cast<object>()
         .Select(i => (string)T("AvatarLibraryItem").GetProperty("Id").GetValue(i)).ToList();
     Ok("only the library avatar with a file is kept", lib.SequenceEqual(new[] { "a1" }), string.Join(",", lib));
+}
+
+// PINs on export (r2-12-02): ticked, the file carries every PinHash; unticked it carries none,
+// for profiles and main accounts alike, and importing such a file never clears a PIN the
+// row has here.
+Console.WriteLine();
+Console.WriteLine("── Include PINs ────────────────────────────────────────────────");
+{
+    var mt = T("ProfileMapping");
+    IList LiveRows() => (IList)cfgType.GetProperty("Mappings").GetValue(live);
+    string PinOf(Guid id) => (string)mt.GetProperty("PinHash").GetValue(
+        LiveRows().Cast<object>().First(r => (Guid)mt.GetProperty("ProfileUserId").GetValue(r) == id));
+    void Seed()
+    {
+        Overwrite(live, Defaults());
+        LiveRows().Add(Item("ProfileMapping", ("ProfileUserId", MASTER), ("MasterUserId", MASTER), ("ProfileName", "Bard"), ("PinHash", "main-hash")));
+        LiveRows().Add(Item("ProfileMapping", ("ProfileUserId", KID), ("MasterUserId", MASTER), ("ProfileName", "Kid"), ("PinHash", "kid-hash")));
+    }
+    Seed();
+    var withPins = JsonSerializer.Serialize(((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), new object[] { true }))).Value);
+    Ok("ticked, the file carries both PINs", withPins.Contains("main-hash") && withPins.Contains("kid-hash"));
+    var noPinsRaw = ((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), new object[] { false }))).Value;
+    var noPins = JsonSerializer.Serialize(noPinsRaw);
+    Ok("unticked, the file carries neither PIN", !noPins.Contains("main-hash") && !noPins.Contains("kid-hash"), Trunc(noPins));
+    Ok("and exporting did not touch the live PINs", PinOf(MASTER) == "main-hash" && PinOf(KID) == "kid-hash");
+
+    var noPinsFile = JsonSerializer.SerializeToElement(noPinsRaw);
+    importRoute.Invoke(NewController(), new object[] { noPinsFile });
+    Ok("importing it keeps the PINs the rows have here", PinOf(MASTER) == "main-hash" && PinOf(KID) == "kid-hash");
+
+    var newPin = JsonSerializer.SerializeToElement(new
+    {
+        configuration = new
+        {
+            Mappings = new object[]
+            {
+                new { ProfileUserId = MASTER, MasterUserId = MASTER, ProfileName = "Bard", PinHash = "replaced" },
+                new { ProfileUserId = KID, MasterUserId = MASTER, ProfileName = "Kid" },
+            },
+        },
+    });
+    importRoute.Invoke(NewController(), new object[] { newPin });
+    Ok("a PIN in the file still replaces the one here", PinOf(MASTER) == "replaced");
+    Ok("a row without one keeps its own", PinOf(KID) == "kid-hash");
+
+    Overwrite(live, Defaults());
+    importRoute.Invoke(NewController(), new object[] { noPinsFile });
+    var fresh = ((IList)cfgType.GetProperty("Mappings").GetValue(live)).Cast<object>().ToList();
+    Ok("onto a server with no such row, there is no PIN", fresh.Count > 0 && fresh.All(r => string.IsNullOrEmpty((string)mt.GetProperty("PinHash").GetValue(r))));
 }
 
 try { Directory.Delete(tempDir, true); } catch { }

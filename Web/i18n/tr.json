@@ -819,6 +819,7 @@
   "admin.backup.title": "Yedek",
   "admin.backup.lede": "Dışa aktarma, posta parolası ve acil durum kodu dışındaki her şeyi kaydeder. İçe aktarma bu ikisi dışındaki her şeyi değiştirir. Dosya karıştırılmış PIN'ler içerir, bu yüzden gizli tutun.",
   "admin.backup.export": "Dışa aktar",
+  "admin.backup.includePins": "PIN'leri dahil et",
   "admin.backup.import": "İçe aktar",
   "admin.cancel": "İptal",
   "admin.error": "Hata",

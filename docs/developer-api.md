@@ -2542,9 +2542,11 @@ The whole configuration, with the version and time.
 { "exportedUtc": "2026-08-31T18:04:11Z", "pluginVersion": "1.6.6.0", "configuration": { "MaxProfilesPerUser": 5, "Mappings": [], "KnownDevices": [] } }
 ```
 
-It includes every PIN, hashed. A four-digit PIN can be recovered from its hash quickly, so
-keep the file as safe as a password. It leaves out the mail server password and the emergency
-code.
+Query parameter `includePins` (boolean, default `true`). By default the file includes every
+PIN, hashed. A four-digit PIN can be recovered from its hash quickly, so keep the file as
+safe as a password. With `includePins=false` every `PinHash`, on profiles and main accounts,
+is left out, and an import of that file keeps the PIN each row already has. The file always
+leaves out the mail server password and the emergency code.
 
 ### `POST /plugins/profiles/admin/config/import`
 

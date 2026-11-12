@@ -808,6 +808,7 @@
   "admin.backup.title": "Sauvegarde",
   "admin.backup.lede": "L'export enregistre tout sauf le mot de passe du courrier et le code d'urgence. L'import remplace tout sauf ces deux éléments. Le fichier contient les codes PIN sous forme brouillée : gardez-le privé.",
   "admin.backup.export": "Exporter",
+  "admin.backup.includePins": "Inclure les PIN",
   "admin.backup.import": "Importer",
   "admin.cancel": "Annuler",
   "admin.error": "Erreur",
