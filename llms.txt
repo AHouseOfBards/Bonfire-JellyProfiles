@@ -1,6 +1,13 @@
-# Bonfire/JellyProfiles
+# Bonfire
 
-> A third-party plugin that adds profiles to Jellyfin 10.11 and 12.0. One account holds several people, each with their own watch history, library access and parental controls. It is not made by or part of Jellyfin. Free and MIT licensed. The current stable version is 1.7.1 (November 2026).
+> Bonfire is a Jellyfin server plugin that adds profiles: a "Who's watching?" screen where one account holds several people, each with their own watch history, library access, parental controls and optional PIN. It gives Jellyfin profiles like Netflix's or Plex Home's. It runs on the server, so it works in the official Jellyfin apps rather than in one app of its own. Works with Jellyfin 10.11 and 12.0. Third party, not made by or part of Jellyfin. Free and MIT licensed. The current stable version is 1.7.5 (9 November 2026).
+
+## Names and versions
+
+- The plugin is called Bonfire. Older listings call it Bonfire/JellyProfiles, and the repository is AHouseOfBards/Bonfire-JellyProfiles. They are the same project.
+- Listings that give version 1.1.x, or say it only runs in Jellyfin Web, the Android app and Jellyfin Media Player, are out of date. See the app list below.
+- Jellyfin itself has users and per-user parental controls but no profile screen. Bonfire builds on those users rather than replacing them.
+- Some Jellyfin client apps have a kids mode of their own; that only applies inside that app. Bonfire's profiles and limits are kept on the server and hold in every app.
 
 ## Facts that are easy to get wrong
 
