@@ -147,6 +147,7 @@ Set("EnableClientProfileList", false); // the lock must not depend on the list
     string viaProxy = null, string forwardedFor = null, string knownProxy = null)
 {
     var sessions = SessionManagerStub.Create(sessionThrows);
+    DeviceManagerStub.Calls = 0;
     var devices = DeviceManagerStub.Create(Rows());
     var users = UserManagerStub.Create(usernames);
     // Behind a proxy the stub judges the address it is actually given, as Jellyfin's does.
@@ -230,6 +231,7 @@ Ok("not another household's profile with the same name", !Has(picker.revoked, OT
 Ok("a PIN skipped at home is still asked away from home", Has(picker.revoked, LAN, ROKU + "lan"), Show(picker.revoked));
 Ok("exactly those three", picker.revoked.Count == 3, Show(picker.revoked));
 Ok("and the user list is still answered", picker.body == "[]", picker.body);
+Ok("three PIN accounts cost one device lookup, not one each (r2-06-05)", DeviceManagerStub.Calls == 1, DeviceManagerStub.Calls.ToString());
 
 Console.WriteLine();
 Console.WriteLine("── When it must do nothing ─────────────────────────────────────");
@@ -256,6 +258,7 @@ Ok("a request carrying a token is somebody signed in, not a picker", signedIn.re
 
 var stranger = Drive("0000aaaa-unknown-roku-0000-000000000000");
 Ok("a device no household uses touches nothing", stranger.revoked.Count == 0, Show(stranger.revoked));
+Ok("and looks nothing up", DeviceManagerStub.Calls == 0, DeviceManagerStub.Calls.ToString());
 
 var atvPicker = Drive(ATV);
 Ok("an Android TV picker touches nothing", atvPicker.revoked.Count == 0, Show(atvPicker.revoked));
@@ -323,6 +326,7 @@ public class SessionManagerStub : DispatchProxy
 public class DeviceManagerStub : DispatchProxy
 {
     private List<(Guid user, string id)> _rows;
+    public static int Calls;
 
     public static IDeviceManager Create(List<(Guid user, string id)> rows)
     {
@@ -335,6 +339,7 @@ public class DeviceManagerStub : DispatchProxy
     {
         if (m.Name != "GetDevices") throw new NotSupportedException("IDeviceManager." + m.Name + " is not modelled");
 
+        Calls++;
         var q = args[0];
         var wantId = (string)q.GetType().GetProperty("DeviceId").GetValue(q);
         var wantUser = (Guid?)q.GetType().GetProperty("UserId").GetValue(q);

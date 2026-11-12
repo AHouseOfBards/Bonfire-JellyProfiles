@@ -151,12 +151,17 @@ namespace Jellyfin.Profiles.Auth
                 var targets = Targets(config, deviceId, isLocal, id => userManager.GetUserById(id)?.Username, address,
                     id => TrustedAddresses.IsAdministrator(userManager, id));
 
+                if (targets.Count == 0) return 0;
+
+                // One lookup for the whole request, not one per PIN-protected account. A
+                // request with nothing to lock never gets here (r2-06-05).
+                var rows = deviceManager.GetDevices(new DeviceQuery())?.Items;
+                if (rows == null) return 0;
+
                 foreach (var target in targets)
                 {
-                    var rows = deviceManager.GetDevices(new DeviceQuery { UserId = target.UserId })?.Items;
-                    if (rows == null) continue;
-
-                    foreach (var row in rows.Where(r => target.DeviceIds.Contains(r.DeviceId?.Trim() ?? string.Empty, StringComparer.Ordinal)).ToList())
+                    foreach (var row in rows.Where(r => r.UserId == target.UserId
+                        && target.DeviceIds.Contains(r.DeviceId?.Trim() ?? string.Empty, StringComparer.Ordinal)).ToList())
                     {
                         await sessionManager.Logout(row).ConfigureAwait(false);
                         revoked++;
