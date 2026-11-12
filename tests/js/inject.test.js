@@ -185,6 +185,13 @@ if (P) {
         // leave a sheet of a few hundred characters at most.
         ok(css.length > 40000, 'the stylesheet is a full sheet, not an empty splice',
             'got ' + css.length + ' characters, expected > 40000');
+        // The length floor above cannot tell the stylesheet from the themes: the themes
+        // alone are over 40,000 characters and carry the same sentinel selectors, so
+        // dropping BONFIRE_STYLES from the sheet stayed green. Ask for the file itself.
+        if (source.indexOf('let BONFIRE_STYLES = "') !== -1) {
+            ok(css.indexOf(require('./_lib').stylesOnly()) !== -1,
+                'the sheet contains Web/styles.css whole, not only the themes');
+        }
         ok(sheet.id === 'jpf-styles', 'the style element carries id="jpf-styles"',
             'got id="' + sheet.id + '"');
 
@@ -246,6 +253,72 @@ if (P) {
     // 4. _step must actually contain the guard, or item 3 proves nothing about production.
     ok(/_step:\s*function[\s\S]{0,400}?try\s*\{[\s\S]{0,200}?catch/.test(source),
         '_step() wraps its call in try/catch');
+    // The text above also matches a catch that rethrows, and a try that never calls fn.
+    // Run it: it must call the step, and must swallow what the step throws.
+    {
+        let called = 0, stepErr = null;
+        const realErr = console.error;
+        console.error = function () {};
+        try {
+            P._step('probe', () => { called++; throw new Error('boom'); });
+        } catch (e) { stepErr = e; }
+        console.error = realErr;
+        ok(called === 1, '_step() calls the step it is given', 'called ' + called + ' times');
+        ok(!stepErr, '_step() swallows a throwing step, so one broken step cannot stop the rest',
+            stepErr ? stepErr.message : '');
+    }
+
+    // 6. Run init() itself. Everything above calls the steps one by one, which cannot
+    //    notice init() no longer reaching one, reaching it unwrapped, or stopping early:
+    //    the step count only has to stay >= 10 and the names are read from init's own
+    //    text, so deleting a step deleted its test with it. Spy on the methods, run
+    //    init(), and require every step of this list to have been called by it. The list
+    //    is pinned on purpose: removing a startup step has to be a decision made here.
+    //    A step added to init() is still covered by item 3.
+    const REQUIRED_STEPS = [
+        'bindEvents', 'applyDeviceClasses', 'restoreCustomThemes', 'applyCachedTheme',
+        'injectStyles', 'loadCustomThemes', '_adoptCover', 'applyCachedLibraryArtwork',
+        'loadLibraryArtwork', 'loadSwitcherPrefs', 'bindPanicShortcut',
+        '_bindOverlayFocusTrap', 'checkPersistedPanic',
+        // reached through _startPageChecks, which init() calls last
+        'checkMaintenance', 'validateSessionState'
+    ];
+    const order = [];
+    // Item 3 already ran the steps by hand, and one of them started the once-per-load page
+    // checks; init() would then skip them. Put the guard back as a fresh page has it.
+    P._pageChecksStarted = false;
+    // Likewise something in that loop left the plugin in its emergency-disabled state,
+    // which makes init() return before the page checks.
+    P._panicDisabled = false;
+    localStorage.clear();
+    REQUIRED_STEPS.forEach(name => {
+        if (typeof P[name] !== 'function') return;   // reported by item 3 / below
+        const real = P[name];
+        P[name] = function () { order.push(name); return real.apply(this, arguments); };
+    });
+    let initErr = null;
+    const realErr2 = console.error;
+    const stepErrors = [];
+    console.error = function () { stepErrors.push(Array.prototype.join.call(arguments, ' ')); };
+    try { P.init(); } catch (e) { initErr = e; }
+    console.error = realErr2;
+    ok(!initErr, 'init() runs to the end without throwing',
+        initErr ? initErr.name + ': ' + initErr.message : '');
+    REQUIRED_STEPS.forEach(name => {
+        ok(typeof P[name] === 'function' && order.indexOf(name) !== -1,
+            'init() reaches ' + name + '()',
+            'init() called, in order: ' + order.join(', '));
+    });
+    ok(stepErrors.length === 0, 'no startup step fails when init() runs it',
+        stepErrors.join(' | '));
+    // The three orders init()'s own comments say matter.
+    [['applyDeviceClasses', 'injectStyles'],
+     ['restoreCustomThemes', 'applyCachedTheme'],
+     ['injectStyles', 'validateSessionState']].forEach(pair => {
+        const a = order.indexOf(pair[0]), b = order.indexOf(pair[1]);
+        ok(a !== -1 && b !== -1 && a < b, 'init() runs ' + pair[0] + '() before ' + pair[1] + '()',
+            'order: ' + order.join(', '));
+    });
 }
 
 // 5. No stray backtick can hide in the stylesheet literal again.
