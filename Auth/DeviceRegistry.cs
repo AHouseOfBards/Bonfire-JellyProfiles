@@ -185,9 +185,12 @@ namespace Jellyfin.Profiles.Auth
             // The sign-in screen's own request is where the plain id is seen, so those are
             // remembered (NoteSignInScreen) and tried first; the records second.
             var candidates = RecentSignInScreens()
+                // Aliases too: MergeSameDevices can fold the set's own id into one of its
+                // derived ids, and that alias is then the only place the plain id is kept.
                 .Concat(config.KnownDevices.ToList()
                     .Where(r => r.MasterUserId != Guid.Empty)
-                    .Select(r => r.DeviceId?.Trim()))
+                    .SelectMany(r => new[] { r.DeviceId }.Concat(r.Aliases ?? new List<string>()))
+                    .Select(id => id?.Trim()))
                 .Where(id => !string.IsNullOrEmpty(id))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
 

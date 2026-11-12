@@ -332,6 +332,20 @@ Console.WriteLine("── One device that got a new id is one row ────�
            h.List.Count == 1 && Answers(h.List, bare) && Answers(h.List, bare + h.Master));
     }
 
+    // 3b. The set's own id folded in as an alias is still what a sign-in by name is traced to.
+    {
+        if (forgetScreens != null) forgetScreens.Invoke(null, null);
+        var h = Household(1);
+        const string bare = "abcd1234abcd1234";
+        See(h.Cfg, bare, "Family Room TV", TV, h.Master, t0);
+        See(h.Cfg, Sha1(bare + "+" + h.Master), "Family Room TV", TV, h.Master, t0.AddMinutes(1));
+        Merge(h.Cfg, h.Master, t0.AddMinutes(2));
+        var resolve = registry.GetMethod("ResolveSignInDevice", Any);
+        var traced = (string)resolve.Invoke(null, new object[] { h.Cfg, Sha1(bare + "+Kid 0"), "Kid 0" });
+        Ok("a sign-in by name is traced to the set's own id after it became an alias (" + traced + ")",
+           h.List.Count == 1 && traced == bare);
+    }
+
     // 4. Two tablets, one renamed to match the other, both in use: never one row.
     {
         var h = Household(1);
