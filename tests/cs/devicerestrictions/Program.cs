@@ -173,6 +173,27 @@ if (parse != null)
     Ok("and the rest", P("Emby Client=\"Old App\", DeviceId=\"e1\"", null, "DeviceId") == "e1");
     Ok("the name is matched case-insensitively", P(plain, null, "deviceid") == "abc123");
 
+    // Audit (wave 4): each of these was a break that left this file green.
+    Ok("the scheme prefix is matched case-insensitively",
+       P("mediabrowser Client=\"Low\", DeviceId=\"lc1\"", null, "DeviceId") == "lc1"
+       && P("EMBY Client=\"Low\", DeviceId=\"lc2\"", null, "Client") == "Low");
+    // A repeated parameter must answer one way every time, and it is the first. The device
+    // check reads DeviceId from here; which of two it reads must not depend on header order
+    // being shuffled by a proxy that appends.
+    Ok("a repeated parameter answers with the first",
+       P("MediaBrowser DeviceId=\"first\", Client=\"c\", DeviceId=\"second\"", null, "DeviceId") == "first");
+    // Base64 device ids end in '='. Quoted, the sign is part of the value; the parameters
+    // after it must still line up.
+    var padded = "MediaBrowser Client=\"Web\", DeviceId=\"YWJjZA==\", Version=\"1\", Token=\"t==\"";
+    Ok("an equals sign inside a quoted value stays in it", P(padded, null, "DeviceId") == "YWJjZA==");
+    Ok("and the parameters after it still line up", P(padded, null, "Version") == "1" && P(padded, null, "Token") == "t==");
+    Ok("an equals sign in an unquoted value stays in it",
+       P("MediaBrowser DeviceId=YWJjZA==, Version=1", null, "DeviceId") == "YWJjZA=="
+       && P("MediaBrowser DeviceId=YWJjZA==, Version=1", null, "Version") == "1");
+    // Space around the value, as a hand-built header may have it.
+    Ok("spaces around a quoted value are not part of it",
+       P("MediaBrowser Client=\"Web\",  DeviceId= \"sp1\" , Version=\"1\"", null, "DeviceId") == "sp1");
+
     // ── The defect itself, pinned ───────────────────────────────────────────
     //
     // Everything above passes trivially against a build that never had the bug, and a
@@ -508,6 +529,46 @@ if (disambiguate != null)
     Ok("the fragment stays short",
        realistic.All(n => n.Length <= "Chrome".Length + 12),
        string.Join(" | ", realistic));
+
+    // Audit (wave 4): breaks that left the section above green.
+    // Exactly six characters, in brackets: not three, not one.
+    Ok("the fragment is six characters",
+       realistic.All(n => System.Text.RegularExpressions.Regex.IsMatch(n, @"^Chrome \([^)]{6}\)$")),
+       string.Join(" | ", realistic));
+    var near = Labels(
+        Device("abcdefg1", "Chrome", "Jellyfin Web", master),
+        Device("abcdefg2", "Chrome", "Jellyfin Web", master));
+    Ok("ids that differ in the last character still give six-character fragments",
+       near.All(n => System.Text.RegularExpressions.Regex.IsMatch(n, @"^Chrome \([^)]{6}\)$")) && near[0] != near[1],
+       string.Join(" | ", near));
+    var shortIds = Labels(
+        Device("ab12", "Chrome", "Jellyfin Web", master),
+        Device("ab34", "Chrome", "Jellyfin Web", master));
+    Ok("an id shorter than the fragment is shown whole",
+       shortIds[0] == "Chrome (ab12)" && shortIds[1] == "Chrome (ab34)", string.Join(" | ", shortIds));
+    // One id the start of another: the end of the shorter is where they part.
+    var prefixed = Labels(
+        Device("abcdefgh", "Chrome", "Jellyfin Web", master),
+        Device("abcdefghij12", "Chrome", "Jellyfin Web", master));
+    Ok("an id that is the start of another still reads differently",
+       prefixed[0] != prefixed[1], string.Join(" | ", prefixed));
+    // Ids are case-insensitive everywhere else, so a case-only difference is not the place they part.
+    var cased = Labels(
+        Device("AAAAAAxxxxxx1", "Chrome", "Jellyfin Web", master),
+        Device("aaaaaaxxxxxx2", "Chrome", "Jellyfin Web", master));
+    Ok("the fragment skips a difference that is only case",
+       cased[0].EndsWith("1)") && cased[1].EndsWith("2)"), string.Join(" | ", cased));
+    // Two devices called the same on different clients already read differently in the picker.
+    var twoClients = Labels(
+        Device("llllll11", "Living room", "Jellyfin Android", master),
+        Device("mmmmmm22", "Living room", "Jellyfin Web", master));
+    Ok("the same name on two clients is left alone",
+       twoClients[0] == "Living room" && twoClients[1] == "Living room", string.Join(" | ", twoClients));
+    // "Unknown" alone, and a client that is itself a placeholder.
+    var unknown = Labels(Device("nnnnnn33", "Unknown", "Jellyfin Android", master));
+    Ok("a stored \"Unknown\" is replaced by the client", unknown[0] == "Jellyfin Android", unknown[0]);
+    var noClient = Labels(Device("oooooo44", "", "Unknown Client", master));
+    Ok("a client of \"Unknown Client\" is not used as the name", noClient[0] == "Unrecognised device", noClient[0]);
 }
 
 // ── Names recorded before the parser was fixed ──────────────────────────────
@@ -529,6 +590,8 @@ if (decodeLegacy != null)
     Ok("an ordinary name is untouched", D("Living room TV") == "Living room TV");
     Ok("an empty name stays empty", D("") == "");
     Ok("null is handled", D(null) == "");
+    // A name that decodes to nothing stays as it was: "+" is a space, which is no name.
+    Ok("a name that would decode to blank is kept", D("+") == "+" && D("%20") == "%20");
 }
 
 Console.WriteLine();
