@@ -83,25 +83,26 @@ const ADMIN = {
     households: { basic: ['.raised[button]', 'maxProfiles', 'scanOrphansBtn'], more: [] },
     devices: { basic: ['refreshSessionsBtn'], more: [] },
     security: {
-        basic: ['.raised[button]', 'enablePinResetByEmail', 'requireMainPin'],
+        basic: ['.raised[button]', 'defaultTimeZone', 'enablePinResetByEmail', 'requireMainPin'],
         more: ['panicCodeInput', 'pinGuessesPerDay', 'savePanicCode', 'trustedAdd']
     },
     look: {
-        basic: ['.raised[button]', 'allowProfileThemes', 'avatarFolderBtn', 'avatarFolderInput', 'avatarUploadBtn', 'avatarUploadInput', 'defaultAskOnStartup', 'defaultSwitcherLocation', 'defaultTheme', 'disallowCustomAvatars'],
-        more: ['.jpf-te-mode[button]', '.jpf-te-mode[button]', '.raised[button]', 'avatarScanBtn', 'avatarScanPath', 'enableStarterAvatars', 'fontChoose', 'fontFallback', 'fontFamily', 'fontFile', 'fontRights', 'fontUpload', 'logoAlt', 'logoChoose', 'logoCorners', 'logoFile', 'logoRemove', 'logoSave', 'logoText', 'profileImageQuality', 'richThemeMotion', 'teAccent', 'teAvatar', 'teBase', 'teBg1', 'teBg2', 'teButton', 'teCancel', 'teFont', 'teName', 'tePattern', 'teSave', 'teText', 'themeImport', 'themeImportFile', 'themeNew',
+        basic: ['allowProfileThemes', 'defaultTheme'],
+        more: ['.jpf-te-mode[button]', '.jpf-te-mode[button]', 'fontChoose', 'fontFallback', 'fontFamily', 'fontFile', 'fontRights', 'fontUpload', 'logoAlt', 'logoChoose', 'logoCorners', 'logoFile', 'logoRemove', 'logoSave', 'logoText', 'richThemeMotion', 'teAccent', 'teAvatar', 'teBase', 'teBg1', 'teBg2', 'teButton', 'teCancel', 'teFont', 'teName', 'tePattern', 'teSave', 'teText', 'themeImport', 'themeImportFile', 'themeNew',
             // 2.0: the four layout choices and the preview's Expand, inside the editor's fold.
             'teAlign', 'teExpand', 'teLogo', 'teProfiles', 'teSize']
     },
     setup: {
-        basic: ['.raised[button]', 'defaultTimeZone', 'onboardingEnabled', 'onboardingShowAgain'],
-        more: []
+        // Owner decision 2026-11-12: first-time setup, switcher, avatar library, email.
+        basic: ['.raised[button]', '.raised[button]', 'avatarFolderBtn', 'avatarFolderInput', 'avatarUploadBtn', 'avatarUploadInput', 'defaultAskOnStartup', 'defaultSwitcherLocation', 'disallowCustomAvatars', 'emailFrom', 'emailHost', 'emailPassword', 'emailPort', 'emailSave', 'emailSecurity', 'emailTest', 'emailTestTo', 'emailUsername', 'onboardingEnabled', 'onboardingShowAgain'],
+        more: ['.raised[button]', 'avatarScanBtn', 'avatarScanPath', 'enableStarterAvatars', 'profileImageQuality']
     },
     clients: {
         basic: ['.jpfProxyClient[checkbox]', '.raised[button]', 'enableClientPinLogin', 'enableClientProfileList', 'skipQuickConnectOnKnownDevices'],
         more: ['clientPinLoginFromAnywhere']
     },
     messages: {
-        basic: ['annCancel', 'annMessage', 'annSave', 'annSeverity', 'emailFrom', 'emailHost', 'emailPassword', 'emailPort', 'emailSave', 'emailSecurity', 'emailTest', 'emailTestTo', 'emailUsername', 'mntClose', 'mntMessage', 'mntOpen', 'mntReopen', 'mntStop', 'mntUntil'],
+        basic: ['annCancel', 'annMessage', 'annSave', 'annSeverity', 'mntClose', 'mntMessage', 'mntOpen', 'mntReopen', 'mntStop', 'mntUntil'],
         more: ['annEnds', 'annStarts']
     },
     activity: { basic: ['auditClear', 'auditDelete', 'auditDownload', 'auditFilter', 'auditFrom', 'auditTo'], more: [] },

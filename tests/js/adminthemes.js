@@ -110,7 +110,7 @@ console.log('\n── The Themes section is on the page ────────
     ok('every control is in the markup', missing.length === 0, 'missing: ' + missing.join(', '));
     const section = markup.indexOf('id="jpfThemes"');
     ok('it sits in the Look tab, after the default theme',
-       section > markup.indexOf('id="defaultTheme"') && section < markup.indexOf('id="jpfViewing"')
+       section > markup.indexOf('id="defaultTheme"') && section < markup.indexOf('data-panel="setup"')
        && section > markup.indexOf('data-panel="look"'));
     const fallback = /<select[^>]*id="fontFallback"[^>]*>([\s\S]*?)<\/select>/.exec(markup);
     const values = fallback ? (fallback[1].match(/value="([^"]*)"/g) || []).map(v => v.slice(7, -1)) : [];

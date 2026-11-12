@@ -948,6 +948,18 @@
                     <div class="fieldDescription" data-i18n="admin.security.pinResetByEmailHint">A code goes to the address the main account confirmed.</div>
                     <div class="fieldDescription jpf-hidden" id="pinResetNeedsEmail"></div>
                 </div>
+                <div class="sectionTitleContainer jpf-section" id="jpfViewing">
+                    <h2 class="sectionTitle" data-i18n="admin.viewing.title">Viewing limits</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.viewing.lede">Main accounts set viewing limits on each profile. Times use this zone until a household picks its own.</div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="defaultTimeZone" data-i18n="admin.viewing.zone">Default time zone</label>
+                    <select is="emby-select" id="defaultTimeZone">
+                        <option value="" data-i18n="admin.viewing.serverZone">The server's own</option>
+                    </select>
+                    <div class="fieldDescription" id="defaultTimeZoneHint"></div>
+                </div>
+
                 <details class="jpf-advanced jpf-section">
                     <summary data-i18n="admin.advanced.title">Advanced</summary>
                     <!-- The emergency code comes first, with its own button, and the PIN
@@ -998,25 +1010,6 @@
             <!-- ── Look ───────────────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelLook" data-panel="look" role="tabpanel" aria-labelledby="jpfTabLook" hidden>
                 <div class="sectionTitleContainer jpf-section">
-                    <h2 class="sectionTitle" data-i18n="admin.switcher.title">Switcher</h2>
-                </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.switcher.lede">What main accounts get until they choose for themselves.</div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="defaultAskOnStartup" />
-                        <span data-i18n="admin.switcher.askOnStartup">Ask "Who's watching?" on startup</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.switcher.askOnStartupHint">Shown once when the app opens.</div>
-                </div>
-                <div class="selectContainer jpf-form-narrow">
-                    <label class="selectLabel" for="defaultSwitcherLocation" data-i18n="admin.switcher.location">Switch button</label>
-                    <select is="emby-select" id="defaultSwitcherLocation">
-                        <option value="button" data-i18n="admin.switcher.locationButton">In the header</option>
-                        <option value="menu" data-i18n="admin.switcher.locationMenu">In Jellyfin's user menu</option>
-                    </select>
-                </div>
-
-                <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.theme.title">Default theme</h2>
                 </div>
                 <div class="fieldDescription jpf-lede" data-i18n="admin.theme.lede">For Bonfire's own screens. The rest of Jellyfin keeps its theme.</div>
@@ -1051,39 +1044,6 @@
                     <div class="fieldDescription" data-i18n="admin.theme.allowProfilesHint">Off shows everyone the default. Choices already made are kept.</div>
                 </div>
 
-                <div class="sectionTitleContainer jpf-section" id="jpfAvatars">
-                    <h2 class="sectionTitle" data-i18n="admin.avatars.title">Avatar library</h2>
-                </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.avatars.lede">Avatars anyone can pick for a profile. On a TV this is the only way to set one.</div>
-                <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
-                    <!-- Filled in when a profile or library entry points at a file that is gone -->
-                </div>
-                <div class="jpf-upload">
-                    <div class="jpf-actions">
-                        <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" data-i18n="admin.avatars.upload">Upload avatars</button>
-                        <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" data-i18n="admin.avatars.uploadFolder">Upload a folder</button>
-                    </div>
-                    <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
-                    <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
-                    <div class="fieldDescription" data-i18n="admin.avatars.uploadHint">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
-                    <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
-                    <div class="jpf-hidden jpf-status jpf-status-error" id="avatarUploadError"></div>
-                </div>
-                <div class="jpf-avatar-grid" id="avatarLibraryGrid">
-                    <!-- Library avatars rendered here -->
-                </div>
-
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
-                        <span data-i18n="admin.avatars.libraryOnly">Only allow avatars from this library</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.avatars.libraryOnlyHint">Profiles pick from this set instead of uploading. Avatars already chosen stay.</div>
-                </div>
-                <div class="buttonContainer">
-                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
-                </div>
-
                 <details class="jpf-advanced jpf-section">
                     <summary data-i18n="admin.advanced.title">Advanced</summary>
                 <div class="checkboxContainer checkboxContainer-withDescription">
@@ -1093,36 +1053,6 @@
                     </label>
                     <div class="fieldDescription" data-i18n="admin.theme.richMotionHint">Never with reduced motion or on low-power TVs.</div>
                 </div>
-                <!-- Avatar library options: the starter set, picture quality and copying a
-                     folder from the server. Rarely changed, so they sit here, not above. -->
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label>
-                        <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
-                        <span data-i18n="admin.avatars.starter">Include the starter avatars</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.avatars.starterHint">30 built-in avatars. Fluent Emoji by Microsoft, MIT license.</div>
-                </div>
-                <div class="selectContainer jpf-form-narrow">
-                    <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Avatar quality</label>
-                    <select is="emby-select" id="profileImageQuality">
-                        <!-- The values are stored ids and are not the words: "high" is 1024 px and
-                             "maximum" 2048 px, as in every saved config. See ImageQualities. -->
-                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Low — 512 px, up to 2 MB</option>
-                        <option value="high" data-i18n="admin.avatars.qualityHigh">Medium — 1024 px, up to 4 MB</option>
-                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High — 2048 px, up to 8 MB</option>
-                        <option value="ultra" data-i18n="admin.avatars.qualityUltra">Maximum — 4096 px, up to 16 MB</option>
-                    </select>
-                    <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">Sharper on big screens, more disk. Applies to new avatars.</div>
-                </div>
-                <div class="buttonContainer">
-                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
-                </div>
-                <div class="inputContainer jpf-form-narrow jpf-mt-3">
-                    <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Copy from a server folder</label>
-                    <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" translate="no" />
-                    <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
-                </div>
-                <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
 
                 <!-- The server's logo: an image, or a line of text, at the top right of the
                      switcher screens. Image changes save at once through admin/themes/logo/image;
@@ -1344,18 +1274,6 @@
 
             <!-- ── Setup ──────────────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelSetup" data-panel="setup" role="tabpanel" aria-labelledby="jpfTabSetup" hidden>
-                <div class="sectionTitleContainer jpf-section" id="jpfViewing">
-                    <h2 class="sectionTitle" data-i18n="admin.viewing.title">Viewing limits</h2>
-                </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.viewing.lede">Main accounts set viewing limits on each profile. Times use this zone until a household picks its own.</div>
-                <div class="selectContainer jpf-form-narrow">
-                    <label class="selectLabel" for="defaultTimeZone" data-i18n="admin.viewing.zone">Default time zone</label>
-                    <select is="emby-select" id="defaultTimeZone">
-                        <option value="" data-i18n="admin.viewing.serverZone">The server's own</option>
-                    </select>
-                    <div class="fieldDescription" id="defaultTimeZoneHint"></div>
-                </div>
-
                 <div class="sectionTitleContainer jpf-section" id="jpfOnboarding">
                     <h2 class="sectionTitle" data-i18n="admin.onboarding.title">First-time setup</h2>
                 </div>
@@ -1372,6 +1290,142 @@
                     <button is="emby-button" type="button" class="raised jpf-narrow" id="onboardingShowAgain" data-i18n="admin.onboarding.showAgain">Show again to everyone</button>
                 </div>
                 <div class="fieldDescription" data-i18n="admin.onboarding.showAgainHint">Every main account sees it on its next visit.</div>
+
+                <div class="sectionTitleContainer jpf-section">
+                    <h2 class="sectionTitle" data-i18n="admin.switcher.title">Switcher</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.switcher.lede">What main accounts get until they choose for themselves.</div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="defaultAskOnStartup" />
+                        <span data-i18n="admin.switcher.askOnStartup">Ask "Who's watching?" on startup</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.switcher.askOnStartupHint">Shown once when the app opens.</div>
+                </div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="defaultSwitcherLocation" data-i18n="admin.switcher.location">Switch button</label>
+                    <select is="emby-select" id="defaultSwitcherLocation">
+                        <option value="button" data-i18n="admin.switcher.locationButton">In the header</option>
+                        <option value="menu" data-i18n="admin.switcher.locationMenu">In Jellyfin's user menu</option>
+                    </select>
+                </div>
+
+                <div class="sectionTitleContainer jpf-section" id="jpfAvatars">
+                    <h2 class="sectionTitle" data-i18n="admin.avatars.title">Avatar library</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.avatars.lede">Avatars anyone can pick for a profile. On a TV this is the only way to set one.</div>
+                <div class="jpf-hidden jpf-note jpf-note-soft" id="avatarMissingWarning">
+                    <!-- Filled in when a profile or library entry points at a file that is gone -->
+                </div>
+                <div class="jpf-upload">
+                    <div class="jpf-actions">
+                        <button is="emby-button" type="button" id="avatarUploadBtn" class="raised" data-i18n="admin.avatars.upload">Upload avatars</button>
+                        <button is="emby-button" type="button" id="avatarFolderBtn" class="raised" data-i18n="admin.avatars.uploadFolder">Upload a folder</button>
+                    </div>
+                    <input class="jpf-hidden" type="file" id="avatarUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" />
+                    <input class="jpf-hidden" type="file" id="avatarFolderInput" webkitdirectory directory multiple />
+                    <div class="fieldDescription" data-i18n="admin.avatars.uploadHint">JPEG, PNG, WebP or GIF. Squared and resized automatically.</div>
+                    <div class="jpf-hidden jpf-status jpf-status-quiet" id="avatarUploadStatus"></div>
+                    <div class="jpf-hidden jpf-status jpf-status-error" id="avatarUploadError"></div>
+                </div>
+                <div class="jpf-avatar-grid" id="avatarLibraryGrid">
+                    <!-- Library avatars rendered here -->
+                </div>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="disallowCustomAvatars" />
+                        <span data-i18n="admin.avatars.libraryOnly">Only allow avatars from this library</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.avatars.libraryOnlyHint">Profiles pick from this set instead of uploading. Avatars already chosen stay.</div>
+                </div>
+                <div class="buttonContainer">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
+                </div>
+
+                <details class="jpf-advanced jpf-section">
+                    <summary data-i18n="admin.advanced.title">Advanced</summary>
+                <!-- Avatar library options: the starter set, picture quality and copying a
+                     folder from the server. Rarely changed, so they sit here, not above. -->
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
+                        <span data-i18n="admin.avatars.starter">Include the starter avatars</span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.avatars.starterHint">30 built-in avatars. Fluent Emoji by Microsoft, MIT license.</div>
+                </div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Avatar quality</label>
+                    <select is="emby-select" id="profileImageQuality">
+                        <!-- The values are stored ids and are not the words: "high" is 1024 px and
+                             "maximum" 2048 px, as in every saved config. See ImageQualities. -->
+                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Low — 512 px, up to 2 MB</option>
+                        <option value="high" data-i18n="admin.avatars.qualityHigh">Medium — 1024 px, up to 4 MB</option>
+                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High — 2048 px, up to 8 MB</option>
+                        <option value="ultra" data-i18n="admin.avatars.qualityUltra">Maximum — 4096 px, up to 16 MB</option>
+                    </select>
+                    <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">Sharper on big screens, more disk. Applies to new avatars.</div>
+                </div>
+                <div class="buttonContainer">
+                    <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
+                </div>
+                <div class="inputContainer jpf-form-narrow jpf-mt-3">
+                    <label class="inputLabel" for="avatarScanPath" data-i18n="admin.avatars.serverFolder">Copy from a server folder</label>
+                    <input is="emby-input" type="text" id="avatarScanPath" placeholder="/config/avatars" translate="no" />
+                    <div class="fieldDescription" data-i18n="admin.avatars.serverFolderHint">A path on the server, not on this computer.</div>
+                </div>
+                <button is="emby-button" type="button" id="avatarScanBtn" class="raised jpf-narrow" data-i18n="admin.avatars.import">Copy from folder</button>
+                </details>
+
+                <div class="sectionTitleContainer jpf-section" id="jpfEmail">
+                    <h2 class="sectionTitle" data-i18n="admin.email.title">Email</h2>
+                </div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.email.lede">Lets main accounts get a code for a forgotten PIN, and notices they ask for. Use your mail provider's SMTP settings.</div>
+                <div id="emailStatus" class="jpf-note">…</div>
+                <div class="jpf-email-server">
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="emailHost" data-i18n="admin.email.host">Mail server</label>
+                        <input is="emby-input" type="text" id="emailHost" autocomplete="off" placeholder="smtp.example.com" data-i18n-placeholder="admin.email.hostPlaceholder" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="emailPort" data-i18n="admin.email.port">Port</label>
+                        <input is="emby-input" type="number" id="emailPort" min="1" max="65535" />
+                    </div>
+                </div>
+                <div class="selectContainer jpf-form-narrow">
+                    <label class="selectLabel" for="emailSecurity" data-i18n="admin.email.security">Security</label>
+                    <select is="emby-select" id="emailSecurity">
+                        <option value="starttls" data-i18n="admin.email.starttls">STARTTLS</option>
+                        <option value="none" data-i18n="admin.email.none">None, for a relay on your network</option>
+                    </select>
+                    <div class="fieldDescription" data-i18n="admin.email.securityHint">Port 465 isn't supported. Use 587 with STARTTLS.</div>
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailUsername" data-i18n="admin.email.username">Username</label>
+                    <input is="emby-input" type="text" id="emailUsername" autocomplete="off" />
+                    <div class="fieldDescription" data-i18n="admin.email.usernameHint">Blank if your server doesn't need one.</div>
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailPassword" data-i18n="admin.email.password">Password</label>
+                    <input is="emby-input" type="password" id="emailPassword" autocomplete="new-password" />
+                    <div class="fieldDescription" id="emailPasswordHint"></div>
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailFrom" data-i18n="admin.email.from">From address</label>
+                    <input is="emby-input" type="email" id="emailFrom" autocomplete="off" />
+                </div>
+                <div class="inputContainer jpf-form-narrow">
+                    <label class="inputLabel" for="emailTestTo" data-i18n="admin.email.testTo">Send a test to</label>
+                    <input is="emby-input" type="email" id="emailTestTo" autocomplete="email" />
+                    <div class="fieldDescription" data-i18n="admin.email.testHint">Email works once a test goes through.</div>
+                </div>
+                <div class="buttonContainer jpf-ann-actions">
+                    <button is="emby-button" type="button" id="emailTest" class="raised button-submit" data-i18n="admin.email.saveAndTest">Save and send test</button>
+                    <button is="emby-button" type="button" id="emailSave" class="raised" data-i18n="admin.email.saveOnly">Save only</button>
+                </div>
+                <div class="jpf-hidden jpf-status" id="emailResult"></div>
+                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.email.accounts">Addresses</h3>
+                <div id="emailAccounts" class="jpf-block-end"></div>
             </div><!-- /setup -->
 
             <!-- ── Apps ───────────────────────────────────────────────────────────── -->
@@ -1507,55 +1561,6 @@
                 </div>
                 <div class="jpf-hidden jpf-status" id="mntResult"></div>
 
-                <div class="sectionTitleContainer jpf-section" id="jpfEmail">
-                    <h2 class="sectionTitle" data-i18n="admin.email.title">Email</h2>
-                </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.email.lede">Lets main accounts get a code for a forgotten PIN, and notices they ask for. Use your mail provider's SMTP settings.</div>
-                <div id="emailStatus" class="jpf-note">…</div>
-                <div class="jpf-email-server">
-                    <div class="inputContainer">
-                        <label class="inputLabel" for="emailHost" data-i18n="admin.email.host">Mail server</label>
-                        <input is="emby-input" type="text" id="emailHost" autocomplete="off" placeholder="smtp.example.com" data-i18n-placeholder="admin.email.hostPlaceholder" />
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel" for="emailPort" data-i18n="admin.email.port">Port</label>
-                        <input is="emby-input" type="number" id="emailPort" min="1" max="65535" />
-                    </div>
-                </div>
-                <div class="selectContainer jpf-form-narrow">
-                    <label class="selectLabel" for="emailSecurity" data-i18n="admin.email.security">Security</label>
-                    <select is="emby-select" id="emailSecurity">
-                        <option value="starttls" data-i18n="admin.email.starttls">STARTTLS</option>
-                        <option value="none" data-i18n="admin.email.none">None, for a relay on your network</option>
-                    </select>
-                    <div class="fieldDescription" data-i18n="admin.email.securityHint">Port 465 isn't supported. Use 587 with STARTTLS.</div>
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailUsername" data-i18n="admin.email.username">Username</label>
-                    <input is="emby-input" type="text" id="emailUsername" autocomplete="off" />
-                    <div class="fieldDescription" data-i18n="admin.email.usernameHint">Blank if your server doesn't need one.</div>
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailPassword" data-i18n="admin.email.password">Password</label>
-                    <input is="emby-input" type="password" id="emailPassword" autocomplete="new-password" />
-                    <div class="fieldDescription" id="emailPasswordHint"></div>
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailFrom" data-i18n="admin.email.from">From address</label>
-                    <input is="emby-input" type="email" id="emailFrom" autocomplete="off" />
-                </div>
-                <div class="inputContainer jpf-form-narrow">
-                    <label class="inputLabel" for="emailTestTo" data-i18n="admin.email.testTo">Send a test to</label>
-                    <input is="emby-input" type="email" id="emailTestTo" autocomplete="email" />
-                    <div class="fieldDescription" data-i18n="admin.email.testHint">Email works once a test goes through.</div>
-                </div>
-                <div class="buttonContainer jpf-ann-actions">
-                    <button is="emby-button" type="button" id="emailTest" class="raised button-submit" data-i18n="admin.email.saveAndTest">Save and send test</button>
-                    <button is="emby-button" type="button" id="emailSave" class="raised" data-i18n="admin.email.saveOnly">Save only</button>
-                </div>
-                <div class="jpf-hidden jpf-status" id="emailResult"></div>
-                <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.email.accounts">Addresses</h3>
-                <div id="emailAccounts" class="jpf-block-end"></div>
             </div><!-- /messages -->
 
             <!-- ── Activity ───────────────────────────────────────────────────────── -->
@@ -3932,7 +3937,7 @@
             function renderAvatarHealth(page, missing) {
                 setStatus(page, 'avatars', missing.length
                     ? [{ level: 'info', text: missing.length === 1 ? t('admin.status.avatarsOne') : t('admin.status.avatarsMany', { count: missing.length }),
-                         tab: 'look', anchor: 'jpfAvatars', fix: t('admin.status.seeWhich') }]
+                         tab: 'setup', anchor: 'jpfAvatars', fix: t('admin.status.seeWhich') }]
                     : []);
                 const el = page.querySelector('#avatarMissingWarning');
                 if (!missing.length) { el.style.display = 'none'; return; }
@@ -6737,7 +6742,7 @@
                 });
 
                 setStatus(page, 'email', configured && !verified
-                    ? [{ level: 'warn', text: t('admin.status.emailUntested'), tab: 'messages', anchor: 'jpfEmail', fix: t('admin.status.sendTest') }]
+                    ? [{ level: 'warn', text: t('admin.status.emailUntested'), tab: 'setup', anchor: 'jpfEmail', fix: t('admin.status.sendTest') }]
                     : []);
             }
 
@@ -6806,7 +6811,7 @@
                         errorText(err, t('admin.saveFailed')).then(function (m) {
                             showEmailResult(page, m, false);
                             setStatus(page, 'email', [{ level: 'warn', text: t('admin.status.emailFailed', { reason: m }),
-                                                       tab: 'messages', anchor: 'jpfEmail', fix: t('admin.status.sendTest') }]);
+                                                       tab: 'setup', anchor: 'jpfEmail', fix: t('admin.status.sendTest') }]);
                         });
                     });
                 });

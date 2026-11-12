@@ -93,7 +93,7 @@ LANGS.forEach(function (l) {
     ok(l + ' no longer carries admin.switcher.locationHint', !('admin.switcher.locationHint' in j));
 });
 
-// The email server settings are on Notices, not Setup. A move, so the ids stay.
+// The email server settings are on Setup, not Notices (owner decision, 2026-11-12). A move, so the ids stay.
 function panel(id) {
     const a = html.indexOf('id="jpfPanel' + id + '"');
     const b = html.indexOf('<!-- /', a);
@@ -102,12 +102,13 @@ function panel(id) {
 const setup = panel('Setup'), notices = panel('Messages');
 ['jpfEmail', 'emailHost', 'emailPort', 'emailSecurity', 'emailUsername', 'emailPassword', 'emailFrom', 'emailTestTo',
     'emailTest', 'emailSave', 'emailResult', 'emailAccounts', 'emailStatus'].forEach(function (id) {
-    ok('#' + id + ' is on Notices', notices.indexOf('id="' + id + '"') >= 0);
-    ok('#' + id + ' is not on Setup', setup.indexOf('id="' + id + '"') < 0);
+    ok('#' + id + ' is on Setup', setup.indexOf('id="' + id + '"') >= 0);
+    ok('#' + id + ' is not on Notices', notices.indexOf('id="' + id + '"') < 0);
 });
-ok('Setup keeps the viewing limits and first-time setup', setup.indexOf('id="jpfViewing"') >= 0 && setup.indexOf('id="jpfOnboarding"') >= 0);
+ok('Setup keeps first-time setup, and the viewing limits are on Security',
+   setup.indexOf('id="jpfOnboarding"') >= 0 && setup.indexOf('id="jpfViewing"') < 0 && panel('Security').indexOf('id="jpfViewing"') >= 0);
 const links = html.match(/tab: '[a-z]+', anchor: 'jpfEmail'/g) || [];
-ok('the status links to the email settings open Notices', links.length === 2 && links.every(function (s) { return s.indexOf("'messages'") >= 0; }), links.join(' | '));
+ok('the status links to the email settings open Setup', links.length === 2 && links.every(function (s) { return s.indexOf("'setup'") >= 0; }), links.join(' | '));
 
 // Emails.
 const src = fs.readFileSync(MAIL, 'utf8').replace(/\r\n/g, '\n');

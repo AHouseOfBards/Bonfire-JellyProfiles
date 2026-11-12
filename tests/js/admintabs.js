@@ -40,12 +40,22 @@ ok('every tab has a panel and every panel a tab',
 
 console.log('\n── Where things live ───────────────────────────────────────────');
 const has = (tab, id) => !!panels[tab] && panels[tab].indexOf('id="' + id + '"') !== -1;
-ok('Setup holds the time zone and first-time setup, and no longer Email (moved to Notices)',
-   !has('setup', 'jpfEmail') && !has('setup', 'emailHost') && has('setup', 'defaultTimeZone') && has('setup', 'jpfOnboarding'));
-ok('Look holds the switcher, theme and avatar library',
-   has('look', 'defaultAskOnStartup') && has('look', 'defaultTheme') && has('look', 'jpfAvatars'));
-ok('Notices (the messages panel) keeps Announcements and Maintenance, and now holds Email',
-   has('messages', 'annMessage') && has('messages', 'jpfMaintenance') && has('messages', 'jpfEmail') && has('messages', 'emailHost'));
+// Owner decision 2026-11-12: Switcher, Avatar library and Email moved to Setup, Viewing
+// limits to Security.
+ok('Setup holds first-time setup, the switcher, the avatar library and Email, in that order',
+   has('setup', 'jpfOnboarding') && has('setup', 'defaultAskOnStartup') && has('setup', 'jpfAvatars') && has('setup', 'jpfEmail')
+   && has('setup', 'emailHost') && has('setup', 'defaultSwitcherLocation') && !has('setup', 'defaultTimeZone')
+   && panels.setup.indexOf('jpfOnboarding') < panels.setup.indexOf('defaultAskOnStartup')
+   && panels.setup.indexOf('defaultAskOnStartup') < panels.setup.indexOf('jpfAvatars')
+   && panels.setup.indexOf('jpfAvatars') < panels.setup.indexOf('jpfEmail'));
+ok('Security holds the PINs, then the viewing limits, then the emergency code',
+   has('security', 'jpfViewing') && has('security', 'defaultTimeZone')
+   && panels.security.indexOf('jpfPins') < panels.security.indexOf('jpfViewing')
+   && panels.security.indexOf('jpfViewing') < panels.security.indexOf('jpfEmergency'));
+ok('Look holds the default theme but no longer the switcher or the avatar library',
+   has('look', 'defaultTheme') && !has('look', 'defaultAskOnStartup') && !has('look', 'jpfAvatars') && !has('look', 'avatarUploadBtn'));
+ok('Notices (the messages panel) keeps Announcements and Maintenance, and no longer holds Email',
+   has('messages', 'annMessage') && has('messages', 'jpfMaintenance') && !has('messages', 'jpfEmail') && !has('messages', 'emailHost'));
 ok('Skip Quick Connect stays in Clients', has('clients', 'skipQuickConnectOnKnownDevices'));
 ok('no setting was dropped: every control id the page saves is still in exactly one panel',
    ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail', 'disallowCustomAvatars', 'enableStarterAvatars',
@@ -87,9 +97,9 @@ ok('PIN tries a day is in Security\'s Advanced', inFold('security', 'pinGuessesP
 ok('the emergency disable code is in Security\'s Advanced, and the PINs are not',
    ['jpfEmergency', 'panicCodeInput', 'savePanicCode', 'panicCodeResult'].every(id => inFold('security', id))
    && !inFold('security', 'requireMainPin') && !inFold('security', 'enablePinResetByEmail'));
-ok('the starter avatars, picture quality and server-folder copy are in Look\'s Advanced',
-   ['enableStarterAvatars', 'profileImageQuality', 'avatarScanPath', 'avatarScanBtn'].every(id => inFold('look', id))
-   && !inFold('look', 'disallowCustomAvatars') && !inFold('look', 'avatarUploadBtn'));
+ok('the starter avatars, picture quality and server-folder copy are in Setup\'s Advanced',
+   ['enableStarterAvatars', 'profileImageQuality', 'avatarScanPath', 'avatarScanBtn'].every(id => inFold('setup', id))
+   && !inFold('setup', 'disallowCustomAvatars') && !inFold('setup', 'avatarUploadBtn'));
 // Owner, 1.9.0.4 eye test: the "Where profiles are managed" note moves from Status to
 // Troubleshoot, with its wording and its keys.
 ok('the "Where profiles are managed" note is on Troubleshoot, not Status',
