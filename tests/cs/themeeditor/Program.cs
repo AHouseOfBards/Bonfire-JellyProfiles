@@ -860,6 +860,21 @@ Ok("a picture under the strongest dim passes", strong.Count == 0, Paths(strong))
 var none = Problems(WithImage("none", hash, 0));
 Ok("a picture with no dim fails on the text, against background.image",
    none.Any(p => p.Code == "contrast" && p.Path == "colors.text1" && p.Detail.Contains("background.image")), Paths(none));
+// A colour that passes on a white and a black picture can still sit between them: a grey
+// picture of its own lightness gives 1:1. The ends were all that was checked, and these
+// two passed: 3.03 and 3.29 at the ends, 1.00 over grey 136; and 4.54 and 4.62 at dim 0.
+var midAccent = WithImage("midaccent", hash, 0.3);
+midAccent["background"] = new JsonObject { ["fill"] = "#000000", ["image"] = new JsonObject { ["file"] = hash, ["dim"] = 0.3 } };
+midAccent["colors"]!["accent"] = "#5f5f5f";
+var midA = Problems(midAccent);
+Ok("an accent between the white and the black picture fails, 1:1 on a grey one",
+   midA.Any(p => p.Code == "contrast" && p.Path == "colors.accent" && p.Detail.Contains("background.image") && p.Detail.StartsWith("1.00:1")), Paths(midA));
+var midText = WithImage("midtext", hash, 0);
+midText["background"] = new JsonObject { ["fill"] = "#000000", ["image"] = new JsonObject { ["file"] = hash, ["dim"] = 0 } };
+midText["colors"]!["text2"] = "#767676";
+var midT = Problems(midText);
+Ok("body text between the two pictures at dim 0 fails, 1:1 on a grey one",
+   midT.Any(p => p.Code == "contrast" && p.Path == "colors.text2" && p.Detail.Contains("background.image") && p.Detail.StartsWith("1.00:1")), Paths(midT));
 Ok("a dim above " + ThemeBackground.MaxDim + " is refused", Problems(WithImage("over", hash, 1)).Any(p => p.Path == "background.image.dim"));
 Ok("a name that is not a stored picture's is refused", Problems(WithImage("path", "../evil.png", 0.9)).Any(p => p.Path == "background.image.file" && p.Code == "range"));
 Ok("an address is refused", Problems(WithImage("addr", "https://example.com/a.jpg", 0.9)).Any(p => p.Code == "address" || p.Path == "background.image.file"));

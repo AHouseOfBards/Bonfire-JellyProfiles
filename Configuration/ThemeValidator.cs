@@ -400,23 +400,26 @@ namespace Jellyfin.Profiles.Configuration
                 return all.Count == ColorFields.Length ? all : null;
             }
 
-            /// <summary>Every colour the background has, each made opaque: the fill, then each stop.</summary>
-            private List<(string Path, Rgba Color)> Background(JsonObject t)
+            /// <summary>Every colour the background has, each made opaque: the fill, then each
+            /// stop. A picture is one entry, its <c>Color</c> the see-through layer drawn over
+            /// it and <c>Picture</c> true; <see cref="Worst"/> reads it.</summary>
+            private List<(string Path, Rgba Color, bool Picture)> Background(JsonObject t)
             {
-                var stops = new List<(string, Rgba)>();
+                var stops = new List<(string, Rgba, bool)>();
                 var o = Obj(t["background"], "background", true, "fill", "layers", "image");
                 if (o == null) return stops;
                 var fill = Color(o, "background", "fill", true);
                 if (fill == null) return stops;
                 var ground = fill.Value with { A = 1 };
                 if (fill.Value.A < 1) Add("background.fill", "range", "Must not be see-through.");
-                stops.Add(("background.fill", ground));
+                stops.Add(("background.fill", ground, false));
 
                 // A picture (ThemeBackground), drawn under the fill at `dim`. What it holds is
-                // not known here, so the text is held against the two ends of what it could
-                // be: a white picture and a black one, each under that layer. Every colour
-                // in between is lighter than the one and darker than the other, so a pair
-                // that passes on both passes on any picture.
+                // not known here, so it is one entry for every picture there could be, and
+                // Worst finds the hardest. Checking only a white and a black picture is not
+                // enough: a colour whose lightness lies between those two finds a grey picture
+                // of its own lightness, and that reads at 1:1 (#5f5f5f on black at dim 0.3
+                // passed at 3.03 and 3.29 and was 1.00 over grey 136).
                 var image = Obj(o["image"], "background.image", false, "file", "dim");
                 if (image != null)
                 {
@@ -425,9 +428,7 @@ namespace Jellyfin.Profiles.Configuration
                     var dim = Num(image, "background.image", "dim", true, 0, ThemeBackground.MaxDim);
                     if (dim != null)
                     {
-                        var layer = ground with { A = dim.Value };
-                        stops.Add(("background.image", Over(layer, new Rgba(255, 255, 255, 1))));
-                        stops.Add(("background.image", Over(layer, new Rgba(0, 0, 0, 1))));
+                        stops.Add(("background.image", ground with { A = dim.Value }, true));
                     }
                 }
 
@@ -470,11 +471,41 @@ namespace Jellyfin.Profiles.Configuration
                         if (stop == null) continue;
                         Num(stop, sat, "at", true, 0, 100);
                         var c = Color(stop, sat, "color", true);
-                        if (c != null) stops.Add((sat, Over(c.Value, ground)));
+                        if (c != null) stops.Add((sat, Over(c.Value, ground), false));
                     }
                 }
 
                 return stops;
+            }
+
+            /// <summary>The lowest contrast <paramref name="fg"/> has on <paramref name="stop"/>,
+            /// with <paramref name="fill"/>, when given, mixed over the stop first.</summary>
+            /// <remarks>
+            /// For a picture: what is under the text is the layer over some picture, and every
+            /// channel of that moves straight from what a black picture gives to what a white
+            /// one gives, so its lightness takes every value between those two ends. An opaque
+            /// colour whose own lightness is in that range therefore meets a picture of the
+            /// same lightness, 1:1. Outside it, the nearer end is the worst. Both are exact
+            /// for an opaque colour. A see-through one moves with the picture too, and is held
+            /// the same way along the greys, white to black: the sign of its lightness against
+            /// what is under it at the two ends.
+            /// </remarks>
+            private static double Worst(Rgba fg, Rgba? fill, (string Path, Rgba Color, bool Picture) stop)
+            {
+                Rgba Back(Rgba under) => fill is Rgba f ? Over(f, under) : under;
+                if (!stop.Picture)
+                {
+                    var b = Back(stop.Color);
+                    return ThemeValidator.Contrast(Over(fg, b), b);
+                }
+
+                var b0 = Back(Over(stop.Color, new Rgba(0, 0, 0, 1)));
+                var b1 = Back(Over(stop.Color, new Rgba(255, 255, 255, 1)));
+                Rgba t0 = Over(fg, b0), t1 = Over(fg, b1);
+                var d0 = Luminance(t0) - Luminance(b0);
+                var d1 = Luminance(t1) - Luminance(b1);
+                if (d0 * d1 <= 0) return 1;
+                return Math.Min(ThemeValidator.Contrast(t0, b0), ThemeValidator.Contrast(t1, b1));
             }
 
             private void Shape(JsonObject t)
@@ -736,16 +767,17 @@ namespace Jellyfin.Profiles.Configuration
 
             // ── Contrast ──────────────────────────────────────────────────────────────
 
-            private void Contrast(Dictionary<string, Rgba> c, List<(string Path, Rgba Color)> bg, Dictionary<string, Rgba> parts, bool high)
+            private void Contrast(Dictionary<string, Rgba> c, List<(string Path, Rgba Color, bool Picture)> bg, Dictionary<string, Rgba> parts, bool high)
             {
                 double text = high ? 7 : 4.5;
 
                 // Against every colour of the background, one at a time.
                 void OnBackground(string field, double min)
                 {
-                    foreach (var (path, stop) in bg)
+                    foreach (var stop in bg)
                     {
-                        var r = ThemeValidator.Contrast(Over(c[field], stop), stop);
+                        var path = stop.Path;
+                        var r = Worst(c[field], null, stop);
                         if (r < min)
                         {
                             Add("colors." + field, "contrast", Ratio(r, min) + " on " + path + ".");
@@ -787,13 +819,12 @@ namespace Jellyfin.Profiles.Configuration
                 void OnPart(string textKey, string fillKey, string path)
                 {
                     if (!parts.TryGetValue(textKey, out var fg) || !parts.TryGetValue(fillKey, out var fill)) return;
-                    foreach (var (bgPath, stop) in bg)
+                    foreach (var stop in bg)
                     {
-                        var back = Over(fill, stop);
-                        var r = ThemeValidator.Contrast(Over(fg, back), back);
+                        var r = Worst(fg, fill, stop);
                         if (r < text)
                         {
-                            Add(path, "contrast", Ratio(r, text) + " on parts." + fillKey + " over " + bgPath + ".");
+                            Add(path, "contrast", Ratio(r, text) + " on parts." + fillKey + " over " + stop.Path + ".");
                             return;
                         }
                     }

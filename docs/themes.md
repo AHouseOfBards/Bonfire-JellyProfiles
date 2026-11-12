@@ -137,8 +137,9 @@ A custom theme can have one picture behind the switcher. Built-in themes don't.
   then `fill` over it at this opacity.
 - Until the picture has loaded, or if it fails, draw the theme as if it had none.
 - The text has to read on any picture: the validator checks every pair below against a
-  white picture and a black one, each under `fill` at `dim`. A `dim` too low for the
-  theme's colours can't be saved.
+  white picture and a black one, each under `fill` at `dim`, and fails a colour whose
+  lightness lies between those two, because a grey picture of that lightness gives 1:1. A
+  `dim` too low for the theme's colours can't be saved.
 - An exported theme file leaves the picture out, because the file is on this server, not
   in the theme. Importing one never brings a picture; replacing a theme keeps the one it
   had. A configuration backup restored on another server drops it too.
@@ -327,8 +328,8 @@ fails isn't saved, and the settings page names the value at fault.
 - **Every required value is present, and every value has the right type.** Nothing that
   isn't in this document is kept.
 - **Text can be read.** "The background" means `background.fill`, every stop of every
-  layer and, with a [background image](#background-image), a white and a black picture
-  under the fill at `dim`, each one checked on its own: a gradient that is fine at one end and unreadable at
+  layer and, with a [background image](#background-image), any picture under the fill at
+  `dim` (see there), each one checked on its own: a gradient that is fine at one end and unreadable at
   the other fails. See-through colours are mixed onto what is behind them first. Each pair
   is checked separately:
 

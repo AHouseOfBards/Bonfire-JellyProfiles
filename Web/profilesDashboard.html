@@ -5713,6 +5713,10 @@
             /// every colour the server holds against the background still reads on a white
             /// picture and on a black one under the theme's fill. Only a start, like the text
             /// colour picked for a new accent: the server is what checks it.
+            /// The server also fails a colour whose lightness lies between those two ends (a
+            /// grey picture of that lightness gives 1:1). That cannot happen from 0.75 up: the
+            /// two ends are then at most about 2:1 apart, and a colour between them could not
+            /// reach 3:1 on both, so checking the ends here gives the server's answer.
             function themePhotoDim(draft) {
                 const fill = themeRgb(String(getThemePath(draft, 'background.fill') || '').slice(0, 7)) || [16, 16, 16];
                 const toHex = function (k) { return '#' + k.map(function (x) { return ('0' + Math.round(x).toString(16)).slice(-2); }).join(''); };

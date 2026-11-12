@@ -704,8 +704,9 @@ async function part8() {
             ok('in the administrator\'s language', fr.indexOf('Envoyer une image') !== -1 && fr.indexOf('Upload image') === -1, fr.slice(0, 200));
         }
 
-        // The starting dim: the server holds each colour against a white and a black picture
-        // under the fill, and every built-in made into a custom theme must pass at it.
+        // The starting dim: the server holds each colour against any picture under the fill
+        // (a white and a black one, and a grey between them), and every built-in made into a
+        // custom theme must pass at it. From 0.75 up the two ends decide it.
         const dimFns = lift(['getThemePath', 'themeRgb', 'themeLuminance', 'themeContrast', 'themePhotoDim']);
         const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
         const lum = k => 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
