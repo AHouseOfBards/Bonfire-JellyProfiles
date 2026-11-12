@@ -231,7 +231,7 @@ async function main() {
         await wait(700);
         await ev("[].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = true; })");
         const card = await ev(`(function(){ var m = document.querySelector('#teAdvancedFields .jpf-te-missing'); var c = m && m.closest('.jpf-te-card'); return { text: m ? m.textContent : '', upload: !!(c && c.querySelector('[data-pattern-act]')) }; })()`);
-        ok('a pattern picture the server lacks shows "Missing picture" with its Upload button', card.text === 'Missing picture' && card.upload === true, JSON.stringify(card));
+        ok('a pattern picture the server lacks shows "Missing image" with its Upload button', card.text === 'Missing image' && card.upload === true, JSON.stringify(card));
         ok('and it is counted as a problem', /^1 problem$/.test(await ev("document.getElementById('teCount').textContent")));
         await ev(CLICK(Q('#teSave')));
         await wait(300);
