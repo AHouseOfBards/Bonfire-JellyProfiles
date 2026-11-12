@@ -64,11 +64,17 @@ namespace Jellyfin.Profiles.Auth
                 if (pair.Value <= now) Allowed.TryRemove(pair.Key, out _);
             }
 
-            // Still over: the oldest go first, enough to leave room.
+            // Still over: enough go to leave room, each time from the account holding the most,
+            // oldest first. Plain oldest-first let one account noting made-up item ids push
+            // every other account's real ones out.
             if (Allowed.Count <= MaxEntries) return;
-            foreach (var pair in Allowed.ToArray().OrderBy(p => p.Value).Take(Allowed.Count - MaxEntries + MaxEntries / 8))
+            var byUser = Allowed.ToArray().GroupBy(p => p.Key.User)
+                .ToDictionary(g => g.Key, g => new System.Collections.Generic.Queue<(Guid User, Guid Item)>(g.OrderBy(p => p.Value).Select(p => p.Key)));
+            for (var excess = Allowed.Count - MaxEntries + MaxEntries / 8; excess > 0; excess--)
             {
-                Allowed.TryRemove(pair.Key, out _);
+                var biggest = byUser.OrderByDescending(kv => kv.Value.Count).First().Value;
+                if (biggest.Count == 0) break;
+                Allowed.TryRemove(biggest.Dequeue(), out _);
             }
         }
     }

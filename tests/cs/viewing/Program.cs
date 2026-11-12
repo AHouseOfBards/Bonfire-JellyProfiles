@@ -678,6 +678,17 @@ if (record != null)
     var max = (int)record.GetField("MaxEntries", Any).GetValue(null);
     for (var i = 0; i < max + 50; i++) Static(record, "Note", Guid.NewGuid(), Guid.NewGuid());
     Ok("and it is bounded", (int)Static(record, "Count") <= max, ((int)Static(record, "Count")).ToString());
+
+    // r2-03-02: one account flooding it with made-up ids must not push out another's.
+    recNow = recNow.AddHours(24);   // what the bounded test left has expired; the next full Note clears it
+    Static(record, "Note", Guid.NewGuid(), Guid.NewGuid());
+    var quiet = Guid.NewGuid(); var loud = Guid.NewGuid();
+    var quietItems = Enumerable.Range(0, 20).Select(_ => Guid.NewGuid()).ToList();
+    foreach (var q in quietItems) Static(record, "Note", quiet, q);
+    recNow = recNow.AddMinutes(5);
+    for (var i = 0; i < max * 2; i++) Static(record, "Note", loud, Guid.NewGuid());
+    Ok("a flood from one account leaves another's items playing", quietItems.All(q => (bool)Static(record, "Has", quiet, q)),
+       quietItems.Count(q => (bool)Static(record, "Has", quiet, q)) + " of " + quietItems.Count);
     record.GetField("Now", Any).SetValue(null, (Func<DateTime>)(() => DateTime.UtcNow));
 }
 
