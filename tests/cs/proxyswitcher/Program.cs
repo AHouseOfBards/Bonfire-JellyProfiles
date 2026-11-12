@@ -1206,6 +1206,194 @@ Console.WriteLine("── The picker speaks the app's language ─────�
 }
 
 Console.WriteLine();
+Console.WriteLine("── What each refusal on the picker rests on ────────────────────");
+{
+    // Each check below was found removable with the whole file staying green (test audit,
+    // wave 4). One scenario per check, each built so that only that check can produce it.
+    var MASTER2 = Guid.NewGuid();
+    string NewTok() { var t = Guid.NewGuid().ToString("N"); deviceTokens[t] = (MASTER, "Moonfin for Android TV"); return t; }
+    string Kid(string tok, string id) => Get("/Users/" + N(MASTER) + "/Items?ParentId=" + id + "&Recursive=false", token: tok).body;
+    string PadOf(string tok, string name) => Kid(tok, IdOf(Kid(tok, IdOf(Get("/UserViews", token: tok).body, "Profiles")), name));
+    string PressT(string tok, string pad, string key) => Kid(tok, IdOf(pad, key));
+    string TypeIn(string tok, string pad, string pin) { var p = pad; foreach (var c in pin) p = PressT(tok, p, c.ToString()); return p; }
+    string Submit(string tok, string pad, string pin) => PressT(tok, TypeIn(tok, pad, pin), "OK " + new string('•', pin.Length));
+    (Guid id, object row) Profile(string name, string pin = null, Guid? otherHousehold = null, string otherPin = null)
+    {
+        var g = Guid.NewGuid();
+        usernames[g] = name + "_u";
+        // A row of another household for the same account, listed first: the one a lookup
+        // that forgets the household would find.
+        if (otherHousehold.HasValue) mappings.Add(Map(g, otherHousehold.Value, name, otherPin));
+        var row = Map(g, MASTER, name, pin);
+        mappings.Add(row);
+        return (g, row);
+    }
+    void Restrict(object row, params string[] devices) => mapType.GetProperty("AllowedDeviceIds").SetValue(row, devices.ToList());
+    bool Opened(Guid g) => sessionLog.Minted.Contains(g);
+
+    // The tile, the keypad and the opening each look the mapping up for this household.
+    var pd4 = Profile("Dup4", "4321", otherHousehold: MASTER2);   // the other household's row has no PIN
+    var t4 = NewTok();
+    var pad4 = PadOf(t4, "Dup4");
+    Ok("a tile asks for the PIN its own household set, not another household's row for the same account",
+       Names(pad4).StartsWith("1, 2, 3") && !Opened(pd4.id), Names(pad4));
+
+    var p15 = Profile("Dup15", "4321", otherHousehold: MASTER2, otherPin: "1111");
+    var t15 = NewTok();
+    var wrong15 = Submit(t15, PadOf(t15, "Dup15"), "1111");
+    Ok("the keypad checks the PIN against its own household's row: the other row's PIN is wrong",
+       Names(wrong15).StartsWith("Wrong PIN") && !Opened(p15.id), Names(wrong15));
+    var right15 = Submit(t15, wrong15, "4321");
+    Ok("and its own PIN opens it", Opened(p15.id) && Names(right15) == "Movies", Names(right15));
+
+    var p17 = Profile("Dup17", otherHousehold: MASTER2);
+    var other17 = mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == p17.id
+                                                      && (Guid)mapType.GetProperty("MasterUserId").GetValue(m) == MASTER2);
+    Restrict(other17, "a-device-that-is-not-this-one");
+    var t17 = NewTok();
+    var open17 = PadOf(t17, "Dup17");
+    Ok("opening judges the device on its own household's row, not another household's row for the account",
+       Opened(p17.id), Names(open17));
+
+    // The device restriction itself, and the household list it is judged against.
+    var dBar = Profile("DevBar"); Restrict(dBar.row, "tv-in-another-room");
+    var tBar = NewTok();
+    var barPad = PadOf(tBar, "DevBar");
+    Ok("a profile limited to other devices is not opened from this one, and says so",
+       !Opened(dBar.id) && Names(barPad) == "Not allowed on this device.", Names(barPad));
+    var dOk = Profile("DevOk"); Restrict(dOk.row, "moon-1");
+    var tOk = NewTok();
+    var okPad = PadOf(tOk, "DevOk");
+    Ok("one limited to this device is opened from it", Opened(dOk.id) && Names(okPad) == "Movies", Names(okPad));
+    // Android appends the account's id to the device id; the list is on the household's rows.
+    var dDer = Profile("DevDer"); Restrict(dDer.row, "moon-1" + MASTER.ToString());
+    var tDer = NewTok();
+    var derPad = PadOf(tDer, "DevDer");
+    Ok("a device listed under the id Android derives for this household is this device",
+       Opened(dDer.id) && Names(derPad) == "Movies", Names(derPad));
+
+    // The profile's own account turned off in Dashboard -> Users.
+    var offP = Profile("OffOne");
+    UserManagerStub.Disabled.Add(offP.id);
+    var tOff = NewTok();
+    var offPad = PadOf(tOff, "OffOne");
+    UserManagerStub.Disabled.Remove(offP.id);
+    Ok("a profile whose own account is turned off is not opened, and the keypad says why",
+       !Opened(offP.id) && Names(offPad).StartsWith("This profile is turned off."), Names(offPad));
+
+    // Maintenance: an administrator's profile is let in, nobody else's.
+    var mAdm = Profile("MaintAdm"); UserManagerStub.Admins.Add(mAdm.id);
+    var mKid = Profile("MaintKid");
+    cfgType.GetProperty("Maintenance").SetValue(config, Closed("Closed tonight."));
+    var tM = NewTok();
+    var mKidPad = PadOf(tM, "MaintKid");
+    var mAdmPad = PadOf(tM, "MaintAdm");
+    cfgType.GetProperty("Maintenance").SetValue(config, Activator.CreateInstance(maintType));
+    Ok("closed for maintenance, a profile that is not an administrator is turned away", !Opened(mKid.id) && Names(mKidPad) == "Closed tonight.", Names(mKidPad));
+    Ok("and one that is an administrator is not", Opened(mAdm.id) && Names(mAdmPad) == "Movies", Names(mAdmPad));
+
+    // A profile already open when maintenance starts: the picker judges it on every request.
+    var act = Profile("ActKid"); var actAdm = Profile("ActAdm"); UserManagerStub.Admins.Add(actAdm.id);
+    var tA = NewTok(); var tB = NewTok();
+    PadOf(tA, "ActKid"); PadOf(tB, "ActAdm");
+    Ok("(set-up) both are open", Opened(act.id) && Opened(actAdm.id));
+    cfgType.GetProperty("Maintenance").SetValue(config, Closed("Closed tonight."));
+    var loggedOut = sessionLog.LoggedOut.Count;
+    var actKidViews = Get("/UserViews", token: tA);
+    var actAdmViews = Get("/UserViews", token: tB);
+    cfgType.GetProperty("Maintenance").SetValue(config, Activator.CreateInstance(maintType));
+    Ok("closed for maintenance, a profile already open is sent back to the picker",
+       !actKidViews.reachedJellyfin && Names(actKidViews.body) == "Profiles" && sessionLog.LoggedOut.Skip(loggedOut).Contains("tok-" + N(act.id)), Names(actKidViews.body));
+    Ok("but an administrator's profile carries on", actAdmViews.reachedJellyfin && seenAuth.Contains("tok-" + N(actAdm.id)), Names(actAdmViews.body));
+
+    // A trusted address skips the PIN, but never an administrator's.
+    var entryType = asm.GetType("Jellyfin.Profiles.Configuration.TrustedAddressEntry", true);
+    var entry = Activator.CreateInstance(entryType);
+    entryType.GetProperty("Address").SetValue(entry, "203.0.113.9");
+    ((List<Guid>)entryType.GetProperty("UserIds").GetValue(entry)).Add(MASTER);
+    var trusted = Activator.CreateInstance(typeof(List<>).MakeGenericType(entryType));
+    ((System.Collections.IList)trusted).Add(entry);
+    Set("TrustedAddressEntries", trusted);
+    var trK = Profile("TrustK", "7531");
+    var tTr = NewTok();
+    var trPad = PadOf(tTr, "TrustK");
+    Ok("from a trusted address, a profile with a PIN opens without it", Opened(trK.id) && Names(trPad) == "Movies", Names(trPad));
+    UserManagerStub.Admins.Add(MASTER);
+    var trAdm = Profile("TrustAdm", "7531");
+    var tTr2 = NewTok();
+    var trAdmPad = PadOf(tTr2, "TrustAdm");
+    UserManagerStub.Admins.Remove(MASTER);
+    Set("TrustedAddressEntries", Activator.CreateInstance(typeof(List<>).MakeGenericType(entryType)));
+    Ok("but when the household's account is an administrator, the PIN is still asked",
+       !Opened(trAdm.id) && Names(trAdmPad).StartsWith("1, 2, 3"), Names(trAdmPad));
+
+    // Viewing hours and the Quick Connect refusal are judged on the profile the app is
+    // acting as, not on the main account whose token the request carries.
+    var lim = Profile("LimKid");
+    var rulesType = asm.GetType("Jellyfin.Profiles.Configuration.ViewingRules", true);
+    var rules = Activator.CreateInstance(rulesType);
+    rulesType.GetProperty("HoursEnabled").SetValue(rules, true);   // no window: always outside hours
+    mapType.GetProperty("Viewing").SetValue(lim.row, rules);
+    var viewingTracker = asm.GetType("Jellyfin.Profiles.Auth.ViewingTracker", true);
+    var invalidate = viewingTracker.GetMethod("Invalidate", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+    invalidate.Invoke(null, null);
+    var tL = NewTok();
+    PadOf(tL, "LimKid");
+    var stream = Get("/Videos/" + Guid.NewGuid().ToString("N") + "/stream?static=true", token: tL);
+    Ok("outside its viewing hours a profile's stream is refused with a 403, judged on the profile", stream.status == 403 && !stream.reachedJellyfin, stream.status + " " + seenPath);
+    var qc = Get("/QuickConnect/Authorize?code=no-such-code", token: tL, method: "POST");
+    Ok("a Quick Connect authorize from a profile is refused, not passed on", !qc.reachedJellyfin, qc.status + " " + seenPath);
+    mapType.GetProperty("Viewing").SetValue(lim.row, null);
+    invalidate.Invoke(null, null);
+}
+
+Console.WriteLine();
+Console.WriteLine("── The keypad's own limits ─────────────────────────────────────");
+{
+    string NewTok() { var t = Guid.NewGuid().ToString("N"); deviceTokens[t] = (MASTER, "Moonfin for Android TV"); return t; }
+    string Kid(string tok, string id) => Get("/Users/" + N(MASTER) + "/Items?ParentId=" + id + "&Recursive=false", token: tok).body;
+    string PadOf(string tok, string name) => Kid(tok, IdOf(Kid(tok, IdOf(Get("/UserViews", token: tok).body, "Profiles")), name));
+    string PressT(string tok, string pad, string key) => Kid(tok, IdOf(pad, key));
+    string TypeIn(string tok, string pad, string pin) { var p = pad; foreach (var c in pin) p = PressT(tok, p, c.ToString()); return p; }
+    string Submit(string tok, string pad, string pin) => PressT(tok, TypeIn(tok, pad, pin), "OK " + new string('•', pin.Length));
+    Guid Profile(string name, string pin)
+    {
+        var g = Guid.NewGuid();
+        usernames[g] = name + "_u";
+        mappings.Add(Map(g, MASTER, name, pin));
+        return g;
+    }
+
+    // Five tries, then the profile is locked: the right PIN is refused too.
+    var bud = Profile("Budget", "2468");
+    var tb = NewTok();
+    var padB = PadOf(tb, "Budget");
+    foreach (var guess in new[] { "1357", "1358", "1359", "1350", "1351" }) padB = Submit(tb, padB, guess);  // distinct: the same OK twice is one press
+    Ok("five wrong PINs on the keypad are five wrong PINs", Names(padB).StartsWith("Wrong PIN") && !sessionLog.Minted.Contains(bud), Names(padB));
+    var sixth = Submit(tb, padB, "2468");
+    Ok("the sixth try is refused even with the right PIN: too many tries",
+       Names(sixth).StartsWith("Too many tries. Try again later.") && !sessionLog.Minted.Contains(bud), Names(sixth));
+
+    // The app loads the same OK tile again: that is one press, not another try.
+    var rep = Profile("Repeat", "2468");
+    var tr = NewTok();
+    var padR = TypeIn(tr, PadOf(tr, "Repeat"), "1357");
+    var okId = IdOf(padR, "OK ••••");
+    string againPad = null;
+    for (var i = 0; i < 8; i++) againPad = Kid(tr, okId);
+    Ok("loading the same OK again says wrong PIN, and spends nothing", Names(againPad).StartsWith("Wrong PIN"), Names(againPad));
+    var okRight = Submit(tr, againPad, "2468");
+    Ok("so eight loads of one OK do not lock the profile: its own PIN still opens it", sessionLog.Minted.Contains(rep) && Names(okRight) == "Movies", Names(okRight));
+
+    // The PIN is at most eight digits.
+    var lng = Profile("Longer", "2468");
+    var tl = NewTok();
+    var padL = PadOf(tl, "Longer");
+    for (var i = 0; i < 10; i++) padL = PressT(tl, padL, "1");
+    Ok("a tenth digit is not taken: the keypad stops at eight", Names(padL).EndsWith("OK ••••••••"), Names(padL));
+}
+
+Console.WriteLine();
 try { Directory.Delete(tempDir, true); } catch { }
 if (fails.Count > 0)
 {
