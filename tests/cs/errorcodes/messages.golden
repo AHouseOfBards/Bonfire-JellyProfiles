@@ -123,6 +123,7 @@ NotFound|user_not_found|Underlying system user missing.
 NotFound|user_not_found|User not found.
 StatusCode|invalid_request| Please try again .
 StatusCode|invalid_request|Its password couldn't be changed, so it wasn't made a profile. See the server log.
+StatusCode|invalid_request|Its sessions couldn't be ended, so it wasn't made a profile. Its password was replaced. See the server log.
 StatusCode|invalid_request|Profile could not be fully deleted. The account has been disabled. Retry deletion after restarting Jellyfin.
 StatusCode|invalid_request|This server can't rename accounts from here. Leave the name blank and rename it in Dashboard → Users.
 StatusCode|invalid_request|Too many attempts. Try again in an hour, or restart Jellyfin.

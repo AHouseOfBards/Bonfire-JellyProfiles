@@ -320,6 +320,38 @@ Ok("and once stopped, even the right one isn't tried", r.status == 429 && world.
 Ok("and none of that guessing counted towards the Lodger's lockout", !world.LockoutCount.ContainsKey(LODGER));
 ResetLimits();
 
+// r2-10-01: ten an hour was 240 guesses a day at one account, and nobody was told. A daily cap
+// per account, and each wrong password in the activity log.
+Services.Activity.Clear();
+r = Call("AddAccountLink", HOME, B(("Username", "Lodger"), ("Password", "wrong-one"), ("MasterPin", "1234")));
+Ok("a wrong password is written to the activity log as a warning naming both accounts",
+    Services.Activity.Any(a => a.Name.Contains("Lodger") && a.Name.Contains("Parent") && a.LogSeverity == Microsoft.Extensions.Logging.LogLevel.Warning),
+    string.Join(" | ", Services.Activity.Select(a => a.Name + "/" + a.LogSeverity)));
+ResetLimits();
+Services.Activity.Clear();
+Call("AddAccountLink", HOME, B(("Username", "Dad"), ("Password", "dadpw"), ("MasterPin", "1234")));
+Ok("a right password is not logged as a guess", !Services.Activity.Any(a => a.Type.EndsWith("Guess")));
+ResetLimits();
+void ClearLimiter(string field)
+{
+    var lim = rateLimiter.GetField(field, Any)?.GetValue(null);
+    var store = rateLimiter.GetFields(Any).FirstOrDefault(x => !x.IsStatic && typeof(IDictionary).IsAssignableFrom(x.FieldType));
+    (store?.GetValue(lim) as IDictionary)?.Clear();
+}
+int dailyTries = 0;
+lastStatus = 0;
+for (int i = 0; i < 40 && lastStatus != 429; i++)
+{
+    // The hourly limits are emptied each time, as if the guesser waited, so only a daily one can stop it.
+    ClearLimiter("LinkPerAccount"); ClearLimiter("Pin");
+    int before = world.ProviderCalls.Count;
+    lastStatus = Call("AddAccountLink", HOME, B(("Username", "Lodger"), ("Password", "slow" + i), ("MasterPin", "1234"))).status;
+    if (world.ProviderCalls.Count > before) dailyTries++;
+}
+Ok("guessing one account slowly is stopped by a daily cap", lastStatus == 429, lastStatus.ToString());
+Ok("after at most twenty tries", dailyTries <= 20, dailyTries.ToString());
+ResetLimits();
+
 // A right password used to clear the count before the link was refused, and the caller
 // always has one to hand: an account already on its switcher. So four guesses, one known
 // password, four more, for ever (R-1068).
@@ -649,8 +681,39 @@ Ok("nor signed out", At("revoke " + DAD) < 0, string.Join(" | ", world.Log));
 Ok("and it is still no profile", P(Row(DAD), "MasterUserId") == null);
 Ok("its password is untouched", world.Passwords[DAD] == "dadpw");
 
+// r2-10-03: a sign-out that threw was logged and the conversion carried on, leaving the old
+// sessions alive past the new PIN gate. Failing every time must refuse and put it back.
 world.Log.Clear();
+SessionStub.OnRevoke = _ => throw new InvalidOperationException("the session store is down");
+r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME)));
+SessionStub.OnRevoke = id => world.Log.Add("revoke " + id);
+Ok("a sign-out that keeps failing fails the request", r.status == 500, Text(r));
+Ok("and no profile row was written", P(Row(DAD), "MasterUserId") == null);
+Ok("and the account is shown again, on its own provider", world.Policies[DAD].IsHidden == dadHidden && world.Users[DAD].AuthenticationProviderId == dadProvider,
+   "hidden=" + world.Policies[DAD].IsHidden + " provider=" + world.Users[DAD].AuthenticationProviderId);
+
+// r2-10-02: a device of another household that came in on the lodger through a link
+// that MakeProfile removes must be signed out, and its entry forgotten.
+var entryType = asm.GetType("Jellyfin.Profiles.Configuration.CrossHouseholdEntry", true);
+var entry = Activator.CreateInstance(entryType);
+entryType.GetProperty("EnteredBy").SetValue(entry, OTHER);
+entryType.GetProperty("ProfileUserId").SetValue(entry, LODGER);
+entryType.GetProperty("DeviceId").SetValue(entry, "neighbour-tv");
+entryType.GetProperty("EnteredUtc").SetValue(entry, DateTime.UtcNow);
+Call("AdminAddAccountLink", ADMIN, B(("HouseholdId", OTHER), ("UserId", LODGER)));
+var entries = (IList)cfgType.GetProperty("CrossHouseholdEntries").GetValue(config);
+entries.Add(entry);
+SessionStub.SignedOut.Clear();
+
+// One failure then success: tried again, so it still succeeds. The revoke is logged only
+// when it works, so the ordering check below still means what it says.
+int revokeFailures = 1;
+SessionStub.OnRevoke = id => { if (revokeFailures-- > 0) throw new InvalidOperationException("once"); world.Log.Add("revoke " + id); };
 r = Call("MakeProfile", ADMIN, B(("UserId", LODGER), ("HouseholdId", HOME), ("ProfileName", " Lodger ")));
+SessionStub.OnRevoke = id => world.Log.Add("revoke " + id);
+Ok("one failed sign-out is tried again", r.status == 200 && At("revoke " + LODGER) >= 0, Text(r));
+Ok("an entry that came in through the removed link is forgotten", !entries.Cast<object>().Any(e => (Guid)entryType.GetProperty("ProfileUserId").GetValue(e) == LODGER));
+Ok("and that device was signed out", SessionStub.SignedOut.Contains((LODGER, "neighbour-tv")), string.Join(",", SessionStub.SignedOut));
 Ok("it succeeds", r.status == 200, Text(r));
 var lodgerRow = Row(LODGER);
 Ok("it is a profile of the household now", lodgerRow != null && (Guid)P(lodgerRow, "MasterUserId") == HOME
@@ -981,9 +1044,28 @@ public sealed class InvalidAuthProvider : MediaBrowser.Controller.Authentication
 
 public sealed class Services : IServiceProvider
 {
+    public static readonly List<ActivityLog> Activity = new();
+    static readonly MediaBrowser.Model.Activity.IActivityManager Recorder = ActivityRecorder.Create(Activity);
     public object GetService(Type t) => t == typeof(IEnumerable<MediaBrowser.Controller.Authentication.IAuthenticationProvider>)
         ? new MediaBrowser.Controller.Authentication.IAuthenticationProvider[] { new InvalidAuthProvider(), new DefaultAuthenticationProvider() }
+        : t == typeof(MediaBrowser.Model.Activity.IActivityManager) ? Recorder
         : null;
+}
+
+public class ActivityRecorder : DispatchProxy
+{
+    public List<ActivityLog> Entries;
+    public static MediaBrowser.Model.Activity.IActivityManager Create(List<ActivityLog> entries)
+    {
+        var p = DispatchProxy.Create<MediaBrowser.Model.Activity.IActivityManager, ActivityRecorder>();
+        ((ActivityRecorder)(object)p).Entries = entries;
+        return p;
+    }
+    protected override object Invoke(MethodInfo m, object[] args)
+    {
+        if (m.Name == "CreateAsync") { lock (Entries) Entries.Add((ActivityLog)args[0]); return Task.CompletedTask; }
+        return m.ReturnType == typeof(Task) ? Task.CompletedTask : null;
+    }
 }
 
 public static class Loose

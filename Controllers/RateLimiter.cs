@@ -82,6 +82,14 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         internal static readonly RateLimiter LinkPerAccount = new(maxAttempts: 10, windowMinutes: 60);
 
+        /// <summary>
+        /// The same account over a day, the other half of <see cref="LinkPerAccount"/>. Ten
+        /// an hour is 240 guesses a day at one account, from a caller who only has to be
+        /// signed in; twenty a day is a fixed limit, not a setting, because no household
+        /// wants more guesses at somebody else's password (r2-10-01).
+        /// </summary>
+        internal static readonly RateLimiter LinkPerAccountDaily = new(maxAttempts: 20, windowMinutes: 24 * 60);
+
         // ── State ──────────────────────────────────────────────────────────────────
         private readonly int _maxAttempts;
         private readonly int _windowMinutes;

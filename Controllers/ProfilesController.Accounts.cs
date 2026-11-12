@@ -80,6 +80,8 @@ namespace Jellyfin.Profiles.Controllers
             var accountKey = "link:" + username.ToUpperInvariant();
             if (!RateLimiter.LinkPerAccount.TryBegin(accountKey))
                 return TooManyAttempts(RateLimiter.LinkPerAccount, accountKey, "Too many failed attempts.");
+            if (!RateLimiter.LinkPerAccountDaily.TryBegin(accountKey))
+                return TooManyAttempts(RateLimiter.LinkPerAccountDaily, accountKey, "Too many failed attempts.");
 
             // The password is checked by Jellyfin's own provider, not UserManager.AuthenticateUser.
             // That one counts a wrong password towards the account's lockout, and an account
@@ -98,9 +100,19 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             if (account == null
-                || (_userManager.GetUserDto(account, string.Empty).Policy?.IsDisabled ?? false)
-                || !await PasswordMatchesAsync(account, request.Password!).ConfigureAwait(false))
+                || (_userManager.GetUserDto(account, string.Empty).Policy?.IsDisabled ?? false))
             {
+                return BadRequest(CredentialsWrongMessage);
+            }
+            if (!await PasswordMatchesAsync(account, request.Password!).ConfigureAwait(false))
+            {
+                // Jellyfin's own lockout is bypassed above, so nothing else records this: the
+                // account's owner could be guessed at for weeks without anyone seeing it
+                // (r2-10-01). The same words go back to the caller.
+                var guesser = _userManager.GetUserById(household)?.Username ?? household.ToString();
+                LogActivity(guesser + " typed a wrong password for " + account.Username + " when adding it to their switcher",
+                    "AccountLinkGuess", account.Id,
+                    severity: Microsoft.Extensions.Logging.LogLevel.Warning);
                 return BadRequest(CredentialsWrongMessage);
             }
 
@@ -465,18 +477,11 @@ namespace Jellyfin.Profiles.Controllers
                     await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
                 }
 
-                // 2. A password nobody knows, set while it is not yet a profile: Bonfire's own
-                //    provider refuses a password change for one.
-                try
+                // Back to how it was shown and where it signs in; one write, as above.
+                async Task PutBackAsync(string why)
                 {
-                    await ChangePasswordCompat(user, Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N")).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger.LogError(ex, "ProfilesPlugin: could not replace {User}'s password before making it a profile.", user.Username);
                     try
                     {
-                        // Back to how it was shown and where it signs in; one write, as above.
                         var back = _userManager.GetUserDto(user, string.Empty).Policy;
                         back.IsHidden = wasHidden;
                         back.AuthenticationProviderId = wasProvider;
@@ -490,21 +495,47 @@ namespace Jellyfin.Profiles.Controllers
                     }
                     catch (Exception undo) when (undo is not OperationCanceledException)
                     {
-                        _logger.LogError(undo, "ProfilesPlugin: could not put {User} back after its password change failed. Check it in Dashboard → Users.", user.Username);
+                        _logger.LogError(undo, "ProfilesPlugin: could not put {User} back after {Why}. Check it in Dashboard → Users.", user.Username, why);
                     }
+                }
 
+                // 2. A password nobody knows, set while it is not yet a profile: Bonfire's own
+                //    provider refuses a password change for one.
+                try
+                {
+                    await ChangePasswordCompat(user, Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N")).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "ProfilesPlugin: could not replace {User}'s password before making it a profile.", user.Username);
+                    await PutBackAsync("its password change failed").ConfigureAwait(false);
                     return StatusCode(StatusCodes.Status500InternalServerError,
                         "Its password couldn't be changed, so it wasn't made a profile. See the server log.");
                 }
 
-                // 3. Out of every session its old password gave it.
-                try
+                // 3. Out of every session its old password gave it. This is what keeps an old
+                //    token from skipping the profile's PIN, so it was carried on past when it
+                //    threw (r2-10-03): the account became a profile with its old sessions alive.
+                //    Tried twice, and if it still fails the account is put back as in step 2
+                //    (its password stays replaced) and the request fails, before any row is written.
+                var signedOut = false;
+                for (var attempt = 0; attempt < 2 && !signedOut; attempt++)
                 {
-                    await _sessionManager.RevokeUserTokens(user.Id, null).ConfigureAwait(false);
+                    try
+                    {
+                        await _sessionManager.RevokeUserTokens(user.Id, null).ConfigureAwait(false);
+                        signedOut = true;
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(ex, "ProfilesPlugin: could not sign {User} out before making it a profile (try {Attempt}).", user.Username, attempt + 1);
+                    }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                if (!signedOut)
                 {
-                    _logger.LogWarning(ex, "ProfilesPlugin: could not sign {User} out before making it a profile.", user.Username);
+                    await PutBackAsync("it could not be signed out").ConfigureAwait(false);
+                    return StatusCode(StatusCodes.Status500InternalServerError,
+                        "Its sessions couldn't be ended, so it wasn't made a profile. Its password was replaced. See the server log.");
                 }
 
                 // 4. A profile. Its main-account row goes, with what only a main account has.
@@ -547,6 +578,10 @@ namespace Jellyfin.Profiles.Controllers
             {
                 CreateGate.Release();
             }
+
+            // Another household's devices that came in through a link just forgotten, or on the
+            // main account's own row, are signed out: the door they used is gone (r2-10-02).
+            await SignOutClosedEntriesAsync().ConfigureAwait(false);
 
             // 5. The household's restrictions over its own, now it is one of theirs.
             await Auth.ProfilePolicySync.ApplyAsync(_userManager, _libraryManager, _logger, request.UserId).ConfigureAwait(false);
