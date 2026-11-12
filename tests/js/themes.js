@@ -460,6 +460,9 @@ if (constants && names.every(n => methods[n])) {
             // applyTheme re-judges the logo's backing; that is measured in a browser by
             // logobacking.js, and there is no logo in this world.
             fitLogoBacking() {},
+            // applyTheme fetches the picture of a custom theme it puts on; which picture is
+            // fetched, and when, is customthemes.js's. No theme here has one.
+            loadThemePhotoOf() {},
             normalizeGuid: g => String(g || '').replace(/-/g, '').toLowerCase()
         };
         // Since 1.7.2 _setThemeSettings caches each theme's gate background, which it gets
