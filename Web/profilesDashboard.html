@@ -1706,6 +1706,8 @@
                 'admin.status.avatarsMany': '{count} profile avatars are missing from disk.',
                 'admin.status.orphansOne': '1 leftover record points at a deleted account.',
                 'admin.status.orphansMany': '{count} leftover records point at deleted accounts.',
+                'admin.status.orphanImagesOne': '1 background image isn\'t used by any theme.',
+                'admin.status.orphanImagesMany': '{count} background images aren\'t used by any theme.',
                 'admin.status.maintenance': 'The server is closed for maintenance. Only administrators can use it.',
                 'admin.status.panicUsed': 'Bonfire was switched off with the emergency code. Restart Jellyfin to turn it back on.',
                 'admin.status.checkIt': 'Check it',
@@ -1787,9 +1789,9 @@
                 'admin.orphans.deadMembersMany': '{count} Bonfire memberships naming deleted accounts',
                 'admin.orphans.imagesOne': '1 background image no theme uses',
                 'admin.orphans.imagesMany': '{count} background images no theme uses',
-                'admin.orphans.removeOne': 'Remove this record',
-                'admin.orphans.removeMany': 'Remove these {count} records',
-                'admin.orphans.removed': 'Removed. Profile records: {profiles}. Bonfires: {groups}. Memberships: {members}. Devices were left alone.',
+                'admin.orphans.removeOne': 'Remove',
+                'admin.orphans.removeMany': 'Remove all {count}',
+                'admin.orphans.removed': 'Removed. Profile records: {profiles}. Bonfires: {groups}. Memberships: {members}. Background images: {images}. Devices were left alone.',
                 'admin.orphans.cleanupFailed': 'Cleanup failed.',
                 'admin.orphans.scanFailed': 'Scan failed.',
 
@@ -2636,7 +2638,8 @@
                     }).then(function (res) {
                         Dashboard.hideLoadingMsg();
                         box.innerHTML = '<span class="jpf-dim">' + escapeHtml(t('admin.orphans.removed', {
-                            profiles: res.removedMappings, groups: res.removedGroups, members: res.removedMembers
+                            profiles: res.removedMappings, groups: res.removedGroups, members: res.removedMembers,
+                            images: res.removedImages || 0
                         })) + '</span>';
                         loadMappings(page);
                         // The Status tab still counted the records just removed.
@@ -6950,11 +6953,15 @@
                     url: ApiClient.getUrl('plugins/profiles/admin/cleanup-orphans'),
                     dataType: 'json'
                 }).then(function (data) {
+                    // The same two things the Households scan lists, so the tabs agree.
                     const n = (data.orphans || []).length + (data.deadGroups || []).length + (data.deadMembers || []).length;
-                    setStatus(page, 'orphans', n
-                        ? [{ level: 'info', text: n === 1 ? t('admin.status.orphansOne') : t('admin.status.orphansMany', { count: n }),
-                             tab: 'households', anchor: 'jpfOrphans', fix: t('admin.status.cleanUp') }]
-                        : []);
+                    const images = typeof data.unusedImages === 'number' ? data.unusedImages : 0;
+                    const texts = [];
+                    if (n) texts.push(n === 1 ? t('admin.status.orphansOne') : t('admin.status.orphansMany', { count: n }));
+                    if (images) texts.push(images === 1 ? t('admin.status.orphanImagesOne') : t('admin.status.orphanImagesMany', { count: images }));
+                    setStatus(page, 'orphans', texts.map(function (text) {
+                        return { level: 'info', text: text, tab: 'households', anchor: 'jpfOrphans', fix: t('admin.status.cleanUp') };
+                    }));
                 }, function () { /* the scan button reports its own failure */ });
             }
 
