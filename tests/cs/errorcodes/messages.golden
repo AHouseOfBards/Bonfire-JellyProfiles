@@ -28,6 +28,7 @@ BadRequest|font_taken|Bonfire already has a font called .
 BadRequest|font_taken|Bonfire already has a font called . Delete it first.
 BadRequest|image_invalid|Choose a background image.
 BadRequest|image_invalid|Choose a logo image.
+BadRequest|image_invalid|Choose a pattern picture.
 BadRequest|image_invalid|Choose a picture first.
 BadRequest|image_invalid|No image supplied.
 BadRequest|image_invalid|Not a supported image.
@@ -36,6 +37,7 @@ BadRequest|image_invalid|That background image is larger than 2 MB.
 BadRequest|image_invalid|That image could not be read, or it is larger than the {MaxProfileImageBytes / (1024 * 1024)} MB limit.
 BadRequest|image_invalid|That image is too large to import.
 BadRequest|image_invalid|That logo is larger than 1 MB.
+BadRequest|image_invalid|That pattern picture is larger than 2 MB.
 BadRequest|image_not_found|That picture is no longer available.
 BadRequest|invalid_request|A device another household has used can't be merged.
 BadRequest|invalid_request|A name is required.

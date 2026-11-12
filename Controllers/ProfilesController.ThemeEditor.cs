@@ -324,6 +324,70 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
+        /// Uploads a pattern picture for a custom theme. The body is the file: PNG or WebP,
+        /// up to 2 MB, not animated. Only stored, as a background image is: the theme names
+        /// it when it is saved.
+        /// </summary>
+        [HttpPost("admin/themes/patterns")]
+        [RequestSizeLimit(ThemePattern.MaxBytes + 4096)]
+        [Produces("application/json")]
+        public async Task<ActionResult> UploadThemePattern()
+        {
+            var adminError = RequireAdministrator("manage themes");
+            if (adminError != null) return adminError;
+
+            if (Request.ContentLength > ThemePattern.MaxBytes) return BadRequest("That pattern picture is larger than 2 MB.");
+            // Read to a cap rather than trusting Content-Length, which a chunked upload omits.
+            byte[] bytes;
+            using (var copy = new MemoryStream())
+            {
+                var buffer = new byte[81920];
+                int read;
+                while ((read = await Request.Body.ReadAsync(buffer.AsMemory(0, buffer.Length)).ConfigureAwait(false)) > 0)
+                {
+                    copy.Write(buffer, 0, read);
+                    if (copy.Length > ThemePattern.MaxBytes) return BadRequest("That pattern picture is larger than 2 MB.");
+                }
+
+                bytes = copy.ToArray();
+            }
+
+            if (bytes.Length == 0) return BadRequest("Choose a pattern picture.");
+
+            LogoImageInfo info;
+            try
+            {
+                info = ThemePattern.Read(bytes);
+            }
+            catch (InvalidDataException e)
+            {
+                Response.Headers[ErrorCodes.Header] = "image_invalid";
+                return BadRequest(e.Message);
+            }
+
+            var file = ThemeLogo.FileNameFor(bytes, info);
+            // Under the lock, as every deletion of an unnamed file is, so a save dropping the
+            // same picture cannot delete it between this write and the editor's save.
+            lock (ConfigLock)
+            {
+                Directory.CreateDirectory(ThemePattern.Folder);
+                System.IO.File.WriteAllBytes(Path.Combine(ThemePattern.Folder, file), bytes);
+            }
+
+            return Ok(new { file, url = ThemePattern.Url(file), width = info.Width, height = info.Height });
+        }
+
+        /// <summary>
+        /// Deletes the uploaded pattern picture <paramref name="before"/> when no custom theme
+        /// names it any more. Called under ConfigLock, after the save that stopped naming it.
+        /// </summary>
+        private void DropUnusedPattern(string? before, PluginConfiguration config)
+        {
+            if (before != null && !ThemePattern.DeleteIfUnused(before, config))
+                _logger.LogWarning("ProfilesPlugin: could not delete the unused pattern picture {File}.", before);
+        }
+
+        /// <summary>
         /// Deletes the stored background images no custom theme names, after
         /// <paramref name="before"/> was replaced or removed. Called under ConfigLock, after
         /// the save that stopped naming them.
@@ -406,6 +470,9 @@ namespace Jellyfin.Profiles.Controllers
                 var image = ThemeBackground.FileOf(node);
                 if (problems.Count == 0 && image != null && !ThemeBackground.Exists(image))
                     problems.Add(new ThemeProblem("background.image.file", "image", "Upload the image again."));
+                var patternFile = ThemePattern.FileOf(node);
+                if (problems.Count == 0 && patternFile != null && !ThemePattern.Exists(patternFile))
+                    problems.Add(new ThemeProblem("decorations", "image", "Upload the pattern picture again."));
                 if (problems.Count > 0)
                 {
                     // A list, not a sentence, so the code is set here: the filter only reads
@@ -432,6 +499,7 @@ namespace Jellyfin.Profiles.Controllers
                 var before = ThemeBackground.FileOf(existing?.Json);
                 var oldJson = existing?.Json;
                 CustomTheme? added = null;
+                var patternBefore = ThemePattern.FileOf(existing?.Json);
                 if (existing != null) existing.Json = json;
                 else config.CustomThemes.Add(added = new CustomTheme { Id = id, Json = json });
                 try
@@ -447,6 +515,7 @@ namespace Jellyfin.Profiles.Controllers
                 // After the save, so a save that throws leaves the old picture where the
                 // configuration still names it.
                 if (before != image) DropUnusedBackground(before, config);
+                if (patternBefore != patternFile) DropUnusedPattern(patternBefore, config);
                 return Ok(new { id, created = existing == null });
             }
         }
@@ -482,6 +551,7 @@ namespace Jellyfin.Profiles.Controllers
                     throw;
                 }
                 DropUnusedBackground(ThemeBackground.FileOf(existing.Json), config);
+                DropUnusedPattern(ThemePattern.FileOf(existing.Json), config);
             }
 
             return NoContent();

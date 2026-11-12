@@ -1474,10 +1474,18 @@ namespace Jellyfin.Profiles.Controllers
                 // Theme background images no custom theme names: uploaded in an editor that was
                 // closed without saving. Under the lock, so a save cannot name one meanwhile.
                 var unusedImages = ThemeBackground.Unused(config);
+                // And uploaded pattern pictures, by the same rule; counted with the images.
+                var unusedPatterns = ThemePattern.Unused(config);
 
                 if (!apply)
                 {
-                    return Ok(new { applied = false, orphans, deadGroups, deadMembers, unusedImages = unusedImages.Count });
+                    return Ok(new { applied = false, orphans, deadGroups, deadMembers, unusedImages = unusedImages.Count + unusedPatterns.Count });
+                }
+
+                foreach (var file in unusedPatterns)
+                {
+                    if (ThemePattern.DeleteIfUnused(file, config)) removedImages++;
+                    else _logger.LogWarning("ProfilesPlugin: could not delete the unused pattern picture {File}.", file);
                 }
 
                 foreach (var file in unusedImages)
@@ -1928,6 +1936,7 @@ namespace Jellyfin.Profiles.Controllers
                         // A backup holds a background image's name, not its file, as with the
                         // logo: one that is not on this server is dropped and the theme kept.
                         ThemeBackground.DropMissing(node);
+                        ThemePattern.DropMissing(node);
                         if (ThemeCatalog.ValidateCustom(node, config).Count == 0)
                             keep.Add(new CustomTheme { Id = c.Id, Json = node.ToJsonString() });
                     }

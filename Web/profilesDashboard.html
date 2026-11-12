@@ -2083,6 +2083,12 @@
                 'admin.themes.pattern.snow': 'Snow',
                 'admin.themes.pattern.blossoms': 'Blossoms',
                 'admin.themes.pattern.stars': 'Stars',
+                'admin.themes.pattern.embers': 'Embers',
+                'admin.themes.pattern.hearts': 'Hearts',
+                'admin.themes.pattern.bubbles': 'Bubbles',
+                'admin.themes.pattern.confetti': 'Confetti',
+                'admin.themes.pattern.moons': 'Moons',
+                'admin.themes.pattern.waves': 'Waves',
                 'admin.themes.group.file': 'Light or dark',
                 'admin.themes.group.accent': 'Accent',
                 'admin.themes.group.text': 'Text',
@@ -5005,10 +5011,13 @@
                 page.querySelector('#teName').value = typeof nameText === 'string' ? nameText : '';
 
                 const patterns = themePatterns(page);
-                // The four Bonfire ships, by name; one a newer server adds shows as its name.
+                // The ten Bonfire ships, by name; one a newer server adds shows as its name.
                 const patternKeys = {
                     leaves: 'admin.themes.pattern.leaves', snow: 'admin.themes.pattern.snow',
-                    blossoms: 'admin.themes.pattern.blossoms', stars: 'admin.themes.pattern.stars'
+                    blossoms: 'admin.themes.pattern.blossoms', stars: 'admin.themes.pattern.stars',
+                    embers: 'admin.themes.pattern.embers', hearts: 'admin.themes.pattern.hearts',
+                    bubbles: 'admin.themes.pattern.bubbles', confetti: 'admin.themes.pattern.confetti',
+                    moons: 'admin.themes.pattern.moons', waves: 'admin.themes.pattern.waves'
                 };
                 const patternName = function (n) {
                     return Object.prototype.hasOwnProperty.call(patternKeys, n) ? t(patternKeys[n]) : n;

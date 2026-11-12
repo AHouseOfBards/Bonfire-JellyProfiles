@@ -254,6 +254,15 @@ don't know.
 | `frost` | `blur` | Dialogs blur what's behind them by `blur` pixels, and the second kind of button by two thirds of that. |
 | `twinkle` | `seconds` | The pattern fades slowly down and back up, one cycle in `seconds` (2 to 120), with a second copy of it shifted so the stars don't all dim at once. Needs a `pattern`. |
 
+### Pattern pictures
+
+Bonfire ships ten: `blossoms`, `bubbles`, `confetti`, `embers`, `hearts`, `leaves`,
+`moons`, `snow`, `stars` and `waves`. An administrator can also upload their own for a
+custom theme: PNG or WebP, up to 2 MB, 16 to 1024 pixels a side, not animated. SVG is not
+accepted, because it can carry script. An uploaded picture is named by a hash and
+`.png` or `.webp`, and that name goes in `image` where a built-in name would. An app draws
+it from `/plugins/profiles/themes/pattern-files/<image>`. It's removed when no theme uses it.
+
 Every decoration also has to:
 
 - **Respect reduced motion.** When the device asks for less motion, anything moving

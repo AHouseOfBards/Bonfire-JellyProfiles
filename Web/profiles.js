@@ -619,7 +619,11 @@
         const pattern = deco('pattern');
         const patternImage = pattern && typeof pattern.image === 'string' && patterns
             && typeof patterns[pattern.image] === 'string' && /^data:image\/svg\+xml,[^"\\]*$/.test(patterns[pattern.image])
-            ? patterns[pattern.image] : null;
+            ? patterns[pattern.image]
+            // An uploaded picture is named by a hash and served; the built-in ones travel inline.
+            : (pattern && /^[0-9a-f]{32}\.(png|webp)$/.test(String(pattern.image || ''))
+                ? String(typeof pluginUrl === 'function' ? pluginUrl('/plugins/profiles/themes/pattern-files/' + pattern.image) : '/plugins/profiles/themes/pattern-files/' + pattern.image).replace(/["\\\n\r]/g, '')
+                : null);
         const patternSize = pattern ? num(pattern.size, 240) : 240;
         const ac = rgbOf(accent);
         // The danger colour as a base for tints, and the select's arrow in the text colour.

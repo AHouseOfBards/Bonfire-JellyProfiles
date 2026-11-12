@@ -152,6 +152,30 @@ namespace Jellyfin.Profiles.Controllers
             return PhysicalFile(path, type);
         }
 
+        /// <summary>
+        /// A pattern picture an administrator uploaded, by the name a theme's pattern gives.
+        /// Anonymous, as the background image is: the picker draws before anyone signs in. A
+        /// route of its own, not a branch of <see cref="GetThemePattern"/>, which joins no
+        /// path from its name and is held to that by tests/cs/themes.
+        /// </summary>
+        [HttpGet("themes/pattern-files/{file}")]
+        public ActionResult GetThemePatternFile(string file)
+        {
+            // Only a name that can be a hash and an extension, so the join below cannot leave the folder.
+            if (!ThemePattern.IsFileName(file)) return NotFound();
+            var path = Path.Combine(ThemePattern.Folder, file);
+            if (!System.IO.File.Exists(path)) return NotFound();
+
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            // Named by its contents: a new picture is a new address, so this one never changes.
+            Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+            Response.Headers["Access-Control-Allow-Origin"] = "*";
+            var etag = "\"" + file + "\"";
+            Response.Headers["ETag"] = etag;
+            if (IfNoneMatchHas(etag)) return StatusCode(StatusCodes.Status304NotModified);
+            return PhysicalFile(path, file.EndsWith(".png", StringComparison.Ordinal) ? "image/png" : "image/webp");
+        }
+
         /// <summary>One pattern picture, by the name a theme's decoration gives.</summary>
         [HttpGet("themes/patterns/{name}")]
         public ActionResult GetThemePattern(string name)

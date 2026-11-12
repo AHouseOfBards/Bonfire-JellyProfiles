@@ -1,3 +1,5 @@
+device_in_use|This is the only device allowed for
+font_taken|Bonfire already has a font called
 not_main_account|Only the master profile can
 admin_only|Only administrators can
 not_your_profile|Unauthorized profile
@@ -19,7 +21,6 @@ device_not_allowed|allowed devices are known
 profile_disabled|account is turned off
 too_many_sessions|too many active sessions
 sign_in_failed|Couldn't sign in to that profile
-device_in_use|This is the only device allowed for
 profile_limit|Maximum profile limit
 name_taken|already exists
 name_invalid|Enter a name for the profile
@@ -110,7 +111,6 @@ font_invalid|A font falls back to
 font_invalid|A font name can use
 font_invalid|That font is larger than
 font_invalid|Choose a WOFF2 font file
-font_taken|Bonfire already has a font called
 font_limit|Delete a font first
 font_not_found|No such font
 font_in_use|A theme uses that font
@@ -121,3 +121,5 @@ image_invalid|That logo is larger than
 image_invalid|Choose a logo image
 image_invalid|That background image is larger than
 image_invalid|Choose a background image
+image_invalid|That pattern picture is larger than
+image_invalid|Choose a pattern picture

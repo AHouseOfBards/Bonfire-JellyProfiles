@@ -689,7 +689,7 @@ namespace Jellyfin.Profiles.Configuration
                         case "pattern":
                             Obj(d, at, true, "name", "image", "size", "drift", "seconds");
                             var image = Str(d, at, "image", true);
-                            if (image != null && !_patterns.Contains(image)) Add(at + ".image", "pattern", "Must be one of the pictures Bonfire holds.");
+                            if (image != null && !_patterns.Contains(image) && !ThemePattern.IsFileName(image)) Add(at + ".image", "pattern", "Must be one of the pictures Bonfire holds, or one you uploaded.");
                             Num(d, at, "size", true, 16, 1024);
                             var drift = OneOf(d, at, "drift", true, "none", "down");
                             Num(d, at, "seconds", drift == "down", 4, 600);

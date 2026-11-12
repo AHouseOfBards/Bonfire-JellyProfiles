@@ -42,7 +42,7 @@ because other people build against it too.
 
 ## All routes
 
-All 110 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 112 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -101,6 +101,7 @@ All 110 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/theme` | user | Set one profile's theme. |
 | `GET /plugins/profiles/themes` | anon | Every theme, for other apps. |
 | `GET /plugins/profiles/themes/patterns/{name}` | anon | One pattern picture. |
+| `GET /plugins/profiles/themes/pattern-files/{file}` | anon | A custom theme's uploaded pattern picture. |
 | `GET /plugins/profiles/themes/fonts/{file}` | anon | One font file, or its licence. |
 | `GET /plugins/profiles/themes/logo/{file}` | anon | The server's logo image. |
 | `GET /plugins/profiles/themes/backgrounds/{file}` | anon | A custom theme's background image. |
@@ -137,6 +138,7 @@ All 110 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/admin/themes/logo/image` | admin | Upload the logo image. |
 | `DELETE /plugins/profiles/admin/themes/logo/image` | admin | Remove it. |
 | `POST /plugins/profiles/admin/themes/backgrounds` | admin | Upload a background image for a custom theme. |
+| `POST /plugins/profiles/admin/themes/patterns` | admin | Upload a pattern picture for a custom theme. |
 | `GET /plugins/profiles/admin/email` | admin | Outgoing mail settings and confirmed addresses. |
 | `POST /plugins/profiles/admin/email` | admin | Save the outgoing mail settings. |
 | `POST /plugins/profiles/admin/email/test` | admin | Send a test message, which makes email available. |
@@ -171,7 +173,7 @@ Authorization: MediaBrowser Client="<Client>", Device="<Device>", DeviceId="<Dev
 token. A key has no user, so routes for a household (`/list`, `/me`, `/create` and the
 rest) refuse one.
 
-Thirteen routes are reachable without a token, because they're needed before anyone signs in.
+Fourteen routes are reachable without a token, because they're needed before anyone signs in.
 
 | Endpoint | Why it is anonymous |
 | --- | --- |
@@ -185,6 +187,7 @@ Thirteen routes are reachable without a token, because they're needed before any
 | `GET /panic-state` | Says only whether Bonfire is disabled. |
 | `GET /themes` | An app draws its switcher before sign-in. Only the default theme, whether profiles may choose, and which themes are hidden. |
 | `GET /themes/patterns/{name}` | Pictures those themes use. Built-in files only. |
+| `GET /themes/pattern-files/{file}` | Pattern pictures custom themes use. Only images the administrator uploaded. |
 | `GET /themes/fonts/{file}` | Fonts those themes use, and their licences. Built-in files, and fonts the administrator uploaded. |
 | `GET /themes/logo/{file}` | The logo on the switcher, shown before sign-in. Only the current one. |
 | `GET /themes/backgrounds/{file}` | Background pictures custom themes use. Only images the administrator uploaded. |
@@ -1503,8 +1506,31 @@ changes, including the server's default theme.
 
 **Authorisation:** anonymous.
 
-One pattern picture, as SVG. `name` is a decoration's `image`; the `url` in
-[`/themes`](#get-pluginsprofilesthemes) points here. `404` for a name Bonfire doesn't hold.
+One built-in pattern picture, as SVG. `name` is a decoration's `image`; the `url` in
+[`/themes`](#get-pluginsprofilesthemes) points here. `404` for a name Bonfire doesn't hold,
+which includes an uploaded picture's name: those are at
+[`pattern-files`](#get-pluginsprofilesthemespattern-filesfile).
+
+### `GET /plugins/profiles/themes/pattern-files/{file}`
+
+**Authorisation:** anonymous.
+
+A pattern picture an administrator uploaded, by the name a `pattern` decoration's `image`
+gives (a hash and `.png` or `.webp`). Served as that image with an `ETag` (`304` to a
+matching `If-None-Match`) and cached for good. `404` for any name that is not an upload.
+
+### `POST /plugins/profiles/admin/themes/patterns`
+
+**Authorisation:** administrator.
+
+The body is the picture: PNG or WebP, up to 2 MB, 16 to 1024 pixels on each side. Not SVG,
+JPEG, GIF, an animated WebP or an APNG. Only stores it: a custom theme names it in a
+`pattern` decoration's `image` when it is saved ([docs/themes.md](themes.md#pattern-pictures)).
+Returns `{ "file": "9be1…04.png", "url": "/plugins/profiles/themes/pattern-files/9be1…04.png", "width": 240, "height": 240 }`.
+
+Saving a theme with another picture or none, or deleting it, deletes the old file once no
+custom theme names it. An upload that is never saved is removed by
+[`cleanup-orphans`](#post-pluginsprofilesadmincleanup-orphans).
 
 ### `GET /plugins/profiles/themes/fonts/{file}`
 
