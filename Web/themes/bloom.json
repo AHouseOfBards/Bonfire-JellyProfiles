@@ -73,7 +73,7 @@
   "type": {
     "font": {
       "family": "Nunito",
-      "fallback": "sans-serif"
+      "fallback": "rounded"
     },
     "title": {
       "weight": 700,
