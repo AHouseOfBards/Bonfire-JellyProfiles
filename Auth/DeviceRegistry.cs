@@ -934,6 +934,8 @@ namespace Jellyfin.Profiles.Auth
             bool mayGrant)
         {
             var isNew = false;
+            bool? judged = null;
+            string? heldId = null;
             lock (ProfilesBaseController.ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
@@ -950,12 +952,70 @@ namespace Jellyfin.Profiles.Auth
                 {
                     Plugin.Instance?.SaveConfiguration();
                 }
+
+                if (isNew)
+                {
+                    // Keyed by the record's own id, which is what the judgement finds, even
+                    // when the sighting arrived under an alias.
+                    var recorded = Row(config.KnownDevices, id);
+                    judged = recorded?.CanPlay;
+                    heldId = recorded?.DeviceId ?? id;
+                }
             }
 
             // Outside the lock: it takes a snapshot, and sends on its own task.
-            if (isNew && ownerId != Guid.Empty)
+            if (isNew && ownerId != Guid.Empty && judged != false)
             {
-                Mail.Notifications.NewDevice(ownerId, deviceId ?? string.Empty, string.IsNullOrWhiteSpace(deviceName) ? (client ?? string.Empty) : deviceName!, logger);
+                var label = string.IsNullOrWhiteSpace(deviceName) ? (client ?? string.Empty) : deviceName!;
+                if (judged == true)
+                {
+                    Mail.Notifications.NewDevice(ownerId, deviceId ?? string.Empty, label, logger);
+                }
+                else
+                {
+                    // Not yet judged a player: a service signing in as the household
+                    // (jfa-go) is sighted the same way and must not be announced as a
+                    // device. The judgement arrives at NotePlayerAndSave, about a minute
+                    // after sign-in for an app and at once on a playback start; it
+                    // releases or drops this. No timer here, one entry per new device.
+                    HoldNewDevice(ownerId, heldId ?? deviceId ?? string.Empty, label, logger);
+                }
+            }
+        }
+
+        private static readonly ConcurrentDictionary<string, (Guid Owner, string Id, string Label, DateTime At, ILogger? Logger)> HeldNewDevices
+            = new(StringComparer.Ordinal);
+
+        /// <summary>A held notice nobody judged is forgotten after this, so the table cannot grow.</summary>
+        private static readonly TimeSpan HeldNoticeLife = TimeSpan.FromMinutes(10);
+
+        private static string HeldKey(string? deviceId)
+            => (deviceId ?? string.Empty).Trim().ToLowerInvariant();
+
+        private static void HoldNewDevice(Guid owner, string deviceId, string label, ILogger? logger)
+        {
+            var now = DateTime.UtcNow;
+            if (HeldNewDevices.Count > 200)
+            {
+                foreach (var kv in HeldNewDevices.ToArray())
+                    if (now - kv.Value.At > HeldNoticeLife) HeldNewDevices.TryRemove(kv.Key, out _);
+                if (HeldNewDevices.Count > 1000) HeldNewDevices.Clear();
+            }
+
+            HeldNewDevices[owner.ToString("N") + ":" + HeldKey(deviceId)] = (owner, deviceId, label, now, logger);
+        }
+
+        /// <summary>The device was judged: send each household's held notice for it, or drop them.</summary>
+        private static void ReleaseHeld(string? canonicalId, bool canPlay)
+        {
+            if (HeldNewDevices.IsEmpty) return;
+            var suffix = ":" + HeldKey(canonicalId);
+            foreach (var kv in HeldNewDevices.ToArray())
+            {
+                if (!kv.Key.EndsWith(suffix, StringComparison.Ordinal)) continue;
+                if (!HeldNewDevices.TryRemove(kv.Key, out var held)) continue;
+                if (canPlay && DateTime.UtcNow - held.At <= HeldNoticeLife)
+                    Mail.Notifications.NewDevice(held.Owner, held.Id, held.Label, held.Logger);
             }
         }
 
@@ -999,12 +1059,17 @@ namespace Jellyfin.Profiles.Auth
         /// <summary><see cref="NotePlayer"/>, taking the lock and saving as the plugin does.</summary>
         public static void NotePlayerAndSave(string? deviceId, bool canPlay)
         {
+            string? canonical;
             lock (ProfilesBaseController.ConfigLock)
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return;
                 if (NotePlayer(config, deviceId, canPlay)) Plugin.Instance?.SaveConfiguration();
+                canonical = Row(config.KnownDevices, deviceId?.Trim())?.DeviceId ?? deviceId;
             }
+
+            // Outside the lock, as the sighting's own notice is.
+            ReleaseHeld(canonical, canPlay);
         }
 
         /// <summary>

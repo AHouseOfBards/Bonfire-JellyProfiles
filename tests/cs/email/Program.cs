@@ -437,8 +437,16 @@ Ok("an account without a PIN adds one too, in English by default",
 // ── Notices ──────────────────────────────────────────────────────────────────
 Section("Notices");
 
-void Device(string id, string name, Guid owner) =>
+// A real device: sighted, then shown to be a player (capabilities or a playback start),
+// which is what the notice now waits for.
+void Device(string id, string name, Guid owner)
+{
     registry.GetMethod("RecordAndSave").Invoke(null, new object[] { id, name, "Jellyfin Web", owner, null });
+    registry.GetMethod("NotePlayerAndSave").Invoke(null, new object[] { id, true });
+}
+// A service signing in as the household (jfa-go): sighted, and never a player.
+void Service(string id, string name, Guid owner) =>
+    registry.GetMethod("RecordAndSave").Invoke(null, new object[] { id, name, "jfa-go", owner, null });
 
 before = Sent();
 Device("dev-living-room", "Living room TV", MAIN);
@@ -457,6 +465,22 @@ Device("dev-other-1", "Phone", OTHER);
 Ok("another household's device goes to that household", Sent() == before + 3 && Last().To == "other@example.com");
 Device("dev-nobody", "Phone", Guid.NewGuid());
 Ok("an account without an address gets nothing", Sent() == before + 3);
+
+// A service that signs in as the household is not a device it needs to hear about.
+var notePlayer = registry.GetMethod("NotePlayerAndSave");
+before = Sent();
+Service("svc-jfago", "jfa-go", OTHER);
+Ok("a device not yet judged a player is not mailed at once", Sent() == before);
+notePlayer.Invoke(null, new object[] { "svc-jfago", false });
+Ok("and is never mailed once judged not a player", Sent() == before);
+notePlayer.Invoke(null, new object[] { "svc-jfago", true });
+Ok("a later playback start does not bring back a notice already dropped", Sent() == before);
+
+before = Sent();
+registry.GetMethod("RecordAndSave").Invoke(null, new object[] { "dev-late", "Late tablet", "Jellyfin Web", OTHER, null });
+Ok("a new device waits for its capabilities", Sent() == before);
+notePlayer.Invoke(null, new object[] { "dev-late", true });
+Ok("and is mailed the moment it is judged a player", Sent() == before + 1 && Last().Body.Contains("Late tablet"), (Sent() - before) + "");
 
 // One client must not be able to mail the household without limit by making up device ids.
 var beforeFlood = Sent();
