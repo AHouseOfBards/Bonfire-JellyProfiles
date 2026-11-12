@@ -47,7 +47,6 @@ const STATES = [
     ['admin.audit.noMatch', adminEn, 'activity under a filter'],
     ['admin.ann.none', adminEn, 'announcements'],
     ['admin.themes.none', adminEn, 'custom themes'],
-    ['admin.themes.noFonts', adminEn, 'custom fonts'],
     ['admin.email.noAccounts', adminEn, 'email addresses'],
     ['admin.avatars.none', adminEn, 'avatars'],
     ['admin.avatars.emptyFolder', adminEn, 'a scanned folder']

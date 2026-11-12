@@ -1303,13 +1303,8 @@
                 </div>
 
                 <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.fonts">Fonts</h3>
-                <div class="fieldDescription" data-i18n="admin.themes.fontsHint">For your own themes. WOFF2, up to 2 MB.</div>
                 <div class="jpf-te-list" id="themesFonts"></div>
                 <div class="jpf-form-narrow jpf-block-end">
-                    <div class="jpf-actions">
-                        <button is="emby-button" type="button" class="raised" id="fontChoose" data-i18n="admin.themes.fontChoose">Choose a font file</button>
-                        <span class="jpf-dim" id="fontFileName"></span>
-                    </div>
                     <input type="file" id="fontFile" accept=".woff2,font/woff2" hidden />
                     <div class="inputContainer">
                         <label class="inputLabel" for="fontFamily" data-i18n="admin.themes.fontName">Font name</label>
@@ -1331,6 +1326,7 @@
                         </label>
                     </div>
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow" id="fontUpload" data-i18n="admin.themes.fontUpload">Upload font</button>
+                    <div class="fieldDescription" data-i18n="admin.themes.fontFormatHint">WOFF2, up to 2 MB.</div>
                     <div class="jpf-hidden jpf-status" id="fontResult"></div>
                 </div>
                 </details>
@@ -2142,7 +2138,6 @@
                 'admin.themes.notJson': 'That file isn\'t a theme.',
                 'admin.themes.replaceTitle': 'Replace theme',
                 'admin.themes.replaceConfirm': 'Replace {name} with the imported file?',
-                'admin.themes.noFonts': 'No fonts yet. Choose a font file to add one.',
                 'admin.themes.fontWeight': 'Weight {w}',
                 'admin.themes.fontWeights': 'Weights {min}–{max}',
                 'admin.themes.fallbackSans': 'Sans-serif fallback',
@@ -2152,7 +2147,6 @@
                 'admin.themes.fontInUseHint': 'A theme uses it. Change that theme first.',
                 'admin.themes.fontDeleteTitle': 'Delete font',
                 'admin.themes.fontDeleteConfirm': 'Delete {name}?',
-                'admin.themes.fontPick': 'Choose a font file first.',
                 'admin.themes.fontTooBig': 'That file is over {mb} MB.',
                 'admin.themes.err.invalid': 'That theme has problems. Fix them and save again.',
                 'admin.themes.err.limit': 'Delete a theme first. A server keeps up to {max}.',
@@ -4748,7 +4742,7 @@
             /// The uploaded fonts, each in itself, with the themes that use it.
             function fontRowsHtml(data) {
                 const list = (data && data.fonts) || [];
-                if (!list.length) return '<div class="fieldDescription">' + escapeHtml(t('admin.themes.noFonts')) + '</div>';
+                if (!list.length) return '';
                 return list.map(function (f) {
                     const used = (f.usedBy || []).map(function (id) { return themeDisplayName(data, id); });
                     const weights = f.weightMin === f.weightMax
@@ -6206,12 +6200,23 @@
                     .slice(0, 64);
             }
 
+            // The one Upload font button. The rights box is checked before the chooser opens,
+            // so nobody picks a file only to be refused; uploadThemeFont checks it again.
+            function chooseThemeFont(page) {
+                const say = function (msg, good) { showThemeStatus(page, '#fontResult', msg, good); };
+                if (!page.querySelector('#fontRights').checked) { say(t('admin.themes.err.fontRights'), false); return; }
+                say('', false);
+                const input = page.querySelector('#fontFile');
+                input.value = '';
+                input.click();
+            }
+
             function uploadThemeFont(page) {
                 const file = page._themeFontFile;
                 const data = page._themes ? page._themes.data : {};
                 const max = data.maxFontBytes || 2097152;
                 const say = function (msg, good) { showThemeStatus(page, '#fontResult', msg, good); };
-                if (!file) { say(t('admin.themes.fontPick'), false); return; }
+                if (!file) return;
                 if (!/\.woff2$/i.test(file.name || '')) { say(t('admin.themes.err.fontInvalid'), false); return; }
                 if (file.size > max) { say(t('admin.themes.fontTooBig', { mb: Math.round(max / 1048576) }), false); return; }
                 if (!page.querySelector('#fontRights').checked) { say(t('admin.themes.err.fontRights'), false); return; }
@@ -6233,7 +6238,6 @@
                     button.disabled = false;
                     page._themeFontFile = null;
                     page.querySelector('#fontFile').value = '';
-                    page.querySelector('#fontFileName').textContent = '';
                     page.querySelector('#fontFamily').value = '';
                     page.querySelector('#fontRights').checked = false;
                     say(t('admin.themes.created', { name: (font && font.family) || family }), true);
@@ -6465,18 +6469,15 @@
                 page.querySelector('#teCancel').addEventListener('click', function () { closeThemeEditor(page); });
 
                 const fontFile = page.querySelector('#fontFile');
-                page.querySelector('#fontChoose').addEventListener('click', function () {
-                    fontFile.value = '';
-                    fontFile.click();
-                });
+                // One button: it opens the chooser, and choosing the file uploads it.
+                page.querySelector('#fontUpload').addEventListener('click', function () { chooseThemeFont(page); });
                 fontFile.addEventListener('change', function () {
                     const chosen = fontFile.files && fontFile.files[0];
                     page._themeFontFile = chosen || null;
-                    page.querySelector('#fontFileName').textContent = chosen ? chosen.name : '';
-                    if (chosen) page.querySelector('#fontFamily').value = fontNameFromFile(chosen.name);
-                    showThemeStatus(page, '#fontResult', '', false);
+                    if (!chosen) return;
+                    if (!page.querySelector('#fontFamily').value.trim()) page.querySelector('#fontFamily').value = fontNameFromFile(chosen.name);
+                    uploadThemeFont(page);
                 });
-                page.querySelector('#fontUpload').addEventListener('click', function () { uploadThemeFont(page); });
 
                 // A saved default changes what can be hidden and deleted.
                 window.addEventListener('jpf-settings-changed', function () { loadThemes(page); });

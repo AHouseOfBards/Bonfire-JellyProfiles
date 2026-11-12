@@ -88,7 +88,7 @@ const ADMIN = {
     },
     look: {
         basic: ['allowProfileThemes', 'defaultTheme'],
-        more: ['.jpf-te-mode[button]', '.jpf-te-mode[button]', 'fontChoose', 'fontFallback', 'fontFamily', 'fontFile', 'fontRights', 'fontUpload', 'logoAlt', 'logoChoose', 'logoCorners', 'logoFile', 'logoRemove', 'logoSave', 'logoText', 'richThemeMotion', 'teAccent', 'teAvatar', 'teBase', 'teBg1', 'teBg2', 'teButton', 'teCancel', 'teFont', 'teName', 'tePattern', 'teSave', 'teText', 'themeImport', 'themeImportFile', 'themeNew',
+        more: ['.jpf-te-mode[button]', '.jpf-te-mode[button]', 'fontFallback', 'fontFamily', 'fontFile', 'fontRights', 'fontUpload', 'logoAlt', 'logoChoose', 'logoCorners', 'logoFile', 'logoRemove', 'logoSave', 'logoText', 'richThemeMotion', 'teAccent', 'teAvatar', 'teBase', 'teBg1', 'teBg2', 'teButton', 'teCancel', 'teFont', 'teName', 'tePattern', 'teSave', 'teText', 'themeImport', 'themeImportFile', 'themeNew',
             // 2.0: the four layout choices and the preview's Expand, inside the editor's fold.
             'teAlign', 'teExpand', 'teLogo', 'teProfiles', 'teSize']
     },

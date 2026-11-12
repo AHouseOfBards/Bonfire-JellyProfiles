@@ -105,7 +105,7 @@ console.log('\n── The Themes section is on the page ────────
     const ids = ['jpfThemes', 'themesBuiltIn', 'themesCustom', 'themesFonts', 'themeNew', 'themeImport', 'themeImportFile',
         'themeEditor', 'teName', 'teBase', 'teAccent', 'teBg1', 'teBg2', 'teText', 'teFont', 'teAvatar', 'teButton',
         'tePattern', 'teAdvancedFields', 'tePreview', 'teProblems', 'teSave', 'teCancel',
-        'fontChoose', 'fontFile', 'fontFamily', 'fontFallback', 'fontRights', 'fontUpload'];
+        'fontFile', 'fontFamily', 'fontFallback', 'fontRights', 'fontUpload'];
     const missing = ids.filter(id => markup.indexOf('id="' + id + '"') === -1);
     ok('every control is in the markup', missing.length === 0, 'missing: ' + missing.join(', '));
     const section = markup.indexOf('id="jpfThemes"');
@@ -118,6 +118,15 @@ console.log('\n── The Themes section is on the page ────────
     ok('the font picker takes WOFF2 only', /id="fontFile"[^>]*accept="\.woff2,font\/woff2"/.test(markup)
        || /accept="\.woff2,font\/woff2"[^>]*id="fontFile"/.test(markup));
     ok('the rights box is a checkbox', /type="checkbox" id="fontRights"/.test(markup));
+    // One button (owner, 1.9.0.4): name, fallback and rights first, then Upload font, then the format.
+    const fontForm = markup.slice(markup.indexOf('id="themesFonts"'), markup.indexOf('id="fontResult"'));
+    ok('the font form has exactly one button', (fontForm.match(/<button\b/g) || []).length === 1, String((fontForm.match(/<button\b/g) || []).length));
+    ok('and it is Upload font, after the name, the fallback and the rights box',
+       fontForm.indexOf('id="fontFamily"') < fontForm.indexOf('id="fontFallback"') && fontForm.indexOf('id="fontFallback"') < fontForm.indexOf('id="fontRights"')
+       && fontForm.indexOf('id="fontRights"') < fontForm.indexOf('id="fontUpload"'));
+    ok('the format sits under that button', fontForm.indexOf('id="fontUpload"') < fontForm.indexOf('admin.themes.fontFormatHint'));
+    ok('the two spare lines are gone', markup.indexOf('admin.themes.fontsHint') === -1 && markup.indexOf('admin.themes.noFonts') === -1
+       && markup.indexOf('id="fontChoose"') === -1);
     // Simple sets four colours and derives the rest; say so, inside Simple and not Advanced.
     const hint = /id="teFollowHint"[^>]*data-i18n="admin\.themes\.followHint"[^>]*>([^<]*)</.exec(markup);
     ok('Simple says related colours follow the ones picked, in under ten words',
@@ -670,6 +679,25 @@ function part7() {
             ok('nor for one over the limit', big.sent.length === 0 && /2/.test(big.result));
             const none = await run({ file: null });
             ok('nor with no file chosen', none.sent.length === 0);
+
+            // The one button: it opens the chooser, but not before the rights box is ticked.
+            const choose = (rights) => {
+                const input = { value: 'x', clicks: 0, click() { this.clicks++; } };
+                const els = {
+                    '#fontRights': { checked: rights }, '#fontFile': input,
+                    '#fontResult': { textContent: '', style: {}, classList: { toggle() {}, add() {}, remove() {}, contains: () => false } }
+                };
+                const f = lift(['showThemeStatus', 'showOutcome', 'paintOutcome', 'openAdvancedFor', 'chooseThemeFont'], { window: {} });
+                if (!f || !f.chooseThemeFont) return null;
+                f.chooseThemeFont({ querySelector: s => els[s] || null });
+                return { input: input, text: els['#fontResult'].textContent };
+            };
+            const ticked = choose(true), unticked = choose(false);
+            ok('Upload font opens the file chooser once the rights box is ticked', ticked && ticked.input.clicks === 1 && ticked.input.value === '');
+            ok('and refuses, with the rights message and no chooser, if it is not', unticked && unticked.input.clicks === 0 && unticked.text.length > 0);
+            // The change listener is wired inside the page's start-up and cannot be lifted.
+            ok('choosing the file uploads it at once', /fontFile\.addEventListener\('change'[\s\S]{0,500}uploadThemeFont\(page\)/.test(script));
+            ok('and the Upload font button is the one that opens the chooser', /#fontUpload'\)\.addEventListener\('click'[^\n]*chooseThemeFont\(page\)/.test(script));
         }
         part8().catch(e => { console.error(e); process.exit(1); });
     })().catch(e => { ok('the upload checks ran', false, e.stack); finish(); });
