@@ -7082,7 +7082,7 @@
                 // server's zone is a real answer, so it is never asked. The zone arrives with
                 // the zone list, so until then the item is not there rather than to do.
                 if (isUtcZone(page._serverZone)) {
-                    items.push({ key: 'zone', text: t('admin.gs.zone'), done: !!c.DefaultTimeZone, tab: 'setup', anchor: 'jpfViewing' });
+                    items.push({ key: 'zone', text: t('admin.gs.zone'), done: !!c.DefaultTimeZone, tab: 'security', anchor: 'jpfViewing' });
                 }
                 // Last: everything above is worth doing before anyone sees the profile screen.
                 // Absent on a configuration from before 2.0, which is on.

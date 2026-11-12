@@ -164,11 +164,37 @@ ok('exactly the PIN and turning Bonfire on', keys() === 'pins,bonfireOn', keys()
     ok(zone + ' with no default: a to-do that opens the viewing hours',
        row('zone') && row('zone').getAttribute('data-level') === 'info' && keys() === 'pins,zone,bonfireOn', keys());
     buttons(row('zone'))[0] && buttons(row('zone'))[0].listeners.click();
-    ok('and goes to Setup at the zone', gone.pop() === 'setup#jpfViewing');
+    ok('and goes to Security at the zone', gone.pop() === 'security#jpfViewing');
     page._config.DefaultTimeZone = 'Europe/Paris';
     api.renderGettingStarted(page);
     ok(zone + ' with a default chosen: ticked', row('zone') && row('zone').getAttribute('data-level') === 'ok');
 });
+
+// Every Set up opens the tab that really holds its anchor. Viewing limits moved from Setup
+// to Security and the zone row went on opening Setup, where nothing was found.
+{
+    const panelOf = id => {
+        const at = html.indexOf('id="' + id + '"');
+        if (at === -1) return null;
+        const re = /data-panel="([a-z]+)"/g;
+        let m, last = null;
+        while ((m = re.exec(html)) && m.index < at) last = m[1];
+        return last;
+    };
+    page._serverZone = 'UTC';
+    page._config.DefaultTimeZone = '';
+    page._config.RequireMainPin = false;
+    page._config.BonfireOn = false;
+    api.renderGettingStarted(page);
+    ['pins', 'zone', 'bonfireOn'].forEach(function (k) {
+        const b = buttons(row(k))[0];
+        if (b) b.listeners.click();
+        const went = (gone.pop() || '').split('#');
+        ok('"' + k + '" Set up opens the tab that holds #' + went[1], !!went[1] && panelOf(went[1]) === went[0],
+           went.join('#') + ' vs ' + panelOf(went[1]));
+    });
+    delete page._config.BonfireOn;
+}
 page._serverZone = undefined;
 page._config.DefaultTimeZone = '';
 
