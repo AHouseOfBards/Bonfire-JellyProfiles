@@ -53,9 +53,9 @@ const MEASURE = `(function () {
   var out = { vw: innerWidth, vh: innerHeight };
   function q(s) { return root ? root.querySelector(s) : null; }
   function qa(s) { return root ? [].slice.call(root.querySelectorAll(s)) : []; }
-  out.form = box(q('.create-profile-container'));
-  out.bar = box(q('.create-profile-container > .profile-dialog-actions'));
-  out.pick = qa('.image-upload-btn').filter(function (b) { return b.offsetWidth; }).map(function (b) {
+  out.form = box(q('.jpf-create-profile-container'));
+  out.bar = box(q('.jpf-create-profile-container > .jpf-profile-dialog-actions'));
+  out.pick = qa('.jpf-image-upload-btn').filter(function (b) { return b.offsetWidth; }).map(function (b) {
     return { h: b.getBoundingClientRect().height, clipped: b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1,
       lines: Math.round(b.getBoundingClientRect().height / parseFloat(getComputedStyle(b).fontSize)) };
   });
@@ -63,7 +63,7 @@ const MEASURE = `(function () {
   // checkbox is judged by the label round it, which is what takes the tap; a label that only
   // names a field is not a control.
   out.small = [];
-  qa('button, input, select, textarea, summary, a[href], [role=button], .color-dot, .devices-dropdown-trigger').forEach(function (e) {
+  qa('button, input, select, textarea, summary, a[href], [role=button], .jpf-color-dot, .jpf-devices-dropdown-trigger').forEach(function (e) {
     if (e.type === 'hidden' || e.type === 'file') return;
     var cs = getComputedStyle(e);
     if (cs.display === 'none' || cs.visibility === 'hidden') return;
@@ -79,14 +79,14 @@ const MEASURE = `(function () {
   // (its top, and the top of the sticky Save bar): P2-513, a shot of it must show it.
   var more = q('details.jpf-more');
   if (more) {
-    var sum = more.querySelector('summary'), f = q('.create-profile-container'), bar = q('.create-profile-container > .profile-dialog-actions');
+    var sum = more.querySelector('summary'), f = q('.jpf-create-profile-container'), bar = q('.jpf-create-profile-container > .jpf-profile-dialog-actions');
     var sb = sum.getBoundingClientRect(), fb = f.getBoundingClientRect();
     out.more = { open: more.open, top: sb.top, bottom: sb.bottom, winTop: fb.top, winBottom: bar ? bar.getBoundingClientRect().top : fb.bottom };
   }
   // The lock badge against the first letter of its own tile (P2-514): the badge was 32px on a
   // tile the gate had fitted down to 88px, and covered the S.
-  out.locks = qa('.profile-lock-indicator').map(function (lk) {
-    var card = lk.closest('.profile-card'), av = card && card.querySelector('.profile-avatar');
+  out.locks = qa('.jpf-profile-lock-indicator').map(function (lk) {
+    var card = lk.closest('.jpf-profile-card'), av = card && card.querySelector('.jpf-profile-avatar');
     var lb = lk.getBoundingClientRect(), tb = lk.parentElement.getBoundingClientRect();
     var glyph = null;
     if (av) {
@@ -100,7 +100,7 @@ const MEASURE = `(function () {
   // The smallest visible text. The theme picker's miniature of the switcher is a picture of
   // a screen, not text anyone reads at that size, so it is left out.
   out.tiny = [];
-  [].slice.call(document.querySelectorAll('#profiles-gate-overlay *, .confirm-dialog-content *, .alert-dialog-content *')).forEach(function (e) {
+  [].slice.call(document.querySelectorAll('#profiles-gate-overlay *, .jpf-confirm-dialog-content *, .jpf-alert-dialog-content *')).forEach(function (e) {
     var t = '';
     for (var n = e.firstChild; n; n = n.nextSibling) if (n.nodeType === 3) t += n.textContent;
     t = t.trim();
@@ -108,7 +108,7 @@ const MEASURE = `(function () {
     var fs = parseFloat(getComputedStyle(e).fontSize);
     if (fs < 11.95) out.tiny.push(Math.round(fs * 10) / 10 + 'px ' + (typeof e.className === 'string' && e.className ? '.' + e.className.split(' ')[0] : e.tagName.toLowerCase()) + ' "' + t.slice(0, 14) + '"');
   });
-  var dlg = document.querySelector('.confirm-dialog-content, .alert-dialog-content');
+  var dlg = document.querySelector('.jpf-confirm-dialog-content, .jpf-alert-dialog-content');
   out.dialog = box(dlg);
   return out;
 })()`;

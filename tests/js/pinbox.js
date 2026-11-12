@@ -47,9 +47,9 @@ function fetchIcons() {
 const THEMES = fs.readdirSync(path.join(ROOT, 'Web', 'themes'))
     .filter(f => /\.json$/.test(f) && f !== 'fonts.json').map(f => f.replace(/\.json$/, '')).sort();
 const SCENES = ['pin', 'mainpin', 'ob-mainpin', 'pinreset'];
-// Not #pin-reset-code: the code from the email is six visible digits, not a PIN, and four
+// Not #jpf-pin-reset-code: the code from the email is six visible digits, not a PIN, and four
 // PIN dots over it said the wrong thing. It is asked about on its own below.
-const BOXES = '#profile-pin-input, #master-pin-input, #main-pin-new, #pin-reset-new';
+const BOXES = '#jpf-profile-pin-input, #jpf-master-pin-input, #jpf-main-pin-new, #jpf-pin-reset-new';
 
 // Runs in the page. Reports numbers; every check names its own member.
 const MEASURE = `(function () {
@@ -78,7 +78,7 @@ const MEASURE = `(function () {
       });
     });
   }, Promise.resolve()).then(function () {
-    var code = document.getElementById('pin-reset-code');
+    var code = document.getElementById('jpf-pin-reset-code');
     if (code) out.code = { dots: (getComputedStyle(code).backgroundImage.match(/radial-gradient/g) || []).length,
       placeholder: code.getAttribute('placeholder') || '' };
     return { boxes: out, code: out.code || null };
@@ -109,8 +109,8 @@ async function main() {
                 const n = theme + ' ' + scene;
                 if (scene === 'pinreset') {
                     const cd = got.code;
-                    ok(n + ' #pin-reset-code: the emailed code is not drawn as a PIN (no dots)', !!cd && cd.dots === 0, cd ? cd.dots + ' gradients' : 'no code field');
-                    ok(n + ' #pin-reset-code: it says what goes in it', !!cd && cd.placeholder.trim().length > 0, cd ? JSON.stringify(cd.placeholder) : 'no code field');
+                    ok(n + ' #jpf-pin-reset-code: the emailed code is not drawn as a PIN (no dots)', !!cd && cd.dots === 0, cd ? cd.dots + ' gradients' : 'no code field');
+                    ok(n + ' #jpf-pin-reset-code: it says what goes in it', !!cd && cd.placeholder.trim().length > 0, cd ? JSON.stringify(cd.placeholder) : 'no code field');
                 }
                 ok(n + ': there is a PIN box to measure', boxes.length > 0);
                 boxes.forEach(b => {

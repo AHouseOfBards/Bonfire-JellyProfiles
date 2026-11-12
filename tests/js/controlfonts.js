@@ -58,7 +58,7 @@ function fontOf(body) {
     return m ? m[1].trim() : null;
 }
 
-const SURFACES = ['#profiles-gate-overlay', '.jpf-trap-surface', '.create-profile-container'];
+const SURFACES = ['#profiles-gate-overlay', '.jpf-trap-surface', '.jpf-create-profile-container'];
 const CONTROLS = ['button', 'input', 'select', 'textarea'];
 
 SURFACES.forEach(surface => {

@@ -199,7 +199,7 @@ if (P) {
 
         // Sentinel selectors: a sheet that is long enough but missing the gate would
         // still be broken.
-        ['.profile-card', '.profile-avatar', '.profiles-grid', '#profiles-gate-overlay']
+        ['.jpf-profile-card', '.jpf-profile-avatar', '.profiles-grid', '#profiles-gate-overlay']
             .forEach(sel => ok(css.indexOf(sel) !== -1,
                 'the stylesheet defines ' + sel));
     } else {

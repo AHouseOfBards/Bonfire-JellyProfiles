@@ -137,7 +137,7 @@ const LOOK = `(function () {
         requestAnimationFrame(function () { requestAnimationFrame(function () {
           var gate = document.getElementById('profiles-gate-overlay');
           var title = gate && gate.querySelector('h1, h2, .profiles-title');
-          var name = gate && gate.querySelector('.profile-name, .profiles-name');
+          var name = gate && gate.querySelector('.jpf-profile-name, .profiles-name');
           var cs = getComputedStyle(document.body);
           done({
             marked: document.documentElement.getAttribute('data-jpf-photos'),

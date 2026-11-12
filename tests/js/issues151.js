@@ -220,7 +220,7 @@ ok('"Watching now" is gone from the catalogue', env.i18n.en['gate.watchingNow'] 
 ok('the badge resolves to Signed in',
     env.i18n.t('gate.signedIn') === 'Signed in');
 ok('and the gate renders it through the catalogue, not a literal',
-    /profile-current-badge">\$\{t\('gate\.signedIn'\)\}/.test(src));
+    /jpf-profile-current-badge">\$\{t\('gate\.signedIn'\)\}/.test(src));
 
 // ── #23: cut-out pictures ───────────────────────────────────────────────────
 console.log();
@@ -412,8 +412,8 @@ function ruleBody(selector) {
     return css.slice(start + 1, end);
 }
 
-const transparentRule = ruleBody('.profile-avatar.is-transparent');
-ok('.profile-avatar.is-transparent exists', transparentRule !== null);
+const transparentRule = ruleBody('.jpf-profile-avatar.is-transparent');
+ok('.jpf-profile-avatar.is-transparent exists', transparentRule !== null);
 if (transparentRule) {
     ok('it paints no colour', /background-color:\s*transparent/.test(transparentRule));
     ok('it draws no square ring', /border-color:\s*transparent/.test(transparentRule));
@@ -421,22 +421,22 @@ if (transparentRule) {
     ok('it lets the outline spread', /overflow:\s*visible/.test(transparentRule));
 }
 
-// The hover block sets box-shadow and border-color on .profile-avatar and sits later
+// The hover block sets box-shadow and border-color on .jpf-profile-avatar and sits later
 // in the sheet, so the transparent variant must be more specific or it loses.
-const hoverIdx = src.indexOf('.profile-card:hover .profile-avatar,');
-const overrideIdx = src.indexOf('.profile-card:hover .profile-avatar.is-transparent,');
+const hoverIdx = src.indexOf('.jpf-profile-card:hover .jpf-profile-avatar,');
+const overrideIdx = src.indexOf('.jpf-profile-card:hover .jpf-profile-avatar.is-transparent,');
 ok('the transparent variant outranks the hover block',
     overrideIdx !== -1 && hoverIdx !== -1 && overrideIdx < hoverIdx);
 
 ok('the current-profile ring follows the silhouette',
-    /\.profile-card\.is-current \.profile-avatar\.is-transparent img/.test(src)
+    /\.jpf-profile-card\.is-current \.jpf-profile-avatar\.is-transparent img/.test(src)
     && /drop-shadow\(3px 0 0 var\(--jpf-accent\)\)/.test(src));
 
-// The bug the first pass missed: `.profile-card.is-current .profile-avatar` is three
-// classes and `.profile-avatar.is-transparent` is two, so the accent border won and drew
+// The bug the first pass missed: `.jpf-profile-card.is-current .jpf-profile-avatar` is three
+// classes and `.jpf-profile-avatar.is-transparent` is two, so the accent border won and drew
 // a rounded square around a circular picture while the silhouette drew a second ring
 // inside it. Checking the hover override alone did not catch it, so resolve the cascade
-// for every state that touches border-color or box-shadow on .profile-avatar.
+// for every state that touches border-color or box-shadow on .jpf-profile-avatar.
 // A guard has to answer the SAME state. An earlier version of this check only compared
 // specificity totals, so the high-specificity hover guard counted as cover for the
 // is-current rule and the check passed against the build that actually had the bug —
@@ -447,11 +447,11 @@ function selectorsTouching(prop) {
     let m;
     while ((m = re.exec(src)) !== null) {
         const selList = m[1].trim();
-        if (!/\.profile-avatar/.test(selList)) continue;
+        if (!/\.jpf-profile-avatar/.test(selList)) continue;
         if (!new RegExp('(^|;|\\s)' + prop + '\\s*:').test(m[2])) continue;
         selList.split(',').forEach(s => {
             const sel = s.trim().replace(/\s+/g, ' ');
-            if (sel && /\.profile-avatar/.test(sel)) out.push(sel);
+            if (sel && /\.jpf-profile-avatar/.test(sel)) out.push(sel);
         });
     }
     return out;
@@ -459,26 +459,26 @@ function selectorsTouching(prop) {
 ['border-color', 'box-shadow'].forEach(prop => {
     const sels = selectorsTouching(prop);
     const guards = new Set(sels.filter(s => s.includes('.is-transparent')));
-    // The bare base rule is answered by the bare `.profile-avatar.is-transparent` rule,
+    // The bare base rule is answered by the bare `.jpf-profile-avatar.is-transparent` rule,
     // which is one class more specific and later in the sheet.
-    const plain = sels.filter(s => !s.includes('.is-transparent') && s !== '.profile-avatar');
+    const plain = sels.filter(s => !s.includes('.is-transparent') && s !== '.jpf-profile-avatar');
 
     const unguarded = plain.filter(s => {
         // The state this rule targets, restated for a cut-out avatar.
-        const wanted = s.replace(/\.profile-avatar(?![\w-])/, '.profile-avatar.is-transparent');
+        const wanted = s.replace(/\.jpf-profile-avatar(?![\w-])/, '.jpf-profile-avatar.is-transparent');
         return !guards.has(wanted);
     });
 
-    ok('every ' + prop + ' state on .profile-avatar is answered for cut-outs '
+    ok('every ' + prop + ' state on .jpf-profile-avatar is answered for cut-outs '
         + '(' + plain.length + ' states, ' + guards.size + ' guards)',
         unguarded.length === 0);
     if (unguarded.length) unguarded.forEach(u => console.log('        unguarded: ' + u));
 });
 
 ok('the current-profile square ring is off for cut-outs',
-    /\.profile-card\.is-current \.profile-avatar\.is-transparent \{/.test(src));
+    /\.jpf-profile-card\.is-current \.jpf-profile-avatar\.is-transparent \{/.test(src));
 ok('manage mode does not drop a square scrim on a cut-out',
-    /\.profile-avatar\.is-transparent \.profile-avatar-overlay-wrap \{[^}]*background:\s*transparent/.test(src));
+    /\.jpf-profile-avatar\.is-transparent \.jpf-profile-avatar-overlay-wrap \{[^}]*background:\s*transparent/.test(src));
 
 // Every custom property used must be declared somewhere, or the whole declaration is
 // invalid at computed-value time and silently does nothing.
@@ -561,17 +561,17 @@ ok('the sub-profile DTO carries it', /m\.TransparentAvatar,/.test(ctrl));
 console.log();
 console.log('── Remote navigation and 10-foot legibility ───────────────────');
 
-// initTVCheckboxes binds tabindex and Enter/Space to .library-check-label. A new
+// initTVCheckboxes binds tabindex and Enter/Space to .jpf-library-check-label. A new
 // checkbox that does not carry that class is invisible to a remote: no focus, no way
 // to tick it, and nothing on screen saying so.
 const toggleBlock = src.slice(src.indexOf('renderTransparentToggle: function'),
                               src.indexOf('renderAvatarPicker: function'));
-ok('the No background toggle is a .library-check-label, so a remote can focus it',
-    /class="library-check-label picture-transparent-toggle"/.test(toggleBlock));
+ok('the No background toggle is a .jpf-library-check-label, so a remote can focus it',
+    /class="jpf-library-check-label jpf-picture-transparent-toggle"/.test(toggleBlock));
 ok('and Enter/Space reaches it through initTVCheckboxes',
-    /container\.querySelectorAll\('\.library-check-label'\)/.test(src));
+    /container\.querySelectorAll\('\.jpf-library-check-label'\)/.test(src));
 ok('that class has a visible focus state',
-    /\.library-check-label:focus[^{]*\{[^}]*background:/.test(src));
+    /\.jpf-library-check-label:focus[^{]*\{[^}]*background:/.test(src));
 
 // Hidden rows must not be focus stops. display:none is what keeps it out of the
 // tab order while there is no picture to describe.
@@ -589,7 +589,7 @@ function filterOf(selector) {
     const m = body.match(/filter:\s*([^;]+);/);
     return m ? m[1] : null;
 }
-const focusFilter = filterOf('.profile-card:focus-within .profile-avatar.is-transparent img');
+const focusFilter = filterOf('.jpf-profile-card:focus-within .jpf-profile-avatar.is-transparent img');
 ok('the cut-out focus indicator exists', focusFilter !== null);
 if (focusFilter) {
     const widths = (focusFilter.match(/drop-shadow\((-?\d+)px \d+px 0|drop-shadow\(\d+ (-?\d+)px 0/g) || []);
@@ -601,14 +601,14 @@ if (focusFilter) {
     ok('and it keeps a wide accent glow, since box-shadow is off for cut-outs',
         /drop-shadow\(0 \d+px \d\dpx var\(--jpf-accent\)\)/.test(focusFilter));
 }
-const currentFilter = filterOf('.profile-card.is-current .profile-avatar.is-transparent img');
+const currentFilter = filterOf('.jpf-profile-card.is-current .jpf-profile-avatar.is-transparent img');
 ok('the current-profile ring is 3px too, matching the border elsewhere',
     currentFilter !== null && /drop-shadow\(3px 0 0 var\(--jpf-accent\)\)/.test(currentFilter));
 
 // A translated label must wrap inside its card, not widen it. The card floor is 140px
 // and "PIN Protected" becomes "Protégé par code PIN" in French — half again as long.
 const nameRule = filterOf === null ? '' : (() => {
-    const i = src.indexOf('.profile-name {');
+    const i = src.indexOf('.jpf-profile-name {');
     return i === -1 ? '' : src.slice(src.indexOf('{', i) + 1, src.indexOf('}', i));
 })();
 ok('the name block cannot grow wider than its card', /max-width:\s*100%/.test(nameRule));
@@ -616,7 +616,7 @@ ok('and a long word breaks rather than overflowing',
     /overflow-wrap:\s*break-word/.test(nameRule));
 
 const badgeRule = (() => {
-    const i = src.indexOf('.profile-pin-badge {');
+    const i = src.indexOf('.jpf-profile-pin-badge {');
     return i === -1 ? '' : src.slice(src.indexOf('{', i) + 1, src.indexOf('}', i));
 })();
 ok('the PIN badge is bounded by the card too', /max-width:\s*100%/.test(badgeRule));
@@ -627,8 +627,8 @@ ok('the PIN badge is bounded by the card too', /max-width:\s*100%/.test(badgeRul
 // spelling would fail for a token holding exactly the right colour while passing for
 // one redefined to transparent. What has to be true is that the backing is dark and
 // substantially opaque, whatever it is written as.
-ok('the manage-mode pencil keeps a backing it can be seen against', (() => {
-    const m = /\.profile-avatar\.is-transparent \.profile-avatar-overlay-svg \{([^}]*)\}/.exec(src);
+ok('the jpf-manage-mode pencil keeps a backing it can be seen against', (() => {
+    const m = /\.jpf-profile-avatar\.is-transparent \.jpf-profile-avatar-overlay-svg \{([^}]*)\}/.exec(src);
     if (!m) return false;
     const bg = /background:\s*([^;]+);/.exec(m[1]);
     if (!bg) return false;
@@ -637,7 +637,7 @@ ok('the manage-mode pencil keeps a backing it can be seen against', (() => {
         && L.alphaOf(value) >= 0.5;
 })());
 ok('and that backing is round, not the square that was removed',
-    /\.profile-avatar\.is-transparent \.profile-avatar-overlay-svg \{[^}]*border-radius:\s*50%/.test(src));
+    /\.jpf-profile-avatar\.is-transparent \.jpf-profile-avatar-overlay-svg \{[^}]*border-radius:\s*50%/.test(src));
 
 // ── #25: updated on a running server ────────────────────────────────────────
 console.log();

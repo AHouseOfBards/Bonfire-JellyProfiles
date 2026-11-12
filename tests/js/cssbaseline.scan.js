@@ -103,8 +103,8 @@ for (const r of gapRules) {
         if (modes.size === 1) mode = [...modes][0];
     }
     /* `display:none` in the base rule with a state rule flipping it on --
-     * `.picture-sources { display:none; flex-direction:column; gap:... }` plus
-     * `.picture-sources.is-open { display:flex }`. Both of these are flex
+     * `.jpf-picture-sources { display:none; flex-direction:column; gap:... }` plus
+     * `.jpf-picture-sources.is-open { display:flex }`. Both of these are flex
      * containers that lay out with gap; missing them would leave two panels with
      * no spacing on a TV and nothing to show for the scan. */
     if (!mode && /display\s*:\s*none/.test(r.body)) {

@@ -43,19 +43,19 @@ const PAINT = /(^|[\s;{"'`])((?:background(?:-color)?|color|border(?:-[a-z]+)*|o
 // selector, exactly; for profiles.js it is text that must be on the same line.
 const ALLOWED = {
     css: {
-        '.profile-card.is-switching .profile-avatar-container::after':
+        '.jpf-profile-card.is-switching .jpf-profile-avatar-container::after':
             'the spinner over a picture darkened to 40%, whatever the theme',
-        '.btn-danger': 'white on the red fill of a delete button',
-        '.btn-danger.is-busy::after': "the busy arc on that same red fill",
-        '.btn-primary:hover,\n.btn-primary:focus': 'a light edge on the accent fill',
-        '.image-upload-preview': "a profile's initial on that profile's own colour",
+        '.jpf-btn-danger': 'white on the red fill of a delete button',
+        '.jpf-btn-danger.is-busy::after': "the busy arc on that same red fill",
+        '.jpf-btn-primary:hover,\n.jpf-btn-primary:focus': 'a light edge on the accent fill',
+        '.jpf-image-upload-preview': "a profile's initial on that profile's own colour",
         '#profiles-floating-bubble.profiles-floating-fallback':
             "the fallback pill sits on jellyfin-web's page, not on Bonfire's",
         '#profiles-logo.jpf-logo-back-light':
             'set only behind a dark logo the theme would hide; it contrasts with the logo, not the theme (logobacking.js)'
     },
     js: {
-        'class="profile-avatar-overlay-svg"': 'the edit pencil over a darkened picture',
+        'class="jpf-profile-avatar-overlay-svg"': 'the edit pencil over a darkened picture',
         'stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: #fff;"':
             "the tick on a profile's own colour",
         'style="font-size: 1.15rem; color: #fff;">${p.isLinked': "the link badge on a profile's own colour",

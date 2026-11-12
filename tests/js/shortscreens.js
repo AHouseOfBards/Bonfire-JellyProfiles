@@ -77,7 +77,7 @@ const MEASURE = `(function (insets) {
     return (e.id ? '#' + e.id : e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className ? '.' + e.className.split(' ')[0] : ''))
       + ' "' + String(e.textContent || e.value || e.placeholder || '').replace(/\\s+/g, ' ').trim().slice(0, 16) + '"';
   }
-  var sel = 'button, input, select, textarea, a[href], .profile-card';
+  var sel = 'button, input, select, textarea, a[href], .jpf-profile-card';
   var els = [].slice.call(root.querySelectorAll(sel)).filter(function (e) {
     var r = e.getBoundingClientRect(), cs = getComputedStyle(e);
     return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'
@@ -117,14 +117,14 @@ const MEASURE = `(function (insets) {
   // The content's own edges, not just the controls inside it: a card whose border sits under
   // the notch is cut off even if its buttons are not.
   if (insets) {
-    [].slice.call(root.querySelectorAll('.profiles-modal-content, .create-profile-container, .pin-entry-container')).forEach(function (e) {
+    [].slice.call(root.querySelectorAll('.profiles-modal-content, .jpf-create-profile-container, .jpf-pin-entry-container')).forEach(function (e) {
       var r = e.getBoundingClientRect();
       if (r.width && (r.left < insets.left - 1 || r.right > vw - insets.right + 1)) out.under.push(name(e) + ' spans ' + Math.round(r.left) + '..' + Math.round(r.right));
     });
   }
   out.overflowX = root.scrollWidth - root.clientWidth;
   out.overflowY = root.scrollHeight - root.clientHeight;
-  var bar = root.querySelector('.create-profile-container > .profile-dialog-actions');
+  var bar = root.querySelector('.jpf-create-profile-container > .jpf-profile-dialog-actions');
   if (bar) {
     var b = bar.getBoundingClientRect();
     var box = bar.parentElement.getBoundingClientRect();
@@ -133,10 +133,10 @@ const MEASURE = `(function (insets) {
     out.fieldRoom = b.top - box.top;
   }
   // Unlock / Back: the PIN prompt's own controls, all of them, whole.
-  var pin = root.querySelector('#profile-pin-input, #master-pin-input, #main-pin-new');
+  var pin = root.querySelector('#jpf-profile-pin-input, #jpf-master-pin-input, #jpf-main-pin-new');
   if (pin) {
     var lo = Infinity, hi = -Infinity;
-    [].slice.call(pin.closest('.pin-entry-container, .profiles-modal-content').querySelectorAll('input, button')).forEach(function (e) {
+    [].slice.call(pin.closest('.jpf-pin-entry-container, .profiles-modal-content').querySelectorAll('input, button')).forEach(function (e) {
       var r = e.getBoundingClientRect(); if (r.height) { lo = Math.min(lo, r.top); hi = Math.max(hi, r.bottom); }
     });
     out.pinSpan = { top: lo, bottom: hi };

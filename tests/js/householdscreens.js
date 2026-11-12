@@ -40,8 +40,8 @@ PP.handleSessionExpired = () => {};
     await settle();
     const links = content.innerHTML;
     ok('Remove and Leave are quiet danger buttons, never secondary or primary',
-        /class="profiles-btn btn-danger-quiet links-remove"/.test(links)
-        && /class="profiles-btn btn-danger-quiet links-leave"/.test(links), links.slice(0, 80));
+        /class="profiles-btn jpf-btn-danger-quiet links-remove"/.test(links)
+        && /class="profiles-btn jpf-btn-danger-quiet links-leave"/.test(links), links.slice(0, 80));
 
     const standalone = { isOwner: false, isMember: false };
     PP.renderBonfireStatus(content, content, standalone, { getUrl: p => p }, 'tok');
@@ -72,7 +72,7 @@ PP.handleSessionExpired = () => {};
     const lib = { avatars: [{ id: 'a', url: '/a.png', thumbUrl: '/a.png', displayName: 'A' }], allowCustomUploads: true };
     const fresh = PP.renderAvatarPicker('create', lib, null, '#e07a5f', { enabled: false });
     ok('a new profile\'s picture chooser starts closed',
-        /aria-expanded="false"/.test(fresh) && !/class="picture-sources is-open"/.test(fresh));
+        /aria-expanded="false"/.test(fresh) && !/class="jpf-picture-sources is-open"/.test(fresh));
     const expl = (EN.match(/'profileForm\.artworkExplainer': (["'])([\s\S]*?)\1,\r?\n/) || [])[2] || '';
     ok('the artwork explainer is one short line, not a paragraph', expl.length > 0 && expl.length < 130, String(expl.length));
 
@@ -140,13 +140,13 @@ PP.handleSessionExpired = () => {};
     const fEnd = acct.indexOf('</details>', fAt);
     const inFold = fAt === -1 ? '' : acct.slice(fAt, fEnd);
     const outFold = fAt === -1 ? acct : acct.slice(0, fAt) + acct.slice(fEnd);
-    ok('the PIN is the main PIN, and shows', /for="account-pin-input">Main PIN</.test(acct) && /id="account-pin-input"/.test(outFold));
+    ok('the PIN is the main PIN, and shows', /for="jpf-account-pin-input">Main PIN</.test(acct) && /id="jpf-account-pin-input"/.test(outFold));
     ok('ask-PIN, home network and auto-lock are in one fold, closed',
         fAt !== -1 && !/\bopen\b/.test(acct.slice(fAt, acct.indexOf('>', fAt)))
         && ['account-ask-pin', 'account-lan-bypass', 'account-lockout-select'].every(id => inFold.indexOf('id="' + id + '"') !== -1)
         && ['account-ask-pin', 'account-lan-bypass', 'account-lockout-select'].every(id => outFold.indexOf('id="' + id + '"') === -1));
     ok('devices are a count and a Manage devices button',
-        /Known devices: 2/.test(acct) && /id="account-manage-devices"/.test(acct) && !/device-rename-btn/.test(acct));
+        /Known devices: 2/.test(acct) && /id="account-manage-devices"/.test(acct) && !/jpf-device-rename-btn/.test(acct));
     ok('the home-network option does not say LAN', !/\bLAN\b/.test((EN.match(/'profileForm\.bypassPinLan': [^\n]*/) || [''])[0]));
     const innerNode = { nodeType: 1, tagName: 'SELECT', parentNode: null };
     const fold = { nodeType: 1, tagName: 'DETAILS', open: false, parentNode: null };

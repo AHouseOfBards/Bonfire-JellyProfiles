@@ -42,7 +42,7 @@ const THEMES = fs.readdirSync(path.join(ROOT, 'Web', 'themes'))
     .filter(f => /\.json$/.test(f) && f !== 'fonts.json').map(f => f.replace(/\.json$/, '')).sort();
 
 const PIN = `(function () {
-  var b = document.getElementById('profile-pin-input');
+  var b = document.getElementById('jpf-profile-pin-input');
   if (!b) return null;
   b.value = '88888888';
   return { scrollW: b.scrollWidth, clientW: b.clientWidth, w: b.offsetWidth, vw: window.innerWidth };

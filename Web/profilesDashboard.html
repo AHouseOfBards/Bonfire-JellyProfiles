@@ -5838,18 +5838,18 @@
 
             function themeExpandedHtml() {
                 const card = function (s, i) {
-                    return '<div class="profile-card' + (i === 0 ? ' is-current' : '') + '"><div class="profile-avatar-container">' +
-                        '<div class="profile-avatar" style="background-color: ' + s[1] + '; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">' + s[2] + '</div>' +
-                        '</div><div class="profile-name"><span>' + escapeHtml(t(s[0])) + '</span></div></div>';
+                    return '<div class="jpf-profile-card' + (i === 0 ? ' is-current' : '') + '"><div class="jpf-profile-avatar-container">' +
+                        '<div class="jpf-profile-avatar" style="background-color: ' + s[1] + '; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">' + s[2] + '</div>' +
+                        '</div><div class="jpf-profile-name"><span>' + escapeHtml(t(s[0])) + '</span></div></div>';
                 };
                 return '<div id="teExpandGate" role="dialog" aria-modal="true" aria-label="' + escapeHtml(t('admin.themes.expandLabel')) + '">' +
                     '<div class="profiles-modal-content jpf-one-home">' +
                     '<h1 class="profiles-title">' + escapeHtml(t('admin.themes.xTitle')) + '</h1>' +
                     '<div class="profiles-home-section"><div class="profiles-grid">' + EXPAND_SAMPLES.map(card).join('') +
-                    '<div class="profile-card action-add-profile"><div class="profile-avatar-container"><div class="profile-avatar add-avatar">+</div></div>' +
-                    '<div class="profile-name">' + escapeHtml(t('admin.themes.xAdd')) + '</div></div>' +
+                    '<div class="jpf-profile-card action-add-profile"><div class="jpf-profile-avatar-container"><div class="jpf-profile-avatar jpf-add-avatar">+</div></div>' +
+                    '<div class="jpf-profile-name">' + escapeHtml(t('admin.themes.xAdd')) + '</div></div>' +
                     '</div></div>' +
-                    '<div class="profiles-footer"><span class="profiles-btn btn-secondary">' + escapeHtml(t('admin.themes.xManage')) + '</span></div>' +
+                    '<div class="profiles-footer"><span class="profiles-btn jpf-btn-secondary">' + escapeHtml(t('admin.themes.xManage')) + '</span></div>' +
                     '</div>' +
                     '<button is="emby-button" type="button" class="raised jpf-te-xclose">' + escapeHtml(t('admin.themes.expandClose')) + '</button>' +
                     '</div>';

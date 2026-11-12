@@ -199,7 +199,7 @@ const last = url => sent(url).pop();
     const ask = sent('plugins/profiles/account/email').filter(x => !x.body).length;
     PP._renderAccountSettings(page, PP.currentProfiles[0], [], { masterUserId: 'main', token: 'tok' });
     await settle();
-    ok('Your account has the Email section, after sign-in', /account-pin-input[\s\S]*account-email-slot[\s\S]*devices/.test(page.innerHTML));
+    ok('Your account has the Email section, after sign-in', /jpf-account-pin-input[\s\S]*account-email-slot[\s\S]*devices/.test(page.innerHTML));
     ok('and asks for it when the page opens', sent('plugins/profiles/account/email').filter(x => !x.body).length === ask + 1);
 
     // ── Forgot PIN ──────────────────────────────────────────────────────────
@@ -226,20 +226,20 @@ const last = url => sent(url).pop();
     ok('and says where, masked', id('#pin-reset-note').textContent === 'Enter the code sent to p•••@example.com, then a new PIN.');
 
     before = sent('plugins/profiles/account/pin-reset').length;
-    id('#pin-reset-code').value = '12345';
-    id('#pin-reset-new').value = '2468';
+    id('#jpf-pin-reset-code').value = '12345';
+    id('#jpf-pin-reset-new').value = '2468';
     id('#pin-reset-save').click();
     await settle();
     ok('a short code is refused here', sent('plugins/profiles/account/pin-reset').length === before
        && id('#pin-reset-error').textContent === 'Enter the 6-digit code.');
-    id('#pin-reset-code').value = '123456';
-    id('#pin-reset-new').value = '24';
+    id('#jpf-pin-reset-code').value = '123456';
+    id('#jpf-pin-reset-new').value = '24';
     id('#pin-reset-save').click();
     await settle();
     ok('so is a short PIN', sent('plugins/profiles/account/pin-reset').length === before);
 
     server.refuse['plugins/profiles/account/pin-reset'] = [400, "That code isn't right.", 'code_wrong'];
-    id('#pin-reset-new').value = '2468';
+    id('#jpf-pin-reset-new').value = '2468';
     id('#pin-reset-save').click();
     await settle();
     ok("the server's refusal is shown and nothing carries on", id('#pin-reset-error').textContent === "That code isn't right. Check it and try again."
@@ -250,8 +250,8 @@ const last = url => sent(url).pop();
     await settle();
     ok('Send a new code sends again', sent('plugins/profiles/account/pin-reset/send').length === sends + 1);
 
-    id('#pin-reset-code').value = '654321';
-    id('#pin-reset-new').value = '2468';
+    id('#jpf-pin-reset-code').value = '654321';
+    id('#jpf-pin-reset-new').value = '2468';
     id('#pin-reset-save').click();
     await settle();
     p = last('plugins/profiles/account/pin-reset');
@@ -263,7 +263,7 @@ const last = url => sent(url).pop();
     id('#pin-forgot').click();
     await settle();
     id('#pin-reset-back').click();
-    ok('Back returns to the PIN prompt', !!id('#master-pin-input'));
+    ok('Back returns to the PIN prompt', !!id('#jpf-master-pin-input'));
 
     // The picker's PIN prompt: the main account's tile only.
     const switched = [];
@@ -278,8 +278,8 @@ const last = url => sent(url).pop();
     ok("the main account's tile does", id('#pin-forgot').hidden === false);
     id('#pin-forgot').click();
     await settle();
-    id('#pin-reset-code').value = '111111';
-    id('#pin-reset-new').value = '1357';
+    id('#jpf-pin-reset-code').value = '111111';
+    id('#jpf-pin-reset-new').value = '1357';
     id('#pin-reset-save').click();
     await settle();
     ok('and a reset there switches in with the new PIN', switched.length === 1 && switched[0][0] === 'main' && switched[0][1] === '1357');

@@ -40,20 +40,20 @@ const ALLOWED = {
     '#profiles-logo.jpf-logo-back-dark { background }': 'set only behind a light logo the theme would hide (logobacking.js)',
     '#profiles-logo.jpf-logo-back-light { background }': 'set only behind a dark logo the theme would hide (logobacking.js)',
     '.profiles-maintenance { background }': 'the fallback if the theme has not set its background yet',
-    '.profile-card.is-switching .profile-avatar-container::after { border-top-color }':
+    '.jpf-profile-card.is-switching .jpf-profile-avatar-container::after { border-top-color }':
         'the spinner over a picture darkened to 40%, whatever the theme',
     '.profiles-home-icon { text-shadow }': "the flame's own orange glow: a brand colour, kept off the warning token on purpose",
     '.profiles-home-icon.bonfire-icon-color { text-shadow }': "the flame's own orange glow: a brand colour",
-    '.profile-avatar.is-transparent img { filter }': 'a black shadow under a cut-out picture, which is dark on any theme',
-    '.profile-card.is-current .profile-avatar.is-transparent img { filter }': 'the same black shadow, current tile',
-    '.profile-avatar-overlay-svg { filter }': 'a black shadow behind the pencil over a darkened picture',
-    '.profile-lock-indicator { background }': "a dark disc over a profile's own picture, whatever the theme",
-    '.btn-danger.is-busy::after { border-top-color }': 'white on the red fill of a delete button',
-    '.btn-danger { background }': 'a fixed red under white text; --jpf-danger is a light coral on dark themes and white on it is under 3:1',
-    '.btn-danger { color }': 'white on the red fill of a delete button',
-    '.btn-danger:hover,\n.btn-danger:focus { background }': 'the hover of that same fixed red',
-    '.btn-primary:hover,\n.btn-primary:focus { border-color }': 'a light edge on the accent fill',
-    '.image-upload-preview { color }': "a profile's initial on that profile's own colour",
+    '.jpf-profile-avatar.is-transparent img { filter }': 'a black shadow under a cut-out picture, which is dark on any theme',
+    '.jpf-profile-card.is-current .jpf-profile-avatar.is-transparent img { filter }': 'the same black shadow, current tile',
+    '.jpf-profile-avatar-overlay-svg { filter }': 'a black shadow behind the pencil over a darkened picture',
+    '.jpf-profile-lock-indicator { background }': "a dark disc over a profile's own picture, whatever the theme",
+    '.jpf-btn-danger.is-busy::after { border-top-color }': 'white on the red fill of a delete button',
+    '.jpf-btn-danger { background }': 'a fixed red under white text; --jpf-danger is a light coral on dark themes and white on it is under 3:1',
+    '.jpf-btn-danger { color }': 'white on the red fill of a delete button',
+    '.jpf-btn-danger:hover,\n.jpf-btn-danger:focus { background }': 'the hover of that same fixed red',
+    '.jpf-btn-primary:hover,\n.jpf-btn-primary:focus { border-color }': 'a light edge on the accent fill',
+    '.jpf-image-upload-preview { color }': "a profile's initial on that profile's own colour",
     '#profiles-floating-bubble.profiles-floating-fallback { color }': "the fallback pill sits on jellyfin-web's page, not on Bonfire's"
 };
 

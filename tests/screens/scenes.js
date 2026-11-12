@@ -301,7 +301,7 @@
         var d = document.querySelector('details.jpf-more');
         if (!d) return;
         d.open = true;
-        var form = d.closest('.create-profile-container');
+        var form = d.closest('.jpf-create-profile-container');
         // After the form's own first focus, which scrolls it back to the name field.
         return new Promise(function (resolve) {
             setTimeout(function () {
@@ -321,12 +321,12 @@
             return manage(P).then(function () { P.showEditProfileModal(PROFILES[2]); return when('details.jpf-more'); })
                 .then(openMore);
         },
-        'account': function (P) { return manage(P).then(function () { P.showAccountSettings(); return when('#account-email-input, .create-profile-container'); }); },
-        'switcher': function (P) { return manage(P).then(function () { P.showSwitcherModeModal(); return when('.create-profile-container'); }); },
-        'sharing': function (P) { return manage(P).then(function () { P.showBonfireModal(); return when('.create-profile-container'); }); },
+        'account': function (P) { return manage(P).then(function () { P.showAccountSettings(); return when('#account-email-input, .jpf-create-profile-container'); }); },
+        'switcher': function (P) { return manage(P).then(function () { P.showSwitcherModeModal(); return when('.jpf-create-profile-container'); }); },
+        'sharing': function (P) { return manage(P).then(function () { P.showBonfireModal(); return when('.jpf-create-profile-container'); }); },
         'mainpin': function (P) { return gate(P).then(function () { P.promptSetMainPin(PROFILES, false, function () {}); }); },
         'masterpin': function (P) { return gate(P).then(function () { P.promptMasterPinEntry('manage', function () {}); }); },
-        'pinreset': function (P) { return gate(P).then(function () { P.showPinReset(function () {}, function () {}); return when('#pin-reset-code'); }); },
+        'pinreset': function (P) { return gate(P).then(function () { P.showPinReset(function () {}, function () {}); return when('#jpf-pin-reset-code'); }); },
         'maintenance': function (P) {
             return gate(P).then(function () { P.showMaintenance({ message: 'Updating the server. Back soon.', untilUtc: '2026-11-06T03:00:00Z' }, true, false); });
         },
@@ -351,7 +351,7 @@
                 if (overlay) overlay.style.opacity = '';
                 var settle = function () { window.__ready = true; };
                 (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function () {
-                    // The anim-fade-in on the content, and any dialog's own entrance.
+                    // The jpf-anim-fade-in on the content, and any dialog's own entrance.
                     setTimeout(settle, 900);
                 });
             }); });

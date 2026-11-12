@@ -94,7 +94,7 @@ const last = url => sent(url).pop();
     const cardOf = id => {
         const at = html.indexOf('data-id="' + id + '"');
         if (at === -1) return '';
-        const next = html.indexOf('profile-card', at + 20);
+        const next = html.indexOf('jpf-profile-card', at + 20);
         return html.slice(at, next === -1 ? undefined : next);
     };
     const sectionOf = id => {
@@ -117,7 +117,7 @@ const last = url => sent(url).pop();
     const wire = profile => {
         const card = D.makeNode({ 'data-id': profile.profileUserId });
         PP.attachOverlayInteractions(D.makeNode({}, {
-            querySelectorAll: sel => (sel.indexOf('.profile-card:not') === 0 ? [card] : [])
+            querySelectorAll: sel => (sel.indexOf('.jpf-profile-card:not') === 0 ? [card] : [])
         }), [profile]);
         return card;
     };

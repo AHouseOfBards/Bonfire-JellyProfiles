@@ -30,7 +30,7 @@ const VIDEOS = {
     // Nightfall: each profile its own ring, and focus moving along them.
     rings: {
         theme: 'nightfall', scene: 'picker', device: 'tv', seconds: 6,
-        act: 'var cards=[].slice.call(document.querySelectorAll(".profile-card"));'
+        act: 'var cards=[].slice.call(document.querySelectorAll(".jpf-profile-card"));'
             + 'cards.forEach(function(c,i){setTimeout(function(){c.focus();},700+i*1100);});'
     },
     // Glass: the settings panel opening over the gate, blurring what is behind it, and the

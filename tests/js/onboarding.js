@@ -103,9 +103,9 @@ const html = () => content.innerHTML;
     id('#onboarding-next').click();
 
     console.log('\n── Main PIN ────────────────────────────────────────────────────');
-    ok('the PIN step is the account PIN screen', !!id('#main-pin-new'));
+    ok('the PIN step is the account PIN screen', !!id('#jpf-main-pin-new'));
     ok('a step an older server marks required still has Not now', !!id('#main-pin-skip'));
-    id('#main-pin-new').value = '1234';
+    id('#jpf-main-pin-new').value = '1234';
     id('#main-pin-save').click();
     await settle();
     const acct = sent('plugins/profiles/account')[0];
@@ -174,7 +174,7 @@ const html = () => content.innerHTML;
     ] };
     PP.maybeStartOnboarding();
     await settle();
-    ok('a PIN already set skips the PIN step', !id('#main-pin-new') && !!id('#onboarding-profile-name'));
+    ok('a PIN already set skips the PIN step', !id('#jpf-main-pin-new') && !!id('#onboarding-profile-name'));
     // "Can't skip" was cut; a flag an older server still sends changes nothing.
     ok('a step an older server marks required still has Skip', !!id('#onboarding-skip'));
     ok('and a single numbered step shows no counter', html().indexOf('Step ') === -1);

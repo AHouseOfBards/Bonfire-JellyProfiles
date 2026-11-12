@@ -124,9 +124,9 @@ console.log();
 console.log('── Signals mean what they look like ──────────────────────────');
 // The pills were inverted: "PIN Protected" red, "No PIN" green. Neither state is
 // an error, so neither may carry an error colour.
-const locked = CSS.slice(CSS.indexOf('.profile-pin-badge.locked'));
+const locked = CSS.slice(CSS.indexOf('.jpf-profile-pin-badge.locked'));
 const lockedRule = locked.slice(0, locked.indexOf('}'));
-const unlocked = CSS.slice(CSS.indexOf('.profile-pin-badge.unlocked'));
+const unlocked = CSS.slice(CSS.indexOf('.jpf-profile-pin-badge.unlocked'));
 const unlockedRule = unlocked.slice(0, unlocked.indexOf('}'));
 
 check('protected is not red', /230,\s*0,\s*0|#ff6b6b/.test(lockedRule), false);
@@ -146,31 +146,31 @@ check('protected reads more present than unprotected', (() => {
 
 console.log();
 console.log('── Destructive triggers are quieter than confirmations ───────');
-// btn-danger stays filled: it is the Confirm button on the dialog these open, and
+// jpf-btn-danger stays filled: it is the Confirm button on the dialog these open, and
 // the panic Disable button, where loud red IS the primary action.
-const danger = CSS.slice(CSS.indexOf('.btn-danger {'));
+const danger = CSS.slice(CSS.indexOf('.jpf-btn-danger {'));
 const dangerRule = danger.slice(0, danger.indexOf('}'));
-check('btn-danger is still filled', /background:\s*rgba\(230,0,0,0\.85\)/.test(dangerRule), true);
+check('jpf-btn-danger is still filled', /background:\s*rgba\(230,0,0,0\.85\)/.test(dangerRule), true);
 
-const quiet = CSS.slice(CSS.indexOf('.btn-danger-quiet {'));
+const quiet = CSS.slice(CSS.indexOf('.jpf-btn-danger-quiet {'));
 const quietRule = quiet.slice(0, quiet.indexOf('}'));
-check('btn-danger-quiet exists', CSS.includes('.btn-danger-quiet {'), true);
+check('jpf-btn-danger-quiet exists', CSS.includes('.jpf-btn-danger-quiet {'), true);
 check('and is not filled', /background:\s*transparent/.test(quietRule), true);
 check('but keeps a red edge', /border:.*var\(--jpf-danger-a40\)/.test(quietRule), true);
 
-for (const id of ['edit-delete-btn', 'bonfire-delete-btn', 'bonfire-leave-btn']) {
-    const re = new RegExp('id="' + id + '"[^>]*class="profiles-btn btn-danger-quiet"');
+for (const id of ['jpf-edit-delete-btn', 'bonfire-delete-btn', 'bonfire-leave-btn']) {
+    const re = new RegExp('id="' + id + '"[^>]*class="profiles-btn jpf-btn-danger-quiet"');
     check(id + ' uses the quiet style', re.test(SRC), true);
 }
 // The confirm dialog must NOT have been demoted along with them.
 check('the confirm button stays loud',
-    /id="dialog-confirm-btn"[^>]*class="profiles-btn btn-danger"/.test(SRC), true);
+    /id="dialog-confirm-btn"[^>]*class="profiles-btn jpf-btn-danger"/.test(SRC), true);
 check('panic disable stays loud',
-    /id="profiles-panic-submit"[^>]*class="profiles-btn btn-danger"/.test(SRC), true);
+    /id="profiles-panic-submit"[^>]*class="profiles-btn jpf-btn-danger"/.test(SRC), true);
 
 console.log();
 console.log('── The avatar colour stays off the border ────────────────────');
-const avStart = CSS.search(/\n\s*\.profile-avatar \{/);
+const avStart = CSS.search(/\n\s*\.jpf-profile-avatar \{/);
 const av = CSS.slice(avStart);
 const avRule = av.slice(0, av.indexOf('}'));
 check('background is clipped to the padding box', /background-clip:\s*padding-box/.test(avRule), true);
@@ -241,16 +241,16 @@ const circleSelectors = (function () {
 })();
 
 for (const sel of [
-    '.avatar-library-item',
-    '.profile-card.is-switching .profile-avatar-container::after',
+    '.jpf-avatar-library-item',
+    '.jpf-profile-card.is-switching .jpf-profile-avatar-container::after',
     '.profiles-btn.is-busy::after',
-    '.profile-avatar.is-transparent .profile-avatar-overlay-svg',
-    '.profile-lock-indicator',
-    '.profile-bonfire-indicator',
+    '.jpf-profile-avatar.is-transparent .jpf-profile-avatar-overlay-svg',
+    '.jpf-profile-lock-indicator',
+    '.jpf-profile-bonfire-indicator',
     '#profiles-floating-bubble.profiles-floating-fallback',
-    '.color-dot',
-    '.image-upload-preview',
-    '.tag-chip-remove'
+    '.jpf-color-dot',
+    '.jpf-image-upload-preview',
+    '.jpf-tag-chip-remove'
 ]) {
     check(sel + ' is still a circle', circleSelectors.includes(sel), true);
 }
@@ -261,16 +261,16 @@ const pillRule = (sel) => {
     const i = CSS.indexOf(sel + ' {');
     return i === -1 ? '' : CSS.slice(i, CSS.indexOf('}', i));
 };
-check('the tag chip is still a pill', /border-radius: ?999px/.test(pillRule('.tag-chip')), true);
+check('the tag chip is still a pill', /border-radius: ?999px/.test(pillRule('.jpf-tag-chip')), true);
 
 console.log();
 console.log('── One control looks like the others ─────────────────────────');
 // Allowed Devices cannot become a <select> — it is multi-select with checkboxes —
 // so it has to borrow the natives' appearance instead. It sat directly above two
 // real selects, which is what made the mismatch obvious.
-const trig = CSS.slice(CSS.indexOf('.devices-dropdown-trigger {'));
+const trig = CSS.slice(CSS.indexOf('.jpf-devices-dropdown-trigger {'));
 const trigRule = trig.slice(0, trig.indexOf('}'));
-const sel = CSS.slice(CSS.indexOf('.form-group select {'));
+const sel = CSS.slice(CSS.indexOf('.jpf-form-group select {'));
 const selRule = sel.slice(0, sel.indexOf('}'));
 
 for (const prop of ['background-size: 20px', 'border-radius: var(--jpf-input-r)', 'border: 1px solid var(--jpf-input-border)',
@@ -285,8 +285,8 @@ check('the text arrow is gone', SRC.includes('>▼<'), false);
 console.log();
 console.log('── Choosing a picture is one action, not six ─────────────────');
 check('the sources panel exists', /id="\$\{prefix\}-picture-sources"/.test(SRC), true);
-check('it is collapsed by default', /\.picture-sources \{[^}]*display: none/.test(CSS), true);
-check('and opens on a class', /\.picture-sources\.is-open \{[^}]*display: flex/.test(CSS), true);
+check('it is collapsed by default', /\.jpf-picture-sources \{[^}]*display: none/.test(CSS), true);
+check('and opens on a class', /\.jpf-picture-sources\.is-open \{[^}]*display: flex/.test(CSS), true);
 check('one button controls it', /id="\$\{prefix\}-change-picture"/.test(SRC), true);
 check('the button announces its state', /aria-expanded="\$\{sourcesOpen\}"/.test(SRC), true);
 // Was "opens when there is no picture yet"; closed always since P2-104.
@@ -311,8 +311,8 @@ console.log('── Gate footer button spacing ───────────
 const footer = CSS.slice(CSS.indexOf('.profiles-footer {'));
 const footerRule = footer.slice(0, footer.indexOf('}'));
 check('.profiles-footer has a gap', /gap:\s*var\(--jpf-gap-lg\)/.test(footerRule), true);
-check('matches .pin-actions, the other gate row',
-    /\.pin-actions\s*\{[^}]*gap:\s*var\(--jpf-gap-lg\)/.test(CSS), true);
+check('matches .jpf-pin-actions, the other gate row',
+    /\.jpf-pin-actions\s*\{[^}]*gap:\s*var\(--jpf-gap-lg\)/.test(CSS), true);
 check('wraps rather than crowding a phone', /flex-wrap:\s*wrap/.test(footerRule), true);
 
 console.log();

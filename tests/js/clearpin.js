@@ -70,7 +70,7 @@ async function save(env, steps) {
     let env = setup();
     let sent = await save(env, async (c) => {
         c.querySelector('#edit-clear-pin-btn').click();
-        const input = c.querySelector('#edit-pin-input');
+        const input = c.querySelector('#jpf-edit-pin-input');
         input.value = '1234';
         input.fire('input');
     });
@@ -88,7 +88,7 @@ async function save(env, steps) {
     env = setup();
     sent = await save(env, async (c) => {
         c.querySelector('#edit-clear-pin-btn').click();
-        c.querySelector('#edit-pin-input').value = '12';
+        c.querySelector('#jpf-edit-pin-input').value = '12';
     });
     ok('a 2-digit PIN after a clear is refused, nothing sent', !sent,
        sent ? JSON.stringify(sent.body.pin) : '');

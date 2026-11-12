@@ -224,7 +224,7 @@ check('the footer is reached from the bottom row, and only from there', tvMove(2
 // never consults [tabindex] — so a profile card, which is a div, is invisible to it while
 // our footer buttons are not. Any moment the trap does not get the key event therefore
 // leaves the grid unreachable and Manage Profiles the only place focus can go.
-const cardMarkup = L.readProfiles().match(/<div class="profile-card[^"]*"/g) || [];
+const cardMarkup = L.readProfiles().match(/<div class="jpf-profile-card[^"]*"/g) || [];
 check('every profile card is focusable to upstream as well',
     cardMarkup.length > 0 && cardMarkup.every(m => /\bfocusable\b/.test(m)), true);
 

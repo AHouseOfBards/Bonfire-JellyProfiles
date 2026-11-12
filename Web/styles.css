@@ -209,7 +209,7 @@
    box. After the Glass frost rule above, which this has to undo. */
 /* 706px: nine themes as three rows of three rather than four, four and
    one, with Done under the cards' left edge rather than out past it. */
-.create-profile-container.jpf-theme-page {
+.jpf-create-profile-container.jpf-theme-page {
     max-width: 706px;
     background: transparent;
     border-color: transparent;
@@ -327,47 +327,47 @@
    auto-fill rather than a fixed count so it reflows from a phone to a TV
    without a media query, and scrolls internally instead of pushing the
    form's buttons off screen when the library is large. */
-.avatar-color-group {
+.jpf-avatar-color-group {
     transition: opacity 0.2s ease;
 }
-.avatar-color-group.is-inert {
+.jpf-avatar-color-group.is-inert {
     opacity: 0.45;
 }
 /* The only thing that said this button opens a panel was aria-expanded,
    which is not a thing anyone can see. */
-.picture-caret {
+.jpf-picture-caret {
     font-size: 1.15rem !important;
     margin-left: -2px;
     opacity: 0.7;
     transition: transform 0.2s ease;
 }
-.picture-change-btn[aria-expanded="true"] .picture-caret {
+.jpf-picture-change-btn[aria-expanded="true"] .jpf-picture-caret {
     transform: rotate(180deg);
 }
 /* Held down for as long as the panel is out, so the link between the two
    survives the panel being scrolled past. */
-.picture-change-btn[aria-expanded="true"] {
+.jpf-picture-change-btn[aria-expanded="true"] {
     background-color: var(--jpf-accent-a18);
     border-color: var(--jpf-accent-a60);
     color: var(--jpf-text-1);
 }
 @media (prefers-reduced-motion: reduce) {
-    .picture-caret {
+    .jpf-picture-caret {
         transition: none;
     }
 }
 /* Change picture and Remove: same class, same height, one group. */
-.image-upload-actions {
+.jpf-image-upload-actions {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
     min-width: 0;
 }
-.picture-remove-btn .material-icons {
+.jpf-picture-remove-btn .material-icons {
     color: var(--jpf-danger);
 }
-.picture-remove-btn:hover, .picture-remove-btn:focus {
+.jpf-picture-remove-btn:hover, .jpf-picture-remove-btn:focus {
     color: var(--jpf-danger-quiet);
 }
 /* Collapsed by default on a profile that already has a picture. When it
@@ -376,16 +376,16 @@
 /* Shown only while a picture is set — with no picture the colour is the
    whole background and there is nothing to make transparent. The inline
    display comes from renderAvatarPicker and is driven by setPreview. */
-.picture-transparent-row {
+.jpf-picture-transparent-row {
     min-width: 0;
 }
-.picture-transparent-toggle {
+.jpf-picture-transparent-toggle {
     font-size: 0.88rem !important;
 }
-.picture-transparent-hint {
+.jpf-picture-transparent-hint {
     margin-top: 4px;
 }
-.picture-sources {
+.jpf-picture-sources {
     display: none;
     flex-direction: column;
     gap: var(--jpf-gap);
@@ -399,10 +399,10 @@
     border: 1px solid var(--jpf-border-1);
     border-radius: var(--jpf-r-md);
 }
-.picture-sources.is-open {
+.jpf-picture-sources.is-open {
     display: flex;
 }
-.picture-source-block {
+.jpf-picture-source-block {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -410,11 +410,11 @@
 }
 /* One rule, so a server with uploads locked off does not leave a divider
    above nothing. */
-.picture-source-block + .picture-source-block {
+.jpf-picture-source-block + .jpf-picture-source-block {
     border-top: 1px solid var(--jpf-border-1);
     padding-top: var(--jpf-gap);
 }
-.picture-source-title {
+.jpf-picture-source-title {
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.06em;
@@ -422,12 +422,12 @@
     color: var(--jpf-text-3);
 }
 /* The panel is the box now; a second one inside it was two frames deep. */
-.picture-sources .avatar-library-grid {
+.jpf-picture-sources .jpf-avatar-library-grid {
     background: transparent;
     border: none;
     padding: 0;
 }
-.avatar-library-grid {
+.jpf-avatar-library-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
     gap: var(--jpf-gap);
@@ -438,7 +438,7 @@
     border-radius: var(--jpf-r-md);
     border: 1px solid var(--jpf-border-1);
 }
-.avatar-library-item {
+.jpf-avatar-library-item {
     aspect-ratio: 1 / 1;
     padding: 0;
     border: 2px solid transparent;
@@ -448,11 +448,11 @@
     cursor: pointer;
     transition: border-color 0.15s ease, transform 0.15s ease;
 }
-.avatar-library-item img {
+.jpf-avatar-library-item img {
     width: 100%; height: 100%; object-fit: cover; display: block;
 }
-.avatar-library-item:hover,
-.avatar-library-item:focus {
+.jpf-avatar-library-item:hover,
+.jpf-avatar-library-item:focus {
     border-color: var(--jpf-accent);
     transform: scale(1.06);
     outline: none;
@@ -504,32 +504,32 @@ body.profiles-no-scroll [id*="spinner"] {
    for its own emby-* elements (release-10.11.z, every .scss checked), so until 1.7.2
    every Bonfire button, PIN field and dialog was drawn in the browser's default sans,
    whatever font the theme named. Found by the golden screenshots, not by a user. */
-.jpf-trap-surface, .create-profile-container {
+.jpf-trap-surface, .jpf-create-profile-container {
     font-family: var(--jpf-font, inherit);
 }
 #profiles-gate-overlay button, #profiles-gate-overlay input, #profiles-gate-overlay select, #profiles-gate-overlay textarea,
 .jpf-trap-surface button, .jpf-trap-surface input, .jpf-trap-surface select, .jpf-trap-surface textarea,
-.create-profile-container button, .create-profile-container input, .create-profile-container select, .create-profile-container textarea {
+.jpf-create-profile-container button, .jpf-create-profile-container input, .jpf-create-profile-container select, .jpf-create-profile-container textarea {
     font-family: inherit;
 }
 /* Our own scroll areas get a scrollbar drawn to match them. Otherwise they take
    whatever the page's theme gives the page, which on several themes is the accent
    colour: a bright red bar down the side of a dark form. Two rules, not one, so a
    browser that does not know one of the forms keeps the other. */
-#profiles-gate-overlay, .create-profile-container {
+#profiles-gate-overlay, .jpf-create-profile-container {
     scrollbar-width: thin;
     scrollbar-color: var(--jpf-border-3) transparent;
 }
 #profiles-gate-overlay::-webkit-scrollbar,
-.create-profile-container::-webkit-scrollbar {
+.jpf-create-profile-container::-webkit-scrollbar {
     width: 8px;
 }
 #profiles-gate-overlay::-webkit-scrollbar-track,
-.create-profile-container::-webkit-scrollbar-track {
+.jpf-create-profile-container::-webkit-scrollbar-track {
     background: transparent;
 }
 #profiles-gate-overlay::-webkit-scrollbar-thumb,
-.create-profile-container::-webkit-scrollbar-thumb {
+.jpf-create-profile-container::-webkit-scrollbar-thumb {
     background: var(--jpf-border-3); border-radius: var(--jpf-r-sm);
 }
 .profiles-modal-content {
@@ -712,12 +712,12 @@ body.profiles-no-scroll [id*="spinner"] {
    is used rather than the ceiling because it is the value that was
    shipping before clamp went in; TVs get their real size from .jpf-tv
    below, which is a plain px value for exactly this reason. */
-.profile-card {
+.jpf-profile-card {
     display: flex; flex-direction: column; align-items: center;
     width: 140px;
     width: clamp(140px, 12vw, 210px); cursor: pointer; position: relative;
 }
-.profile-avatar-container {
+.jpf-profile-avatar-container {
     position: relative;
     width: 130px;
     width: clamp(130px, 11vw, 195px);
@@ -728,7 +728,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 /* Touch has no hover, so without this the first feedback of any kind is the
    page changing a second or two later. */
-.profile-card:active .profile-avatar-container {
+.jpf-profile-card:active .jpf-profile-avatar-container {
     transform: scale(0.95);
 }
 
@@ -737,21 +737,21 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 /* The chosen profile carries the spinner; everything else steps back so it
    is obvious which one is being opened and that the rest are not takers. */
-#profiles-gate-overlay.is-switching .profile-card:not(.is-switching),
+#profiles-gate-overlay.is-switching .jpf-profile-card:not(.is-switching),
 #profiles-gate-overlay.is-switching .profiles-footer,
 #profiles-gate-overlay.is-switching .profiles-home-header {
     opacity: 0.3;
     pointer-events: none;
     transition: opacity 0.2s ease;
 }
-#profiles-gate-overlay.is-switching .profile-card.is-switching {
+#profiles-gate-overlay.is-switching .jpf-profile-card.is-switching {
     cursor: progress;
 }
-.profile-card.is-switching .profile-avatar {
+.jpf-profile-card.is-switching .jpf-profile-avatar {
     filter: brightness(0.4);
     transition: filter 0.2s ease;
 }
-.profile-card.is-switching .profile-avatar-container::after {
+.jpf-profile-card.is-switching .jpf-profile-avatar-container::after {
     content: '';
     position: absolute;
     /* Longhand rather than the inset shorthand, which is Chrome 87;
@@ -802,22 +802,22 @@ body.profiles-no-scroll [id*="spinner"] {
     border-top-color: var(--jpf-text-1);
     animation: jpfSpin 0.8s linear infinite;
 }
-.btn-primary.is-busy::after { border-top-color: var(--jpf-on-accent); }
-.btn-secondary.is-busy::after { border-top-color: var(--jpf-btn2-color); }
-.btn-danger.is-busy::after { border-top-color: #fff; }
-.btn-danger-quiet.is-busy::after { border-top-color: var(--jpf-danger-quiet); }
+.jpf-btn-primary.is-busy::after { border-top-color: var(--jpf-on-accent); }
+.jpf-btn-secondary.is-busy::after { border-top-color: var(--jpf-btn2-color); }
+.jpf-btn-danger.is-busy::after { border-top-color: #fff; }
+.jpf-btn-danger-quiet.is-busy::after { border-top-color: var(--jpf-danger-quiet); }
 /* The spinner still turns — it is the only thing reporting progress — but
    nothing else moves. */
 @media (prefers-reduced-motion: reduce) {
-    .profile-avatar-container,
-    .profile-card.is-switching .profile-avatar {
+    .jpf-profile-avatar-container,
+    .jpf-profile-card.is-switching .jpf-profile-avatar {
         transition: none;
     }
-    .profile-card:active .profile-avatar-container {
+    .jpf-profile-card:active .jpf-profile-avatar-container {
         transform: none;
     }
 }
-.profile-avatar {
+.jpf-profile-avatar {
     position: relative;
     width: 100%; height: 100%; border-radius: var(--jpf-avatar-r);
     /* The 3px border below is transparent, so without this the avatar
@@ -833,7 +833,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 /* The one you are already in. Now that the avatar colour no longer
    paints the border, an accent ring means exactly one thing. */
-.profile-card.is-current .profile-avatar {
+.jpf-profile-card.is-current .jpf-profile-avatar {
     border-color: var(--jpf-accent);
 }
 
@@ -847,7 +847,7 @@ body.profiles-no-scroll [id*="spinner"] {
    drop-shadow() respects the alpha channel, so it is what both are
    built from below. The border is kept at transparent rather than
    removed, so turning this on does not shift the layout by 3px. */
-.profile-avatar.is-transparent {
+.jpf-profile-avatar.is-transparent {
     background-color: transparent;
     border-color: transparent;
     box-shadow: none;
@@ -858,10 +858,10 @@ body.profiles-no-scroll [id*="spinner"] {
    around a circular picture — while the silhouette outline drew a second
    ring inside it. Two highlights on one avatar, which is what was
    reported. Every state that touches border-color or box-shadow on
-   .profile-avatar therefore needs an .is-transparent counterpart at equal
+   .jpf-profile-avatar therefore needs an .is-transparent counterpart at equal
    or higher specificity; they are kept together here so the next one
    added is hard to miss. */
-.profile-card.is-current .profile-avatar.is-transparent {
+.jpf-profile-card.is-current .jpf-profile-avatar.is-transparent {
     border-color: transparent;
     box-shadow: none;
 }
@@ -869,14 +869,14 @@ body.profiles-no-scroll [id*="spinner"] {
    is a third square on something deliberately not square. The pencil
    carries its own drop-shadow and reads fine without it, and the hover
    silhouette already says the card is live. */
-.profile-avatar.is-transparent .profile-avatar-overlay-wrap {
+.jpf-profile-avatar.is-transparent .jpf-profile-avatar-overlay-wrap {
     background: transparent;
 }
 /* The scrim was also what the white pencil was legible against. Without it
    the icon sat on whatever the picture happens to be — invisible on a pale
    one. A disc behind the icon restores the contrast and stays round, which
    is the whole point of not drawing the square. */
-.profile-avatar.is-transparent .profile-avatar-overlay-svg {
+.jpf-profile-avatar.is-transparent .jpf-profile-avatar-overlay-svg {
     background: var(--jpf-scrim);
     border-radius: 50%;
     padding: 10px;
@@ -889,14 +889,14 @@ body.profiles-no-scroll [id*="spinner"] {
    and costs a real cut-out nothing: its transparent corners are what is
    trimmed. drop-shadow() follows the rounded edge, so the ring and the
    focus outline below trace the same shape. */
-.profile-avatar.is-transparent img {
+.jpf-profile-avatar.is-transparent img {
     border-radius: var(--jpf-avatar-r);
     filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
 }
 /* Four offsets approximate a stroke around an arbitrary silhouette;
    CSS has no way to stroke an alpha channel directly. All static —
    they composite once on hover rather than every frame. */
-.profile-card.is-current .profile-avatar.is-transparent img {
+.jpf-profile-card.is-current .jpf-profile-avatar.is-transparent img {
     filter:
         drop-shadow(3px 0 0 var(--jpf-accent))
         drop-shadow(-3px 0 0 var(--jpf-accent))
@@ -905,10 +905,10 @@ body.profiles-no-scroll [id*="spinner"] {
         drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
 }
 /* These four must outrank the hover/focus block further down, which
-   sets box-shadow and border-color on .profile-avatar. Listing the
+   sets box-shadow and border-color on .jpf-profile-avatar. Listing the
    same three states keeps the specificity above it. */
-.profile-card:hover .profile-avatar.is-transparent,
-.profile-card:focus .profile-avatar.is-transparent {
+.jpf-profile-card:hover .jpf-profile-avatar.is-transparent,
+.jpf-profile-card:focus .jpf-profile-avatar.is-transparent {
     box-shadow: none;
     border-color: transparent;
 }
@@ -916,7 +916,7 @@ body.profiles-no-scroll [id*="spinner"] {
    Chromium 53 (webOS 4.5) one selector it cannot parse drops every rule it is listed
    in, so sharing a list with :hover and :focus took those down with it. Each is
    directly after the rule it was split from, so the cascade is unchanged. */
-.profile-card:focus-within .profile-avatar.is-transparent {
+.jpf-profile-card:focus-within .jpf-profile-avatar.is-transparent {
     box-shadow: none;
     border-color: transparent;
 }
@@ -927,8 +927,8 @@ body.profiles-no-scroll [id*="spinner"] {
    outline matches the border it replaced, and the blurred accent pass is
    the box-shadow glow rebuilt so it follows the picture instead of the
    box it no longer fills. */
-.profile-card:hover .profile-avatar.is-transparent img,
-.profile-card:focus .profile-avatar.is-transparent img {
+.jpf-profile-card:hover .jpf-profile-avatar.is-transparent img,
+.jpf-profile-card:focus .jpf-profile-avatar.is-transparent img {
     filter:
         drop-shadow(3px 0 0 var(--jpf-ring))
         drop-shadow(-3px 0 0 var(--jpf-ring))
@@ -936,7 +936,7 @@ body.profiles-no-scroll [id*="spinner"] {
         drop-shadow(0 -3px 0 var(--jpf-ring))
         drop-shadow(0 6px 20px var(--jpf-accent));
 }
-.profile-card:focus-within .profile-avatar.is-transparent img {
+.jpf-profile-card:focus-within .jpf-profile-avatar.is-transparent img {
     filter:
         drop-shadow(3px 0 0 var(--jpf-ring))
         drop-shadow(-3px 0 0 var(--jpf-ring))
@@ -946,7 +946,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 /* The small circular renderings clip to a circle already, so they
    only need the colour taken off. */
-.image-upload-preview.is-transparent {
+.jpf-image-upload-preview.is-transparent {
     background-color: transparent;
 }
 /* Text for a screen reader only: the same words a picture badge shows, as words. */
@@ -954,7 +954,7 @@ body.profiles-no-scroll [id*="spinner"] {
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
-.profile-current-badge {
+.jpf-profile-current-badge {
     display: block;
     font-size: 0.7rem;
     font-weight: 600;
@@ -963,34 +963,34 @@ body.profiles-no-scroll [id*="spinner"] {
     color: var(--jpf-accent-text, var(--jpf-accent));
     margin-top: 2px;
 }
-.profile-card:hover .profile-avatar,
-.profile-card:focus .profile-avatar {
+.jpf-profile-card:hover .jpf-profile-avatar,
+.jpf-profile-card:focus .jpf-profile-avatar {
     transform: scale(var(--jpf-hover-scale));
     box-shadow: var(--jpf-hover-glow);
     border-color: var(--jpf-ring);
 }
-.profile-card:focus-within .profile-avatar {
+.jpf-profile-card:focus-within .jpf-profile-avatar {
     transform: scale(var(--jpf-hover-scale));
     box-shadow: var(--jpf-hover-glow);
     border-color: var(--jpf-ring);
 }
-.profile-card:focus {
+.jpf-profile-card:focus {
     outline: none;
 }
-.add-avatar {
+.jpf-add-avatar {
     border: var(--jpf-add-border);
     background: var(--jpf-add-bg) !important; color: var(--jpf-add-color);
 }
-.profile-card:hover .add-avatar,
-.profile-card:focus .add-avatar {
+.jpf-profile-card:hover .jpf-add-avatar,
+.jpf-profile-card:focus .jpf-add-avatar {
     border-color: var(--jpf-ring); color: var(--jpf-name-hover);
     background: var(--jpf-add-hover-bg) !important;
 }
-.profile-card:focus-within .add-avatar {
+.jpf-profile-card:focus-within .jpf-add-avatar {
     border-color: var(--jpf-ring); color: var(--jpf-name-hover);
     background: var(--jpf-add-hover-bg) !important;
 }
-.profile-name {
+.jpf-profile-name {
     margin-top: 1rem;
     font-size: 1.25rem;
     font-size: calc(1.25rem * var(--jpf-name-scale));
@@ -1016,7 +1016,7 @@ body.profiles-no-scroll [id*="spinner"] {
    sized to its content, so a single long word ("Maximilian") was as wide as it was and ran
    across the next tile while the box stayed inside the card. Capping each line is what lets
    the break-word above apply. */
-.profile-name > * {
+.jpf-profile-name > * {
     max-width: 100%;
 }
 .profiles-limit-notice {
@@ -1024,18 +1024,18 @@ body.profiles-no-scroll [id*="spinner"] {
     font-style: italic; align-self: center; padding: 1rem 0;
     width: 140px; text-align: center;
 }
-.profile-card:hover .profile-name,
-.profile-card:focus .profile-name {
+.jpf-profile-card:hover .jpf-profile-name,
+.jpf-profile-card:focus .jpf-profile-name {
     opacity: 1;
     color: var(--jpf-name-hover);
 }
-.profile-card:focus-within .profile-name {
+.jpf-profile-card:focus-within .jpf-profile-name {
     opacity: 1;
     color: var(--jpf-name-hover);
 }
 
 /* Manage Mode Overlay Icon styling */
-.profile-avatar-overlay-wrap {
+.jpf-profile-avatar-overlay-wrap {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background: var(--jpf-scrim); border-radius: var(--jpf-avatar-r);
     display: flex; align-items: center; justify-content: center;
@@ -1043,13 +1043,13 @@ body.profiles-no-scroll [id*="spinner"] {
     pointer-events: none;
     z-index: 5;
 }
-.profile-card.manage-mode:hover .profile-avatar-overlay-wrap {
+.jpf-profile-card.jpf-manage-mode:hover .jpf-profile-avatar-overlay-wrap {
     opacity: 1;
 }
-.profile-avatar-overlay-svg {
+.jpf-profile-avatar-overlay-svg {
     filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
 }
-.profile-lock-indicator {
+.jpf-profile-lock-indicator {
     position: absolute; bottom: 8px; right: 8px;
     background: rgba(15, 15, 15, 0.85); border-radius: 50%;
     width: 32px; height: 32px; display: flex;
@@ -1059,8 +1059,8 @@ body.profiles-no-scroll [id*="spinner"] {
     border: 1.5px solid var(--jpf-border-3);
     z-index: 10;
 }
-.profile-lock-indicator svg { width: 14px; height: 14px; }
-.profile-bonfire-indicator {
+.jpf-profile-lock-indicator svg { width: 14px; height: 14px; }
+.jpf-profile-bonfire-indicator {
     position: absolute; top: 8px; left: 8px;
     background: linear-gradient(135deg, var(--jpf-warn) 0%, var(--jpf-flame-deep) 100%);
     border-radius: 50%;
@@ -1096,22 +1096,22 @@ body.profiles-no-scroll [id*="spinner"] {
     outline: none;
     box-shadow: 0 0 10px var(--jpf-danger-a40);
 }
-.profile-card.manage-mode:hover .profile-avatar {
+.jpf-profile-card.jpf-manage-mode:hover .jpf-profile-avatar {
     transform: scale(var(--jpf-hover-scale));
     border-color: var(--jpf-accent);
 }
-/* The fourth state that paints a border on .profile-avatar, and the one
+/* The fourth state that paints a border on .jpf-profile-avatar, and the one
    that actually fires while Manage Profiles is open. See the note by
-   .profile-card.is-current .profile-avatar.is-transparent. */
-.profile-card.manage-mode:hover .profile-avatar.is-transparent {
+   .jpf-profile-card.is-current .jpf-profile-avatar.is-transparent. */
+.jpf-profile-card.jpf-manage-mode:hover .jpf-profile-avatar.is-transparent {
     border-color: transparent;
 }
 
 /* PIN Status Badges */
-.profile-pin-badge {
+.jpf-profile-pin-badge {
     font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: var(--jpf-r-md);
     font-weight: 600; display: inline-flex; align-items: center; gap: 4px;
-    /* Same reason as .profile-name above — an inline-flex box sizes to its
+    /* Same reason as .jpf-profile-name above — an inline-flex box sizes to its
        text and will happily sit wider than the card holding it. */
     max-width: 100%;
     text-align: center;
@@ -1120,11 +1120,11 @@ body.profiles-no-scroll [id*="spinner"] {
    the screen called the protected state a problem and the unprotected one
    a success. Neither is an error, so neither gets an error colour —
    protected reads present, unprotected reads muted. */
-.profile-pin-badge.locked {
+.jpf-profile-pin-badge.locked {
     background: var(--jpf-surface-3); color: var(--jpf-text-1);
     border: 1px solid var(--jpf-border-3);
 }
-.profile-pin-badge.unlocked {
+.jpf-profile-pin-badge.unlocked {
     background: transparent; color: var(--jpf-text-3);
     border: 1px solid var(--jpf-border-1);
 }
@@ -1231,7 +1231,7 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Footer and bottom buttons */
 .profiles-footer {
     margin-top: 4rem; width: 100%; display: flex; justify-content: center;
-    /* Matches .pin-actions, the button row on the other gate screens. */
+    /* Matches .jpf-pin-actions, the button row on the other gate screens. */
     gap: var(--jpf-gap-lg); flex-wrap: wrap;
 }
 /* Equal widths, so the gap between two buttons falls on the centre line.
@@ -1248,7 +1248,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* PIN Entry Form styles */
-.pin-entry-container {
+.jpf-pin-entry-container {
     display: flex; flex-direction: column; align-items: center; gap: 2rem;
 }
 .profiles-pin-note {
@@ -1261,7 +1261,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-pin-error {
     color: var(--jpf-danger); font-size: 0.9rem; font-weight: 600; text-align: center;
 }
-#profile-pin-input, #master-pin-input, #main-pin-new, #pin-reset-new, #pin-reset-code {
+#jpf-profile-pin-input, #jpf-master-pin-input, #jpf-main-pin-new, #jpf-pin-reset-new, #jpf-pin-reset-code {
     background: var(--jpf-input-bg); border: 2px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); color: var(--jpf-text-1); font-size: 2.5rem; text-align: center;
     padding: 12px; width: 17rem; max-width: 100%; letter-spacing: 0.6rem;
@@ -1270,17 +1270,17 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 /* The mailed code is read off a phone and typed, so it stays visible, and six
    digits need more room than a PIN's four. */
-#pin-reset-code {
+#jpf-pin-reset-code {
     -webkit-text-security: none; width: 17rem; font-size: 2rem; letter-spacing: 0.35rem;
     height: 2.25rem;
 }
 /* As wide as the code above it, and wide enough for the eight digits a PIN may have: the
    box was 180px and the typed number scrolled inside it from the fifth digit. */
-#pin-reset-new { width: 17rem; height: 2.8rem; }
+#jpf-pin-reset-new { width: 17rem; height: 2.8rem; }
 /* An empty field's placeholder sits on the baseline of the field's own text, so a 1rem
    placeholder in 2.5rem digits rode low. While the placeholder shows, the field takes the
    placeholder's size; the fixed height above keeps the box the size it was. */
-#pin-reset-code:placeholder-shown, #pin-reset-new:placeholder-shown {
+#jpf-pin-reset-code:placeholder-shown, #jpf-pin-reset-new:placeholder-shown {
     font-size: 1rem; letter-spacing: normal;
 }
 /* Four dim dots until something is typed, like a phone's lock screen. Drawn as background
@@ -1289,8 +1289,8 @@ body.profiles-no-scroll [id*="spinner"] {
    only so :placeholder-shown (Chromium 47) can tell empty from typed; ::placeholder is
    Chromium 57 and would be dropped on a television. Not the emailed code: it is six
    visible digits, not a PIN, so it keeps the word "Code" as its placeholder. */
-#profile-pin-input:placeholder-shown, #master-pin-input:placeholder-shown, #main-pin-new:placeholder-shown,
-#pin-reset-new:placeholder-shown {
+#jpf-profile-pin-input:placeholder-shown, #jpf-master-pin-input:placeholder-shown, #jpf-main-pin-new:placeholder-shown,
+#jpf-pin-reset-new:placeholder-shown {
     background-image:
         radial-gradient(circle 5px at 50% 50%, var(--jpf-text-3) 3.5px, transparent 5px),
         radial-gradient(circle 5px at 50% 50%, var(--jpf-text-3) 3.5px, transparent 5px),
@@ -1300,10 +1300,10 @@ body.profiles-no-scroll [id*="spinner"] {
     background-repeat: no-repeat;
     background-position: calc(50% - 39px) 50%, calc(50% - 13px) 50%, calc(50% + 13px) 50%, calc(50% + 39px) 50%;
 }
-#create-pin-input, #edit-pin-input, #account-pin-input {
+#jpf-create-pin-input, #jpf-edit-pin-input, #jpf-account-pin-input {
     -webkit-text-security: disc;
 }
-#profile-pin-input:focus, #master-pin-input:focus, #main-pin-new:focus, #pin-reset-new:focus, #pin-reset-code:focus {
+#jpf-profile-pin-input:focus, #jpf-master-pin-input:focus, #jpf-main-pin-new:focus, #jpf-pin-reset-new:focus, #jpf-pin-reset-code:focus {
     /* One ring. The accent border and glow that were here sat inside the 2px outline that
        keyboard focus gets below, so a focused box was drawn twice. The outline stays: it
        is the one a television thickens. */
@@ -1326,28 +1326,28 @@ body.profiles-no-scroll [id*="spinner"] {
     transform: none !important;
     box-shadow: none !important;
 }
-.btn-primary {
+.jpf-btn-primary {
     background-color: var(--jpf-accent); color: var(--jpf-on-accent);
 }
-.btn-primary:hover,
-.btn-primary:focus {
+.jpf-btn-primary:hover,
+.jpf-btn-primary:focus {
     background-color: var(--jpf-accent-hover); border-color: rgba(255, 255, 255, 0.4);
     box-shadow: 0 0 12px var(--jpf-accent-a50); transform: translateY(-1px);
     outline: none;
 }
-.btn-secondary {
+.jpf-btn-secondary {
     background: var(--jpf-btn2-bg); color: var(--jpf-btn2-color);
     border: var(--jpf-btn2-border);
     font-weight: var(--jpf-btn2-weight);
 }
-.btn-secondary:hover,
-.btn-secondary:focus {
+.jpf-btn-secondary:hover,
+.jpf-btn-secondary:focus {
     background: var(--jpf-btn2-hover-bg); color: var(--jpf-btn2-hover-color);
     border-color: var(--jpf-btn2-hover-border);
     box-shadow: var(--jpf-btn2-hover-glow);
     outline: none;
 }
-.pin-actions {
+.jpf-pin-actions {
     display: flex; gap: var(--jpf-gap-lg); margin-top: 1rem;
     width: 100%; max-width: var(--jpf-w-narrow);
 }
@@ -1364,9 +1364,9 @@ body.profiles-no-scroll [id*="spinner"] {
 
 /* The confirm and alert boxes. Their width was written inline, where no rule here
    could widen it, so on a 1080p television they were a small card on a big screen. */
-.confirm-dialog-content, .alert-dialog-content,
-.prompt-dialog-content, .select-dialog-content,
-.libart-dialog-content {
+.jpf-confirm-dialog-content, .jpf-alert-dialog-content,
+.jpf-prompt-dialog-content, .jpf-select-dialog-content,
+.jpf-libart-dialog-content {
     /* border-box, because the 24px padding sat on top of a 90% width and on a 360px phone
        the box ran edge to edge (P2-510). A 16px gutter either side instead. */
     box-sizing: border-box;
@@ -1377,7 +1377,7 @@ body.profiles-no-scroll [id*="spinner"] {
 /* A column of sections. Below the breakpoint the two of these simply
    stack, so the phone order is unchanged: Profile, Security,
    Libraries, Restrictions. */
-.form-col {
+.jpf-form-col {
     display: flex; flex-direction: column; gap: 1.5rem;
     min-width: 0;
 }
@@ -1387,7 +1387,7 @@ body.profiles-no-scroll [id*="spinner"] {
    ~440px ribbon with the rest of the window empty, and the Save button
    several screens below the name field. */
 @media (min-width: 900px) {
-    .create-profile-container.is-two-col {
+    .jpf-create-profile-container.is-two-col {
         max-width: var(--jpf-w-wide);
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1395,14 +1395,14 @@ body.profiles-no-scroll [id*="spinner"] {
         max-height: 85vh;
     }
     /* Everything that is not one of the two columns spans both of them.
-       Naming only .profile-dialog-actions left the Create form's button row
+       Naming only .jpf-profile-dialog-actions left the Create form's button row
        and its error line as half-width grid items under the left column. */
-    .create-profile-container.is-two-col > *:not(.form-col) {
+    .jpf-create-profile-container.is-two-col > *:not(.jpf-form-col) {
         grid-column: 1 / -1;
     }
 }
 
-.create-profile-container {
+.jpf-create-profile-container {
     width: 100%; max-width: var(--jpf-w-form); box-sizing: border-box;
     display: flex; flex-direction: column; gap: 1.5rem;
     background: var(--jpf-sheet-bg); border: var(--jpf-sheet-border);
@@ -1415,10 +1415,10 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Sharing is a card (the accounts one) with the Host and Join sections beside it; a theme
    with a sheet drew a second frame round all of it. No frame here: the cards inside carry
    the look. Its blur is left out of the theme's frost rule by this class. */
-.create-profile-container.jpf-sheet-bare {
+.jpf-create-profile-container.jpf-sheet-bare {
     background: transparent; border: 0 solid transparent; box-shadow: none;
 }
-.profile-dialog-actions {
+.jpf-profile-dialog-actions {
     margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: var(--jpf-gap);
 }
 /* Save used to scroll out of sight. This form is capped at 75vh and
@@ -1441,7 +1441,7 @@ body.profiles-no-scroll [id*="spinner"] {
    rgba(255,255,255,0.03), which would let the fields scroll visibly
    through the buttons. --jpf-panel is each theme's opaque match for
    its own gate background. */
-.create-profile-container > .profile-dialog-actions {
+.jpf-create-profile-container > .jpf-profile-dialog-actions {
     position: sticky;
     /* Sticky stops at the container's padding edge, not the border edge, so bottom: 0
        left the container's own 2rem of padding showing under the bar (P2-503). */
@@ -1455,32 +1455,32 @@ body.profiles-no-scroll [id*="spinner"] {
     background: var(--jpf-panel);
     border-top: 1px solid var(--jpf-border-1);
 }
-.dialog-action-buttons {
+.jpf-dialog-action-buttons {
     display: flex; gap: var(--jpf-gap);
 }
 /* A fixed red under white text, on every theme: --jpf-danger is a light coral on the dark
    themes, and white on it is under 3:1. (colortokens.js lists this as the one filled red.) */
-.btn-danger {
+.jpf-btn-danger {
     background: rgba(230,0,0,0.85); color:#fff; border:none;
 }
 /* The trigger, not the confirmation. Delete Profile and Delete Group sat
    beside Save as equally solid red buttons, so the destructive option
-   carried the same weight as the safe one. btn-danger itself stays filled
+   carried the same weight as the safe one. jpf-btn-danger itself stays filled
    because it is also the Confirm button on the dialog these open, where
    loud red is correct — that is the moment you mean it. */
-.btn-danger-quiet {
+.jpf-btn-danger-quiet {
     background: transparent; color: var(--jpf-danger-quiet);
     border: 1.5px solid var(--jpf-danger-a40);
 }
-.btn-danger-quiet:hover,
-.btn-danger-quiet:focus {
+.jpf-btn-danger-quiet:hover,
+.jpf-btn-danger-quiet:focus {
     background: var(--jpf-danger-a15);
     border-color: var(--jpf-danger);
     color: var(--jpf-danger);
     outline: none;
 }
-.btn-danger:hover,
-.btn-danger:focus {
+.jpf-btn-danger:hover,
+.jpf-btn-danger:focus {
     background: rgba(200,0,0,0.95);
     outline: none;
 }
@@ -1527,13 +1527,13 @@ body.profiles-no-scroll [id*="spinner"] {
     }
     /* Stacked, the main action goes on top and the way out at the
        bottom, which is still the same place on every screen. */
-    .profile-dialog-actions {
+    .jpf-profile-dialog-actions {
         flex-direction: column-reverse;
     }
-    .dialog-action-buttons {
+    .jpf-dialog-action-buttons {
         width: 100%;
     }
-    .dialog-action-buttons button, #edit-delete-btn {
+    .jpf-dialog-action-buttons button, #jpf-edit-delete-btn {
         flex: 1;
         width: 100%;
         text-align: center;
@@ -1541,25 +1541,25 @@ body.profiles-no-scroll [id*="spinner"] {
     /* Half the row was too narrow for "Delete Profile" in most themes, so it broke onto
        two lines and stood taller than Cancel. It takes the room its words need; Cancel
        has the rest. */
-    #edit-delete-btn {
+    #jpf-edit-delete-btn {
         flex: 1 0 auto;
         width: auto;
         white-space: nowrap;
     }
 }
-.form-group,
+.jpf-form-group,
 .bonfire-form-group {
     display: flex; flex-direction: column; gap: 0.5rem;
 }
-.form-group label,
+.jpf-form-group label,
 .bonfire-form-group label {
     font-size: 0.9rem; font-weight: 600; color: var(--jpf-text-2);
 }
-.form-group input[type="text"],
+.jpf-form-group input[type="text"],
 .bonfire-form-group input[type="text"],
 .bonfire-form-group input[type="email"],
-.form-group input[type="email"],
-.form-group input[type="password"] {
+.jpf-form-group input[type="email"],
+.jpf-form-group input[type="password"] {
     background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); padding: 10px; color: var(--jpf-text-1); font-size: 1rem;
 }
@@ -1569,15 +1569,15 @@ body.profiles-no-scroll [id*="spinner"] {
    knows the prefixed one. */
 #profiles-gate-overlay input::-webkit-input-placeholder, #profiles-gate-overlay textarea::-webkit-input-placeholder,
 .jpf-trap-surface input::-webkit-input-placeholder, .jpf-trap-surface textarea::-webkit-input-placeholder,
-.create-profile-container input::-webkit-input-placeholder, .create-profile-container textarea::-webkit-input-placeholder {
+.jpf-create-profile-container input::-webkit-input-placeholder, .jpf-create-profile-container textarea::-webkit-input-placeholder {
     color: var(--jpf-text-2); opacity: 1;
 }
 #profiles-gate-overlay input::placeholder, #profiles-gate-overlay textarea::placeholder,
 .jpf-trap-surface input::placeholder, .jpf-trap-surface textarea::placeholder,
-.create-profile-container input::placeholder, .create-profile-container textarea::placeholder {
+.jpf-create-profile-container input::placeholder, .jpf-create-profile-container textarea::placeholder {
     color: var(--jpf-text-2); opacity: 1;
 }
-.form-group select {
+.jpf-form-group select {
     background: var(--jpf-input-bg) var(--jpf-chevron) no-repeat right 12px center;
     background-size: 20px;
     border: 1px solid var(--jpf-input-border);
@@ -1588,36 +1588,36 @@ body.profiles-no-scroll [id*="spinner"] {
     -moz-appearance: none;
     padding-right: 36px;
 }
-.form-group select option {
+.jpf-form-group select option {
     background-color: var(--jpf-panel);
     color: var(--jpf-text-1);
 }
-.form-group input:focus, .form-group select:focus,
+.jpf-form-group input:focus, .jpf-form-group select:focus,
 .bonfire-form-group input[type="email"]:focus {
     border-color: var(--jpf-accent); outline: none;
     box-shadow: 0 0 10px var(--jpf-accent-a40);
 }
-.avatar-color-picker {
+.jpf-avatar-color-picker {
     display: flex; flex-wrap: wrap; gap: var(--jpf-gap);
 }
-.color-dot {
+.jpf-color-dot {
     width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
     border: 2px solid transparent; transition: transform 0.2s ease, border-color 0.2s ease;
 }
-.color-dot:hover,
-.color-dot:focus {
+.jpf-color-dot:hover,
+.jpf-color-dot:focus {
     border-color: var(--jpf-text-2);
     transform: scale(1.1);
     outline: none;
 }
-.color-dot.active {
+.jpf-color-dot.active {
     border-color: var(--jpf-text-1); transform: scale(1.1);
 }
-/* No max-height, for the same reason as .libart-list below. Capped at 140px it
+/* No max-height, for the same reason as .jpf-libart-list below. Capped at 140px it
    showed about four libraries of a real server's twenty, in a box that scrolled
    inside a form that scrolled — so choosing a profile's libraries, the setting that
    matters most on this form, was the fiddliest thing on it. */
-.library-checklist {
+.jpf-library-checklist {
     background: var(--jpf-surface-2); border-radius: var(--jpf-r-md);
     padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
     border: 1px solid var(--jpf-border-1);
@@ -1627,7 +1627,7 @@ body.profiles-no-scroll [id*="spinner"] {
    inside a form that also scrolled, next to a second list that scrolled
    too — three nested scroll areas, and on a D-pad no way to tell which
    one the remote had hold of. The dialog is the only scroller now. */
-.libart-list {
+.jpf-libart-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -1639,7 +1639,7 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Only there to say what the second column is. Hidden with the controls it
    labels, and out of the accessibility tree either way — a remote should
    not have to step through a table header to reach the libraries. */
-.libart-head {
+.jpf-libart-head {
     display: none;
     align-items: center;
     justify-content: space-between;
@@ -1651,33 +1651,33 @@ body.profiles-no-scroll [id*="spinner"] {
     text-transform: uppercase;
     color: var(--jpf-text-3);
 }
-.libart-list.show-artwork .libart-head {
+.jpf-libart-list.jpf-show-artwork .jpf-libart-head {
     display: flex;
 }
 /* Artwork is opt-in. Without this the row carried an empty picture slot and
    an unlabelled dropdown for every library on the server. */
-.libart-thumb,
-.libart-mode,
-.libart-choose {
+.jpf-libart-thumb,
+.jpf-libart-mode,
+.jpf-libart-choose {
     display: none;
 }
-.libart-list.show-artwork .libart-row.libart-has-art .libart-thumb {
+.jpf-libart-list.jpf-show-artwork .jpf-libart-row.jpf-libart-has-art .jpf-libart-thumb {
     display: flex;
 }
-.libart-list.show-artwork .libart-mode {
+.jpf-libart-list.jpf-show-artwork .jpf-libart-mode {
     display: block;
 }
-.libart-list.show-artwork .libart-choose {
+.jpf-libart-list.jpf-show-artwork .jpf-libart-choose {
     display: inline-flex;
 }
-.libart-toggle {
+.jpf-libart-toggle {
     margin-top: 10px !important;
     font-size: 0.88rem !important;
 }
-.libart-explainer {
+.jpf-libart-explainer {
     margin-top: 6px;
 }
-.libart-row {
+.jpf-libart-row {
     display: flex;
     align-items: center;
     /* Wrap rather than crush the name. The row is thumb + name + mode,
@@ -1690,10 +1690,10 @@ body.profiles-no-scroll [id*="spinner"] {
     background: var(--jpf-surface-2);
 }
 /* No display here. It is hidden by the grouped rule above and shown by
-   .libart-list.show-artwork .libart-row.libart-has-art — declaring
+   .jpf-libart-list.jpf-show-artwork .jpf-libart-row.jpf-libart-has-art — declaring
    display:flex in this block would outrank the first (same specificity,
    later in the sheet) and put the empty slot back on every row. */
-.libart-thumb {
+.jpf-libart-thumb {
     width: 44px;
     height: 26px;
     flex-shrink: 0;
@@ -1708,14 +1708,14 @@ body.profiles-no-scroll [id*="spinner"] {
     color: var(--jpf-text-3);
 }
 /* Wraps the tick, the thumbnail and the name — the part of the row that
-   is one target. initTVCheckboxes binds to .library-check-label, which is
+   is one target. initTVCheckboxes binds to .jpf-library-check-label, which is
    how a remote toggles it: Enter does not tick a native checkbox. */
-.libart-check {
+.jpf-libart-check {
     flex: 1 1 220px;
     min-width: 0;
     margin-left: 0;
 }
-.libart-name {
+.jpf-libart-name {
     /* Enough to read a real library name before anything else gives. */
     flex: 1 1 auto;
     min-width: 0;
@@ -1724,7 +1724,7 @@ body.profiles-no-scroll [id*="spinner"] {
     white-space: nowrap;
     font-size: 0.9rem;
 }
-.libart-mode {
+.jpf-libart-mode {
     flex-shrink: 0;
     width: auto !important;
     min-width: 100px;
@@ -1733,17 +1733,17 @@ body.profiles-no-scroll [id*="spinner"] {
     margin: 0 !important;
 }
 /* Kept in the layout when hidden so rows do not jump as modes change. */
-.libart-choose {
+.jpf-libart-choose {
     flex-shrink: 0;
 }
-.library-check-label {
+.jpf-library-check-label {
     display: flex !important; align-items: center !important; gap: 0.6rem; cursor: pointer;
     font-size: 0.95rem; color: var(--jpf-text-1);
     border-radius: var(--jpf-r-sm); padding: 4px 8px; margin-left: -8px;
     transition: background 0.2s, color 0.2s;
     position: relative !important;
 }
-.library-check-label input {
+.jpf-library-check-label input {
     cursor: pointer; accent-color: var(--jpf-accent);
     position: relative !important;
     opacity: 1 !important;
@@ -1753,23 +1753,23 @@ body.profiles-no-scroll [id*="spinner"] {
     padding: 0 !important;
     flex-shrink: 0 !important;
 }
-.library-check-label:focus, .library-check-label:hover {
+.jpf-library-check-label:focus, .jpf-library-check-label:hover {
     background: var(--jpf-surface-2);
     color: var(--jpf-text-1);
     outline: none;
 }
-.library-check-label:focus input, .library-check-label:hover input {
+.jpf-library-check-label:focus input, .jpf-library-check-label:hover input {
     box-shadow: 0 0 8px var(--jpf-accent-a60);
 }
 /* ── Titled sections in the create/edit forms ───────────────────── */
-.profile-section {
+.jpf-profile-section {
     background: var(--jpf-card-bg);
     border: 1px solid var(--jpf-card-border);
     border-radius: var(--jpf-r-md);
     padding: 1rem 1.15rem 1.15rem;
     margin-bottom: 1.25rem;
 }
-.profile-section-header {
+.jpf-profile-section-header {
     display: flex;
     align-items: flex-start;
     gap: 0.7rem;
@@ -1777,38 +1777,38 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-bottom: 1rem;
     border-bottom: 1px solid var(--jpf-card-border);
 }
-.profile-section-icon {
+.jpf-profile-section-icon {
     font-size: 1.35rem;
     color: var(--jpf-accent);
     flex-shrink: 0;
     line-height: 1.3;
 }
-.profile-section-heading {
+.jpf-profile-section-heading {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
 }
-.profile-section-title {
+.jpf-profile-section-title {
     font-size: 1.05rem;
     font-weight: 700;
     color: var(--jpf-text-1);
     margin: 0;
     line-height: 1.3;
 }
-.profile-section-subtitle {
+.jpf-profile-section-subtitle {
     font-size: 0.8rem;
     color: var(--jpf-text-3);
     line-height: 1.35;
 }
-.profile-section-body {
+.jpf-profile-section-body {
     display: flex;
     flex-direction: column;
     gap: 1.1rem;
 }
 /* Sections already space their children, so the per-field margin that the
    flat layout relied on would double up here. */
-.profile-section-body .form-group {
+.jpf-profile-section-body .jpf-form-group {
     margin-bottom: 0;
 }
 
@@ -1849,7 +1849,7 @@ body.profiles-no-scroll [id*="spinner"] {
     font-weight: 600;
 }
 .jpf-onboarding-check input { margin: 0 0.5rem 0 0 !important; width: 18px; height: 18px; accent-color: var(--jpf-accent); }
-.jpf-onboarding .form-hint { margin: 4px 0 1.5rem 1.6rem; opacity: 0.8; font-size: 0.85rem; }
+.jpf-onboarding .jpf-form-hint { margin: 4px 0 1.5rem 1.6rem; opacity: 0.8; font-size: 0.85rem; }
 .jpf-onboarding-label { font-weight: 600; margin-bottom: 10px; }
 .jpf-onboarding-choices > * + * { margin-top: var(--jpf-gap); }
 .jpf-onboarding-actions { margin-top: 2rem !important; }
@@ -1858,7 +1858,7 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Email (1.7.2). A text button for the side paths — "Forgot PIN?", "Send a new
    code" — so they don't compete with the buttons that finish the screen.
    Its focus ring is a plain :focus: :focus-visible is Chrome 86, and a TV
-   reaches these with the remote (see .profile-section :focus below). */
+   reaches these with the remote (see .jpf-profile-section :focus below). */
 .jpf-text-link {
     background: none; border: 0; padding: 6px 2px; margin: 0;
     color: var(--jpf-accent-text, var(--jpf-accent)); font: inherit; font-size: 0.9rem; font-weight: 600;
@@ -1879,7 +1879,7 @@ body.profiles-no-scroll [id*="spinner"] {
    The tile's line ("45 min left") sits under the name like the
    signed-in badge, quieter, and turns bold in the name's colour once the
    profile is out of time (P2-205, below). */
-.profile-viewing {
+.jpf-profile-viewing {
     display: block;
     font-size: 0.75rem;
     font-weight: 600;
@@ -1889,10 +1889,10 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Not the warning colour: --jpf-warn is mustard on Jellyfin Light's grey, about 3:1, and
    this is the line that says why a tile will not open. The name's own colour reads on every
    theme (themes.js holds that), and the dimmed avatar below carries the "no". */
-.profile-viewing.is-out { color: var(--jpf-name-color); opacity: 1; font-weight: 700; }
+.jpf-profile-viewing.is-out { color: var(--jpf-name-color); opacity: 1; font-weight: 700; }
 /* Not on the focused tile: opacity fades the ring with the picture, and the tile the remote
    is on is the one that has to be found. */
-.profile-card.is-out:not(:focus) .profile-avatar { opacity: 0.55; }
+.jpf-profile-card.is-out:not(:focus) .jpf-profile-avatar { opacity: 0.55; }
 .jpf-viewing-days { margin-top: 0.5rem; transition: opacity 0.2s ease; }
 .jpf-viewing-days.is-inert { opacity: 0.45; }
 .jpf-viewing-day { display: flex; align-items: center; gap: var(--jpf-gap); flex-wrap: wrap; margin-bottom: 6px; }
@@ -1913,7 +1913,7 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Other accounts on this screen (issue #39): one row per account, its Remove at the end. */
 .jpf-link-row { display: flex; align-items: center; gap: var(--jpf-gap); margin-bottom: 8px; }
 .jpf-link-name { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; font-weight: 600; overflow-wrap: break-word; overflow-wrap: anywhere; }
-.jpf-link-name .form-hint { font-weight: 400; margin-top: 2px; }
+.jpf-link-name .jpf-form-hint { font-weight: 400; margin-top: 2px; }
 
 /* ── "More settings" under a profile form's Basics (1.7.2) ──────────
    A <details>: closed until asked for, opened with Enter on a remote.
@@ -1975,7 +1975,7 @@ body.profiles-no-scroll [id*="spinner"] {
 
 /* Header row that sits inside a section, e.g. "Enabled Libraries | Select all".
    Wraps rather than squashing the label on narrow phones. */
-.section-inline-header {
+.jpf-section-inline-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1984,12 +1984,12 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-bottom: 0.35rem;
 }
 
-.form-hint-warn {
-    /* Not the warning colour, for the reason given at .profile-viewing.is-out: mustard is
+.jpf-form-hint-warn {
+    /* Not the warning colour, for the reason given at .jpf-profile-viewing.is-out: mustard is
        about 2:1 on white. The text colour, bold, reads everywhere. */
     color: var(--jpf-text-1) !important; font-weight: 600;
 }
-.form-error {
+.jpf-form-error {
     color: var(--jpf-danger);
     font-size: 0.88rem;
     font-weight: 600;
@@ -2000,13 +2000,13 @@ body.profiles-no-scroll [id*="spinner"] {
     border: 1px solid var(--jpf-danger-a25);
 }
 
-.image-upload-row {
+.jpf-image-upload-row {
     display: flex;
     align-items: center;
     gap: var(--jpf-gap);
     flex-wrap: wrap;
 }
-.image-upload-preview {
+.jpf-image-upload-preview {
     width: 64px; height: 64px;
     border-radius: 50%;
     color: #fff;
@@ -2016,7 +2016,7 @@ body.profiles-no-scroll [id*="spinner"] {
     border: 2px solid var(--jpf-border-3);
     flex-shrink: 0;
 }
-.image-upload-btn {
+.jpf-image-upload-btn {
     /* The phone rule below makes it width: 100%, and with the default content-box the
        padding and border were added on top, so it ran past its panel in every theme. */
     box-sizing: border-box;
@@ -2030,17 +2030,17 @@ body.profiles-no-scroll [id*="spinner"] {
     align-self: flex-start;
 }
 
-.device-delete-btn {
+.jpf-device-delete-btn {
     background: transparent; border: none; color: var(--jpf-danger);
     cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
     display: flex; align-items: center; justify-content: center;
     font-size: 1.1rem; flex-shrink: 0;
     transition: background 0.2s;
 }
-.device-delete-btn:hover {
+.jpf-device-delete-btn:hover {
     background: var(--jpf-danger-a15);
 }
-.device-delete-btn:focus {
+.jpf-device-delete-btn:focus {
     background: var(--jpf-danger-a25);
     outline: 2px solid var(--jpf-danger);
     outline-offset: 1px;
@@ -2050,14 +2050,14 @@ body.profiles-no-scroll [id*="spinner"] {
    font — next to a styled icon. They shipped that way in 1.5.10. Same geometry as
    Forget; only the colour differs, because only one of the three destroys
    anything. */
-.device-rename-btn, .device-merge-btn {
+.jpf-device-rename-btn, .jpf-device-merge-btn {
     background: transparent; border: none; color: var(--jpf-text-2);
     cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
     display: flex; align-items: center; justify-content: center;
     font-size: 1.1rem; flex-shrink: 0;
     transition: background 0.2s;
 }
-.device-rename-btn:hover, .device-merge-btn:hover {
+.jpf-device-rename-btn:hover, .jpf-device-merge-btn:hover {
     background: var(--jpf-surface-2);
 }
 /* All three were emoji — a pencil, a wastebasket, and a double arrow — and they
@@ -2066,16 +2066,16 @@ body.profiles-no-scroll [id*="spinner"] {
    other in weight. material-icons is what the rest of this interface uses, the
    gate included, so it is loaded before any of this is on screen. Sized here
    rather than inline, and once for all three, so they cannot drift apart. */
-.device-rename-btn .material-icons,
-.device-merge-btn .material-icons,
-.device-delete-btn .material-icons {
+.jpf-device-rename-btn .material-icons,
+.jpf-device-merge-btn .material-icons,
+.jpf-device-delete-btn .material-icons {
     font-size: 1.15rem;
     line-height: 1;
 }
 /* Keyboard focus, and it must be visible: these are reached with Tab on a desktop
    and with a remote on a television, where a background tint alone is not enough.
    The .jpf-tv block outranks this and puts a thicker ring on. */
-.device-rename-btn:focus, .device-merge-btn:focus {
+.jpf-device-rename-btn:focus, .jpf-device-merge-btn:focus {
     background: var(--jpf-surface-2);
     outline: 2px solid var(--jpf-accent);
     outline-offset: 1px;
@@ -2083,11 +2083,11 @@ body.profiles-no-scroll [id*="spinner"] {
 
 /* The dropdown is absolutely positioned so it overlays following fields
    instead of pushing the form around when it opens.
-   Its colours and max-height are set in the single .devices-dropdown-list block
+   Its colours and max-height are set in the single .jpf-devices-dropdown-list block
    further down; this one carries only the positioning. Both used to set
    max-height and overflow-y at the same specificity, so the 240px here never
    applied. */
-.devices-dropdown-list {
+.jpf-devices-dropdown-list {
     position: absolute;
     top: 100%; left: 0; right: 0;
     z-index: 10000;
@@ -2097,15 +2097,15 @@ body.profiles-no-scroll [id*="spinner"] {
 /* Phones: reclaim horizontal space and stop the section chrome from
    eating the width the form fields need. */
 @media (max-width: 480px) {
-    .profile-section {
+    .jpf-profile-section {
         padding: 0.85rem 0.8rem 0.9rem;
         margin-bottom: 1rem;
         border-radius: var(--jpf-r-md);
     }
-    .profile-section-body { gap: 0.95rem; }
-    .profile-section-title { font-size: 1rem; }
-    .profile-section-subtitle { font-size: 0.75rem; }
-    .image-upload-btn { width: 100%; }
+    .jpf-profile-section-body { gap: 0.95rem; }
+    .jpf-profile-section-title { font-size: 1rem; }
+    .jpf-profile-section-subtitle { font-size: 0.75rem; }
+    .jpf-image-upload-btn { width: 100%; }
 }
 
 /* TV / D-pad: the focus ring must be obvious from across a room, and a
@@ -2123,26 +2123,26 @@ body.profiles-no-scroll [id*="spinner"] {
    browsers new enough to tell the difference. That second rule is
    itself dropped by the old parsers, which is exactly what makes the
    pair safe — each browser reads only the half it understands. */
-.profile-section :focus {
+.jpf-profile-section :focus {
     outline: 2px solid var(--jpf-accent);
     outline-offset: 2px;
     scroll-margin-top: 4rem;
     scroll-margin-bottom: 4rem;
 }
-.profile-section :focus:not(:focus-visible) {
+.jpf-profile-section :focus:not(:focus-visible) {
     outline: none;
 }
-.profile-section :focus-visible {
+.jpf-profile-section :focus-visible {
     outline: 2px solid var(--jpf-accent);
     outline-offset: 2px;
     scroll-margin-top: 4rem;
     scroll-margin-bottom: 4rem;
 }
 
-.tag-editor {
+.jpf-tag-editor {
     display: flex; flex-direction: column; gap: 8px;
 }
-.tag-chip-list {
+.jpf-tag-chip-list {
     display: flex; flex-wrap: wrap; gap: 6px;
     background: var(--jpf-surface-2); border-radius: var(--jpf-r-md);
     border: 1px solid var(--jpf-border-1);
@@ -2155,12 +2155,12 @@ body.profiles-no-scroll [id*="spinner"] {
    is not reachable from t(), so a Polish household read one English sentence
    in the middle of a translated form. validate.js now fails on any content:
    string literal in this file, so a second one cannot appear. */
-.tag-chip-list[data-empty="true"]::before {
+.jpf-tag-chip-list[data-empty="true"]::before {
     content: attr(data-empty-label);
     font-size: 0.8rem; color: var(--jpf-text-3);
     align-self: center;
 }
-.tag-chip {
+.jpf-tag-chip {
     display: inline-flex; align-items: center; gap: 6px;
     background: var(--jpf-accent-a18);
     border: 1px solid var(--jpf-accent-a45);
@@ -2168,26 +2168,26 @@ body.profiles-no-scroll [id*="spinner"] {
     padding: 3px 6px 3px 12px; font-size: 0.85rem;
     max-width: 100%; word-break: break-word;
 }
-.tag-chip-remove {
+.jpf-tag-chip-remove {
     background: transparent; border: none; color: var(--jpf-text-2);
     cursor: pointer; font-size: 1rem; line-height: 1;
     padding: 0; width: 18px; height: 18px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     transition: background 0.2s, color 0.2s;
 }
-.tag-chip-remove:hover, .tag-chip-remove:focus {
+.jpf-tag-chip-remove:hover, .jpf-tag-chip-remove:focus {
     background: var(--jpf-border-3); color: var(--jpf-text-1); outline: none;
 }
-.tag-input-row {
+.jpf-tag-input-row {
     display: flex; gap: 8px;
 }
-.tag-input-row .tag-input {
+.jpf-tag-input-row .jpf-tag-input {
     flex: 1; min-width: 0;
 }
-.tag-input-row .tag-add-btn {
+.jpf-tag-input-row .jpf-tag-add-btn {
     padding: 8px 18px; font-size: 0.9rem; flex-shrink: 0;
 }
-.form-hint {
+.jpf-form-hint {
     font-size: 0.78rem;
     color: var(--jpf-text-3);
     margin-top: -0.2rem;
@@ -2214,7 +2214,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* Keyframe Animations */
-.anim-fade-in {
+.jpf-anim-fade-in {
     animation: fadeIn 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
 }
 @keyframes fadeIn {
@@ -2227,7 +2227,7 @@ body.profiles-no-scroll [id*="spinner"] {
    it sat directly above two of them. It cannot become a <select> — it is
    multi-select with checkboxes — so it borrows their exact appearance
    instead, chevron included, rather than carrying a text arrow. */
-.devices-dropdown-trigger {
+.jpf-devices-dropdown-trigger {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2244,17 +2244,17 @@ body.profiles-no-scroll [id*="spinner"] {
     user-select: none;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
-.devices-dropdown-trigger:focus {
+.jpf-devices-dropdown-trigger:focus {
     outline: none;
     border-color: var(--jpf-accent) !important;
     box-shadow: 0 0 10px var(--jpf-accent-a50) !important;
 }
 /* background-color, not background: the shorthand would reset the chevron
    that now lives in this element's background-image. */
-.devices-dropdown-trigger:hover {
+.jpf-devices-dropdown-trigger:hover {
     background-color: var(--jpf-surface-2);
 }
-.devices-dropdown-list {
+.jpf-devices-dropdown-list {
     background: var(--jpf-panel);
     border: 1px solid var(--jpf-border-2);
     border-radius: var(--jpf-r-sm);
@@ -2262,7 +2262,7 @@ body.profiles-no-scroll [id*="spinner"] {
     overflow-y: auto;
     box-shadow: 0 4px 15px var(--jpf-shadow-3);
 }
-.device-dropdown-item {
+.jpf-device-dropdown-item {
     display: flex;
     align-items: center;
     /* gap, not margins on the children: in a profile's list this row holds a
@@ -2276,10 +2276,10 @@ body.profiles-no-scroll [id*="spinner"] {
     border-bottom: 1px solid var(--jpf-border-1);
     transition: background 0.2s;
 }
-.device-dropdown-item:hover {
+.jpf-device-dropdown-item:hover {
     background: var(--jpf-surface-1);
 }
-.device-dropdown-item:focus-within {
+.jpf-device-dropdown-item:focus-within {
     background: var(--jpf-surface-1);
 }
 /* Settings -> Your account -> Devices: the same rows, drawn open rather than in a
@@ -2292,8 +2292,8 @@ body.profiles-no-scroll [id*="spinner"] {
     overflow-y: auto;
     margin-bottom: 8px;
 }
-.jpf-device-list .device-dropdown-item:last-child { border-bottom: 0; }
-/* Was a second .device-delete-btn:focus at the same specificity as the block above,
+.jpf-device-list .jpf-device-dropdown-item:last-child { border-bottom: 0; }
+/* Was a second .jpf-device-delete-btn:focus at the same specificity as the block above,
    winning with !important over nothing but its own twin. Folded into one rule, at
    the value that was actually applying. outline:none is gone with it — a focused
    control has to be findable, and the tint alone is not that on a television. */
@@ -2313,12 +2313,12 @@ body.profiles-no-scroll [id*="spinner"] {
    padding-top trick needs the image taken out of flow, so it is guarded
    rather than layered: on a modern browser none of this applies. */
 @supports not (aspect-ratio: 1 / 1) {
-    .avatar-library-item {
+    .jpf-avatar-library-item {
         position: relative;
         height: 0;
         padding-top: 100%;
     }
-    .avatar-library-item img {
+    .jpf-avatar-library-item img {
         position: absolute;
         top: 0;
         left: 0;
@@ -2333,11 +2333,11 @@ body.profiles-no-scroll [id*="spinner"] {
    above sizes against the container's width, which a fixed tile must not, so it is
    undone here. Only where grid is missing: elsewhere the grid draws it. */
 @supports not (display: grid) {
-    .avatar-library-grid {
+    .jpf-avatar-library-grid {
         display: flex;
         flex-wrap: wrap;
     }
-    .avatar-library-item {
+    .jpf-avatar-library-item {
         width: 56px;
         height: 56px;
         padding-top: 0;
@@ -2367,13 +2367,13 @@ body.profiles-no-scroll [id*="spinner"] {
    would push every row off-centre by half a gap. The cost is half a gap
    of padding at the container edges, which is invisible next to what it
    replaces. */
-.jpf-no-flex-gap .picture-sources > * + * { margin-top: var(--jpf-gap); }
-.jpf-no-flex-gap .picture-source-block > * + * { margin-top: 8px; }
-.jpf-no-flex-gap .profile-name > * + * { margin-top: 4px; }
-.jpf-no-flex-gap .pin-entry-container > * + * { margin-top: 2rem; }
-.jpf-no-flex-gap .form-col > * + * { margin-top: 1.5rem; }
-.jpf-no-flex-gap .create-profile-container > * + * { margin-top: 1.5rem; }
-.jpf-no-flex-gap .form-group > * + * { margin-top: 0.5rem; }
+.jpf-no-flex-gap .jpf-picture-sources > * + * { margin-top: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-picture-source-block > * + * { margin-top: 8px; }
+.jpf-no-flex-gap .jpf-profile-name > * + * { margin-top: 4px; }
+.jpf-no-flex-gap .jpf-pin-entry-container > * + * { margin-top: 2rem; }
+.jpf-no-flex-gap .jpf-form-col > * + * { margin-top: 1.5rem; }
+.jpf-no-flex-gap .jpf-create-profile-container > * + * { margin-top: 1.5rem; }
+.jpf-no-flex-gap .jpf-form-group > * + * { margin-top: 0.5rem; }
 .jpf-no-flex-gap .bonfire-form-group > * + * { margin-top: 0.5rem; }
 .jpf-no-flex-gap .jpf-theme-preview > * + * { margin-top: 10px; }
 .jpf-no-flex-gap .jpf-theme-preview-tiles > * + * { margin-left: 12px; }
@@ -2385,9 +2385,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .jpf-actions > * + * { margin-left: 12px; }
 .jpf-no-flex-gap .jpf-theme-option > * + * { margin-top: 8px; }
 .jpf-no-flex-gap .jpf-theme-option-label > * + * { margin-left: 6px; }
-.jpf-no-flex-gap .library-checklist > * + * { margin-top: 0.5rem; }
-.jpf-no-flex-gap .libart-list > * + * { margin-top: 6px; }
-.jpf-no-flex-gap .profile-section-heading > * + * { margin-top: 2px; }
+.jpf-no-flex-gap .jpf-library-checklist > * + * { margin-top: 0.5rem; }
+.jpf-no-flex-gap .jpf-libart-list > * + * { margin-top: 6px; }
+.jpf-no-flex-gap .jpf-profile-section-heading > * + * { margin-top: 2px; }
 .jpf-no-flex-gap .jpf-more > summary > * + * { margin-left: 0.7rem; }
 .jpf-no-flex-gap .jpf-inline-row > * { margin: 0 var(--jpf-gap) var(--jpf-gap) 0; }
 .jpf-no-flex-gap .jpf-email-check > * + * { margin-left: 0.5rem; }
@@ -2406,38 +2406,38 @@ body.profiles-no-scroll [id*="spinner"] {
 @supports not (display: grid) {
     .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }
 }
-.jpf-no-flex-gap .profile-section-body > * + * { margin-top: 1.1rem; }
-.jpf-no-flex-gap .tag-editor > * + * { margin-top: 8px; }
+.jpf-no-flex-gap .jpf-profile-section-body > * + * { margin-top: 1.1rem; }
+.jpf-no-flex-gap .jpf-tag-editor > * + * { margin-top: 8px; }
 
 .jpf-no-flex-gap .profiles-home-header > * + * { margin-left: 0.75rem; }
-.jpf-no-flex-gap .profile-pin-badge > * + * { margin-left: 4px; }
-.jpf-no-flex-gap .pin-actions > * + * { margin-left: var(--jpf-gap-lg); }
-.jpf-no-flex-gap .profile-dialog-actions > * + * { margin-left: var(--jpf-gap); }
-.jpf-no-flex-gap .dialog-action-buttons > * + * { margin-left: var(--jpf-gap); }
-.jpf-no-flex-gap .libart-head > * + * { margin-left: var(--jpf-gap); }
-.jpf-no-flex-gap .library-check-label > * + * { margin-left: 0.6rem; }
-.jpf-no-flex-gap .profile-section-header > * + * { margin-left: 0.7rem; }
-.jpf-no-flex-gap .image-upload-btn > * + * { margin-left: 8px; }
-.jpf-no-flex-gap .device-dropdown-item > * + * { margin-left: 8px; }
-.jpf-no-flex-gap .tag-chip > * + * { margin-left: 6px; }
-.jpf-no-flex-gap .tag-input-row > * + * { margin-left: 8px; }
+.jpf-no-flex-gap .jpf-profile-pin-badge > * + * { margin-left: 4px; }
+.jpf-no-flex-gap .jpf-pin-actions > * + * { margin-left: var(--jpf-gap-lg); }
+.jpf-no-flex-gap .jpf-profile-dialog-actions > * + * { margin-left: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-dialog-action-buttons > * + * { margin-left: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-libart-head > * + * { margin-left: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-library-check-label > * + * { margin-left: 0.6rem; }
+.jpf-no-flex-gap .jpf-profile-section-header > * + * { margin-left: 0.7rem; }
+.jpf-no-flex-gap .jpf-image-upload-btn > * + * { margin-left: 8px; }
+.jpf-no-flex-gap .jpf-device-dropdown-item > * + * { margin-left: 8px; }
+.jpf-no-flex-gap .jpf-tag-chip > * + * { margin-left: 6px; }
+.jpf-no-flex-gap .jpf-tag-input-row > * + * { margin-left: 8px; }
 
-.jpf-no-flex-gap .image-upload-actions > * { margin: 0 4px 8px; }
+.jpf-no-flex-gap .jpf-image-upload-actions > * { margin: 0 4px 8px; }
 .jpf-no-flex-gap .profiles-grid > * { margin: 0 1.5rem 3rem; }
 .jpf-no-flex-gap .profiles-footer > * {
     margin: 0 calc(var(--jpf-gap-lg) / 2) var(--jpf-gap-lg);
 }
-.jpf-no-flex-gap .avatar-color-picker > * {
+.jpf-no-flex-gap .jpf-avatar-color-picker > * {
     margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
 }
-.jpf-no-flex-gap .libart-row > * {
+.jpf-no-flex-gap .jpf-libart-row > * {
     margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
 }
-.jpf-no-flex-gap .section-inline-header > * { margin: 0 0.25rem 0.5rem; }
-.jpf-no-flex-gap .image-upload-row > * {
+.jpf-no-flex-gap .jpf-section-inline-header > * { margin: 0 0.25rem 0.5rem; }
+.jpf-no-flex-gap .jpf-image-upload-row > * {
     margin: 0 calc(var(--jpf-gap) / 2) var(--jpf-gap);
 }
-.jpf-no-flex-gap .tag-chip-list > * { margin: 0 3px 6px; }
+.jpf-no-flex-gap .jpf-tag-chip-list > * { margin: 0 3px 6px; }
 
 /* Containers whose gap is written inline in the script's markup (R-1227). A style
    attribute is out of reach of the rules above, so each carries one of these classes
@@ -2449,9 +2449,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .jpf-col-gap-sm > * + * { margin-top: 8px; }
 .jpf-no-flex-gap .jpf-col-gap-lg > * + * { margin-top: var(--jpf-gap-lg); }
 .jpf-no-flex-gap .jpf-col-gap-15 > * + * { margin-top: 1.5rem; }
-.jpf-no-flex-gap .profile-image-upload-container > * + * { margin-top: var(--jpf-gap); }
+.jpf-no-flex-gap .jpf-profile-image-upload-container > * + * { margin-top: var(--jpf-gap); }
 /* A wrapping, left-aligned row: a margin after every child, as .jpf-inline-row does. */
-.jpf-no-flex-gap .pin-edit-group > * { margin: 0 var(--jpf-gap) var(--jpf-gap) 0; }
+.jpf-no-flex-gap .jpf-pin-edit-group > * { margin: 0 var(--jpf-gap) var(--jpf-gap) 0; }
 /* The join row's children carried margin: 0 !important inline, which a stylesheet cannot
    override. It lives here now so the fallback below can outrank it. */
 .bonfire-join-row > input,
@@ -2462,20 +2462,20 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* The two gap values that change inside a media query need their
-   fallbacks changed with them, and .profile-dialog-actions also turns
+   fallbacks changed with them, and .jpf-profile-dialog-actions also turns
    into a column there — so its margin has to move axis, not just size.
    Missing this would leave the dialog buttons stacked and touching on a
    narrow screen, which is the one place the Save button already had to
    be rescued (see the sticky rule below). */
 @media (max-width: 480px) {
     .jpf-no-flex-gap .profiles-grid > * { margin: 0 0.75rem 1.5rem; }
-    .jpf-no-flex-gap .profile-dialog-actions > * + * {
+    .jpf-no-flex-gap .jpf-profile-dialog-actions > * + * {
         margin-left: 0;
         margin-top: var(--jpf-gap);
     }
 }
 @media (max-width: 480px) {
-    .jpf-no-flex-gap .profile-section-body > * + * { margin-top: 0.95rem; }
+    .jpf-no-flex-gap .jpf-profile-section-body > * + * { margin-top: 0.95rem; }
 }
 
 /* ── Short screens ────────────────────────────────────────────────
@@ -2499,13 +2499,13 @@ body.profiles-no-scroll [id*="spinner"] {
         font-size: calc(1.75rem * var(--jpf-title-scale));
         margin-bottom: 0.75rem;
     }
-    .create-profile-container,
-    .create-profile-container.is-two-col {
+    .jpf-create-profile-container,
+    .jpf-create-profile-container.is-two-col {
         --jpf-form-pad: 1rem;
         gap: 1rem;
         max-height: calc(100vh - 5.5rem);
     }
-    .create-profile-container > .profile-dialog-actions {
+    .jpf-create-profile-container > .jpf-profile-dialog-actions {
         margin-top: 0.25rem;
         padding-top: 0.5rem;
         padding-bottom: 0.5rem;
@@ -2533,10 +2533,10 @@ body.profiles-no-scroll [id*="spinner"] {
     --jpf-gap: 20px;
     --jpf-gap-lg: 2rem;
 }
-.jpf-tv .profile-card {
+.jpf-tv .jpf-profile-card {
     width: 300px;
 }
-.jpf-tv .profile-avatar-container {
+.jpf-tv .jpf-profile-avatar-container {
     width: 280px;
     height: 280px;
 }
@@ -2555,9 +2555,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap.jpf-tv .profiles-grid > * {
     margin: 0 2rem 4rem;
 }
-.jpf-tv .confirm-dialog-content, .jpf-tv .alert-dialog-content,
-.jpf-tv .prompt-dialog-content, .jpf-tv .select-dialog-content,
-.jpf-tv .libart-dialog-content {
+.jpf-tv .jpf-confirm-dialog-content, .jpf-tv .jpf-alert-dialog-content,
+.jpf-tv .jpf-prompt-dialog-content, .jpf-tv .jpf-select-dialog-content,
+.jpf-tv .jpf-libart-dialog-content {
     max-width: 760px;
 }
 .jpf-tv .profiles-title {
@@ -2565,7 +2565,7 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: calc(4rem * var(--jpf-title-scale));
     margin-bottom: 4rem;
 }
-.jpf-tv .profile-name {
+.jpf-tv .jpf-profile-name {
     font-size: 1.75rem;
     font-size: calc(1.75rem * var(--jpf-name-scale));
     margin-top: 1.5rem;
@@ -2575,21 +2575,21 @@ body.profiles-no-scroll [id*="spinner"] {
    ring as the signed-in one, so the one the remote was on looked like the one already
    signed in: focus doubles the ring (a border, so it needs no flat twin, and no outline,
    which Chromium 53 would draw as a rectangle round a round avatar). */
-.jpf-tv .profile-viewing,
-.jpf-tv .profile-current-badge {
+.jpf-tv .jpf-profile-viewing,
+.jpf-tv .jpf-profile-current-badge {
     font-size: 1.1rem;
 }
-.jpf-tv .profile-lock-indicator {
+.jpf-tv .jpf-profile-lock-indicator {
     width: 52px;
     height: 52px;
     bottom: 12px;
     right: 12px;
 }
-.jpf-tv .profile-lock-indicator svg {
+.jpf-tv .jpf-profile-lock-indicator svg {
     width: 24px;
     height: 24px;
 }
-.jpf-tv .profile-card:focus .profile-avatar {
+.jpf-tv .jpf-profile-card:focus .jpf-profile-avatar {
     border-width: calc(var(--jpf-ring-w) * 2);
 }
 .jpf-tv .profiles-btn {
@@ -2601,23 +2601,23 @@ body.profiles-no-scroll [id*="spinner"] {
    they follow jellyfin-web's root (20px at 720p, 27px at 1080p). Set on body as well,
    because the base rule above sets them there and a variable set on body beats one
    inherited from html. The PIN width stays as it is: those keys are sized for a short
-   row and .pin-actions scales it itself. */
+   row and .jpf-pin-actions scales it itself. */
 .jpf-tv, .jpf-tv body {
     --jpf-w-form: 36rem;
     --jpf-w-wide: 56rem;
 }
 /* The picture buttons wrapped to three lines at 1.5rem and the Save bar was 16% of a 720p
    screen. They are still large, and the bar still thick enough to hit with a remote. */
-.jpf-tv .image-upload-btn {
+.jpf-tv .jpf-image-upload-btn {
     font-size: 1.25rem;
     padding: 10px 24px;
     white-space: nowrap;
 }
-.jpf-tv .profile-dialog-actions .profiles-btn {
+.jpf-tv .jpf-profile-dialog-actions .profiles-btn {
     padding-top: 10px;
     padding-bottom: 10px;
 }
-.jpf-tv .create-profile-container > .profile-dialog-actions {
+.jpf-tv .jpf-create-profile-container > .jpf-profile-dialog-actions {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
 }
@@ -2625,18 +2625,18 @@ body.profiles-no-scroll [id*="spinner"] {
    buttons. A television's are 1.5rem with 36px of padding, two of them plus the gap
    come to more than 420px at 1080p, and the row wrapped: Cancel over Submit, hard
    left. 720p and desktop fit, which is why it was only seen on the big screen. */
-.jpf-tv .pin-actions {
+.jpf-tv .jpf-pin-actions {
     max-width: calc(var(--jpf-w-narrow) * 1.6);
 }
-.jpf-tv .profile-section-title {
+.jpf-tv .jpf-profile-section-title {
     font-size: 1.6rem;
 }
-.jpf-tv .profile-section-body {
+.jpf-tv .jpf-profile-section-body {
     gap: 1.8rem;
 }
 /* The same 1.8rem for a browser with no flex gap (Chromium 53). */
-.jpf-no-flex-gap.jpf-tv .profile-section-body > * + * { margin-top: 1.8rem; }
-.jpf-tv .profile-section {
+.jpf-no-flex-gap.jpf-tv .jpf-profile-section-body > * + * { margin-top: 1.8rem; }
+.jpf-tv .jpf-profile-section {
     padding: 1.6rem 1.5rem;
 }
 /* The form is capped at 75vh, or 85vh in two columns, and sits under a 4rem title with 4rem
@@ -2646,8 +2646,8 @@ body.profiles-no-scroll [id*="spinner"] {
    overscan margin of Bonfire's own: jellyfin-web adds none on a television either
    (padded-left and padded-right are 3.3%), and the gate's own 2rem is already 5% of the
    height. Named with the two-column class too, which would otherwise win on specificity. */
-.jpf-tv .create-profile-container,
-.jpf-tv .create-profile-container.is-two-col {
+.jpf-tv .jpf-create-profile-container,
+.jpf-tv .jpf-create-profile-container.is-two-col {
     max-height: calc(100vh - 14rem);
 }
 /* A ring on focus, for a keyboard on a desktop or a phone. Most of these controls said
@@ -2657,11 +2657,11 @@ body.profiles-no-scroll [id*="spinner"] {
    order; the television block below is higher still and thickens it. The pill's
    selector carries its id and class because its own focus rule does. */
 .profiles-btn:focus,
-.color-dot:focus,
-.avatar-library-item:focus,
-.library-check-label:focus,
-.devices-dropdown-trigger:focus,
-#profile-pin-input:focus, #master-pin-input:focus, #main-pin-new:focus, #pin-reset-new:focus, #pin-reset-code:focus,
+.jpf-color-dot:focus,
+.jpf-avatar-library-item:focus,
+.jpf-library-check-label:focus,
+.jpf-devices-dropdown-trigger:focus,
+#jpf-profile-pin-input:focus, #jpf-master-pin-input:focus, #jpf-main-pin-new:focus, #jpf-pin-reset-new:focus, #jpf-pin-reset-code:focus,
 #profiles-floating-bubble.profiles-floating-fallback:focus {
     outline: 2px solid var(--jpf-accent);
     outline-offset: 2px;
@@ -2671,14 +2671,14 @@ body.profiles-no-scroll [id*="spinner"] {
    the entire navigation model on a remote. Not the profile card: an outline is a
    rectangle in Chromium 53 whatever the border-radius, so it boxed a round avatar
    and its name, and the avatar already carries the ring, glow and scale. */
-.jpf-tv .color-dot:focus,
-.jpf-tv .avatar-library-item:focus,
-.jpf-tv .library-check-label:focus,
-.jpf-tv .devices-dropdown-trigger:focus,
-.jpf-tv #profile-pin-input:focus, .jpf-tv #master-pin-input:focus, .jpf-tv #main-pin-new:focus,
-.jpf-tv #pin-reset-new:focus, .jpf-tv #pin-reset-code:focus,
+.jpf-tv .jpf-color-dot:focus,
+.jpf-tv .jpf-avatar-library-item:focus,
+.jpf-tv .jpf-library-check-label:focus,
+.jpf-tv .jpf-devices-dropdown-trigger:focus,
+.jpf-tv #jpf-profile-pin-input:focus, .jpf-tv #jpf-master-pin-input:focus, .jpf-tv #jpf-main-pin-new:focus,
+.jpf-tv #jpf-pin-reset-new:focus, .jpf-tv #jpf-pin-reset-code:focus,
 .jpf-tv #profiles-floating-bubble:focus,
-.jpf-tv .profile-section :focus,
+.jpf-tv .jpf-profile-section :focus,
 .jpf-tv .profiles-btn:focus,
 .jpf-tv .jpf-choice:focus,
 .jpf-tv .jpf-theme-option:focus,
@@ -2693,12 +2693,12 @@ body.profiles-no-scroll [id*="spinner"] {
    television browsers it was written for, while looking correct
    everywhere it was tested. The plan warned about this in P4-11 and I
    still wrote it the wrong way first; cssbaseline.js now fails on it. */
-.jpf-tv .profile-section :focus-visible {
+.jpf-tv .jpf-profile-section :focus-visible {
     outline: 4px solid var(--jpf-accent);
     outline-offset: 4px;
 }
 /* The announcement's dismiss button sits on the gate and the home page, outside every
-   .profile-section above, and its own focus rule says outline: none with a 2px shadow. */
+   .jpf-profile-section above, and its own focus rule says outline: none with a 2px shadow. */
 .jpf-tv .profiles-announcement-dismiss:focus {
     outline: 4px solid var(--jpf-accent);
     outline-offset: 2px;
@@ -2714,26 +2714,26 @@ body.profiles-no-scroll [id*="spinner"] {
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted {
     --jpf-tile: 140px;
 }
-#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .profile-avatar-container {
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .jpf-profile-avatar-container {
     width: var(--jpf-tile);
     height: var(--jpf-tile);
 }
-#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .profile-card {
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .jpf-profile-card {
     width: calc(var(--jpf-tile) + 20px);
 }
-#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .profile-avatar {
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .jpf-profile-avatar {
     font-size: calc(var(--jpf-tile) / 2.6);
 }
 /* The lock badge is a fixed 32px (52px on a television), which on a tile fitted down to 88px
    sat over the first letter (P2-514). It follows the tile like the letter does: about a
    quarter of it, tucked into the corner, so the centred letter stays clear. */
-#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profile-lock-indicator {
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-lock-indicator {
     width: calc(var(--jpf-tile) * 0.25);
     height: calc(var(--jpf-tile) * 0.25);
     right: calc(var(--jpf-tile) * 0.03);
     bottom: calc(var(--jpf-tile) * 0.03);
 }
-#profiles-gate-overlay .profiles-modal-content.jpf-fitted .profile-lock-indicator svg {
+#profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-lock-indicator svg {
     width: calc(var(--jpf-tile) * 0.11);
     height: calc(var(--jpf-tile) * 0.11);
 }
@@ -2747,10 +2747,10 @@ body.profiles-no-scroll [id*="spinner"] {
    letters fit a 140px tile at that size. The ellipsis was chosen over smaller text and over
    a word broken in two. The whole name stays in the markup, so a screen reader says all
    of it. Not on a phone: there the grid scrolls before it shrinks far, and names wrap. */
-.jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profile-name {
+.jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-name {
     font-size: calc(1.75rem * var(--jpf-name-scale) * var(--jpf-name-fit, 1));
 }
-.jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profile-name > span:first-child {
+.jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-name > span:first-child {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2781,7 +2781,7 @@ html.jpf-fading { transition: opacity 0.18s ease; }
    the new background and under the content (z-index -1, like the pattern layer, and after
    it in the tree), and fades out. Opacity only. Skipped for anyone who asked for less
    motion, and the script does not draw it. The content is not animated: giving
-   .profiles-modal-content an animation here replayed .anim-fade-in when this one ended. */
+   .profiles-modal-content an animation here replayed .jpf-anim-fade-in when this one ended. */
 .jpf-theme-veil {
     position: fixed;
     top: 0; right: 0; bottom: 0; left: 0;
@@ -2821,11 +2821,11 @@ html.jpf-fading { transition: opacity 0.18s ease; }
    not satisfy, and a theme's drifting pattern is held off every television already. */
 .jpf-flat .jpf-theme-preview-tile,
 .jpf-flat .profiles-home-section,
-.jpf-flat .profile-avatar,
-.jpf-flat .profile-lock-indicator,
-.jpf-flat .profile-bonfire-indicator,
-.jpf-flat .profile-card:hover .profile-avatar,
-.jpf-flat .profile-card:focus .profile-avatar,
+.jpf-flat .jpf-profile-avatar,
+.jpf-flat .jpf-profile-lock-indicator,
+.jpf-flat .jpf-profile-bonfire-indicator,
+.jpf-flat .jpf-profile-card:hover .jpf-profile-avatar,
+.jpf-flat .jpf-profile-card:focus .jpf-profile-avatar,
 .jpf-flat #bonfire-join-input:focus,
 .jpf-flat #profiles-panic-input:focus,
 .jpf-flat .bonfire-kick-btn:focus,
@@ -2833,25 +2833,25 @@ html.jpf-fading { transition: opacity 0.18s ease; }
 .jpf-flat #profiles-floating-bubble.profiles-floating-fallback,
 .jpf-flat #profiles-floating-bubble.profiles-floating-fallback:hover,
 .jpf-flat #profiles-floating-bubble.profiles-floating-fallback:focus,
-.jpf-flat .btn-primary:hover,
-.jpf-flat .btn-primary:focus,
-.jpf-flat .btn-secondary:hover,
-.jpf-flat .btn-secondary:focus,
-.jpf-flat .create-profile-container,
-.jpf-flat .form-group input:focus,
-.jpf-flat .form-group select:focus,
+.jpf-flat .jpf-btn-primary:hover,
+.jpf-flat .jpf-btn-primary:focus,
+.jpf-flat .jpf-btn-secondary:hover,
+.jpf-flat .jpf-btn-secondary:focus,
+.jpf-flat .jpf-create-profile-container,
+.jpf-flat .jpf-form-group input:focus,
+.jpf-flat .jpf-form-group select:focus,
 .jpf-flat .bonfire-form-group input[type="email"]:focus,
-.jpf-flat .library-check-label:focus input,
-.jpf-flat .library-check-label:hover input,
-.jpf-flat .devices-dropdown-list {
+.jpf-flat .jpf-library-check-label:focus input,
+.jpf-flat .jpf-library-check-label:hover input,
+.jpf-flat .jpf-devices-dropdown-list {
     box-shadow: none;
 }
 /* Alone, as every :focus-within is: Chromium 53 cannot parse it and drops the whole list. */
-.jpf-flat .profile-card:focus-within .profile-avatar {
+.jpf-flat .jpf-profile-card:focus-within .jpf-profile-avatar {
     box-shadow: none;
 }
 /* The one original that says !important, so this has to. */
-.jpf-flat .devices-dropdown-trigger:focus {
+.jpf-flat .jpf-devices-dropdown-trigger:focus {
     box-shadow: none !important;
 }
 /* The preview swatch's shadow goes, and the theme's focus frame on its first tile, which
@@ -2865,29 +2865,29 @@ html.jpf-fading { transition: opacity 0.18s ease; }
 .jpf-flat .profiles-home-icon.bonfire-icon-color {
     text-shadow: none;
 }
-.jpf-flat .anim-fade-in {
+.jpf-flat .jpf-anim-fade-in {
     animation: none;
 }
-.jpf-flat .profile-avatar.is-transparent img,
-.jpf-flat .profile-avatar-overlay-svg {
+.jpf-flat .jpf-profile-avatar.is-transparent img,
+.jpf-flat .jpf-profile-avatar-overlay-svg {
     filter: none;
 }
-.jpf-flat .profile-card.is-current .profile-avatar.is-transparent img {
+.jpf-flat .jpf-profile-card.is-current .jpf-profile-avatar.is-transparent img {
     filter:
         drop-shadow(3px 0 0 var(--jpf-accent))
         drop-shadow(-3px 0 0 var(--jpf-accent))
         drop-shadow(0 3px 0 var(--jpf-accent))
         drop-shadow(0 -3px 0 var(--jpf-accent));
 }
-.jpf-flat .profile-card:hover .profile-avatar.is-transparent img,
-.jpf-flat .profile-card:focus .profile-avatar.is-transparent img {
+.jpf-flat .jpf-profile-card:hover .jpf-profile-avatar.is-transparent img,
+.jpf-flat .jpf-profile-card:focus .jpf-profile-avatar.is-transparent img {
     filter:
         drop-shadow(3px 0 0 var(--jpf-ring))
         drop-shadow(-3px 0 0 var(--jpf-ring))
         drop-shadow(0 3px 0 var(--jpf-ring))
         drop-shadow(0 -3px 0 var(--jpf-ring));
 }
-.jpf-flat .profile-card:focus-within .profile-avatar.is-transparent img {
+.jpf-flat .jpf-profile-card:focus-within .jpf-profile-avatar.is-transparent img {
     filter:
         drop-shadow(3px 0 0 var(--jpf-ring))
         drop-shadow(-3px 0 0 var(--jpf-ring))
@@ -2895,7 +2895,7 @@ html.jpf-fading { transition: opacity 0.18s ease; }
         drop-shadow(0 -3px 0 var(--jpf-ring));
 }
 /* Nothing eases between states on these either; the focus scale itself stays. */
-.jpf-flat .profile-card .profile-avatar,
+.jpf-flat .jpf-profile-card .jpf-profile-avatar,
 .jpf-flat .profiles-btn {
     transition: none;
 }
@@ -2905,28 +2905,28 @@ html.jpf-fading { transition: opacity 0.18s ease; }
    specificity resolves here, and the checkbox rule is !important because the base one is. */
 @media (max-width: 480px) {
     .profiles-btn,
-    .form-group input[type="text"],
-    .form-group input[type="email"],
-    .form-group input[type="password"],
+    .jpf-form-group input[type="text"],
+    .jpf-form-group input[type="email"],
+    .jpf-form-group input[type="password"],
     .bonfire-form-group input[type="text"],
     .bonfire-form-group input[type="email"],
-    .form-group select,
-    .devices-dropdown-trigger,
-    .tag-input {
+    .jpf-form-group select,
+    .jpf-devices-dropdown-trigger,
+    .jpf-tag-input {
         min-height: 44px;
         box-sizing: border-box;
     }
-    .library-check-label {
+    .jpf-library-check-label {
         min-height: 44px;
         box-sizing: border-box;
     }
-    .library-check-label input {
+    .jpf-library-check-label input {
         width: 22px !important;
         height: 22px !important;
     }
     /* 44px dots in a 4px gap fill the row the same as 36px in 12px did. */
-    .color-dot { width: 44px; height: 44px; }
-    .avatar-color-picker { gap: 4px; }
+    .jpf-color-dot { width: 44px; height: 44px; }
+    .jpf-avatar-color-picker { gap: 4px; }
 }
 /* Phones: nothing a person has to read is under 12px. Hints and section subtitles were 10.8
    and 11.2px, the signed-in, PIN and time-left lines under a tile 10.1 and 10.8px, because
@@ -2934,15 +2934,15 @@ html.jpf-fading { transition: opacity 0.18s ease; }
    jellyfin-web's phone root. The theme picker's miniature of the switcher is a picture
    of a screen and is left alone. */
 @media (max-width: 480px) {
-    .profile-section-subtitle,
-    .form-hint,
+    .jpf-profile-section-subtitle,
+    .jpf-form-hint,
     .jpf-more-hint,
-    .libart-explainer,
+    .jpf-libart-explainer,
     .jpf-theme-option-tag,
     .jpf-theme-preview-name,
-    .profile-current-badge,
-    .profile-viewing,
-    .profile-pin-badge {
+    .jpf-profile-current-badge,
+    .jpf-profile-viewing,
+    .jpf-profile-pin-badge {
         font-size: 0.85rem;
     }
 }
@@ -2953,10 +2953,10 @@ spinner is kept on purpose: it is the only sign that a tap registered. Last in t
 sheet, and !important on transform because the hover and focus scale come from theme
 blocks written after this sheet. */
 @media (prefers-reduced-motion: reduce) {
-    .anim-fade-in { animation: none; }
-    .profile-card .profile-avatar, .color-dot, .avatar-library-item, .profiles-btn,
-    #profiles-gate-overlay, .alert-dialog-content, .jpf-fade, html.jpf-fading { transition: none !important; }
-    .profile-card:hover .profile-avatar, .profile-card:focus .profile-avatar,
-    .color-dot:hover, .color-dot:focus, .avatar-library-item:hover, .avatar-library-item:focus,
+    .jpf-anim-fade-in { animation: none; }
+    .jpf-profile-card .jpf-profile-avatar, .jpf-color-dot, .jpf-avatar-library-item, .profiles-btn,
+    #profiles-gate-overlay, .jpf-alert-dialog-content, .jpf-fade, html.jpf-fading { transition: none !important; }
+    .jpf-profile-card:hover .jpf-profile-avatar, .jpf-profile-card:focus .jpf-profile-avatar,
+    .jpf-color-dot:hover, .jpf-color-dot:focus, .jpf-avatar-library-item:hover, .jpf-avatar-library-item:focus,
     .profiles-btn:hover, .profiles-btn:focus { transform: none !important; }
 }

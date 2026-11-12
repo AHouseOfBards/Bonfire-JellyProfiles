@@ -81,10 +81,10 @@ console.log('\n── "Time\'s up" and "45 min left" can be read on every theme 
     const dir = L.themesDir();
     const themes = fs.readdirSync(dir).filter(f => /\.json$/.test(f) && f !== 'fonts.json')
         .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
-    for (const sel of ['.profile-viewing.is-out', '.profile-viewing']) {
+    for (const sel of ['.jpf-profile-viewing.is-out', '.jpf-profile-viewing']) {
         const value = decl(sel, 'color');
         const op = decl(sel, 'opacity');
-        // .profile-viewing sets no colour: it inherits the name's, which is a theme token.
+        // .jpf-profile-viewing sets no colour: it inherits the name's, which is a theme token.
         const token = value ? (/^var\((--[\w-]+)\)$/.exec(value) || [])[1] : '--jpf-name-color';
         const key = TOKENS[token];
         ok(sel + ' takes a colour the theme sets (' + (value || 'inherited') + ')', !!key);
@@ -103,15 +103,15 @@ console.log('\n── "Time\'s up" and "45 min left" can be read on every theme 
 
 // ── 2. Television sizes ─────────────────────────────────────────────────────────
 console.log('\n── On a television those lines are as big as they need to be ────');
-for (const sel of ['.jpf-tv .profile-viewing', '.jpf-tv .profile-current-badge']) {
+for (const sel of ['.jpf-tv .jpf-profile-viewing', '.jpf-tv .jpf-profile-current-badge']) {
     const size = rem(decl(sel, 'font-size'));
     ok(sel + ' is at least 1rem (20px at 720p, 27px at 1080p) — got ' + size + 'rem', size !== null && size >= 1);
 }
 {
-    const w = px(decl('.jpf-tv .profile-lock-indicator', 'width'));
-    const h = px(decl('.jpf-tv .profile-lock-indicator', 'height'));
+    const w = px(decl('.jpf-tv .jpf-profile-lock-indicator', 'width'));
+    const h = px(decl('.jpf-tv .jpf-profile-lock-indicator', 'height'));
     ok('the lock badge is at least 48px on a television — got ' + w + 'x' + h, w !== null && h !== null && w >= 48 && h >= 48);
-    const icon = px(decl('.jpf-tv .profile-lock-indicator svg', 'width'));
+    const icon = px(decl('.jpf-tv .jpf-profile-lock-indicator svg', 'width'));
     ok('and its padlock grows with it (at least 22px) — got ' + icon, icon !== null && icon >= 22);
 }
 
@@ -119,8 +119,8 @@ for (const sel of ['.jpf-tv .profile-viewing', '.jpf-tv .profile-current-badge']
 console.log('\n── Focus reads as focus, not as "signed in" ─────────────────────');
 {
     // The signed-in ring is the base border. Focus on a television must be thicker.
-    const base = decl('.profile-avatar', 'border');
-    const focus = decl('.jpf-tv .profile-card:focus .profile-avatar', 'border-width');
+    const base = decl('.jpf-profile-avatar', 'border');
+    const focus = decl('.jpf-tv .jpf-profile-card:focus .jpf-profile-avatar', 'border-width');
     ok('the signed-in ring is the theme\'s ring width (' + base + ')', /var\(--jpf-ring-w\)/.test(base || ''));
     ok('a focused tile on a television has a thicker border-width (' + focus + ')',
         !!focus && /calc\(var\(--jpf-ring-w\)\s*\*\s*([2-9])\)/.test(focus));
@@ -137,11 +137,11 @@ console.log('\n── The main account has no crown ─────────�
 // ── 4. The markup ───────────────────────────────────────────────────────────────
 console.log('\n── A profile out of time is dimmed ──────────────────────────────');
 {
-    const dim = decl('.profile-card.is-out:not(:focus) .profile-avatar', 'opacity');
+    const dim = decl('.jpf-profile-card.is-out:not(:focus) .jpf-profile-avatar', 'opacity');
     ok('an out-of-time tile\'s avatar is dimmed (' + dim + ')', dim !== null && parseFloat(dim) < 1 && parseFloat(dim) >= 0.4);
     const js = fs.readFileSync(process.argv[2] || L.profilesPath(), 'utf8');
     const from = js.indexOf('const renderCard = (p) =>');
-    const card = js.slice(from, js.indexOf('profile-avatar-container', from));
+    const card = js.slice(from, js.indexOf('jpf-profile-avatar-container', from));
     ok('the card itself is given the class, from the flag the line uses', /is-out/.test(card) && /viewing/.test(card));
 }
 

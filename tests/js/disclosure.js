@@ -37,13 +37,13 @@ function ok(name, cond, detail) {
 const HOUSEHOLD = {
     // Add: the name, picture, PIN, rating, libraries and which devices are the basics.
     add: {
-        basic: ['.create-device-checkbox[checkbox]', '.library-checkbox[checkbox]', 'create-cancel-btn', 'create-change-picture', 'create-clear-profile-image-btn', 'create-kids-preset', 'create-name-input', 'create-pin-input', 'create-profile-image-file', 'create-rating-select', 'create-select-all-libraries', 'create-submit-btn', 'create-transparent-toggle'],
-        more: ['.profiles-btn[button]', '.profiles-btn[button]', '.tag-input[text]', '.tag-input[text]', 'create-local-bypass-checkbox', 'create-lockout-select', 'create-theme-select']
+        basic: ['.create-device-checkbox[checkbox]', '.library-checkbox[checkbox]', 'create-cancel-btn', 'create-change-picture', 'create-clear-profile-image-btn', 'create-kids-preset', 'create-name-input', 'jpf-create-pin-input', 'create-profile-image-file', 'create-rating-select', 'create-select-all-libraries', 'create-submit-btn', 'create-transparent-toggle'],
+        more: ['.profiles-btn[button]', '.profiles-btn[button]', '.jpf-tag-input[text]', '.jpf-tag-input[text]', 'create-local-bypass-checkbox', 'create-lockout-select', 'create-theme-select']
     },
     // Edit, for a sub-profile. The two .profiles-btn under More are the tag Add buttons.
     editProfile: {
-        basic: ['.device-checkbox[checkbox]', '.libart-mode', '.library-checkbox[checkbox]', '.profiles-btn[button]', 'edit-cancel-btn', 'edit-change-picture', 'edit-clear-profile-image-btn', 'edit-delete-btn', 'edit-name-input', 'edit-pin-input', 'edit-profile-image-file', 'edit-rating-select', 'edit-select-all-libraries', 'edit-submit-btn', 'edit-transparent-toggle'],
-        more: ['.profiles-btn[button]', '.profiles-btn[button]', '.tag-input[text]', '.tag-input[text]', 'edit-libart-toggle', 'edit-local-bypass-checkbox', 'edit-lockout-select', 'edit-theme-select']
+        basic: ['.device-checkbox[checkbox]', '.jpf-libart-mode', '.library-checkbox[checkbox]', '.profiles-btn[button]', 'edit-cancel-btn', 'edit-change-picture', 'edit-clear-profile-image-btn', 'jpf-edit-delete-btn', 'edit-name-input', 'jpf-edit-pin-input', 'edit-profile-image-file', 'edit-rating-select', 'edit-select-all-libraries', 'edit-submit-btn', 'edit-transparent-toggle'],
+        more: ['.profiles-btn[button]', '.profiles-btn[button]', '.jpf-tag-input[text]', '.jpf-tag-input[text]', 'edit-libart-toggle', 'edit-local-bypass-checkbox', 'edit-lockout-select', 'edit-theme-select']
     },
     // Edit, for the main account: no limits to set, so nothing is under a fold.
     editMain: {
@@ -53,7 +53,7 @@ const HOUSEHOLD = {
     // Your account: the PIN and devices are the basics; when it is asked, the home network
     // and auto-lock are More.
     account: {
-        basic: ['account-back-btn', 'account-manage-devices', 'account-pin-clear', 'account-pin-input', 'account-pin-save'],
+        basic: ['account-back-btn', 'account-manage-devices', 'account-pin-clear', 'jpf-account-pin-input', 'account-pin-save'],
         more: ['account-ask-pin', 'account-lan-bypass', 'account-layout-select', 'account-lockout-select']
     },
     // Your account, Email section, once an address is confirmed: which mails are sent is More.

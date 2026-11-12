@@ -103,7 +103,7 @@ function freshAccount() {
         await settle();
         const html = content.innerHTML;
         ok('a PIN field, with Save and Clear for a PIN that is set',
-            /id="account-pin-input"/.test(html) && /id="account-pin-save"/.test(html) && /id="account-pin-clear"/.test(html));
+            /id="jpf-account-pin-input"/.test(html) && /id="account-pin-save"/.test(html) && /id="account-pin-clear"/.test(html));
         ok('ask-for-the-PIN, ticked as stored', content.querySelector('#account-ask-pin').checked === true);
         ok('home network, unticked as stored', content.querySelector('#account-lan-bypass').checked === false);
         ok('auto-lock, on the stored five minutes', content.querySelector('#account-lockout-select').value === '5');
@@ -112,14 +112,14 @@ function freshAccount() {
         // the account page itself.
         ok('a device count and a Manage devices button, not the list',
             /id="account-manage-devices"/.test(html) && /id="account-device-count"/.test(html)
-            && content.querySelectorAll('.device-dropdown-item').length === 0);
+            && content.querySelectorAll('.jpf-device-dropdown-item').length === 0);
         PP.showAccountDevices();
         await settle();
         ok('every device, each with rename, merge and forget',
-            content.querySelectorAll('.device-dropdown-item').length === 2
-            && content.querySelectorAll('.device-rename-btn').length === 2
-            && content.querySelectorAll('.device-merge-btn').length === 2
-            && content.querySelectorAll('.device-delete-btn').length === 2);
+            content.querySelectorAll('.jpf-device-dropdown-item').length === 2
+            && content.querySelectorAll('.jpf-device-rename-btn').length === 2
+            && content.querySelectorAll('.jpf-device-merge-btn').length === 2
+            && content.querySelectorAll('.jpf-device-delete-btn').length === 2);
         ok('and Tidy up duplicates', /id="devices-tidy-btn"/.test(content.innerHTML));
         PP.showAccountSettings();
         await settle();
@@ -165,7 +165,7 @@ function freshAccount() {
             JSON.stringify(sent.map(p => p.body)));
 
         posts.length = 0;
-        const pinIn = content.querySelector('#account-pin-input');
+        const pinIn = content.querySelector('#jpf-account-pin-input');
         pinIn.value = '12';
         content.querySelector('#account-pin-save').click();
         await settle();
@@ -206,20 +206,20 @@ function freshAccount() {
         const dev = (path) => posts.filter(p => p.url === 'plugins/profiles/devices/' + path);
 
         posts.length = 0;
-        content.querySelectorAll('.device-delete-btn')[0].click();
+        content.querySelectorAll('.jpf-device-delete-btn')[0].click();
         await settle();
         ok('Forget asks, then posts the device', calls.confirms.length >= 1
             && dev('delete').length === 1 && dev('delete')[0].body.deviceId === 'tv-1');
         ok('and redraws the page from the server', redraws === 1);
 
         posts.length = 0;
-        content.querySelectorAll('.device-rename-btn')[1].click();
+        content.querySelectorAll('.jpf-device-rename-btn')[1].click();
         await settle();
         ok('Rename posts the new name', dev('rename').length === 1
             && JSON.stringify(dev('rename')[0].body) === JSON.stringify({ deviceId: 'tv-2', deviceName: 'Living room TV' }));
 
         posts.length = 0;
-        content.querySelectorAll('.device-merge-btn')[1].click();
+        content.querySelectorAll('.jpf-device-merge-btn')[1].click();
         await settle();
         const offered = calls.selects[calls.selects.length - 1] || [];
         ok('Merge offers every other device, not itself',
@@ -287,7 +287,7 @@ function freshAccount() {
 
     const edit = (/showEditProfileModal: function[\s\S]*?\n        showBonfireModal: function/.exec(SRC) || [''])[0];
     ok('no device tools are wired in the profile form',
-        !!edit && !/device-delete-btn|device-rename-btn|device-merge-btn|devices-tidy-btn/.test(edit));
+        !!edit && !/jpf-device-delete-btn|jpf-device-rename-btn|jpf-device-merge-btn|devices-tidy-btn/.test(edit));
     ok('the main account\'s form no longer carries its PIN settings',
         !!edit && /mainSecurityMoved/.test(edit) && !/edit-ask-pin-checkbox/.test(SRC));
 

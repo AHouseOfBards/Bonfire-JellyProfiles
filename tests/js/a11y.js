@@ -33,8 +33,8 @@ function tagOf(id) {
 (async () => {
     // 2. A wrong PIN is spoken, and the box says it is invalid.
     const pinScreens = [
-        ['the profile PIN', 'profile-pin-input', 'pin-error-msg', () => PP.promptPinEntry('kid')],
-        ['the main PIN', 'master-pin-input', 'master-pin-error-msg', () => PP.promptMasterPinEntry('manage', () => {})]
+        ['the profile PIN', 'jpf-profile-pin-input', 'pin-error-msg', () => PP.promptPinEntry('kid')],
+        ['the main PIN', 'jpf-master-pin-input', 'master-pin-error-msg', () => PP.promptMasterPinEntry('manage', () => {})]
     ];
     for (const s of pinScreens) {
         s[3]();
@@ -234,10 +234,10 @@ function tagOf(id) {
         const input = D.makeNode({});
         input.focus = () => focused.push('input');
         const chipList = D.makeNode({});
-        chipList.querySelector = sel => (sel === '.tag-chip' ? chips[0] || null : null);
-        chipList.querySelectorAll = sel => (sel === '.tag-chip' ? chips : []);
+        chipList.querySelector = sel => (sel === '.jpf-tag-chip' ? chips[0] || null : null);
+        chipList.querySelectorAll = sel => (sel === '.jpf-tag-chip' ? chips : []);
         const editor = D.makeNode({});
-        editor.querySelector = sel => ({ '.tag-chip-list': chipList, '.tag-input': input, '.tag-add-btn': D.makeNode({}) })[sel] || null;
+        editor.querySelector = sel => ({ '.jpf-tag-chip-list': chipList, '.jpf-tag-input': input, '.jpf-tag-add-btn': D.makeNode({}) })[sel] || null;
         PP6.initTagEditors({ querySelectorAll: () => [editor] });
         const tgt = ch => ({ closest: sel => (/remove/.test(sel) ? { closest: () => ch } : null) });
         chipList.fire('click', { target: tgt(chipA) });
@@ -262,11 +262,11 @@ function tagOf(id) {
         P3.isManageMode = false;
         try { P3.renderOverlayContent(overlay, profiles); } catch (e) { console.log('  (render threw: ' + e.message + ')'); }
         const html = overlay.innerHTML;
-        const cards = html.match(/<div class="profile-card[^>]*>/g) || [];
+        const cards = html.match(/<div class="jpf-profile-card[^>]*>/g) || [];
         ok('the tiles are drawn', cards.length === 2, 'drew ' + cards.length);
         ok('each tile is a button to a screen reader', cards.length > 0 && cards.every(c => /role="button"/.test(c)), cards[0]);
         const kit = html.slice(html.indexOf('data-id="bbbb"'));
-        ok('a PIN-protected tile says so in words', /class="jpf-sr">PIN protected</.test(kit.slice(0, kit.indexOf('profile-card') > 0 ? kit.length : 2000)));
+        ok('a PIN-protected tile says so in words', /class="jpf-sr">PIN protected</.test(kit.slice(0, kit.indexOf('jpf-profile-card') > 0 ? kit.length : 2000)));
         // 17. Opening a profile is announced, not only drawn as a spinner.
         env3.sandbox.document.getElementById = id => overlay.querySelector('#' + id);
         const live = overlay.querySelector('#jpf-switch-live');
@@ -278,7 +278,7 @@ function tagOf(id) {
             ok('and the line is cleared when it is over', live.textContent === '', live.textContent);
         }
         ok('the picture badges are hidden from a screen reader',
-            !/<div class="profile-lock-indicator">/.test(html) && !/<div class="profile-bonfire-indicator" title/.test(html));
+            !/<div class="jpf-profile-lock-indicator">/.test(html) && !/<div class="jpf-profile-bonfire-indicator" title/.test(html));
     }
 
     // 14. A profile list that did not load says so, instead of leaving home with no
@@ -395,7 +395,7 @@ function tagOf(id) {
     {
         const P4 = D.loadPlugin(SRC).PP;
         const html = P4.renderColorPicker('#E50914');
-        const dots = html.match(/<div class="color-dot[^>]*>/g) || [];
+        const dots = html.match(/<div class="jpf-color-dot[^>]*>/g) || [];
         ok('the swatches are drawn', dots.length > 1, dots.length + ' drawn');
         ok('they sit in a labelled group', /role="radiogroup" aria-label="[^"]+"/.test(html));
         ok('each says whether it is chosen', dots.length > 0 && dots.every(d => /aria-checked="(true|false)"/.test(d)));
@@ -445,13 +445,13 @@ function tagOf(id) {
             return best ? best.value : null;
         };
         const controls = [
-            ['the primary button', { classes: ['profiles-btn', 'btn-primary'] }],
-            ['the secondary button', { classes: ['profiles-btn', 'btn-secondary'] }],
-            ['a colour swatch', { classes: ['color-dot'] }],
-            ['a library picture', { classes: ['avatar-library-item'] }],
-            ['a library tick-box', { classes: ['library-check-label'] }],
-            ['the devices dropdown', { classes: ['devices-dropdown-trigger'] }],
-            ['the profile PIN box', { id: 'profile-pin-input' }],
+            ['the primary button', { classes: ['profiles-btn', 'jpf-btn-primary'] }],
+            ['the secondary button', { classes: ['profiles-btn', 'jpf-btn-secondary'] }],
+            ['a colour swatch', { classes: ['jpf-color-dot'] }],
+            ['a library picture', { classes: ['jpf-avatar-library-item'] }],
+            ['a library tick-box', { classes: ['jpf-library-check-label'] }],
+            ['the devices dropdown', { classes: ['jpf-devices-dropdown-trigger'] }],
+            ['the profile PIN box', { id: 'jpf-profile-pin-input' }],
             ['the floating button', { id: 'profiles-floating-bubble', classes: ['profiles-floating-fallback'] }]
         ];
         controls.forEach(c => {
@@ -466,10 +466,10 @@ function tagOf(id) {
         const blocks = [];
         css.replace(/@media \(prefers-reduced-motion: reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g, (m, b) => { blocks.push(b); return m; });
         const all = blocks.join('\n');
-        ok('the picker does not zoom in', /\.anim-fade-in[^{]*\{[^}]*animation:\s*none/.test(all));
+        ok('the picker does not zoom in', /\.jpf-anim-fade-in[^{]*\{[^}]*animation:\s*none/.test(all));
         ok('tiles do not scale under the pointer or focus',
-            /\.profile-card:focus \.profile-avatar[^{]*\{[^}]*transform:\s*none/.test(all));
-        ok('swatches and buttons do not scale', /\.color-dot:focus[^{]*\{[^}]*transform:\s*none/.test(all));
+            /\.jpf-profile-card:focus \.jpf-profile-avatar[^{]*\{[^}]*transform:\s*none/.test(all));
+        ok('swatches and buttons do not scale', /\.jpf-color-dot:focus[^{]*\{[^}]*transform:\s*none/.test(all));
 
         // The fades written from script. An inline style cannot be overridden by a media
         // query, so each is a class the stylesheet owns, and the reduced block names it.
@@ -582,7 +582,7 @@ function tagOf(id) {
             P6.beginNavigation = () => 1; P6.navIsCurrent = () => true;
             P6.isManageMode = false;
             try { P6.renderOverlayContent(gate, [prof]); } catch (e) { /* drawn or not, read below */ }
-            const m = /class="profile-avatar[^"]*"\s+style="[^"]*?;\s*color:\s*(#[0-9a-fA-F]{6})/.exec(gate.innerHTML);
+            const m = /class="jpf-profile-avatar[^"]*"\s+style="[^"]*?;\s*color:\s*(#[0-9a-fA-F]{6})/.exec(gate.innerHTML);
             const r = m ? ratio(m[1], h) : 0;
             ok(h + ': the initial is ' + (m ? m[1] : 'not set') + ', ' + r.toFixed(2) + ':1 (3 needed)', r >= 3);
         });

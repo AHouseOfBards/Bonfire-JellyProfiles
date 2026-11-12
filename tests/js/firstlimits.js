@@ -80,7 +80,7 @@ async function addKid(limit) {
     console.log('\n── First child with a limit, no main PIN yet ───────────────────');
     await addKid(true);
     ok('the profile is created', posts.some(p => p.url === 'plugins/profiles/create'));
-    const pinField = content.querySelector('#main-pin-new');
+    const pinField = content.querySelector('#jpf-main-pin-new');
     ok('the main PIN is asked for, before anything fails', !!pinField);
     ok('no error was shown while asking', alerts.length === 0, alerts.join(' | '));
     if (pinField) {
@@ -109,7 +109,7 @@ async function addKid(limit) {
 
     console.log('\n── No limit set ────────────────────────────────────────────────');
     await addKid(false);
-    ok('the PIN is still offered', !!content.querySelector('#main-pin-new'));
+    ok('the PIN is still offered', !!content.querySelector('#jpf-main-pin-new'));
     ok('without any limits call', posts.every(p => p.url !== 'plugins/profiles/limits/new'));
     ok('and no alert', alerts.length === 0, alerts.join(' | '));
 

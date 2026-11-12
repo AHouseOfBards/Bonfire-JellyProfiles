@@ -185,7 +185,7 @@ const settle = async () => { for (let i = 0; i < 5; i++) { await env.settle(); f
  * <details> other than its <summary>.
  */
 function parse(html, labels) {
-    // tabindex the code set at runtime on .library-check-label (initTVCheckboxes), in order.
+    // tabindex the code set at runtime on .jpf-library-check-label (initTVCheckboxes), in order.
     let labelAt = 0;
     html = html.replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*?<\/script>/g, '');
     const VOID = /^(input|br|img|hr|meta|link|source)$/;
@@ -225,8 +225,8 @@ function trapMatches(n) {
 }
 
 const CONTROL_ROLES = /^(button|radio|checkbox|switch|tab|link|menuitem)$/;
-const CONTROL_CLASSES = ['focusable', 'profile-card', 'color-dot', 'avatar-library-item', 'jpf-choice', 'settings-menu-entry',
-    'library-check-label', 'image-upload-btn', 'jpf-text-link'];
+const CONTROL_CLASSES = ['focusable', 'jpf-profile-card', 'jpf-color-dot', 'jpf-avatar-library-item', 'jpf-choice', 'settings-menu-entry',
+    'jpf-library-check-label', 'jpf-image-upload-btn', 'jpf-text-link'];
 function isControl(n) {
     const a = n.attrs;
     if (n.hidden || 'disabled' in a) return false;
@@ -278,12 +278,12 @@ function surfaceOf(html, labels) {
 // first: the id (or a prefix ending in *) focus must start on. back: 'leaves' when Back
 // must click a control and the screen change; 'absorbed' for the required startup choice.
 const OVERLAYS = [
-    { name: 'the gate, opened from inside a profile', gate: true, resume: true, first: 'profile-card*', back: 'leaves' },
-    { name: 'the startup gate, a required choice', gate: true, resume: false, first: 'profile-card*', back: 'absorbed' },
-    { name: 'the profile PIN prompt', first: 'profile-pin-input', back: 'leaves', screen: () => PP.promptPinEntry('kid') },
-    { name: 'the main PIN prompt', first: 'master-pin-input', back: 'leaves', screen: () => PP.promptMasterPinEntry('x', () => {}) },
+    { name: 'the gate, opened from inside a profile', gate: true, resume: true, first: 'jpf-profile-card*', back: 'leaves' },
+    { name: 'the startup gate, a required choice', gate: true, resume: false, first: 'jpf-profile-card*', back: 'absorbed' },
+    { name: 'the profile PIN prompt', first: 'jpf-profile-pin-input', back: 'leaves', screen: () => PP.promptPinEntry('kid') },
+    { name: 'the main PIN prompt', first: 'jpf-master-pin-input', back: 'leaves', screen: () => PP.promptMasterPinEntry('x', () => {}) },
     { name: 'Settings', first: '*', back: 'leaves', screen: () => { PP.showSettingsMenu = REAL.showSettingsMenu; PP.showSettingsMenu(); PP.showSettingsMenu = bump; } },
-    { name: 'Settings, Your account', first: 'account-*', back: 'leaves', screen: () => PP.showAccountSettings() },
+    { name: 'Settings, Your account', first: 'jpf-account-*', back: 'leaves', screen: () => PP.showAccountSettings() },
     { name: 'Settings, Switcher', first: '*', back: 'leaves', screen: () => PP.showSwitcherModeModal() },
     { name: 'Settings, Look', first: '*', back: 'leaves', screen: () => PP.showThemeSettings(null) },
     { name: 'Settings, Sharing', first: '*', back: 'leaves', screen: () => { PP.loadBonfireStatus = () => {}; PP.showBonfireModal(); } },
@@ -335,8 +335,8 @@ async function openOverlay(o) {
         // showProfileOverlay's own auto-focus is `overlay.querySelector('[tabindex="0"], button,
         // input')`, which a stub cannot evaluate: apply the same rule to the drawn markup.
         const first = parse(html).filter(n => !n.hidden && (n.attrs.tabindex === '0' || /^(button|input)$/.test(n.tag)))[0];
-        initial = first ? (first.id || 'profile-card:' + (first.attrs['data-id'] || '')) : null;
-        if (first && /\bprofile-card\b/.test(first.attrs.class || '')) initial = 'profile-card:' + first.attrs['data-id'];
+        initial = first ? (first.id || 'jpf-profile-card:' + (first.attrs['data-id'] || '')) : null;
+        if (first && /\bprofile-card\b/.test(first.attrs.class || '')) initial = 'jpf-profile-card:' + first.attrs['data-id'];
     } else if (o.dialog) {
         o.dialog();
         await settle();
@@ -350,10 +350,10 @@ async function openOverlay(o) {
         initial = focusLog.length ? focusLog[0] : null;
     }
     const slotLabels = [];
-    extraSlots.forEach(s => s.querySelectorAll('.library-check-label').forEach(l => slotLabels.push(l)));
+    extraSlots.forEach(s => s.querySelectorAll('.jpf-library-check-label').forEach(l => slotLabels.push(l)));
     extraSlots.length = 0;
     // jellyfin's label tabindex is set at runtime (initTVCheckboxes); read what the code did.
-    const labels = (holder && holder.querySelectorAll ? Array.prototype.slice.call(holder.querySelectorAll('.library-check-label')) : [])
+    const labels = (holder && holder.querySelectorAll ? Array.prototype.slice.call(holder.querySelectorAll('.jpf-library-check-label')) : [])
         .concat(slotLabels);
     return { html, holder, initial, labels };
 }
@@ -387,7 +387,7 @@ async function openOverlay(o) {
             if (initial === null) return null;
             const byId = root.nodes.filter(n => n.id === initial)[0];
             if (byId) return byId;
-            const m = /^profile-card:(.*)$/.exec(initial);
+            const m = /^jpf-profile-card:(.*)$/.exec(initial);
             return m ? (root.nodes.filter(n => n.attrs['data-id'] === m[1])[0] || null) : null;
         };
         active = start();
@@ -408,7 +408,7 @@ async function openOverlay(o) {
 
         // 3. Focus starts on the obvious element.
         const shown = initial === null ? 'nothing' : initial;
-        ok(o.name + ': focus starts on ' + o.first, initial !== null && matchesFirst(o.first, initial.replace(/^profile-card:.*/, 'profile-card')),
+        ok(o.name + ': focus starts on ' + o.first, initial !== null && matchesFirst(o.first, initial.replace(/^jpf-profile-card:.*/, 'jpf-profile-card')),
             'started on ' + shown);
 
         // 4. Back, through the real keydown handler, once per key and on a freshly drawn screen

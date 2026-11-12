@@ -362,31 +362,31 @@ console.log('\n── The screens read the tokens instead of literals ───�
     ['.profiles-title', 'font-weight', 'var(--jpf-title-weight)'],
     ['.profiles-title', 'letter-spacing', 'var(--jpf-title-spacing)'],
     ['.profiles-title', 'text-shadow', 'var(--jpf-title-shadow)'],
-    ['.profile-avatar', 'border-radius', 'var(--jpf-avatar-r)'],
-    ['.profile-avatar-overlay-wrap', 'border-radius', 'var(--jpf-avatar-r)'],
-    ['.profile-card:hover .profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
-    ['.profile-card:focus .profile-avatar', 'box-shadow', 'var(--jpf-hover-glow)'],
-    ['.profile-card:focus-within .profile-avatar', 'border-color', 'var(--jpf-ring)'],
-    ['.profile-card.manage-mode:hover .profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
-    ['.btn-primary', 'color', 'var(--jpf-on-accent)'],
+    ['.jpf-profile-avatar', 'border-radius', 'var(--jpf-avatar-r)'],
+    ['.jpf-profile-avatar-overlay-wrap', 'border-radius', 'var(--jpf-avatar-r)'],
+    ['.jpf-profile-card:hover .jpf-profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
+    ['.jpf-profile-card:focus .jpf-profile-avatar', 'box-shadow', 'var(--jpf-hover-glow)'],
+    ['.jpf-profile-card:focus-within .jpf-profile-avatar', 'border-color', 'var(--jpf-ring)'],
+    ['.jpf-profile-card.jpf-manage-mode:hover .jpf-profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
+    ['.jpf-btn-primary', 'color', 'var(--jpf-on-accent)'],
     ['.jpf-text-link', 'color', 'var(--jpf-accent-text, var(--jpf-accent))'],
-    ['.profile-current-badge', 'color', 'var(--jpf-accent-text, var(--jpf-accent))'],
-    ['.btn-primary:hover', 'background-color', 'var(--jpf-accent-hover)'],
-    ['.create-profile-container > .profile-dialog-actions', 'background', 'var(--jpf-panel)'],
-    ['.form-group select option', 'background-color', 'var(--jpf-panel)'],
-    ['.devices-dropdown-list', 'background', 'var(--jpf-panel)'],
+    ['.jpf-profile-current-badge', 'color', 'var(--jpf-accent-text, var(--jpf-accent))'],
+    ['.jpf-btn-primary:hover', 'background-color', 'var(--jpf-accent-hover)'],
+    ['.jpf-create-profile-container > .jpf-profile-dialog-actions', 'background', 'var(--jpf-panel)'],
+    ['.jpf-form-group select option', 'background-color', 'var(--jpf-panel)'],
+    ['.jpf-devices-dropdown-list', 'background', 'var(--jpf-panel)'],
     ['.profiles-home-section', 'background', 'var(--jpf-section-bg)'],
-    ['.profile-avatar', 'border', 'var(--jpf-ring-w) solid transparent'],
-    ['.profile-name', 'color', 'var(--jpf-name-color)'],
+    ['.jpf-profile-avatar', 'border', 'var(--jpf-ring-w) solid transparent'],
+    ['.jpf-profile-name', 'color', 'var(--jpf-name-color)'],
     ['.profiles-btn', 'border-radius', 'var(--jpf-btn-radius)'],
     ['.profiles-btn', 'text-transform', 'var(--jpf-btn2-case)'],
-    ['.btn-secondary:focus', 'background', 'var(--jpf-btn2-hover-bg)'],
-    ['.add-avatar', 'border', 'var(--jpf-add-border)'],
-    ['.create-profile-container', 'background', 'var(--jpf-sheet-bg)'],
-    ['.profile-section', 'background', 'var(--jpf-card-bg)'],
+    ['.jpf-btn-secondary:focus', 'background', 'var(--jpf-btn2-hover-bg)'],
+    ['.jpf-add-avatar', 'border', 'var(--jpf-add-border)'],
+    ['.jpf-create-profile-container', 'background', 'var(--jpf-sheet-bg)'],
+    ['.jpf-profile-section', 'background', 'var(--jpf-card-bg)'],
     ['.jpf-choice', 'background', 'var(--jpf-card-bg)'],
-    ['.form-group select', 'border-radius', 'var(--jpf-input-r)'],
-    ['#profile-pin-input', 'background', 'var(--jpf-input-bg)']
+    ['.jpf-form-group select', 'border-radius', 'var(--jpf-input-r)'],
+    ['#jpf-profile-pin-input', 'background', 'var(--jpf-input-bg)']
 ].forEach(([sel, prop, want]) => {
     const got = winning(sel, prop);
     ok(sel + ' { ' + prop + ' } is ' + want + (got === want ? '' : ' (wins: ' + got + ')'), got === want);
@@ -892,7 +892,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
         const same = render('crimson', 'crimson');
         ok('one that chose the default theme by name still shows one ticked card',
            same.cards.filter(c => c.checked).length === 1);
-        ok('the page draws no sheet of its own', /class="create-profile-container jpf-theme-page"/.test(follow.html));
+        ok('the page draws no sheet of its own', /class="jpf-create-profile-container jpf-theme-page"/.test(follow.html));
     }
     ok('a pick says nothing on success: the tick moving is the answer',
        !!page && !/themeSettings\.saved/.test(page.body) && !/themeSettings\.saved/.test(SRC));
@@ -901,20 +901,20 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
     // Resolved, not string-matched: the page rule has to beat every rule that gives the
     // container a sheet, in every theme, including Glass's frost.
     {
-        const pageRule = /\.create-profile-container\.jpf-theme-page\s*\{([^}]*)\}/.exec(CSS);
+        const pageRule = /\.jpf-create-profile-container\.jpf-theme-page\s*\{([^}]*)\}/.exec(CSS);
         const body = pageRule ? pageRule[1] : '';
         ok('the Theme page drops the sheet in every theme',
            /background:\s*transparent/.test(body) && /border-color:\s*transparent/.test(body)
            && /box-shadow:\s*none/.test(body) && /(^|[^-])backdrop-filter:\s*none/.test(body));
         const at = pageRule ? pageRule.index : -1;
         const rivals = [];
-        CSS.replace(/([^{}]*\.create-profile-container[^{}]*)\{([^}]*)\}/g, (m, sel, decl, idx) => {
+        CSS.replace(/([^{}]*\.jpf-create-profile-container[^{}]*)\{([^}]*)\}/g, (m, sel, decl, idx) => {
             if (/jpf-theme-page|::|is-two-col|>/.test(sel)) return m;
             // A rival is a rule that draws something. "box-shadow: none" draws nothing, and
             // the flat look's .jpf-flat rule is exactly that: it ties this page's own
             // "box-shadow: none" and cannot give the container a sheet.
             if (!/background|border|backdrop-filter|padding|box-shadow:(?!\s*none)/.test(decl)) return m;
-            sel.split(',').map(s => s.trim()).filter(s => /\.create-profile-container$/.test(s)).forEach(s => {
+            sel.split(',').map(s => s.trim()).filter(s => /\.jpf-create-profile-container$/.test(s)).forEach(s => {
                 const spec = [(s.match(/#/g) || []).length,
                               (s.match(/\.|\[|:(?!:)/g) || []).length];
                 const beats = spec[0] > 0 || spec[1] > 2 || (spec[1] === 2 && idx > at);
@@ -929,7 +929,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
     // A picture marked as a cut-out is not clipped to the avatar's box, so an opaque square
     // one stood outside Nightfall's round ring. It has to stay inside the theme's shape.
     {
-        const rule = /\.profile-avatar\.is-transparent img\s*\{([^}]*)\}/.exec(CSS);
+        const rule = /\.jpf-profile-avatar\.is-transparent img\s*\{([^}]*)\}/.exec(CSS);
         ok('a cut-out picture is rounded to the theme\'s avatar shape',
            !!rule && /border-radius:\s*var\(--jpf-avatar-r\)/.test(rule[1]));
         const missing = serverIds.filter(id => !theme[id] || !theme[id]['--jpf-avatar-r']);

@@ -65,7 +65,7 @@ const MEASURE = `(function () {
     var tb = rg.getBoundingClientRect();
     if (over(out.box, { l: tb.left, r: tb.right, t: tb.top, b: tb.bottom })) hits.push('the title');
   }
-  [].slice.call(root.querySelectorAll('.profile-card')).forEach(function (c, i) {
+  [].slice.call(root.querySelectorAll('.jpf-profile-card')).forEach(function (c, i) {
     if (over(out.box, r(c))) hits.push('tile ' + (i + 1));
   });
   [].slice.call(root.querySelectorAll('.profiles-btn')).forEach(function (c, i) {
@@ -165,7 +165,7 @@ async function main() {
         const VARIANTS = [{ lay: '', count: 0 }, { lay: ',profiles:list,align:left,size:large', count: 0 },
             { lay: ',size:large', count: 21 }, { lay: ',profiles:list,size:large', count: 21 }];
         const BOX = `(function () { var b = document.getElementById('profiles-logo'); var root = document.getElementById('profiles-gate-overlay');
-          var last = 0; [].slice.call(root.querySelectorAll('.profiles-btn, .profile-card')).forEach(function (e) { last = Math.max(last, e.getBoundingClientRect().bottom); });
+          var last = 0; [].slice.call(root.querySelectorAll('.profiles-btn, .jpf-profile-card')).forEach(function (e) { last = Math.max(last, e.getBoundingClientRect().bottom); });
           return { last: last, scrolls: root.scrollHeight > root.clientHeight + 1, below: root.scrollHeight - (b.getBoundingClientRect().bottom + root.scrollTop) }; })()`;
         // Scrolled right to the top, the first thing in the content is on the screen. A flex
         // column centred with justify-content spills an overflowing gate above scroll 0, where

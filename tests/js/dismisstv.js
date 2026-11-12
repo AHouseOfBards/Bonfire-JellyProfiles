@@ -1,7 +1,7 @@
 // The announcement's dismiss button, for a finger and a remote (P2-207).
 //
 // It was about 20px square, and its focus rule says "outline: none" with a 2px shadow, so
-// the television's thick focus ring (which is scoped to .profile-section) never reached it.
+// the television's thick focus ring (which is scoped to .jpf-profile-section) never reached it.
 // Resolved, not string-matched: the television rule has to win the cascade over the
 // base rule, which means more specificity or equal and later, for the one property that
 // matters here, outline.

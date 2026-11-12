@@ -63,7 +63,7 @@ const MEASURE = `(function () {
     if (tops[0].bottom > hi + 4) hi += 999;
     out.rows.push({ i: i, spread: Math.round(hi - lo), zero: tops.some(function (r) { return r.w < 1; }) });
   });
-  var d = document.getElementById('edit-delete-btn'), c = document.getElementById('edit-cancel-btn');
+  var d = document.getElementById('jpf-edit-delete-btn'), c = document.getElementById('edit-cancel-btn');
   if (d && c) {
     var rg = document.createRange(); rg.selectNodeContents(d);
     var tops = {}; [].slice.call(rg.getClientRects()).forEach(function (r) { tops[Math.round(r.top / 4)] = 1; });
@@ -72,8 +72,8 @@ const MEASURE = `(function () {
   }
   var t = document.getElementById('edit-libart-toggle');
   if (t) {
-    var card = t.closest('.profile-section');
-    out.art = { card: !!card, title: card && card.querySelector('.profile-section-title') ? card.querySelector('.profile-section-title').textContent : '' };
+    var card = t.closest('.jpf-profile-section');
+    out.art = { card: !!card, title: card && card.querySelector('.jpf-profile-section-title') ? card.querySelector('.jpf-profile-section-title').textContent : '' };
   }
   return out;
 })()`;

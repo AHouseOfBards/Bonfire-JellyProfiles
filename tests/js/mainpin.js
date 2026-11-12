@@ -191,7 +191,7 @@ const info = (required) => () => json({ features: { requireMainPin: required } }
         let done = 0;
         env.P.promptSetMainPin(people, false, () => done++);
         ok('offered, it can be skipped', /Not now/.test(env.content.innerHTML));
-        const input = env.content.els['main-pin-new'];
+        const input = env.content.els['jpf-main-pin-new'];
         input.value = '12';
         env.content.els['main-pin-save'].fire('click');
         await settle();

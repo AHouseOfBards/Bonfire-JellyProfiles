@@ -63,7 +63,7 @@ const OTHER = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 function build() {
     const cards = [makeEl({ 'data-id': DASHLESS }), makeEl({ 'data-id': OTHER })];
     const overlay = makeEl({});
-    overlay.querySelectorAll = sel => (sel === '.profile-card' ? cards : []);
+    overlay.querySelectorAll = sel => (sel === '.jpf-profile-card' ? cards : []);
 
     const byId = {
         'profiles-gate-overlay': overlay,
@@ -197,13 +197,13 @@ console.log();
 console.log('── Touch gets immediate feedback ───────────────────────────────');
 
 ok('a pressed card responds before the network does',
-    /\.profile-card:active \.profile-avatar-container \{[^}]*transform: scale/.test(CSS.replace(/\r\n/g, '\n')));
+    /\.jpf-profile-card:active \.jpf-profile-avatar-container \{[^}]*transform: scale/.test(CSS.replace(/\r\n/g, '\n')));
 ok('the unchosen profiles step back',
-    CSS.includes('#profiles-gate-overlay.is-switching .profile-card:not(.is-switching)'));
+    CSS.includes('#profiles-gate-overlay.is-switching .jpf-profile-card:not(.is-switching)'));
 ok('the chosen one gets a spinner over its avatar',
-    CSS.includes('.profile-card.is-switching .profile-avatar-container::after'));
+    CSS.includes('.jpf-profile-card.is-switching .jpf-profile-avatar-container::after'));
 ok('reduced motion drops the press animation, not the spinner',
-    /prefers-reduced-motion[\s\S]{0,400}\.profile-card:active \.profile-avatar-container \{\s*transform: none;/
+    /prefers-reduced-motion[\s\S]{0,400}\.jpf-profile-card:active \.jpf-profile-avatar-container \{\s*transform: none;/
         .test(CSS.replace(/\r\n/g, '\n')));
 
 console.log();

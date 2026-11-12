@@ -1,5 +1,5 @@
 /*
- * R-1180: initTVCheckboxes gives every .library-check-label tabindex 0, and a label
+ * R-1180: initTVCheckboxes gives every .jpf-library-check-label tabindex 0, and a label
  * that wraps a real checkbox then offers two stops for one control (the viewing days,
  * the hours switch, most toggles). Tab visited the label and then the box; the remote's
  * arrows did the same.

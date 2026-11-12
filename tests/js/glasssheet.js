@@ -29,9 +29,9 @@ const PROBE = `(function () {
     var bf = s.backdropFilter || s.webkitBackdropFilter;
     return { fill: fill, line: line, shadow: s.boxShadow !== 'none', blur: !!bf && bf !== 'none' };
   }
-  var c = document.querySelector('#profiles-gate-overlay .create-profile-container');
+  var c = document.querySelector('#profiles-gate-overlay .jpf-create-profile-container');
   if (!c) return null;
-  var card = c.querySelector('.profile-section');
+  var card = c.querySelector('.jpf-profile-section');
   return { container: painted(c), card: card ? painted(card) : null };
 })()`;
 

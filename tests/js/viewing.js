@@ -133,7 +133,7 @@ const last = url => sent(url).pop();
     // The card's own click handler, from the real attachOverlayInteractions.
     const card = D.makeNode({ 'data-id': 'kid' });
     const overlay = D.makeNode({}, {
-        querySelectorAll: sel => (sel.indexOf('.profile-card:not') === 0 ? [card] : [])
+        querySelectorAll: sel => (sel.indexOf('.jpf-profile-card:not') === 0 ? [card] : [])
     });
     PP.executeProfileSwitch = () => { opened++; };
     PP.isManageMode = false;
@@ -154,7 +154,7 @@ const last = url => sent(url).pop();
     const allowedKid = Object.assign({}, kid, { viewing: PP.normalizeViewing({ limited: true, allowed: true, binding: 'limit', minutesLeft: 5 }) });
     dialog = null;
     const card2 = D.makeNode({ 'data-id': 'kid' });
-    PP.attachOverlayInteractions(D.makeNode({}, { querySelectorAll: sel => (sel.indexOf('.profile-card:not') === 0 ? [card2] : []) }), [allowedKid]);
+    PP.attachOverlayInteractions(D.makeNode({}, { querySelectorAll: sel => (sel.indexOf('.jpf-profile-card:not') === 0 ? [card2] : []) }), [allowedKid]);
     card2.click();
     ok('a profile with time left opens at once', dialog === null && opened === 2);
 

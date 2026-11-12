@@ -4,7 +4,7 @@
  * ignores border-radius, so the card's box, name and all, was boxed in the accent
  * colour while the avatar underneath already carried its own ring.
  *
- * Asks what the cascade settles on for a focused .profile-card under .jpf-tv, rather
+ * Asks what the cascade settles on for a focused .jpf-profile-card under .jpf-tv, rather
  * than whether some string is present: a rule that is there and outranked, or one that
  * is gone while a broader rule still matches, are both a different answer from the
  * one the page shows.
@@ -46,18 +46,18 @@ function specificity(sel) {
  * The elements this is asked about are matched by their compound steps. A selector
  * applies to "a focused card under .jpf-tv" if every step of it is satisfied by one of
  * the ancestors .jpf-tv / .profiles-grid-ish wrappers or by the card itself, and its
- * last step is the card. Selectors naming a descendant of the card (".profile-card
+ * last step is the card. Selectors naming a descendant of the card (".jpf-profile-card
  * :focus .x") end on something else and are excluded by the last-step test.
  */
-const CARD_STEPS = new Set(['.jpf-tv', '.profile-card', '.profile-card:focus', ':focus', '.focusable']);
+const CARD_STEPS = new Set(['.jpf-tv', '.jpf-profile-card', '.jpf-profile-card:focus', ':focus', '.focusable']);
 
 function appliesToFocusedCardOnTv(sel) {
     const steps = sel.split(/\s+/);
     const last = steps[steps.length - 1];
-    if (!CARD_STEPS.has(last) && !/^\.profile-card(:focus)?$/.test(last)) return false;
+    if (!CARD_STEPS.has(last) && !/^\.jpf-profile-card(:focus)?$/.test(last)) return false;
     // `:focus`/`:focus-visible` on a bare last step only matches a card when it follows
-    // an ancestor that can contain one; the cards are never inside .profile-section.
-    if (/\.profile-section/.test(sel)) return false;
+    // an ancestor that can contain one; the cards are never inside .jpf-profile-section.
+    if (/\.jpf-profile-section/.test(sel)) return false;
     return steps.every(s => CARD_STEPS.has(s) || s === '.jpf-tv');
 }
 
@@ -86,11 +86,11 @@ function setsOn(sel, prop) {
     return rules.some(r => r.sel === sel && new RegExp('(^|[;\\s])' + prop + '\\s*:').test(r.body));
 }
 ok('focus is still drawn on the avatar: border-color',
-    setsOn('.profile-card:focus .profile-avatar', 'border-color'));
+    setsOn('.jpf-profile-card:focus .jpf-profile-avatar', 'border-color'));
 ok('focus is still drawn on the avatar: scale',
-    setsOn('.profile-card:focus .profile-avatar', 'transform'));
+    setsOn('.jpf-profile-card:focus .jpf-profile-avatar', 'transform'));
 ok('focus-within (Chromium 53 cannot share a list with it) draws it too',
-    setsOn('.profile-card:focus-within .profile-avatar', 'border-color'));
+    setsOn('.jpf-profile-card:focus-within .jpf-profile-avatar', 'border-color'));
 
 console.log();
 console.log(pass + ' passed, ' + fails.length + ' failed');

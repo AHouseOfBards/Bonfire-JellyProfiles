@@ -96,7 +96,7 @@ function makeGate(opts) {
     };
     const sample = { getBoundingClientRect: () => ({ width: tile(), height: tile() }) };
     const grid = {
-        querySelector: s => (/profile-avatar-container/.test(s) ? sample : null),
+        querySelector: s => (/jpf-profile-avatar-container/.test(s) ? sample : null),
         // The routine reads the name's and the status lines' font sizes to set how far a
         // name may shrink on a television. This model has neither, so the routine takes its
         // written-down floor; the tile search below is what this harness is about.
@@ -105,7 +105,7 @@ function makeGate(opts) {
     };
     overlay.querySelector = s => {
         if (s === '.profiles-grid') return grid;
-        if (/profiles-grid .*profile-avatar-container/.test(s)) return sample;
+        if (/profiles-grid .*jpf-profile-avatar-container/.test(s)) return sample;
         return null;
     };
     Object.defineProperty(overlay, 'scrollHeight', { get: () => Math.max(opts.screen, Math.ceil(height())) });
@@ -309,8 +309,8 @@ lost.forEach(l => console.log('        ' + l));
 
 // The television rules are the ones this has to beat, and the reason the issue was filed;
 // name them so a selector rename cannot quietly drop them from the pairs above.
-[['.jpf-tv .profile-avatar-container', 'width'],
- ['.jpf-tv .profile-card', 'width'],
+[['.jpf-tv .jpf-profile-avatar-container', 'width'],
+ ['.jpf-tv .jpf-profile-card', 'width'],
  ['.jpf-tv .profiles-grid', 'gap'],
  ['.jpf-tv .profiles-title', 'margin-bottom']].forEach(([sel, prop]) => {
     const r = all.find(x => x.selector === sel && setsProp(x.body, prop));

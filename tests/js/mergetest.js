@@ -2,7 +2,7 @@
 //
 // The risk here is not that it looks wrong — it is that the save path and the
 // artwork editor query the two halves by class (.library-checkbox and
-// .libart-row). Merging them into one row is only safe while both classes stay
+// .jpf-libart-row). Merging them into one row is only safe while both classes stay
 // exactly where those queries expect them, and nothing in the build would fail
 // if they stopped: the form would simply save no libraries.
 
@@ -24,7 +24,7 @@ check('the artwork list still exists', SRC.includes('id="edit-library-artwork"')
 // The CREATE form keeps its own checklist: a profile that does not exist yet has
 // no id, so there is no artwork to merge into. Exactly one must remain.
 check('only the create form still has a separate checklist',
-    (SRC.match(/<div class="library-checklist">/g) || []).length, 1);
+    (SRC.match(/<div class="jpf-library-checklist">/g) || []).length, 1);
 check('and its heading with it', /<label>Library Artwork<\/label>/.test(SRC), false);
 // Translated since 1.5.3, so the literal is gone from the markup — but the wording it
 // resolves to is the thing that was decided, and still has to hold. Both forms say
@@ -39,17 +39,17 @@ check('and the create form says "Libraries" too',
 console.log();
 console.log('── The row still answers both queries ────────────────────────');
 // Pull one rendered row template out of the source and check its shape.
-const rowStart = SRC.indexOf('<div class="libart-row" data-lib=');
+const rowStart = SRC.indexOf('<div class="jpf-libart-row" data-lib=');
 check('a row template exists', rowStart > -1, true);
-const chooseAt = SRC.indexOf('libart-choose', rowStart);
+const chooseAt = SRC.indexOf('jpf-libart-choose', rowStart);
 const row = SRC.slice(rowStart, SRC.indexOf('</div>', chooseAt) + 6);
 
 check('row carries the checkbox the save path looks for',
     /class="library-checkbox"/.test(row), true);
 check('row keeps data-lib for the artwork editor', /data-lib=/.test(row), true);
-check('row keeps the mode select', /class="libart-mode"/.test(row), true);
-check('row keeps the Choose button', /libart-choose/.test(row), true);
-check('row keeps the thumbnail', /class="libart-thumb"/.test(row), true);
+check('row keeps the mode select', /class="jpf-libart-mode"/.test(row), true);
+check('row keeps the Choose button', /jpf-libart-choose/.test(row), true);
+check('row keeps the thumbnail', /class="jpf-libart-thumb"/.test(row), true);
 check('the checkbox and the select name the same library',
     /class="library-checkbox" value="\$\{lib\.id\}"/.test(row)
     && /data-lib="\$\{lib\.id\}"/.test(row), true);
@@ -60,28 +60,28 @@ check('the label names the checkbox, not a duplicate aria-label',
 
 console.log();
 console.log('── The row is still reachable from a remote ──────────────────');
-// initTVCheckboxes binds ONLY to .library-check-label. A native checkbox does not
+// initTVCheckboxes binds ONLY to .jpf-library-check-label. A native checkbox does not
 // toggle on Enter, and a TV remote's OK arrives as Enter, so losing this wrapper
 // silently makes libraries unsettable on webOS and Tizen — with no error anywhere.
-check('the tick sits inside a library-check-label',
-    /<label class="library-check-label libart-check">[\s\S]{0,200}class="library-checkbox"/.test(row), true);
+check('the tick sits inside a jpf-library-check-label',
+    /<label class="jpf-library-check-label jpf-libart-check">[\s\S]{0,200}class="library-checkbox"/.test(row), true);
 check('the name is inside that label too, so it is a click target',
-    /<label class="library-check-label[\s\S]{0,400}libart-name[\s\S]{0,120}<\/label>/.test(row), true);
+    /<label class="jpf-library-check-label[\s\S]{0,400}jpf-libart-name[\s\S]{0,120}<\/label>/.test(row), true);
 check('initTVCheckboxes still binds that class',
-    SRC.includes("querySelectorAll('.library-check-label')"), true);
+    SRC.includes("querySelectorAll('.jpf-library-check-label')"), true);
 check('the edit form still calls initTVCheckboxes',
     (SRC.match(/this\.initTVCheckboxes\(content\)/g) || []).length >= 2, true);
 
 console.log();
 console.log('── Nothing scrolls inside the dialog any more ────────────────');
 const CSS = L.extractCss(SRC);
-const listRule = CSS.slice(CSS.indexOf('.libart-list {'));
+const listRule = CSS.slice(CSS.indexOf('.jpf-libart-list {'));
 const listBody = listRule.slice(0, listRule.indexOf('}'));
-check('.libart-list has no max-height', /max-height/.test(listBody), false);
-check('.libart-list has no overflow', /overflow/.test(listBody), false);
-// .library-checklist is still used by the CREATE form, which has no artwork rows
+check('.jpf-libart-list has no max-height', /max-height/.test(listBody), false);
+check('.jpf-libart-list has no overflow', /overflow/.test(listBody), false);
+// .jpf-library-checklist is still used by the CREATE form, which has no artwork rows
 // and therefore no merge — it may keep its own scroller.
-check('the create form still has its checklist rule', CSS.includes('.library-checklist {'), true);
+check('the create form still has its checklist rule', CSS.includes('.jpf-library-checklist {'), true);
 
 console.log();
 console.log('── Artwork controls follow the tick ──────────────────────────');
@@ -114,8 +114,8 @@ vm.runInContext(src, sandbox);
 const PP = sandbox.__PP;
 
 function fakeRow(checked) {
-    const select = { disabled: false, className: 'libart-mode' };
-    const button = { disabled: false, className: 'libart-choose' };
+    const select = { disabled: false, className: 'jpf-libart-mode' };
+    const button = { disabled: false, className: 'jpf-libart-choose' };
     const box = { checked: checked, className: 'library-checkbox' };
     return {
         style: {},
@@ -152,7 +152,7 @@ console.log();
 console.log('── The wiring is present ─────────────────────────────────────');
 check('select-all syncs every row', SRC.includes('this.syncAllLibraryRows(content);'), true);
 check('an individual tick syncs its own row',
-    SRC.includes("this.syncLibraryRowState(cb.closest('.libart-row'));"), true);
+    SRC.includes("this.syncLibraryRowState(cb.closest('.jpf-libart-row'));"), true);
 check('rows start in the right state, not on first change',
     (SRC.match(/this\.syncAllLibraryRows\(content\);/g) || []).length >= 2, true);
 

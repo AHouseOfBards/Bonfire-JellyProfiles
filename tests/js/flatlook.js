@@ -305,7 +305,7 @@ ok('and no .jpf-flat rule answers to nothing (a renamed selector would leave one
     strays.length === 0, strays.join('\n          '));
 
 // What is kept: the cue that says which tile is focused must survive the flattening.
-const keptFocus = flatRules.filter(f => /\.profile-avatar\.is-transparent img/.test(f.selector) && /hover|focus/.test(f.selector));
+const keptFocus = flatRules.filter(f => /\.jpf-profile-avatar\.is-transparent img/.test(f.selector) && /hover|focus/.test(f.selector));
 ok('a cut-out picture keeps its sharp focus outline when its blur is dropped',
     keptFocus.length >= 2 && keptFocus.every(f => /drop-shadow\([^)]* 0 [^)]*\)/.test(f.body) || /drop-shadow\(3px 0 0/.test(f.body)));
 

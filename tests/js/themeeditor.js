@@ -481,14 +481,14 @@ async function expandChecks(c, s) {
         await c.evaluate("document.getElementById('teExpand').scrollIntoView({block:'center'})");
         await c.evaluate("document.getElementById('teExpand').click()");
         await wait(300);
-        const parts = await c.evaluate("({ cards: document.querySelectorAll('#teExpanded .profile-card').length, add: document.querySelectorAll('#teExpanded .action-add-profile').length," +
+        const parts = await c.evaluate("({ cards: document.querySelectorAll('#teExpanded .jpf-profile-card').length, add: document.querySelectorAll('#teExpanded .action-add-profile').length," +
             "title: !!document.querySelector('#teExpanded .profiles-title'), buttons: document.querySelectorAll('#teExpanded .profiles-btn').length })");
         ok('it shows sample profiles, the add tile, the title and the buttons' + tag, parts.cards >= 4 && parts.add === 1 && parts.title && parts.buttons >= 1, JSON.stringify(parts));
         // Laid out as the real picker is: its rules in styles.css are keyed to the real
         // overlay's id, and its rows are balanced by script. Without either, a phone showed
         // one huge tile a row (rows 1/1/1/1) where the picker shows two, and the desktop page
         // left one tile alone on a second row (3/1).
-        const rows = await c.evaluate("(function () { var t = {}; [].slice.call(document.querySelectorAll('#teExpanded .profiles-grid .profile-card')).forEach(function (e) { var k = Math.round(e.getBoundingClientRect().top); t[k] = (t[k] || 0) + 1; }); return Object.keys(t).sort(function (a, b) { return a - b; }).map(function (k) { return t[k]; }); })()");
+        const rows = await c.evaluate("(function () { var t = {}; [].slice.call(document.querySelectorAll('#teExpanded .profiles-grid .jpf-profile-card')).forEach(function (e) { var k = Math.round(e.getBoundingClientRect().top); t[k] = (t[k] || 0) + 1; }); return Object.keys(t).sort(function (a, b) { return a - b; }).map(function (k) { return t[k]; }); })()");
         ok('its tiles sit at least two to a row, with no row of one' + tag, rows.length > 0 && rows.every(n => n >= 2), rows.join('/'));
         const look = await c.evaluate("({ bg: getComputedStyle(document.getElementById('teExpandGate')).backgroundImage, color: getComputedStyle(document.querySelector('#teExpanded .profiles-title')).color })");
         ok('it wears the draft: the theme\'s background layers' + tag, /gradient/.test(look.bg), look.bg);

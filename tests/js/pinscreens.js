@@ -49,10 +49,10 @@ const MEASURE = `(function () {
     out.panicBox = r(p.firstElementChild);
     var cs = getComputedStyle(inp);
     out.panicInputBg = cs.backgroundColor;
-    var ref = document.createElement('input'); ref.id = 'pin-reset-new'; document.body.appendChild(ref);
+    var ref = document.createElement('input'); ref.id = 'jpf-pin-reset-new'; document.body.appendChild(ref);
     out.refBg = getComputedStyle(ref).backgroundColor; ref.remove();
   }
-  var code = document.getElementById('pin-reset-code'), nw = document.getElementById('pin-reset-new');
+  var code = document.getElementById('jpf-pin-reset-code'), nw = document.getElementById('jpf-pin-reset-new');
   if (code && nw) {
     out.code = r(code); out.nw = r(nw);
     out.content = r(document.querySelector('.profiles-modal-content'));

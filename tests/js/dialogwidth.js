@@ -64,7 +64,7 @@ function maxWidth(cls, tv) {
     return best ? best.value : null;
 }
 
-/* The opening tag of each box in the script: `<div class="alert-dialog-content" style="...">`. */
+/* The opening tag of each box in the script: `<div class="jpf-alert-dialog-content" style="...">`. */
 function tags(cls) {
     const out = [];
     const re = new RegExp('<div class="' + cls + '"[^>]*>', 'g');
@@ -75,7 +75,7 @@ function tags(cls) {
 
 // The library artwork box was left behind when the other four moved: still 420px and 94%
 // inline, so still a small card on a television.
-for (const cls of ['confirm-dialog-content', 'alert-dialog-content', 'prompt-dialog-content', 'select-dialog-content', 'libart-dialog-content']) {
+for (const cls of ['jpf-confirm-dialog-content', 'jpf-alert-dialog-content', 'jpf-prompt-dialog-content', 'jpf-select-dialog-content', 'jpf-libart-dialog-content']) {
     console.log('── ' + cls + ' ──');
     const found = tags(cls);
     ok(cls + ' is built somewhere', found.length > 0);

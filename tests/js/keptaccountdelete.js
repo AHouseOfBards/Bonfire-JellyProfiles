@@ -52,7 +52,7 @@ async function confirmFor(profile) {
     PP.showConfirmDialog = (title, msg) => { asked.push(msg); };   // never confirms
     PP.showEditProfileModal(Object.assign({}, profile));
     await env.settle();
-    const btn = env.content.querySelector('#edit-delete-btn');
+    const btn = env.content.querySelector('#jpf-edit-delete-btn');
     if (btn) btn.click();
     await env.settle();
     return asked[0];

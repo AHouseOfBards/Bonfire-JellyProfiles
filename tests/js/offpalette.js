@@ -45,7 +45,7 @@ const STORED = '#81b29a';
 const STORED_RGB = 'rgb(129, 178, 154)';
 
 const MEASURE = `(function () {
-  var dots = [].slice.call(document.querySelectorAll('.avatar-color-picker .color-dot'));
+  var dots = [].slice.call(document.querySelectorAll('.jpf-avatar-color-picker .jpf-color-dot'));
   var active = dots.filter(function (d) { return d.classList.contains('active'); });
   var preview = document.getElementById('edit-image-upload-preview');
   return {

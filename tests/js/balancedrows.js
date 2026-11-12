@@ -51,7 +51,7 @@ const MEASURE = `(function () {
   var root = document.getElementById('profiles-gate-overlay');
   var grid = root && root.querySelector('.profiles-grid');
   if (!grid) return { n: 0 };
-  var kids = [].slice.call(grid.children).filter(function (e) { return e.classList.contains('profile-card'); });
+  var kids = [].slice.call(grid.children).filter(function (e) { return e.classList.contains('jpf-profile-card'); });
   var rows = [];
   kids.forEach(function (k) {
     var t = Math.round(k.getBoundingClientRect().top);

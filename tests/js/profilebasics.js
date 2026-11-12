@@ -83,7 +83,7 @@ const has = (part, id) => part.indexOf('id="' + id + '"') !== -1;
     ok('there is a More settings panel', h.hasMore);
     ok('and it starts closed', h.hasMore && !/\bopen\b/.test(h.openTag), h.openTag);
     for (const id of ['create-name-input', 'create-image-upload-preview', 'create-color-group',
-                      'create-pin-input', 'create-kids-preset', 'create-rating-select']) {
+                      'jpf-create-pin-input', 'create-kids-preset', 'create-rating-select']) {
         ok('Basics has ' + id, has(h.basics, id) && !has(h.more, id));
     }
     ok('Basics has the libraries', /class="library-checkbox"/.test(h.basics));
@@ -146,7 +146,7 @@ const has = (part, id) => part.indexOf('id="' + id + '"') !== -1;
     await settle();
     h = halves(content.innerHTML);
     ok('a profile\'s form has the panel, closed', h.hasMore && !/\bopen\b/.test(h.openTag));
-    for (const id of ['edit-name-input', 'edit-pin-input', 'edit-rating-select']) {
+    for (const id of ['edit-name-input', 'jpf-edit-pin-input', 'edit-rating-select']) {
         ok('Basics has ' + id, has(h.basics, id) && !has(h.more, id));
     }
     for (const id of ['edit-lockout-select', 'edit-local-bypass-checkbox', 'edit-theme-select', 'edit-libart-toggle', 'edit-libart-hint']) {
@@ -173,7 +173,7 @@ const has = (part, id) => part.indexOf('id="' + id + '"') !== -1;
     await settle();
     h = halves(content.innerHTML);
     ok('the main account\'s form has no More', !h.hasMore);
-    ok('nor a PIN field: that is Your account\'s', !has(h.basics, 'edit-pin-input'));
+    ok('nor a PIN field: that is Your account\'s', !has(h.basics, 'jpf-edit-pin-input'));
     ok('but keeps its theme', has(h.basics, 'edit-theme-select'));
 
     posts.length = 0;

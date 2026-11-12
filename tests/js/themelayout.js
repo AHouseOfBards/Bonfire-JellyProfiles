@@ -61,8 +61,8 @@ const MEASURE = `(function () {
   function textBox(e) { var g = document.createRange(); g.selectNodeContents(e); var b = g.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom, w: b.width, h: b.height }; }
   var content = root.querySelector('.profiles-modal-content');
   var title = root.querySelector('.profiles-title');
-  var cards = [].slice.call(root.querySelectorAll('.profile-card')).map(function (c) {
-    var a = c.querySelector('.profile-avatar-container'), n = c.querySelector('.profile-name');
+  var cards = [].slice.call(root.querySelectorAll('.jpf-profile-card')).map(function (c) {
+    var a = c.querySelector('.jpf-profile-avatar-container'), n = c.querySelector('.jpf-profile-name');
     var lines = [].slice.call(n.children).filter(function (s) { return !s.classList.contains('jpf-sr'); }).map(function (s) { return getComputedStyle(s).overflow === 'hidden' ? r(s) : textBox(s); });
     return { box: r(c), pic: r(a), name: r(n), lines: lines };
   });
@@ -207,11 +207,11 @@ async function main() {
         };
         const FOCUS = `(function () {
           var a = document.activeElement, root = document.getElementById('profiles-gate-overlay');
-          var cards = [].slice.call(root.querySelectorAll('.profile-card'));
+          var cards = [].slice.call(root.querySelectorAll('.jpf-profile-card'));
           var i = cards.indexOf(a);
           var out = { index: i, button: !!(a && a.classList && a.classList.contains('profiles-btn')), add: !!(a && a.classList && a.classList.contains('action-add-profile')) };
           if (a && a.getBoundingClientRect) { var b = a.getBoundingClientRect(); out.inView = b.top >= -1 && b.bottom <= innerHeight + 1; }
-          var av = a && a.querySelector && a.querySelector('.profile-avatar');
+          var av = a && a.querySelector && a.querySelector('.jpf-profile-avatar');
           if (av) { var cs = getComputedStyle(av); out.ring = parseFloat(cs.borderTopWidth); out.ringColour = cs.borderTopColor; }
           out.count = cards.length;
           return out;
@@ -224,7 +224,7 @@ async function main() {
                     if (r.error) { ok(where + ': draws', false, r.error); continue; }
                     // The fixture never runs init(), which is what binds the remote's keys.
                     await c.evaluate(`(function () { window.__bonfire._bindOverlayFocusTrap();
-                      var f = document.querySelector('#profiles-gate-overlay .profile-card'); if (f) f.focus(); return true; })()`);
+                      var f = document.querySelector('#profiles-gate-overlay .jpf-profile-card'); if (f) f.focus(); return true; })()`);
                     let f = await c.evaluate(FOCUS);
                     const n = f.count;
                     const walk = [];

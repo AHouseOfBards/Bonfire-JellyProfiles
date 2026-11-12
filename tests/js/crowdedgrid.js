@@ -61,12 +61,12 @@ const SCENES = ['picker', 'manage'];
 const MEASURE = `(function () {
   var root = document.getElementById('profiles-gate-overlay');
   if (!root) return { cards: 0, bad: [] };
-  var cards = [].slice.call(root.querySelectorAll('.profiles-grid .profile-card'));
+  var cards = [].slice.call(root.querySelectorAll('.profiles-grid .jpf-profile-card'));
   var bad = [], wrap = [], small = [];
   var tv = document.documentElement.classList.contains('jpf-tv');
   var fitted = !!root.querySelector('.profiles-modal-content.jpf-fitted');
   cards.forEach(function (card) {
-    var name = card.querySelector('.profile-name');
+    var name = card.querySelector('.jpf-profile-name');
     if (!name) { bad.push('a tile with no name'); return; }
     var c = card.getBoundingClientRect(), n = name.getBoundingClientRect();
     var text = (name.textContent || '').trim();
@@ -77,7 +77,7 @@ const MEASURE = `(function () {
       var fs = parseFloat(getComputedStyle(first).fontSize);
       var lh = parseFloat(getComputedStyle(first).lineHeight) || fs * 1.2;
       if (first.getBoundingClientRect().height > lh * 1.5) wrap.push(text);
-      [].slice.call(name.querySelectorAll('.profile-viewing, .profile-current-badge')).forEach(function (s) {
+      [].slice.call(name.querySelectorAll('.jpf-profile-viewing, .jpf-profile-current-badge')).forEach(function (s) {
         var sf = parseFloat(getComputedStyle(s).fontSize);
         if (sf > fs + 0.5) small.push(text + ' ' + Math.round(fs) + 'px under a ' + Math.round(sf) + 'px line');
       });

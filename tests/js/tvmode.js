@@ -330,8 +330,8 @@ function overrides(tvSelector, baseSelector, prop) {
 
 // P4-2: cards sized for a screen across a room, in plain px because the TV
 // baselines drop clamp().
-overrides('.jpf-tv .profile-card', '.profile-card', 'width');
-const tvCard = ruleAt('.jpf-tv .profile-card');
+overrides('.jpf-tv .jpf-profile-card', '.jpf-profile-card', 'width');
+const tvCard = ruleAt('.jpf-tv .jpf-profile-card');
 ok('the TV card is around 300px', !!tvCard && /width:\s*300px/.test(tvCard.body));
 ok('and is not itself written with clamp()',
     !!tvCard && !/clamp\s*\(/.test(tvCard.body));
@@ -347,25 +347,25 @@ const tokenSelector = /([^{}]*)\{[^}]*--jpf-gap\s*:\s*20px/.exec(bare);
 ok('the TV token rule names body as well as the root element',
     !!tokenSelector && /\.jpf-tv\s+body/.test(tokenSelector[1]));
 overrides('.jpf-tv .profiles-title', '.profiles-title', 'font-size');
-overrides('.jpf-tv .profile-name', '.profile-name', 'font-size');
+overrides('.jpf-tv .jpf-profile-name', '.jpf-profile-name', 'font-size');
 
 // P4-4: a focus ring findable from three metres.
-const tvFocus = ruleAt('.jpf-tv .profile-section :focus-visible');
+const tvFocus = ruleAt('.jpf-tv .jpf-profile-section :focus-visible');
 ok('TV focus ring is thicker', !!tvFocus && /outline:\s*4px/.test(tvFocus.body));
 // And it must be alone: one unparseable selector invalidates a whole comma list,
 // which would delete the ring on exactly the browsers it is for.
 ok('the TV :focus-visible rule is not folded into a selector list',
-    bare.indexOf('.jpf-tv .profile-section :focus-visible,') === -1);
+    bare.indexOf('.jpf-tv .jpf-profile-section :focus-visible,') === -1);
 
 console.log();
 console.log('── Save stays reachable without a scrollbar (P4-14) ───────────');
 
-const sticky = ruleAt('.create-profile-container > .profile-dialog-actions');
+const sticky = ruleAt('.jpf-create-profile-container > .jpf-profile-dialog-actions');
 ok('the dialog actions are sticky', !!sticky && /position:\s*sticky/.test(sticky.body));
 // Pinned to the bottom of the *container*, which for sticky means its padding edge: an
 // offset of 0 left the container's own padding showing under the bar (P2-503). So the
 // offset has to be the padding, negated, not just any value.
-const stickyContainer = ruleAt('.create-profile-container');
+const stickyContainer = ruleAt('.jpf-create-profile-container');
 // The padding is the variable --jpf-form-pad (so a short screen can change it in one place):
 // the container's padding must be that variable, whose declared size is in rem, and the
 // offset must be that same variable negated. Still the same pairing, resolved by name.
@@ -376,7 +376,7 @@ ok('pinned to the bottom, past the container\'s own padding',
     !!padVar && !!padSize && parseFloat(padSize[2]) > 0 && !!stickyBottom && stickyBottom[2] === padVar[2]);
 // It bleeds out through the padding with negative side margins, so its width has to be
 // worked out from them: width: 100% plus padding made it 4rem wider than the column.
-// .profile-dialog-actions says width: 100%, and this rule is the more specific of the two.
+// .jpf-profile-dialog-actions says width: 100%, and this rule is the more specific of the two.
 ok('and takes its width from the bleed (width: auto), not from the base rule\'s 100%',
     !!sticky && /(^|[;\s])width:\s*auto/.test(sticky.body));
 // A translucent bar lets the form scroll through the buttons.
@@ -397,7 +397,7 @@ if (stickyValue === 'var(--jpf-panel)') {
 }
 // Scoped to the scrolling container: sticky resolves against the nearest scrolling
 // ancestor, and this row only ever renders inside that one.
-const scroller = ruleAt('.create-profile-container');
+const scroller = ruleAt('.jpf-create-profile-container');
 ok('and its container really is the scrolling one',
     !!scroller && /overflow-y:\s*auto/.test(scroller.body));
 

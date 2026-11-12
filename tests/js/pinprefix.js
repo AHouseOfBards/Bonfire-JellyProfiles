@@ -68,8 +68,8 @@ const RIGHT = '24681357';
 
 (async () => {
     for (const box of [
-        { name: 'profile PIN', open: PP => PP.promptPinEntry('kid'), input: 'profile-pin-input', path: 'verify-pin' },
-        { name: 'main PIN', open: PP => PP.promptMasterPinEntry('manage', () => {}), input: 'master-pin-input', path: 'account/verify-pin' }
+        { name: 'profile PIN', open: PP => PP.promptPinEntry('kid'), input: 'jpf-profile-pin-input', path: 'verify-pin' },
+        { name: 'main PIN', open: PP => PP.promptMasterPinEntry('manage', () => {}), input: 'jpf-master-pin-input', path: 'account/verify-pin' }
     ]) {
         console.log('\n── The ' + box.name + ' box ' + '─'.repeat(Math.max(0, 50 - box.name.length)));
 
@@ -102,7 +102,7 @@ const RIGHT = '24681357';
         ok('Enter on the value just refused spends no second guess ('
            + (env.posts.length - before) + ' more requests, ' + env.switches.length + ' switches)',
            env.posts.length === before && env.switches.length === 0);
-        const err = env.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
+        const err = env.content.querySelector(box.input === 'jpf-profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
         ok('and says it was wrong', !!err && err.style.display === 'block' && /^Wrong (main )?PIN\. Try again\.$/.test(err.textContent),
            err ? err.textContent : 'no error node');
 
@@ -115,7 +115,7 @@ const RIGHT = '24681357';
         input = env.content.querySelector('#' + box.input);
         await type(env, input, '1234');
         await env.pause();
-        const lockErr = env.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
+        const lockErr = env.content.querySelector(box.input === 'jpf-profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
         ok('a 429 shows the wait built from Retry-After, not the server\'s sentence',
            !!lockErr && lockErr.textContent === 'Too many wrong PINs. Try again in 2 minutes.',
            lockErr ? lockErr.textContent : '');
@@ -127,7 +127,7 @@ const RIGHT = '24681357';
             const i2 = e2.content.querySelector('#' + box.input);
             await type(e2, i2, '1234');
             await e2.pause();
-            const m2 = e2.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
+            const m2 = e2.content.querySelector(box.input === 'jpf-profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
             ok('Retry-After ' + secs + ' reads "' + want + '"', !!m2 && m2.textContent.indexOf(want) > 0, m2 ? m2.textContent : '');
         }
         await type(env, input, '5678');

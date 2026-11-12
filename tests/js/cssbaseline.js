@@ -396,7 +396,7 @@ function gridProblems(rs) {
             if (!displayDecl(r.body).some(isGridValue)) continue;
             // "Underneath" the grid rule in the cascade: earlier in the sheet, or a plainer
             // selector (fewer classes in its last compound) wherever it sits. The second
-            // is how .create-profile-container sits after .create-profile-container.is-two-col.
+            // is how .jpf-create-profile-container sits after .jpf-create-profile-container.is-two-col.
             const under = (o, s) => rs.indexOf(o) < idx
                 || simpleParts(lastCompound(s)).length < simpleParts(lastCompound(sel)).length;
             const earlier = rs.filter(o =>
@@ -494,13 +494,13 @@ ok('every display: grid has a fallback for a browser without grid', grids.length
 
 const SRC_JS = L.readProfiles();
 const STICKY_OK = [{
-    selector: '.create-profile-container > .profile-dialog-actions',
+    selector: '.jpf-create-profile-container > .jpf-profile-dialog-actions',
     fallback: 'the row is the last child of the form, so it is the end of the form unpinned, and the remote\'s focus move scrolls it into view',
     holds: () => {
         if (!/_focusVisibly:\s*function[\s\S]{0,2500}scrollIntoView/.test(SRC_JS)) return false;
         // Last child, for each form that draws the row: nothing follows it but the form's
         // own closing tag and the end of the template.
-        const open = '<div class="profile-dialog-actions jpf-actions">';
+        const open = '<div class="jpf-profile-dialog-actions jpf-actions">';
         let at = SRC_JS.indexOf(open), seen = 0;
         while (at !== -1) {
             seen++;
@@ -678,10 +678,10 @@ function cosmeticUses(rs) {
 
 // The one :focus-within with no :focus twin, and why that is all right.
 const FOCUS_WITHIN_OK = [{
-    selector: '.device-dropdown-item:focus-within',
-    why: 'a tint on the row while its button has focus; the button is a control inside .profile-section and keeps the plain :focus ring there',
-    holds: () => /(^|\n)\.profile-section :focus \{/.test(css)
-        && /\.profile-section :focus \{[^}]*outline\s*:\s*2px solid/.test(css),
+    selector: '.jpf-device-dropdown-item:focus-within',
+    why: 'a tint on the row while its button has focus; the button is a control inside .jpf-profile-section and keeps the plain :focus ring there',
+    holds: () => /(^|\n)\.jpf-profile-section :focus \{/.test(css)
+        && /\.jpf-profile-section :focus \{[^}]*outline\s*:\s*2px solid/.test(css),
 }];
 
 {

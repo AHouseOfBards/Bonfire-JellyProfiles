@@ -151,7 +151,7 @@ ok('the name box is focused on a TV only',
     PP.showOwnProfileForm(KID);
     await settle();
     const limited = content.innerHTML;
-    ok('with custom uploads off there is no upload control', !/id="self-profile-image-file"/.test(limited) && /avatar-library-grid/.test(limited));
+    ok('with custom uploads off there is no upload control', !/id="self-profile-image-file"/.test(limited) && /jpf-avatar-library-grid/.test(limited));
     posts.length = 0;
     content.querySelector('#self-submit-btn').click();
     await settle();

@@ -83,7 +83,7 @@ const usedEx = {};
 
 console.log('\n-- R-1230: the merge picker shows client and last seen, not the name alone --');
 (function () {
-    const at = SRC.indexOf("querySelectorAll('.device-merge-btn')");
+    const at = SRC.indexOf("querySelectorAll('.jpf-device-merge-btn')");
     const body = at === -1 ? '' : SRC.slice(at, at + 1800);
     ok('the merge handler is found', body.length > 0);
     ok('each choice is given a label built from the row detail', /data-device-detail/.test(body) && /label:\s*detail/.test(body));

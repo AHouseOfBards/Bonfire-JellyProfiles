@@ -47,11 +47,11 @@ const PAGE = '<!doctype html><meta charset="utf-8"><meta name="viewport" content
     + '<div class="profiles-maintenance-inner">'
     + '<div class="profiles-maintenance-title" id="t">Down for maintenance</div>'
     + '<div class="profiles-maintenance-text">' + LONG + '</div>'
-    + '<button id="again" class="profiles-btn btn-primary">Check again</button>'
-    + '<button id="out" class="profiles-btn btn-secondary">Sign out</button>'
+    + '<button id="again" class="profiles-btn jpf-btn-primary">Check again</button>'
+    + '<button id="out" class="profiles-btn jpf-btn-secondary">Sign out</button>'
     + '</div></div>'
     + '<div id="busy" style="padding:20px">'
-    + ['btn-primary', 'btn-secondary', 'btn-danger', 'btn-danger-quiet'].map(k =>
+    + ['jpf-btn-primary', 'jpf-btn-secondary', 'jpf-btn-danger', 'jpf-btn-danger-quiet'].map(k =>
         '<button class="profiles-btn ' + k + ' is-busy" data-kind="' + k + '">Working</button>').join(' ')
     + '</div><script>window.__ready=true</script></body>';
 

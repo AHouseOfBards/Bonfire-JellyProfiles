@@ -121,7 +121,7 @@ ok('create ticks nothing', dCreate.indexOf('checked') === -1);
 
 // Rename, merge and forget change a device for the whole household, so since 1.7.2 they
 // live in Settings → Your account (tests/js/accountsettings.js). A profile only ticks.
-for (const tool of ['device-delete-btn', 'device-rename-btn', 'device-merge-btn', 'devices-tidy-btn']) {
+for (const tool of ['jpf-device-delete-btn', 'jpf-device-rename-btn', 'jpf-device-merge-btn', 'devices-tidy-btn']) {
     ok('neither form offers ' + tool, dEdit.indexOf(tool) === -1 && dCreate.indexOf(tool) === -1);
 }
 
@@ -135,13 +135,13 @@ ok('a never-seen device does not show year 1',
     dEdit.indexOf('0001') === -1 && dCreate.indexOf('0001') === -1);
 
 // The parts that are supposed to be identical.
-for (const shared of ['devices-dropdown-container', 'devices-dropdown-list', 'form-hint']) {
+for (const shared of ['devices-dropdown-container', 'jpf-devices-dropdown-list', 'jpf-form-hint']) {
     ok('both modes render ' + shared,
         dCreate.indexOf(shared) !== -1 && dEdit.indexOf(shared) !== -1);
 }
 
 const empty = P.renderDeviceDropdown('create', [], null);
-ok('an empty device list still renders the container', empty.indexOf('devices-dropdown-list') !== -1);
+ok('an empty device list still renders the container', empty.indexOf('jpf-devices-dropdown-list') !== -1);
 ok('and says so rather than rendering nothing', empty.length > 200);
 
 console.log();
@@ -182,7 +182,7 @@ ok('and the modes do not share ids',
 // An allow-list is subtractive: naming one tag hides everything without it. That
 // warning existing in only one of two copies is the drift this merge removes.
 ok('the allowed-tags warning is present in both',
-    tCreate.indexOf('form-hint-warn') !== -1 && tEdit.indexOf('form-hint-warn') !== -1);
+    tCreate.indexOf('jpf-form-hint-warn') !== -1 && tEdit.indexOf('jpf-form-hint-warn') !== -1);
 
 console.log();
 console.log('── the duplication is actually gone ───────────────────────────');

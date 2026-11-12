@@ -33,9 +33,9 @@ function boxOf(id) {
 
 (async () => {
     const screens = [
-        ['the profile PIN', 'profile-pin-input', () => PP.promptPinEntry('kid')],
-        ['the main PIN', 'master-pin-input', () => PP.promptMasterPinEntry('manage', () => {})],
-        ['setting the main PIN', 'main-pin-new', () => PP.promptSetMainPin(PP.currentProfiles, false, () => {})]
+        ['the profile PIN', 'jpf-profile-pin-input', () => PP.promptPinEntry('kid')],
+        ['the main PIN', 'jpf-master-pin-input', () => PP.promptMasterPinEntry('manage', () => {})],
+        ['setting the main PIN', 'jpf-main-pin-new', () => PP.promptSetMainPin(PP.currentProfiles, false, () => {})]
     ];
     for (const s of screens) {
         s[2]();
