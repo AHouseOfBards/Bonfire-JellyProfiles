@@ -3982,14 +3982,15 @@
             // Check if we are on the home screen
             // The home screen route can be: empty, '#/', '#/home', '#/home.html', or similar.
             // But we must NOT trigger it if we are on pages like configuration, plugins, selectserver, login, etc.
-            const isIgnoredPage = hash.includes('configuration') ||
-                                 hash.includes('plugin') ||
-                                 hash.includes('login') ||
-                                 hash.includes('selectserver') ||
-                                 path.includes('configuration') ||
-                                 path.includes('plugin') ||
-                                 path.includes('login') ||
-                                 path.includes('selectserver');
+            //
+            // Matched on route segments, not as substrings of the whole address: a server
+            // hosted under a base path like /plugins-media/web/ contains 'plugin' on every
+            // page, so the substring test said "not home" there forever. Only what follows
+            // /web/ is the route; the query string is not part of it either.
+            const webRoute = path.match(/^.*\/web\/(.*)$/);
+            const ignoredWord = /(^|[\/#!])(configuration|plugin|login|selectserver)/i;
+            const isIgnoredPage = ignoredWord.test(hash.split('?')[0]) ||
+                                 ignoredWord.test((webRoute ? webRoute[1] : path).split('?')[0]);
 
             if (isIgnoredPage) return false;
 
@@ -3997,7 +3998,6 @@
             // builds the hash is empty on every page — and the `hash === ''` clause below
             // was therefore answering "yes, this is home" for all of them. Whenever the
             // path carries a route, it is the authority and the hash has nothing to say.
-            const webRoute = path.match(/^.*\/web\/(.*)$/);
             if (webRoute) {
                 const route = webRoute[1].replace(/\/+$/, '');
                 if (route !== '' && route !== 'index.html') {
