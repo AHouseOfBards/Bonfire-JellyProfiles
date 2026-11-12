@@ -5467,7 +5467,8 @@
             }
 
             // Fallback: search in localStorage cached profiles
-            const currentUserId = ApiClient.getCurrentUserId();
+            const haveClient = typeof ApiClient !== 'undefined' && !!ApiClient;
+            const currentUserId = haveClient ? ApiClient.getCurrentUserId() : null;
             if (currentUserId) {
                 try {
                     const cachedListStr = localStorage.getItem('jellyfin_profiles_cached_list');
@@ -5495,8 +5496,10 @@
             }
 
             // Ultimate fallback (e.g. before any profile list has been loaded)
-            const apiClient = ApiClient;
-            let fallbackName = 'Profiles';
+            const apiClient = haveClient ? ApiClient : null;
+            // Empty, not a word of English: the one caller that shows the name falls back
+            // through t() when it is empty, so a translated page never says 'Profiles'.
+            let fallbackName = '';
             let fallbackInitial = 'P';
             if (apiClient) {
                 const user = apiClient._currentUser || apiClient.currentUser;
