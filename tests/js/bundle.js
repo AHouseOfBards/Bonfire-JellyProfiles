@@ -63,7 +63,11 @@ ok('profiles.js no longer carries the stylesheet',
  * Verified red against ad1bd3b^, the last build with the stylesheet inline. */
 const selectorLines = css.split('\n')
     .map(l => l.trim())
-    .filter(l => /^[.#@:a-zA-Z][^{}"']{15,}\{$/.test(l));
+    .filter(l => /^[.#@:a-zA-Z][^{}"']{15,}\{$/.test(l))
+    // A bare @media or @supports condition is not the sheet: themeCss writes
+    // "@media (max-width: 480px) {\n" itself for phone fills, and the sample landed on it
+    // once the sheet grew. Selector lines are what a pasted stylesheet carries.
+    .filter(l => !/^@(media|supports)\b/.test(l));
 
 const stride = Math.max(1, Math.floor(selectorLines.length / 12));
 const sample = [];
