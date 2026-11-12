@@ -237,7 +237,15 @@
     #profilesConfigurationPage .jpf-audit-row {
         display: flex;
         flex-direction: column;
+        /* Jellyfin's own .listItem centres its children; say left, and say it here. */
+        align-items: stretch;
+        justify-content: flex-start;
+        text-align: left;
         width: 100%;
+        /* The 15px side padding was added to the 100% width: every row stuck out 30px past
+           its list, which is the horizontal scrollbar, and on a wide screen pushed what sat
+           at a row's right end past the box. */
+        box-sizing: border-box;
         padding: 12px 15px;
         border-bottom: 1px solid var(--jpf-w06);
     }
@@ -257,6 +265,24 @@
         font-size: 0.85rem;
         opacity: 0.7;
         margin-top: 2px;
+    }
+    /* On a screen wide enough, the four parts line up as columns: time, who switched to
+       whom, device, address. The meta line dissolves so its two spans become cells; its
+       dimming moves onto the spans, because a box that does not exist cannot be dimmed.
+       Narrower than this, the stacked form above stands. */
+    @media (min-width: 900px) {
+        #profilesConfigurationPage .jpf-audit-row {
+            display: grid;
+            grid-template-columns: 11em minmax(0, 2fr) minmax(0, 2fr) minmax(9em, 1fr);
+            gap: 4px 20px;
+            align-items: baseline;
+        }
+        #profilesConfigurationPage .jpf-audit-meta { display: contents; }
+        #profilesConfigurationPage .jpf-audit-meta > span { opacity: 0.5; font-size: 0.85rem; grid-row: 1; }
+        #profilesConfigurationPage .jpf-audit-meta > span:first-child { grid-column: 1; }
+        #profilesConfigurationPage .jpf-audit-meta > span:last-child { grid-column: 4; }
+        #profilesConfigurationPage .jpf-audit-what { grid-column: 2; grid-row: 1; overflow-wrap: anywhere; }
+        #profilesConfigurationPage .jpf-audit-where { grid-column: 3; grid-row: 1; margin-top: 0; overflow-wrap: anywhere; }
     }
 
     #profilesConfigurationPage .jpf-session-row {
