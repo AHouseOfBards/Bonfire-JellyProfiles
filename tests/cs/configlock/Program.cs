@@ -429,6 +429,7 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
 {
     ["ConfigLock"]   = "static readonly on ProfilesBaseController; survives a settings save",
     ["PassLock"]     = "static readonly in Auth.MasterUpdateListener; guards which main accounts are being passed on to their profiles, never held across a call out",
+    ["SyncLock"]     = "static readonly in Injection.WebInjection; makes the on/off check and the tag registration one step; reads one flag, never takes ConfigLock or saves",
     // The same field, named from outside the class that declares it. Spelled out rather
     // than matched by stripping the qualifier, which would have admitted any type's
     // ConfigLock — and the whole point of this table is that one object is THE lock.

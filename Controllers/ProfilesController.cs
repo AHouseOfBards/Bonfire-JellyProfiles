@@ -2586,7 +2586,9 @@ namespace Jellyfin.Profiles.Controllers
             //
             // Turned off (the Status tab), it is the same script told to stay off, not the
             // inert one: the settings page's theme preview runs on window.BonfireThemePreview
-            // from this script, and the dashboard must keep working while Bonfire is off. The
+            // from this script, and the dashboard must keep working while Bonfire is off. While
+            // off, index.html carries no tag for it (WebInjection.SyncRegistration), so only the
+            // settings page asks for it, loading it itself. The
             // tag carries the state, and every load asks (no-cache, not max-age=300), so a
             // browser holding the other copy gets this one on its next page load in either
             // direction instead of up to five minutes later.

@@ -1878,8 +1878,12 @@
             // theme previews below run on window.BonfireThemePreview from that script. Load it
             // here when no tag brought it. Off, it only defines the preview and stands down.
             try {
-                if (!window.__jpLoaded && !window.BonfireThemePreview && typeof ApiClient !== 'undefined') {
+                // The id: coming back to this page before the first copy has loaded must not
+                // add a second one.
+                if (!window.__jpLoaded && !window.BonfireThemePreview && typeof ApiClient !== 'undefined'
+                    && !document.getElementById('jpf-dashboard-script')) {
                     const tag = document.createElement('script');
+                    tag.id = 'jpf-dashboard-script';
                     tag.src = ApiClient.getUrl('plugins/profiles/profiles.js');
                     tag.async = true;
                     document.head.appendChild(tag);

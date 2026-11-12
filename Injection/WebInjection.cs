@@ -79,13 +79,24 @@ namespace Jellyfin.Profiles
         /// </summary>
         internal static void SyncRegistration()
         {
-            var off = Plugin.IsOff;
-            if (off == _tagsWithdrawn) return;
+            // The cheap read first, so an ordinary page load takes no lock.
+            if (Plugin.IsOff == _tagsWithdrawn) return;
 
-            _tagsWithdrawn = off;
-            if (off) InjectionCoordinator.Unregister(PluginIds.Bonfire);
-            else InjectionCoordinator.Register(Registration);
+            // Two index.html requests across an on/off flip could otherwise both pass the
+            // check and run Register and Unregister in either order, leaving the tags out of
+            // step with the setting until it changed again.
+            lock (SyncLock)
+            {
+                var off = Plugin.IsOff;
+                if (off == _tagsWithdrawn) return;
+
+                _tagsWithdrawn = off;
+                if (off) InjectionCoordinator.Unregister(PluginIds.Bonfire);
+                else InjectionCoordinator.Register(Registration);
+            }
         }
+
+        private static readonly object SyncLock = new();
 
         /// <summary>
         /// The Base URL (Dashboard, Networking) as Jellyfin itself normalises it: a leading
