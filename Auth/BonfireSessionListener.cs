@@ -143,12 +143,16 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         private void JudgeAfterGrace(SessionInfo session)
         {
-            var stop = _stopping.Token;
-            _ = Task.Run(async () =>
+            // Through BackgroundWork like SyncProfilePolicy, so a server stop cancels the wait
+            // and is not left with it (tests/cs/shutdown). Our own token still ends it when this
+            // listener stops alone.
+            var own = _stopping.Token;
+            _ = Configuration.BackgroundWork.Run(async hostStop =>
             {
                 try
                 {
-                    await Task.Delay(DeviceRegistry.PlayerGrace, stop).ConfigureAwait(false);
+                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(hostStop, own);
+                    await Task.Delay(DeviceRegistry.PlayerGrace, linked.Token).ConfigureAwait(false);
                     var plays = ShowsPlayback(session);
                     if (plays) _playerNoted[session.Id] = true;
                     NoteDevice(session, plays);
