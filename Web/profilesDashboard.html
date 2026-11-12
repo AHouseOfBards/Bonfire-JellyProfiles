@@ -648,7 +648,6 @@
         background: var(--jpf-w08);
         color: var(--jpf-w75);
     }
-    #profilesConfigurationPage .jpf-link-warn { color: var(--jpf-warn); text-decoration: underline; }
 
     /* Classes for the rows this page builds in script. Only the repeated ones:
        a structural style that appears once, inside the template of the row it
@@ -769,19 +768,11 @@
                 </div>
             </div>
 
-            <div class="jpf-hidden jpf-note jpf-note-warn jpf-note-tight" id="betaNoticeContainer">
-                <strong><span aria-hidden="true">🧪 </span><span data-i18n="admin.banner.betaTitle">This is a pre-release build.</span></strong>
-                <span style="opacity:0.9;" data-i18n="admin.banner.betaBody">Bugs are more likely than in a stable release. If something looks wrong, <a class="jpf-link-warn" href="https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a>.</span>
-            </div>
-
-            <div class="jpf-hidden jpf-note jpf-note-ok jpf-note-tight" id="injectionOkContainer">
-                <strong><span aria-hidden="true">✅ </span><span data-i18n="admin.banner.okTitle">The client script is installed and up to date.</span></strong>
-                <span class="jpf-quiet" data-i18n="admin.banner.okBody">The switcher will load for everyone.</span>
-            </div>
-
-            <!-- Above the tabs on purpose: the banners above this line report whether the
-                 plugin is working at all, and must not be hidden behind a tab nobody has
-                 a reason to open. -->
+            <!-- Above the tabs on purpose: the banners above this line report that the
+                 plugin is not working, and must not be hidden behind a tab nobody has a
+                 reason to open. There is no banner for "all is well" or for a pre-release
+                 build any more: each only repeated a Status row on every tab (owner,
+                 1.9.0.4 eye test). Status still lists both. -->
             <!-- Grouped by job, not by when each setting was added. Status is first because
                  it is the one an administrator opens the page to read. -->
             <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections" data-i18n-aria-label="admin.tab.label">
@@ -2476,11 +2467,10 @@
                 line.style.color = colour;
             }
 
-            // Single place that decides which of the three status banners is visible, so the
+            // Single place that decides which status banner is visible, so the
             // page load and the Re-check button can never disagree about the current state.
             function renderInjectionStatus(page, result) {
                 const warningContainer = page.querySelector('#injectionWarningContainer');
-                const okContainer = page.querySelector('#injectionOkContainer');
 
                 renderMechanism(page, result);
 
@@ -2510,10 +2500,6 @@
                         badge.style.color = isPrerelease ? 'var(--jpf-warn)' : '';
                         badge.title = isPrerelease ? t('admin.version.preTitle') : '';
                     }
-                    const betaNotice = page.querySelector('#betaNoticeContainer');
-                    if (betaNotice) {
-                        betaNotice.style.display = /-(beta|alpha|rc)/i.test(ver) ? 'block' : 'none';
-                    }
                 }
 
                 const restartContainer = page.querySelector('#restartRequiredContainer');
@@ -2537,9 +2523,8 @@
                 }
 
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
-                if (okContainer) okContainer.style.display = (!restartRequired && !failed) ? 'block' : 'none';
-
-                // The banners above the tabs say this in full; Status lists it with the rest.
+                // A banner above the tabs says a failure or a pending restart in full; Status
+                // lists every state with the rest, and is the only place "all is well" shows.
                 setStatus(page, 'script',
                     restartRequired ? [{ level: 'warn', text: t('admin.status.restart') }]
                     : failed ? [{ level: 'bad', text: t('admin.status.scriptFailed'), tab: 'troubleshoot', anchor: 'jpfClientScript', fix: t('admin.status.checkIt') }]

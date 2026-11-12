@@ -205,10 +205,14 @@ has(html, "page.querySelectorAll('.jpf-save-settings').forEach", 'and each is bo
 has(html, 'page._showTab = function (name) { if (names.indexOf(name) >= 0) show(name); };',
     'a Status link cannot name a tab that is not there');
 
-// The banners that say whether the plugin works at all stay outside the tabs.
+// The banners that say something is wrong stay outside the tabs, where any tab shows them.
 const beforeTabs = html.slice(0, html.indexOf('<div class="jpf-tabs"'));
-['injectionWarningContainer', 'betaNoticeContainer', 'injectionOkContainer']
+['injectionWarningContainer', 'restartRequiredContainer']
     .forEach(function (id) { has(beforeTabs, 'id="' + id + '"', id + ' is above the tabs'); });
+// Owner decision (1.9.0.4 eye test): no banner when all is well, and none for a pre-release.
+// Both only repeated a Status row on every tab.
+['betaNoticeContainer', 'injectionOkContainer', 'admin.banner.okTitle', 'admin.banner.betaTitle']
+    .forEach(function (id) { ok(html.indexOf(id) === -1, id + ' is not on the page: Status lists it'); });
 // The stale-tag banner and the chmod/chown panels are gone: isVersionStale is always false
 // and the failure banner hid its file fix whenever it showed (the file is never patched).
 ['staleVersionWarningContainer', 'dismissStaleBtn', 'injectionFileFix', 'linuxChownCmd', 'dockerChmodCmd', 'windowsFixCmd']

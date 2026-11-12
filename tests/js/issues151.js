@@ -648,8 +648,9 @@ ok('unpatching no longer reports success merely because the plugin loaded',
 ok('the dashboard has a restart banner', dash.indexOf('id="restartRequiredContainer"') !== -1);
 ok('it suppresses the failure banner rather than stacking with it',
     /const failed = !restartRequired && \(succeeded === false\);/.test(dash));
-ok('and the green "all good" banner too',
-    /okContainer\.style\.display = \(!restartRequired && !failed\)/.test(dash));
+// The green "all good" banner it also suppressed is gone: Status says that (owner, 1.9.0.4).
+ok('and there is no green "all good" banner to stack with it',
+    dash.indexOf('injectionOkContainer') === -1);
 // Was: hidden whenever the failure banner showed. Now the panels are gone, so nothing can
 // bring the chown advice back for a file that is never touched.
 ok('there is no chown block to show: the file is never touched',
