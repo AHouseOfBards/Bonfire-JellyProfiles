@@ -877,7 +877,7 @@
                  failure banner (issue #25). -->
             <div class="jpf-hidden jpf-note jpf-note-warn" id="restartRequiredContainer">
                 <strong class="jpf-note-title"><span aria-hidden="true">↻ </span><span data-i18n="admin.banner.restartTitle">Restart Jellyfin to finish updating Bonfire</span></strong>
-                <span data-i18n="admin.banner.restartBody">The new version starts when the server restarts. Until then the old version keeps running.</span>
+                <span data-i18n="admin.banner.restartBody">Until then the old version keeps running.</span>
                 <!-- Filled in from the mechanism's runningVersion / newestInstalledVersion. The
                      banner used to assert a restart was needed and stop there, which the reader
                      had no way to check: someone who has already restarted, or who pressed
@@ -948,7 +948,7 @@
                      was never a new install (renderGettingStarted decides). -->
                 <div class="jpf-hidden jpf-note jpf-mt-3" id="onboardingAsk">
                     <strong class="jpf-label-block" data-i18n="admin.onboarding.askTitle">Show first-time setup?</strong>
-                    <span data-i18n="admin.onboarding.askBody">New main accounts get a few screens to set a main PIN and make a profile. You can change this under Setup.</span>
+                    <span data-i18n="admin.onboarding.askBody">New main accounts get a few screens to set a main PIN and make a profile.</span>
                     <div class="jpf-actions jpf-mt-2">
                         <button is="emby-button" type="button" class="raised button-submit" id="onboardingAskYes" data-i18n="admin.onboarding.askYes">Turn it on</button>
                         <button is="emby-button" type="button" class="raised" id="onboardingAskNo" data-i18n="admin.onboarding.askNo">Leave it off</button>
@@ -966,7 +966,6 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfAccounts">
                     <h2 class="sectionTitle" data-i18n="admin.households.title">Households</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.households.lede">Every main account and its profiles. You can clear any PIN.</div>
                 <div class="paperList jpf-block-end" id="masterUsersList">
                     <!-- Master accounts, each with its sub-profiles nested inside -->
                 </div>
@@ -974,7 +973,7 @@
                 <div class="inputContainer jpf-form-narrow">
                     <label class="inputLabel" for="maxProfiles" data-i18n="admin.households.maxProfiles">Profiles per main account</label>
                     <input is="emby-input" type="number" id="maxProfiles" min="1" max="20" required />
-                    <div class="fieldDescription" data-i18n="admin.households.maxProfilesHint">1 to 20. A main account's own limit, set above, wins.</div>
+                    <div class="fieldDescription" data-i18n="admin.households.maxProfilesHint">1 to 20. A main account's own limit wins.</div>
                 </div>
                 <div class="buttonContainer jpf-block-end">
                     <button is="emby-button" type="button" class="raised button-submit jpf-narrow jpf-save-settings" data-i18n="admin.save">Save</button>
@@ -983,7 +982,7 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfOrphans">
                     <h2 class="sectionTitle" data-i18n="admin.orphans.title">Leftover records</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.orphans.lede">Left behind when a profile is deleted in Dashboard → Users instead of in Bonfire. They still count against the main account's limit.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.orphans.lede">Left when a profile is deleted in Dashboard → Users. They still count against the main account's limit.</div>
                 <button is="emby-button" type="button" id="scanOrphansBtn" class="raised">
                     <span data-i18n="admin.orphans.scan">Scan</span>
                 </button>
@@ -995,7 +994,6 @@
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.devices.title">Sessions</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.devices.lede">Every open session, with the household each profile belongs to.</div>
                 <button is="emby-button" type="button" id="refreshSessionsBtn" class="raised">
                     <span data-i18n="admin.refresh">Refresh</span>
                 </button>
@@ -1019,13 +1017,12 @@
                         <input is="emby-checkbox" type="checkbox" id="enablePinResetByEmail" />
                         <span data-i18n="admin.security.pinResetByEmail">Let main accounts reset a forgotten PIN by email</span>
                     </label>
-                    <div class="fieldDescription" data-i18n="admin.security.pinResetByEmailHint">A code goes to the address the main account confirmed.</div>
                     <div class="fieldDescription jpf-hidden" id="pinResetNeedsEmail"></div>
                 </div>
                 <div class="sectionTitleContainer jpf-section" id="jpfViewing">
                     <h2 class="sectionTitle" data-i18n="admin.viewing.title">Viewing limits</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.viewing.lede">Main accounts set viewing limits on each profile. Times use this zone until a household picks its own.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.viewing.lede">Households can set their own.</div>
                 <div class="selectContainer jpf-form-narrow">
                     <label class="selectLabel" for="defaultTimeZone" data-i18n="admin.viewing.zone">Default time zone</label>
                     <select is="emby-select" id="defaultTimeZone">
@@ -1048,13 +1045,13 @@
                     </div>
                     <div class="jpf-note jpf-note-soft">
                         <strong class="jpf-label-block" data-i18n="admin.panic.warnTitle">Anyone with the code can turn Bonfire off</strong>
-                        <span data-i18n="admin.panic.warnBody">Anyone with the code can turn Bonfire off until Jellyfin restarts, which skips the profile screen on any signed-in device. On a TV left on a main account, that opens its whole library. Profiles with a PIN still ask for it, and parental controls still apply.</span>
+                        <span data-i18n="admin.panic.warnBody">Until Jellyfin restarts, signed-in devices skip the profile screen. A TV left on a main account opens its whole library.</span>
                     </div>
                     <div id="panicStatusLine" class="fieldDescription jpf-lede">…</div>
                     <div class="inputContainer jpf-form-narrow">
                         <label class="inputLabel" for="panicCodeInput" data-i18n="admin.panic.label">Code</label>
                         <input is="emby-input" type="text" id="panicCodeInput" autocomplete="off" placeholder="At least 10 characters" data-i18n-placeholder="admin.panic.placeholder" />
-                        <div class="fieldDescription" data-i18n="admin.panic.hint">Save it blank to turn it off. It can't be shown again, so write it down somewhere off this server.</div>
+                        <div class="fieldDescription" data-i18n="admin.panic.hint">Blank turns it off. It can't be shown again, so write it down.</div>
                     </div>
                     <div>
                         <button is="emby-button" type="button" id="savePanicCode" class="raised jpf-narrow" data-i18n="admin.panic.save">Save code</button>
@@ -1067,7 +1064,7 @@
                     <div class="inputContainer jpf-form-narrow">
                         <label class="inputLabel" for="pinGuessesPerDay" data-i18n="admin.households.pinPerDay">PIN tries a day</label>
                         <input is="emby-input" type="number" id="pinGuessesPerDay" min="1" max="20" />
-                        <div class="fieldDescription" data-i18n="admin.households.pinPerDayHint">Wrong tries per account, all apps together. 1 to 20.</div>
+                        <div class="fieldDescription" data-i18n="admin.households.pinPerDayHint">Per account, all apps together. 1 to 20.</div>
                     </div>
                     <div class="inputContainer jpf-form-narrow" id="trustedBox">
                         <label class="inputLabel" data-i18n="admin.trust.title">Addresses that skip PINs</label>
@@ -1086,7 +1083,7 @@
                 <div class="sectionTitleContainer jpf-section">
                     <h2 class="sectionTitle" data-i18n="admin.theme.title">Default theme</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.theme.lede">For Bonfire's own screens. The rest of Jellyfin keeps its theme.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.theme.lede">Bonfire's screens only.</div>
                 <!-- The words after each name are there so an administrator can tell them
                      apart without opening a profile. They describe the look only; no theme
                      is named after, or claims any link to, a real service. Jellyfin Dark and
@@ -1115,7 +1112,6 @@
                         <input is="emby-checkbox" type="checkbox" id="allowProfileThemes" />
                         <span data-i18n="admin.theme.allowProfiles">Let profiles choose their own theme</span>
                     </label>
-                    <div class="fieldDescription" data-i18n="admin.theme.allowProfilesHint">Off shows everyone the default. Choices already made are kept.</div>
                 </div>
 
                 <details class="jpf-advanced jpf-section">
@@ -1134,7 +1130,7 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfLogo">
                     <h2 class="sectionTitle" data-i18n="admin.logo.title">Server logo</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.logo.lede">Shown in the corner each theme picks: the image, or the text if there's no image.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.logo.lede">The image, or the text if there's none.</div>
                 <div class="jpf-logo-current jpf-hidden" id="logoCurrent">
                     <img id="logoCurrentImage" alt="" />
                 </div>
@@ -1159,7 +1155,7 @@
                 <div class="inputContainer jpf-form-narrow">
                     <label class="inputLabel" for="logoAlt" data-i18n="admin.logo.alt">Alt text</label>
                     <input is="emby-input" type="text" id="logoAlt" maxlength="100" autocomplete="off" />
-                    <div class="fieldDescription" data-i18n="admin.logo.altHint">What a screen reader says. One line, up to 100 characters.</div>
+                    <div class="fieldDescription" data-i18n="admin.logo.altHint">For screen readers. Up to 100 characters.</div>
                 </div>
                 <button is="emby-button" type="button" class="raised button-submit jpf-narrow" id="logoSave" data-i18n="admin.logo.save">Save text</button>
                 <div class="jpf-hidden jpf-status" id="logoResult"></div>
@@ -1170,11 +1166,10 @@
                 <div class="sectionTitleContainer jpf-section" id="jpfThemes">
                     <h2 class="sectionTitle" data-i18n="admin.themes.title">Themes</h2>
                 </div>
-                <div class="fieldDescription jpf-lede" data-i18n="admin.themes.lede">Hide built-in themes, make your own and add fonts. Hiding and fonts save at once.</div>
+                <div class="fieldDescription jpf-lede" data-i18n="admin.themes.lede">Hiding and fonts save at once.</div>
                 <div class="jpf-hidden jpf-status jpf-status-error" id="themesLoadError"></div>
 
                 <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.builtIn">Built-in themes</h3>
-                <div class="fieldDescription" data-i18n="admin.themes.builtInHint">Profiles aren't offered a hidden theme.</div>
                 <div class="jpf-theme-cards" id="themesBuiltIn"></div>
 
                 <h3 class="checkboxListLabel jpf-subhead" data-i18n="admin.themes.custom">Your themes</h3>
@@ -1296,7 +1291,7 @@
                                 </div>
                             </div>
                             <div class="jpf-te-advanced jpf-hidden" id="teAdvanced">
-                                <div class="fieldDescription jpf-lede" data-i18n="admin.themes.advancedHint">Every value in the theme file. Lists are written as JSON.</div>
+                                <div class="fieldDescription jpf-lede" data-i18n="admin.themes.advancedHint">Lists are JSON.</div>
                                 <div id="teAdvancedFields"></div>
                             </div>
                         </div>

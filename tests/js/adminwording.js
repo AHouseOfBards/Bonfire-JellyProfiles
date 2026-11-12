@@ -51,7 +51,6 @@ const KEYS = {
     'admin.orphans.lede': 'account',
     'admin.security.requireMainPin': 'pin',
     'admin.security.requireMainPinHint': 'account',
-    'admin.security.pinResetByEmailHint': 'account',
     'admin.switcher.lede': 'account',
     'admin.onboarding.enableHint': 'account',
     'admin.onboarding.askBody': 'account',

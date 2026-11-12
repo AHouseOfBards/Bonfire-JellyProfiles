@@ -47,7 +47,7 @@ const WANT = {
     'admin.tab.activity': 'Switches',
     'admin.devices.title': 'Sessions',
     'admin.viewing.title': 'Viewing limits',
-    'admin.viewing.lede': 'Main accounts set viewing limits on each profile. Times use this zone until a household picks its own.',
+    'admin.viewing.lede': 'Households can set their own.',
     'admin.switcher.location': 'Switch button',
     'admin.switcher.locationButton': 'In the header',
     'admin.switcher.locationMenu': "In Jellyfin's user menu",
