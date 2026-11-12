@@ -219,6 +219,147 @@ if (prune != null)
 }
 
 Console.WriteLine();
+Console.WriteLine("── One device that got a new id is one row ─────────────────────");
+{
+    // The owner's screenshot: one household, four "Family Room TV" rows from Jellyfin
+    // Android TV, and Tidy up duplicates doing nothing, because it only groups ids that
+    // share a base64 user agent. Two causes, both drawn here: a television that minted a
+    // new id (reinstall, reset, cleared data) and never used the old one again, and one
+    // television signed in as four accounts, which Android TV turns into four ids
+    // (sha1(id + "+" + account)) used side by side.
+    var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", true);
+    var sight = registry.GetMethod("RecordSighting", Any);
+    var mergeSame = registry.GetMethod("MergeSameDevices", Any);
+    var noteScreen = registry.GetMethod("NoteSignInScreen", Any);
+    var forgetScreens = registry.GetMethod("ForgetSignInScreens", Any);
+    var stamp = baseCtl.GetField("LastSeenPersistedAt", Any);
+    var t0 = new DateTime(2030, 3, 1, 12, 0, 0, DateTimeKind.Utc);
+    const string TV = "Jellyfin Android TV";
+
+    string Sha1(string s) => Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(
+        System.Text.Encoding.UTF8.GetBytes(s))).ToLowerInvariant();
+
+    (object Cfg, IList List, Guid Master, Guid[] Profiles) Household(int profiles)
+    {
+        var cfg = Activator.CreateInstance(cfgType);
+        var master = Guid.NewGuid();
+        var ids = new Guid[profiles];
+        var maps = (IList)cfgType.GetProperty("Mappings").GetValue(cfg);
+        for (var i = 0; i < profiles; i++)
+        {
+            ids[i] = Guid.NewGuid();
+            var m = Activator.CreateInstance(mappingType);
+            mappingType.GetProperty("MasterUserId").SetValue(m, master);
+            mappingType.GetProperty("ProfileUserId").SetValue(m, ids[i]);
+            mappingType.GetProperty("ProfileName").SetValue(m, "Kid " + i);
+            maps.Add(m);
+        }
+        return (cfg, (IList)cfgType.GetProperty("KnownDevices").GetValue(cfg), master, ids);
+    }
+
+    bool See(object cfg, string id, string name, string client, Guid owner, DateTime at)
+    {
+        stamp?.SetValue(null, DateTime.MinValue);
+        return (bool)sight.Invoke(null, new object[] { cfg, id, name, client, owner, at, null, true });
+    }
+
+    int Merge(object cfg, Guid household, DateTime at)
+        => mergeSame == null ? -1 : (int)mergeSame.Invoke(null, new object[] { cfg, household, at });
+
+    List<string> Ids(IList list) => list.Cast<object>()
+        .Select(d => (string)deviceType.GetProperty("DeviceId").GetValue(d)).ToList();
+
+    bool Answers(IList list, string id) => list.Cast<object>()
+        .Count(d => (bool)deviceType.GetMethod("Answers").Invoke(d, new object[] { id })) == 1;
+
+    // 1. Four ids one after another: each used, then never again once the next appeared.
+    {
+        var h = Household(1);
+        var allowFirst = (IList)mappingType.GetProperty("AllowedDeviceIds")
+            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h.Cfg))[0]);
+        var ids = new[] { "fb030d0001", "392e4e0002", "bdf0880003", "51efea0004" }
+            .Select(s => Sha1(s)).ToArray();
+        for (var i = 0; i < ids.Length; i++)
+        {
+            See(h.Cfg, ids[i], "Family Room TV", TV, h.Master, t0.AddDays(i * 7));
+            See(h.Cfg, ids[i], "Family Room TV", TV, h.Master, t0.AddDays(i * 7 + 2));
+            if (i == 0) allowFirst.Add(ids[0]);
+        }
+        Ok("two days after the newest id appeared it is still its own row: the old one may be in use ("
+           + h.List.Count + ")", h.List.Count >= 2);
+        // A week on, with nothing seen on the old ids since: the next sighting tidies.
+        See(h.Cfg, ids[3], "Family Room TV", TV, h.Master, t0.AddDays(30));
+        Ok("four ids that followed one another on one television are one row (" + h.List.Count + ")",
+           h.List.Count == 1);
+        Ok("the row kept is the newest id", h.List.Count == 1 && Ids(h.List)[0] == ids[3]);
+        Ok("every old id still answers as that row", ids.All(id => Answers(h.List, id)));
+        Ok("a profile allowed on the first id is allowed on the merged one",
+           allowFirst.Cast<string>().Contains(ids[3]) && !allowFirst.Cast<string>().Contains(ids[0]));
+    }
+
+    // 2. One television, four accounts: four derived ids in use side by side. The time rule
+    //    cannot join these; the derivation can, once the set's own id has been seen.
+    {
+        if (forgetScreens != null) forgetScreens.Invoke(null, null);
+        var h = Household(3);
+        const string bare = "9a6dae35cc29c74f";
+        var accounts = new[] { h.Master }.Concat(h.Profiles).ToArray();
+        for (var round = 0; round < 3; round++)
+            foreach (var a in accounts)
+                See(h.Cfg, Sha1(bare + "+" + a), "Family Room TV", TV, h.Master, t0.AddHours(round * 5 + Array.IndexOf(accounts, a)));
+        Ok("four accounts on one television, its own id not yet seen, stay four rows (" + h.List.Count + ")",
+           h.List.Count == 4);
+        noteScreen.Invoke(null, new object[] { bare });
+        var merged = Merge(h.Cfg, h.Master, t0.AddDays(1));
+        Ok("once the sign-in screen has shown the set's own id, they are one row (" + h.List.Count + ")",
+           h.List.Count == 1 && merged == 3);
+        Ok("every account's id answers as that row", accounts.All(a => Answers(h.List, Sha1(bare + "+" + a))));
+        Ok("merging again changes nothing (" + Merge(h.Cfg, h.Master, t0.AddDays(2)) + ")",
+           Merge(h.Cfg, h.Master, t0.AddDays(2)) == 0 && h.List.Count == 1);
+        if (forgetScreens != null) forgetScreens.Invoke(null, null);
+    }
+
+    // 3. The second screenshot's Pixel 8: Jellyfin for Android's own id, and the same id with
+    //    the account appended, used side by side.
+    {
+        var h = Household(1);
+        const string bare = "6044d6840404e4e8";
+        See(h.Cfg, bare, "Pixel 8", "Jellyfin Android", h.Master, t0);
+        See(h.Cfg, bare + h.Master, "Pixel 8", "Jellyfin Android", h.Master, t0.AddMinutes(1));
+        See(h.Cfg, bare, "Pixel 8", "Jellyfin Android", h.Master, t0.AddMinutes(2));
+        Merge(h.Cfg, h.Master, t0.AddMinutes(3));
+        Ok("a phone's own id and its id with the account appended are one row (" + h.List.Count + ")",
+           h.List.Count == 1 && Answers(h.List, bare) && Answers(h.List, bare + h.Master));
+    }
+
+    // 4. Two tablets, one renamed to match the other, both in use: never one row.
+    {
+        var h = Household(1);
+        See(h.Cfg, "tablet-a-id-0001", "Kids Tablet", "Jellyfin Android", h.Master, t0);
+        See(h.Cfg, "tablet-b-id-0002", "Kids Tablet", "Jellyfin Android", h.Master, t0.AddDays(1));
+        See(h.Cfg, "tablet-a-id-0001", "Kids Tablet", "Jellyfin Android", h.Master, t0.AddDays(2));
+        See(h.Cfg, "tablet-b-id-0002", "Kids Tablet", "Jellyfin Android", h.Master, t0.AddDays(3));
+        Merge(h.Cfg, h.Master, t0.AddDays(4));
+        Merge(h.Cfg, h.Master, t0.AddDays(40));
+        Ok("two tablets with one name, used in the same weeks, stay two rows (" + h.List.Count + ")",
+           h.List.Count == 2);
+    }
+
+    // 5. The rule is per household, per client, per name.
+    {
+        var h = Household(1);
+        var other = Guid.NewGuid();
+        See(h.Cfg, "home-tv-0000001", "Family Room TV", TV, h.Master, t0);
+        See(h.Cfg, "other-home-tv-02", "Family Room TV", TV, other, t0.AddDays(5));
+        See(h.Cfg, "home-tv-chrome-3", "Family Room TV", "Jellyfin Web", h.Master, t0.AddDays(10));
+        See(h.Cfg, "new-name-tv-0004", "Den TV", TV, h.Master, t0.AddDays(15));
+        Merge(h.Cfg, h.Master, t0.AddDays(20));
+        Ok("another household's set, another app, another name: none merged (" + h.List.Count + ")",
+           h.List.Count == 4);
+    }
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     Console.WriteLine("  Failures:");

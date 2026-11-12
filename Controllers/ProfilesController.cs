@@ -4140,6 +4140,13 @@ namespace Jellyfin.Profiles.Controllers
                         changed = true;
                     }
                 }
+
+                // One device that got a new id, or one television signed in as several
+                // accounts, is one row: see DeviceRegistry.MergeSameDevices. Done here as well
+                // as on a sighting, so a household's existing records are tidied the first
+                // time anyone looks at them.
+                if (Auth.DeviceRegistry.MergeSameDevices(config, masterUserId, DateTime.UtcNow) > 0) changed = true;
+
                 if (changed) Plugin.Instance?.SaveConfiguration();
             }
 
@@ -4255,8 +4262,10 @@ namespace Jellyfin.Profiles.Controllers
         /// to the origin — so one computer reaching the server by LAN address and by domain
         /// name is two devices as far as any client-supplied id can tell, and so is a new
         /// browser profile or a reinstalled app. Nothing in the request distinguishes that
-        /// from two genuinely different machines, and guessing wrong widens a whitelist, so
-        /// the plugin will not merge on its own. This is the administrator saying so.
+        /// from two genuinely different machines, and guessing wrong widens a whitelist. The
+        /// plugin merges by itself only what DeviceRegistry.MergeSameDevices can show (an id
+        /// derived from another, or an old id silent since the new one appeared); two ids in
+        /// use side by side need the administrator to say so, and this is how.
         /// </para>
         /// </summary>
         [HttpPost("devices/merge")]

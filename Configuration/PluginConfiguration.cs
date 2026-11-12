@@ -388,6 +388,14 @@ namespace Jellyfin.Profiles.Configuration
         public string DeviceName { get; set; } = string.Empty;
         public string Client { get; set; } = string.Empty;
         public DateTime LastSeen { get; set; }
+
+        /// <summary>
+        /// When this id was first recorded. <see cref="DateTime.MinValue"/> on a record made
+        /// before 2.0, which therefore can never be the newer half of a merge by time: that
+        /// rule needs to know when the new id appeared (Auth.DeviceRegistry.MergeSameDevices).
+        /// </summary>
+        public DateTime FirstSeen { get; set; }
+
         /// <summary>
         /// Master account this device was last seen on. Used to scope the device picker so one
         /// household never sees another's hardware.

@@ -734,6 +734,7 @@ namespace Jellyfin.Profiles.Auth
                         : deviceName!,
                     Client = string.IsNullOrWhiteSpace(client) ? string.Empty : client,
                     LastSeen = now,
+                    FirstSeen = now,
                     MasterUserId = ownerId,
                     Owners = AddOwners(null, ownerId),
                 });
@@ -748,7 +749,144 @@ namespace Jellyfin.Profiles.Auth
             // has to read.
             if (save) save |= ProfilesBaseController.PruneStaleDevices(config, now, logger);
 
+            // Riding on a write that is happening anyway (a new id, or the hourly LastSeen
+            // save), so a television that got a new id tidies itself without anyone opening
+            // the device list. The list read does the same for households that are not seen.
+            if (save && ownerId != Guid.Empty) MergeSameDevices(config, ownerId, now);
+
             return save;
+        }
+
+        /// <summary>
+        /// How long a new id must be in use, with the old one silent, before the two are
+        /// taken for one device. A fixed limit: a shorter wait merges two tablets that are
+        /// both used but not every week, which widens a device restriction.
+        /// </summary>
+        internal static readonly TimeSpan SameDeviceQuietPeriod = TimeSpan.FromDays(7);
+
+        /// <summary>
+        /// Folds this household's records that are one device into one, and returns how many
+        /// records went. Caller must hold <see cref="ProfilesBaseController.ConfigLock"/>.
+        /// Idempotent: a second run finds nothing.
+        ///
+        /// <para>Only records with the same client app and the same reported name, owned by
+        /// this household, are compared, and then one of two things must hold:</para>
+        ///
+        /// <para><b>The ids are derived from one another.</b> Jellyfin for Android sends its
+        /// own id at the sign-in screen and <c>id + accountId</c> once signed in; Android TV
+        /// sends <c>sha1(id + "+" + account)</c> per account (SessionRepository.setCurrentSession,
+        /// util/sdk/DeviceInfoExtensions.kt). So one television used by four profiles is four
+        /// ids in use side by side, and nothing about timing can join them. The derivation
+        /// can, given the set's own id: from a record, from stripping an account id off the
+        /// end, or from a sign-in screen seen in the last few hours. This is proof, not a guess.</para>
+        ///
+        /// <para><b>The old id fell silent when the new one appeared</b> (owner decision,
+        /// 2026-11-12): a reinstall, a reset, cleared site data. The older record's last
+        /// sighting is no later than the newer one's first, and the newer one has been around
+        /// for <see cref="SameDeviceQuietPeriod"/>. Two records used in overlapping weeks — a
+        /// second "Family Room TV" at another home, a tablet renamed to match — never merge.
+        /// Not by address: addresses change and proxies hide them.</para>
+        ///
+        /// <para>Into the newer record, by <see cref="ProfilesBaseController.MergeDeviceRecords"/>:
+        /// add before remove, so no whitelist passes through empty, and the old id stays as an
+        /// alias. Two browser windows on two origins are side by side and not derived, so they
+        /// stay apart; Tidy up duplicates is still how those are joined.</para>
+        /// </summary>
+        internal static int MergeSameDevices(PluginConfiguration? config, Guid householdId, DateTime now)
+        {
+            if (config?.KnownDevices == null || householdId == Guid.Empty) return 0;
+
+            var members = HouseholdMembers(config).ToList();
+            var names = HouseholdNames(config).ToList();
+            var screens = RecentSignInScreens();
+            var merged = 0;
+
+            // One merge at a time, then look again: each changes the records the next compares.
+            for (var guard = 0; guard < MaxDevicesPerHousehold; guard++)
+            {
+                var pair = FindSameDevicePair(config, householdId, members, names, screens, now);
+                if (pair == null) break;
+                if (!ProfilesBaseController.MergeDeviceRecords(config, pair.Value.From, pair.Value.Into)) break;
+                merged++;
+            }
+
+            return merged;
+        }
+
+        private static (string From, string Into)? FindSameDevicePair(
+            PluginConfiguration config, Guid householdId, List<Guid> members, List<string> names,
+            IEnumerable<string> screens, DateTime now)
+        {
+            var groups = config.KnownDevices
+                .Where(d => d.OwnedBy(householdId) && !string.IsNullOrWhiteSpace(d.DeviceId)
+                            && !ProfilesBaseController.IsPlaceholderDeviceName(d.DeviceName)
+                            && !string.IsNullOrWhiteSpace(d.Client))
+                .GroupBy(d => d.DeviceName.Trim().ToLowerInvariant() + "\0" + d.Client.Trim().ToLowerInvariant())
+                .Where(g => g.Count() > 1);
+
+            foreach (var g in groups)
+            {
+                var rows = g.OrderByDescending(d => d.LastSeen).ToList();
+                for (var i = 0; i < rows.Count; i++)
+                {
+                    for (var j = 0; j < rows.Count; j++)
+                    {
+                        if (i == j) continue;
+                        var older = rows[i];
+                        var newer = rows[j];
+
+                        // Proven: into the most recently seen, the id in use now.
+                        if (i > j && Derived(older, newer, members, names, screens, config.KnownDevices))
+                            return (older.DeviceId, newer.DeviceId);
+
+                        if (newer.FirstSeen != DateTime.MinValue
+                            && older.LastSeen <= newer.FirstSeen
+                            && now - newer.FirstSeen >= SameDeviceQuietPeriod)
+                        {
+                            return (older.DeviceId, newer.DeviceId);
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>Whether two records are one device's ids by a client's own derivation.</summary>
+        private static bool Derived(
+            KnownDevice a, KnownDevice b, List<Guid> members, List<string> names,
+            IEnumerable<string> screens, IEnumerable<KnownDevice> known)
+        {
+            var aIds = new[] { a.DeviceId }.Concat(a.Aliases ?? new List<string>()).ToList();
+            var bIds = new[] { b.DeviceId }.Concat(b.Aliases ?? new List<string>()).ToList();
+
+            // The set's own id, wherever it can be had.
+            var bares = new List<string>(screens);
+            foreach (var id in aIds.Concat(bIds))
+            {
+                if (string.IsNullOrWhiteSpace(id)) continue;
+                bares.Add(id.Trim());
+                foreach (var m in members)
+                {
+                    var suffix = m.ToString();
+                    if (id.Length - suffix.Length >= MinimumBareDeviceIdLength
+                        && id.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        bares.Add(id.Substring(0, id.Length - suffix.Length).Trim());
+                    }
+                }
+            }
+
+            foreach (var bare in bares.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (aIds.Any(x => IsSameDevice(bare, x, members, known, names))
+                    && bIds.Any(y => IsSameDevice(bare, y, members, known, names)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

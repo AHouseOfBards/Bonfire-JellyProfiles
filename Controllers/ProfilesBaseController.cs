@@ -1863,7 +1863,10 @@ namespace Jellyfin.Profiles.Controllers
         /// the case is as good as a client-supplied identifier can make it.
         /// </para>
         /// <para>
-        /// It is still only a suggestion, and nothing here merges on its own. Two people
+        /// It is still only a suggestion, and nothing here merges on its own: these are ids
+        /// in use side by side (two origins, two browser profiles), which
+        /// Auth.DeviceRegistry.MergeSameDevices leaves apart. A browser whose site data was
+        /// cleared is an old id gone silent, and that one does merge by itself. Two people
         /// with the same phone model and the same browser version would land in one group,
         /// and merging them would widen a whitelist — the one outcome device housekeeping
         /// may never reach by itself. The grouping is scoped to a single household first,
