@@ -1265,6 +1265,74 @@ if (shouldDeny != null)
         shared.Clear();
     }
 
+    // ── an account with no password to type (SSO) ──────────────────────────────
+    //
+    // The refusal sends the app to its password field. An SSO account has none: its
+    // AuthenticationProviderId names no installed provider, so Jellyfin files it under the
+    // invalid provider, and SSO works only through the web UI or Quick Connect. The request
+    // names no account, so the household that owns the matching device is asked instead.
+    // Judged by the provider, never by a plugin's name.
+    var denyFor = gateType.GetMethod("ShouldDenyFor", BindingFlags.Public | BindingFlags.Static);
+    var noPath = gateType.GetMethod("HasNoPasswordPath", BindingFlags.Public | BindingFlags.Static);
+    Ok("the gate can be told which accounts have no password", denyFor != null && noPath != null);
+
+    if (denyFor != null && noPath != null)
+    {
+        const string Default = "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider";
+        const string Ldap = "Jellyfin.Plugin.LDAP_Auth.LDAPAuthenticationProviderPlugin";
+        var enabled = new[] { Default, Ldap };
+
+        var ssoMaster = Guid.NewGuid();
+        var ldapMaster = Guid.NewGuid();
+        var localMaster = Guid.NewGuid();
+        var blankMaster = Guid.NewGuid();
+        var accounts = new Dictionary<Guid, User>
+        {
+            [ssoMaster] = new User("sso-mum", "Jellyfin.Plugin.SSO_Auth.Api.SSOController", "reset"),
+            [ldapMaster] = new User("ldap-dad", Ldap, "reset"),
+            [localMaster] = new User("local", Default, "reset"),
+            [blankMaster] = new User("blank", Default, "reset"),
+        };
+        accounts[blankMaster].AuthenticationProviderId = string.Empty;
+        var users = ProviderUserManager.Create(accounts, enabled);
+
+        bool NoPath(Guid id) => (bool)noPath.Invoke(null, new object[] { users, id });
+        Ok("an account bound to a provider nobody has installed has no password path", NoPath(ssoMaster));
+        Ok("an LDAP account does: its provider is installed", !NoPath(ldapMaster));
+        Ok("a local account does", !NoPath(localMaster));
+        Ok("an account bound to nothing is tried against every provider, so it does", !NoPath(blankMaster));
+        Ok("an account that cannot be found is not judged to have one", NoPath(Guid.NewGuid()));
+
+        bool DenyHousehold(Guid master)
+        {
+            devicesList.Clear();
+            Remember("hh-tv", master);
+            knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Hall TV");
+            Func<Guid, bool> p = id => NoPath(id);
+            return (bool)denyFor.Invoke(null, new object[] { config, "Hall TV", "Jellyfin Android TV", p });
+        }
+
+        Ok("an SSO household's television keeps Quick Connect", !DenyHousehold(ssoMaster));
+        Ok("an LDAP household's television is still sent to the PIN screen", DenyHousehold(ldapMaster));
+        Ok("and so is a local one", DenyHousehold(localMaster));
+
+        // Two households on one model of set: the one with no password keeps it for both.
+        devicesList.Clear();
+        Remember("hh-a", localMaster);
+        Remember("hh-b", ssoMaster);
+        knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Hall TV");
+        knownType.GetProperty("DeviceName").SetValue(devicesList[1], "Hall TV");
+        Func<Guid, bool> q = id => NoPath(id);
+        Ok("when one household on the name has no password, the name keeps Quick Connect",
+           !(bool)denyFor.Invoke(null, new object[] { config, "Hall TV", "Jellyfin Android TV", q }));
+        Ok("told nothing, it behaves exactly as before",
+           (bool)denyFor.Invoke(null, new object[] { config, "Hall TV", "Jellyfin Android TV", null }));
+
+        var mwSrc = File.ReadAllText(Path.Combine(RepoRoot(), "Injection", "ProfilesIndexMiddleware.cs"));
+        Ok("the middleware asks, rather than calling the plain gate",
+           mwSrc.Contains("QuickConnectGate.ShouldDenyFor(") && mwSrc.Contains("QuickConnectGate.HasNoPasswordPath("));
+    }
+
     skipProp.SetValue(config, false);
     devicesList.Clear();
 }
@@ -1609,6 +1677,36 @@ sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
         => throw new NotSupportedException();
     public object DeserializeFromBytes(Type type, byte[] buffer)
         => throw new NotSupportedException();
+}
+
+// Answers GetUserById and the enabled provider list, the two things the Quick Connect gate
+// asks about an account.
+public class ProviderUserManager : DispatchProxy
+{
+    private Dictionary<Guid, User> _users;
+    private string[] _providers;
+
+    public static IUserManager Create(Dictionary<Guid, User> users, string[] providers)
+    {
+        var proxy = Create<IUserManager, ProviderUserManager>();
+        var stub = (ProviderUserManager)(object)proxy;
+        stub._users = users;
+        stub._providers = providers;
+        return proxy;
+    }
+
+    protected override object Invoke(MethodInfo targetMethod, object[] args)
+    {
+        switch (targetMethod.Name)
+        {
+            case "GetUserById":
+                return _users.TryGetValue((Guid)args[0], out var u) ? u : null;
+            case "GetAuthenticationProviders":
+                return _providers.Select(p => new MediaBrowser.Model.Dto.NameIdPair { Name = p, Id = p }).ToArray();
+            default:
+                throw new NotSupportedException("the gate called IUserManager." + targetMethod.Name);
+        }
+    }
 }
 
 // Records every AuthenticationProviderId the reconciliation writes. DispatchProxy rather

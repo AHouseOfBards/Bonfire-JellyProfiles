@@ -252,8 +252,9 @@ namespace Jellyfin.Profiles
 
                 // A snapshot: the gate walks KnownDevices, which a sign-in elsewhere may be
                 // appending to at this moment. See ReadConfigSnapshot.
-                if (Auth.QuickConnectGate.ShouldDeny(
-                        Controllers.ProfilesBaseController.ReadConfigSnapshot(), qcDevice, qcClient))
+                if (Auth.QuickConnectGate.ShouldDenyFor(
+                        Controllers.ProfilesBaseController.ReadConfigSnapshot(), qcDevice, qcClient,
+                        id => Auth.QuickConnectGate.HasNoPasswordPath(userManager, id)))
                 {
                     _logger.LogInformation(
                         "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "

@@ -85,6 +85,23 @@ namespace Jellyfin.Profiles.Auth
         /// </para>
         /// </summary>
         public static bool ShouldDeny(PluginConfiguration? config, string? deviceName, string? client)
+            => ShouldDenyFor(config, deviceName, client, null);
+
+        /// <summary>
+        /// <see cref="ShouldDeny"/>, told which household accounts have no password to fall
+        /// back to.
+        /// <para><b>Why.</b> The refusal sends the app to its password field. An account that
+        /// cannot sign in by password (an SSO account, or one whose provider is gone: Jellyfin
+        /// files it under its invalid provider) has nothing to type there, and SSO itself
+        /// works only through the web UI or Quick Connect, so refusing would strand it. The
+        /// request names no account, so the question is asked of the household that owns the
+        /// matching device: if its main account has no password path, Quick Connect stays.
+        /// Judged by what the account can do, never by the name of a plugin.</para>
+        /// </summary>
+        /// <param name="needsQuickConnect">True for a household main account that cannot sign
+        /// in by password. Null judges nobody, which is the old behaviour.</param>
+        public static bool ShouldDenyFor(
+            PluginConfiguration? config, string? deviceName, string? client, Func<Guid, bool>? needsQuickConnect)
         {
             if (config?.KnownDevices == null || !config.SkipQuickConnectOnKnownDevices)
             {
@@ -111,10 +128,35 @@ namespace Jellyfin.Profiles.Auth
                 return false;
             }
 
-            return config.KnownDevices.Any(d =>
+            var matching = config.KnownDevices.Where(d =>
                 d.MasterUserId != Guid.Empty
                 && !string.IsNullOrWhiteSpace(d.DeviceName)
-                && string.Equals(d.DeviceName.Trim(), wanted, StringComparison.OrdinalIgnoreCase));
+                && string.Equals(d.DeviceName.Trim(), wanted, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            // One household on this television that has no password to fall back to is enough
+            // to keep Quick Connect for the set: it is that person's only way in.
+            if (needsQuickConnect != null && matching.Any(d => needsQuickConnect(d.MasterUserId))) return false;
+
+            return matching.Count > 0;
+        }
+
+        /// <summary>
+        /// True when this account cannot sign in by password: its provider is named and no
+        /// enabled provider carries that name, which is exactly when Jellyfin hands it to its
+        /// invalid provider. An account bound to nothing is tried against every provider, so
+        /// it can. A missing account answers true: nothing can be judged, and the uncertain
+        /// answer keeps Quick Connect.
+        /// </summary>
+        public static bool HasNoPasswordPath(MediaBrowser.Controller.Library.IUserManager? users, Guid userId)
+        {
+            var user = users?.GetUserById(userId);
+            if (users == null || user == null) return true;
+
+            var bound = user.AuthenticationProviderId;
+            if (string.IsNullOrEmpty(bound)) return false;
+
+            return !users.GetAuthenticationProviders().Any(p =>
+                string.Equals(p.Id, bound, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
