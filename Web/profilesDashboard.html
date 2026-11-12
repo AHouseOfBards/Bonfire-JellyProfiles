@@ -485,7 +485,7 @@
     }
     #profilesConfigurationPage .jpf-te-count.is-ok { color: var(--jpf-good); text-decoration: none; cursor: default; }
     #profilesConfigurationPage .jpf-te-hist { display: inline-flex; align-items: center; padding: 4px 6px; }
-    #profilesConfigurationPage .jpf-te-hist .material-icons { font-size: 1.2rem; }
+    #profilesConfigurationPage .jpf-te-hist svg, #profilesConfigurationPage .jpf-te-more svg { display: block; }
     #profilesConfigurationPage .jpf-te-more { position: relative; display: none; }
     #profilesConfigurationPage .jpf-te-menu {
         position: absolute; right: 0; top: 100%; margin-top: 4px; z-index: 4; min-width: 9em;
@@ -1250,15 +1250,15 @@
                          move into #teMenu, which Bonfire draws. -->
                     <div class="jpf-te-bar" id="teBar">
                         <span class="jpf-te-bar-name" id="teBarName"></span>
-                        <button type="button" class="jpf-te-lbtn jpf-te-hist" id="teUndo" disabled><span class="material-icons" translate="no" aria-hidden="true">undo</span></button>
-                        <button type="button" class="jpf-te-lbtn jpf-te-hist" id="teRedo" disabled><span class="material-icons" translate="no" aria-hidden="true">redo</span></button>
+                        <button type="button" class="jpf-te-lbtn jpf-te-hist" id="teUndo" disabled><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+                        <button type="button" class="jpf-te-lbtn jpf-te-hist" id="teRedo" disabled><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg></button>
                         <span class="jpf-te-bar-slot" id="teFileSlot"></span>
                         <button type="button" class="jpf-te-count is-ok" id="teCount" aria-live="polite"></button>
                         <button is="emby-button" type="button" class="raised jpf-te-bar-opt" id="teBarExpand" data-i18n="admin.themes.expand">Expand</button>
                         <button is="emby-button" type="button" class="raised button-submit" id="teSave" data-i18n="admin.themes.save">Save theme</button>
                         <button is="emby-button" type="button" class="raised jpf-te-bar-opt" id="teCancel" data-i18n="admin.themes.cancel">Cancel</button>
                         <span class="jpf-te-more">
-                            <button type="button" class="jpf-te-lbtn" id="teMore" aria-haspopup="true" aria-expanded="false" aria-label="More" data-i18n-aria-label="admin.themes.more"><span class="material-icons" translate="no" aria-hidden="true">more_horiz</span></button>
+                            <button type="button" class="jpf-te-lbtn" id="teMore" aria-haspopup="true" aria-expanded="false" aria-label="More" data-i18n-aria-label="admin.themes.more"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></button>
                             <div class="jpf-te-menu jpf-hidden" id="teMenu" role="menu">
                                 <button type="button" class="jpf-te-lbtn" role="menuitem" data-more="teBarExpand" data-i18n="admin.themes.expand">Expand</button>
                                 <button type="button" class="jpf-te-lbtn" role="menuitem" data-more="teCancel" data-i18n="admin.themes.cancel">Cancel</button>
