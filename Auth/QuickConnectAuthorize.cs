@@ -41,7 +41,14 @@ namespace Jellyfin.Profiles.Auth
 
         private const int MaxRemembered = 1000;
 
-        private static readonly ConcurrentDictionary<string, (string DeviceId, string Client, DateTime Until)> Codes = new(StringComparer.Ordinal);
+        /// <summary>
+        /// Initiate is anonymous, so one address can ask for a thousand codes and push everyone
+        /// else's out of the table. Past this many live codes an address loses its own oldest
+        /// first. Far above what a household's TVs ask for in ten minutes.
+        /// </summary>
+        private const int MaxPerOrigin = 20;
+
+        private static readonly ConcurrentDictionary<string, (string DeviceId, string Client, DateTime Until, string Origin)> Codes = new(StringComparer.Ordinal);
 
         /// <summary>Replaced by tests.</summary>
         internal static Func<DateTime> Now = () => DateTime.UtcNow;
@@ -55,7 +62,7 @@ namespace Jellyfin.Profiles.Auth
         /// Reads Jellyfin's answer to Initiate and remembers which device asked for which code.
         /// Anything unreadable is ignored: that code is then refused to a profile, never allowed.
         /// </summary>
-        public static void Remember(byte[] answer)
+        public static void Remember(byte[] answer, string? origin = null)
         {
             try
             {
@@ -77,7 +84,14 @@ namespace Jellyfin.Profiles.Auth
                 var code = Text("Code");
                 if (string.IsNullOrEmpty(code)) return;
                 var now = Now();
-                Codes[code] = (Text("DeviceId") ?? string.Empty, Text("AppName") ?? string.Empty, now + Lifetime);
+                origin ??= string.Empty;
+                Codes[code] = (Text("DeviceId") ?? string.Empty, Text("AppName") ?? string.Empty, now + Lifetime, origin);
+                if (origin.Length > 0)
+                {
+                    var own = Codes.ToArray().Where(p => p.Value.Origin == origin && p.Value.Until > now).OrderBy(p => p.Value.Until).ToArray();
+                    for (var i = 0; i < own.Length - MaxPerOrigin; i++) Codes.TryRemove(own[i].Key, out _);
+                }
+
                 if (Codes.Count > MaxRemembered) Trim(now);
             }
             catch (JsonException)

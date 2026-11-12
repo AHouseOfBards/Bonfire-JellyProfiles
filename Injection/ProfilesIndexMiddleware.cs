@@ -748,7 +748,7 @@ namespace Jellyfin.Profiles
             if (context.Response.StatusCode == StatusCodes.Status200OK
                 && !context.Response.Headers.ContainsKey(HeaderNames.ContentEncoding))
             {
-                Auth.QuickConnectAuthorize.Remember(produced);
+                Auth.QuickConnectAuthorize.Remember(produced, Auth.ClientAddress.Of(context)?.ToString());
             }
 
             await PassThroughAsync(context, produced).ConfigureAwait(false);

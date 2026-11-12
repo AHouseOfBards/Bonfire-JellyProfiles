@@ -741,6 +741,22 @@ Child();
        during + " listed in the gap, " + table.Count + " after, " + (accepted == null ? "none accepted" : accepted.State.ToString()));
 }
 
+// One address flooding the anonymous Initiate must not push another's live code out (r2-06-02).
+{
+    var qcType = asm.GetType("Jellyfin.Profiles.Auth.QuickConnectAuthorize", true);
+    var remember = qcType.GetMethod("Remember");
+    var codes = (System.Collections.IDictionary)qcType.GetField("Codes", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+    byte[] Answer(string code) => Encoding.UTF8.GetBytes("{\"Code\":\"" + code + "\",\"DeviceId\":\"d\",\"AppName\":\"a\"}");
+    void Ask(string code, string from)
+        => remember.Invoke(null, remember.GetParameters().Length == 2 ? new object[] { Answer(code), from } : new object[] { Answer(code) });
+    Ask("qc-household", "192.168.1.20");
+    for (int i = 0; i < 1500; i++) Ask("qc-flood-" + i, "203.0.113.9");
+    int floodKept = codes.Keys.Cast<string>().Count(k => k.StartsWith("qc-flood-"));
+    Ok("a flood from one address does not push out another address's live code", codes.Contains("qc-household"), floodKept + " flood codes kept");
+    Ok("and the flooding address keeps only a few of its own", floodKept <= 20, floodKept + " kept");
+    Ok("its newest is among them", codes.Contains("qc-flood-1499"));
+}
+
 // A flood of keypad tiles must not drop the folders still on screen (r2-04-03).
 {
     var sessType = switcher.GetNestedType("ProxySession", BindingFlags.NonPublic);
