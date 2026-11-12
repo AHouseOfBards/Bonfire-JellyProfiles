@@ -205,7 +205,7 @@ console.log('── the server\'s placeholder device labels are translated ─�
 // from "the server's English passed through".
 {
     const marked = runnable
-        .replace("'profileForm.deviceUnrecognised': 'Unrecognised device'", "'profileForm.deviceUnrecognised': 'ZZ-unrecognised'")
+        .replace("'profileForm.deviceUnrecognised': 'Unrecognized device'", "'profileForm.deviceUnrecognised': 'ZZ-unrecognised'")
         .replace("'profileForm.devicePreviouslyAllowed': 'Previously allowed device'", "'profileForm.devicePreviouslyAllowed': 'ZZ-previously'")
         .replace("'profileForm.deviceNotSeenRecently': 'Not seen recently'", "'profileForm.deviceNotSeenRecently': 'ZZ-notseen'");
     const PM = build(marked);

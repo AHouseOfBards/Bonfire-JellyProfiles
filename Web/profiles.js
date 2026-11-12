@@ -1251,7 +1251,7 @@
         'profileForm.devicesUnchanged': 'Devices unchanged',
         'profileForm.devicesHint': 'None selected means any device.',
         'profileForm.unknownDevice': 'Unknown device',
-        'profileForm.deviceUnrecognised': 'Unrecognised device',
+        'profileForm.deviceUnrecognised': 'Unrecognized device',
         'profileForm.devicePreviouslyAllowed': 'Previously allowed device',
         'profileForm.deviceNotSeenRecently': 'Not seen recently',
         'profileForm.noTags': 'No tags. This filter is off.',
