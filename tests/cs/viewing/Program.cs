@@ -987,6 +987,21 @@ Ok("the timer bills a play that ends between two looks", noteStart != null && no
     Tick();
     Ok("and the next look, with nothing playing, bills nothing more", Secs(KID2) - before == 40, (Secs(KID2) - before).ToString());
 
+    // r2-07-02: a play that began 20 s before a look is billed 20 s by it, not the 30 s since the
+    // look before. The look after that, with the play still going, bills the whole interval.
+    before = Secs(KID2);
+    clockNow = clockNow.AddSeconds(10);
+    stub.Sessions.Add(SessionStub.Make("kid-two-late", KID2, item, deviceId: "dev-two-late"));
+    Start(KID2, "kid-two-late");
+    clockNow = clockNow.AddSeconds(20);
+    Tick();
+    Ok("the first look after a play began bills from its start (" + (Secs(KID2) - before) + " s)", Secs(KID2) - before == 20, (Secs(KID2) - before).ToString());
+    clockNow = clockNow.AddSeconds(30);
+    Tick();
+    Ok("and the look after that bills the whole interval (" + (Secs(KID2) - before) + " s)", Secs(KID2) - before == 50, (Secs(KID2) - before).ToString());
+    stub.Sessions.Clear();
+    Stop(KID2, "kid-two-late");
+
     // What is not counted by the tick is not counted here.
     before = Secs(KID2);
     Start(KID2, "song", video: false); clockNow = clockNow.AddSeconds(15); Stop(KID2, "song", video: false);

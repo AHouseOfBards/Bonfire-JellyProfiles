@@ -183,12 +183,28 @@ namespace Jellyfin.Profiles.Auth
 
             var playing = new Dictionary<Guid, List<SessionInfo>>();
             var counting = new HashSet<Guid>();
+            var freshSince = new Dictionary<Guid, DateTime>();
+            var wholeInterval = new HashSet<Guid>();
             foreach (var s in sessions.Sessions.ToList())
             {
                 if (!index.ContainsKey(s.UserId) || !ViewingGate.IsVideo(s.NowPlayingItem)) continue;
                 if (!playing.TryGetValue(s.UserId, out var list)) playing[s.UserId] = list = new List<SessionInfo>();
                 list.Add(s);
-                if (s.PlayState == null || !s.PlayState.IsPaused) counting.Add(s.UserId);
+                if (s.PlayState == null || !s.PlayState.IsPaused)
+                {
+                    counting.Add(s.UserId);
+                    // A play that began since the last look was not running for all of it. Bill
+                    // from its start, as the stop report does. Anything else keeps the whole
+                    // interval, which errs towards billing. Paused time is left alone. r2-07-02.
+                    if (since.HasValue && Started.TryGetValue(s.Id, out var began) && began > since.Value)
+                    {
+                        freshSince[s.UserId] = freshSince.TryGetValue(s.UserId, out var other) && other < began ? other : began;
+                    }
+                    else
+                    {
+                        wholeInterval.Add(s.UserId);
+                    }
+                }
             }
 
             // What other Campground plugins are doing for a limited profile (a game in GameTent).
@@ -201,7 +217,7 @@ namespace Jellyfin.Profiles.Auth
                 {
                     if (a.Paused || a.UserId is not Guid user || user == Guid.Empty) continue;
                     if (string.Equals(a.PluginId, Campground.Shared.Registry.PluginIds.Bonfire, StringComparison.Ordinal)) continue;
-                    if (index.ContainsKey(user)) counting.Add(user);
+                    if (index.ContainsKey(user)) { counting.Add(user); wholeInterval.Add(user); }
                 }
             }
             catch (Exception ex)
@@ -212,7 +228,13 @@ namespace Jellyfin.Profiles.Auth
 
             foreach (var id in counting)
             {
-                ViewingTracker.AddSeconds(id, ViewingClock.DayOf(index[id].Zone, nowUtc), elapsed);
+                var seconds = elapsed;
+                if (!wholeInterval.Contains(id) && freshSince.TryGetValue(id, out var from))
+                {
+                    seconds = Math.Clamp((nowUtc - from).TotalSeconds, 0, elapsed);
+                }
+
+                ViewingTracker.AddSeconds(id, ViewingClock.DayOf(index[id].Zone, nowUtc), seconds);
             }
 
             // Nothing playing: a spent grace and its stop are over. Left set, the next play outside
