@@ -70,13 +70,6 @@ namespace Jellyfin.Profiles
         internal static string? IndexPath { get; private set; }
 
         /// <summary>
-        /// Other jellyfin-web index.html files found on this system, beyond the one being
-        /// patched. Normally empty; anything here is a candidate for what is really being
-        /// served.
-        /// </summary>
-        internal static List<string> OtherIndexPaths { get; private set; } = new();
-
-        /// <summary>
         /// Human-readable reason the last injection attempt could not complete, or null when
         /// everything is fine. Surfaced on the dashboard so the banner can say what is actually
         /// wrong instead of listing every possible fix.
@@ -1004,14 +997,15 @@ namespace Jellyfin.Profiles
 
             if (found.Count == 0) return null;
 
-            OtherIndexPaths = found.Skip(1).ToList();
-            if (OtherIndexPaths.Count > 0)
+            var others = found.Skip(1).ToList();
+            if (others.Count > 0)
             {
+                // The file is only read to take old script tags out of it; nothing is added.
                 _logger.LogWarning(
                     "ProfilesPlugin: More than one jellyfin-web index.html exists on this system. " +
-                    "Patching {Path}; also found {Others}. If the switcher does not appear, Jellyfin " +
-                    "is serving one of the others.",
-                    found[0], string.Join(", ", OtherIndexPaths));
+                    "Checking {Path} for old script tags; also found {Others}. Old tags in the others " +
+                    "are not removed.",
+                    found[0], string.Join(", ", others));
             }
             else
             {
@@ -1020,12 +1014,5 @@ namespace Jellyfin.Profiles
 
             return found[0];
         }
-
-        private static bool IsRunningInDocker() =>
-            File.Exists("/.dockerenv") ||
-            string.Equals(
-                Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
-                "true",
-                StringComparison.OrdinalIgnoreCase);
     }
 }

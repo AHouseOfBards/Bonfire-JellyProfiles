@@ -51,40 +51,37 @@ namespace Jellyfin.Profiles
     }
 
     /// <summary>
-    /// Adds the plugin's script tags to Jellyfin's index.html as it is served, without modifying
-    /// the file on disk.
+    /// Bonfire's place in Jellyfin's request pipeline: the sign-in notes, the maintenance and
+    /// viewing gates, the profile picker for apps with no switcher, Quick Connect, the
+    /// profile-name rewriting and the login-screen user list.
     ///
     /// <para>
-    /// Replaces the mechanism behind issues #17, #11 and #3. Patching index.html needs write
+    /// It does not add Bonfire's script to index.html itself. It marks that the page was
+    /// requested and passes the request down; the Campground coordinator
+    /// (Campground.Shared, Injection/IndexMiddleware.cs), which sits inside this middleware,
+    /// buffers the document and adds every Campground plugin's tags in one pass.
+    /// </para>
+    /// <para>
+    /// This replaced patching index.html on disk (issues #17, #11 and #3), which needs write
     /// access to a directory the package manager owns, has to be redone after every Jellyfin
-    /// update, and — worst of all — gives no way to tell from the outside when the file being
-    /// served is not the file being patched.
+    /// update, and gives no way to tell when the file being served is not the file patched.
+    /// The page is not answered from here: this middleware is at the very front, so answering
+    /// would hide the request from everything below it, file-transformation's swapped static
+    /// file providers included.
     /// </para>
     /// <para>
-    /// <strong>This buffers the downstream response; it does not short-circuit.</strong> Until
-    /// 1.4.4 it read the file itself and answered the request, which was simpler and wrong: this
-    /// middleware sits at the very front of the pipeline, so answering here means nothing further
-    /// down ever sees the request. jellyfin-plugin-file-transformation swaps the static file
-    /// providers (by Harmony patch) so that the static file layer returns an already-transformed
-    /// index.html, and everything built on it — home screen sections, plugin pages — depends on
-    /// that. Short-circuiting silently threw all of it away, and reading the file straight off
-    /// disk bypassed the swapped provider a second time. Asking the pipeline for the document and
-    /// editing what comes back composes with any of them, in either order.
-    /// </para>
-    /// <para>
-    /// Buffering costs two things, both handled below: <c>StaticFileMiddleware</c> sends physical
-    /// files through <c>SendFileAsync</c> and never touches <c>Response.Body</c>, so the capture
-    /// has to be an <see cref="IHttpResponseBodyFeature"/> rather than a swapped stream; and the
-    /// response would arrive compressed, so the request's content negotiation is suspended for
-    /// the duration.
+    /// The user-list and own-name responses are still buffered here, with the request's
+    /// content negotiation suspended; see <see cref="NegotiationHeaders"/>.
     /// </para>
     /// </summary>
     public sealed class ProfilesIndexMiddleware
     {
         /// <summary>
-        /// Request headers that would stop the pipeline handing back a plain, complete document:
-        /// a compressed body we would have to decompress, a 304 with no body at all, or a partial
-        /// one. Removed for the inner call and put back before returning.
+        /// Request headers that would stop the pipeline handing back a plain, complete body for
+        /// the responses this middleware rewrites (the user list and the own-name responses): a
+        /// compressed body we would have to decompress, a 304 with no body at all, or a partial
+        /// one. Removed for the inner call and put back before returning. index.html's own
+        /// buffering is the coordinator's.
         /// </summary>
         private static readonly string[] NegotiationHeaders =
         {
@@ -268,8 +265,8 @@ namespace Jellyfin.Profiles
                         qcDevice,
                         qcClient);
 
-                // The same status and wording Jellyfin itself returns when Quick Connect is
-                // switched off server-wide, so the client is taking a path it already has.
+                    // The same status and wording Jellyfin itself returns when Quick Connect is
+                    // switched off server-wide, so the client is taking a path it already has.
                     await Auth.MaintenanceGate.ApplyCorsAsync(context).ConfigureAwait(false);
                     context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                     context.Response.ContentType = "application/json";
@@ -893,8 +890,9 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
-        /// True when this request is for the web client's index.html and we are allowed to
-        /// answer it.
+        /// True when this request is for the web client's index.html and Jellyfin will serve it
+        /// as it is, rather than redirect it to HTTPS. Nothing is answered here: a true result
+        /// only marks that the page was requested, and the request goes on to the coordinator.
         /// </summary>
         private static bool ShouldHandle(
             HttpContext context,

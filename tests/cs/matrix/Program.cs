@@ -293,8 +293,7 @@ Console.WriteLine("Rate limit: the wait quoted is the wait enforced");
                            | BindingFlags.NonPublic | BindingFlags.Public;
 
     var ctor = rlType.GetConstructor(Any, null, new[] { typeof(int), typeof(int) }, null);
-    var isLimited = rlType.GetMethod("IsRateLimited", Any);
-    var record = rlType.GetMethod("RecordFailure", Any);
+    var rlBeginAttempt = rlType.GetMethod("TryBegin", Any, null, new[] { typeof(string) }, null);
     var retryAfter = rlType.GetMethod("RetryAfter", Any);
     var describe = rlType.GetMethod("DescribeWait", Any);
 
@@ -308,12 +307,13 @@ Console.WriteLine("Rate limit: the wait quoted is the wait enforced");
         // 3 attempts per 15 minutes, so the third failure is the one that locks.
         var limiter = ctor.Invoke(new object[] { 3, 15 });
 
-        Check("not limited before the threshold", (bool)isLimited.Invoke(limiter, new object[] { "ip" }), false);
-        Check("and nothing to wait for", (TimeSpan)retryAfter.Invoke(limiter, new object[] { "ip" }), TimeSpan.Zero);
+        Check("nothing to wait for before any attempt", (TimeSpan)retryAfter.Invoke(limiter, new object[] { "ip" }), TimeSpan.Zero);
 
-        for (var i = 0; i < 3; i++) record.Invoke(limiter, new object[] { "ip" });
+        var allowed = 0;
+        for (var i = 0; i < 3; i++) if ((bool)rlBeginAttempt.Invoke(limiter, new object[] { "ip" })) allowed++;
+        Check("the first three attempts are allowed", allowed, 3);
 
-        Check("limited at the threshold", (bool)isLimited.Invoke(limiter, new object[] { "ip" }), true);
+        Check("limited at the threshold", (bool)rlBeginAttempt.Invoke(limiter, new object[] { "ip" }), false);
 
         var wait = (TimeSpan)retryAfter.Invoke(limiter, new object[] { "ip" });
         // All three attempts were a moment ago, so the wait is the full window minus

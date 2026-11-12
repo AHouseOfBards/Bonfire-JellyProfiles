@@ -108,26 +108,10 @@ namespace Jellyfin.Profiles.Controllers
 
         // ── Public API ─────────────────────────────────────────────────────────────
 
-        public bool IsRateLimited(string ipAddress)
-        {
-            if (string.IsNullOrEmpty(ipAddress)) return false;
-            PruneExpiredEntries();
-
-            if (_attempts.TryGetValue(ipAddress, out var list))
-            {
-                lock (list)
-                {
-                    list.RemoveAll(t => t < DateTime.UtcNow.AddMinutes(-_windowMinutes));
-                    return list.Count >= _maxAttempts;
-                }
-            }
-            return false;
-        }
-
         /// <summary>
         /// Counts an attempt before it is made, and says whether it may be made at all.
         /// <para>
-        /// <see cref="IsRateLimited"/> followed by <see cref="RecordFailure"/> leaves the
+        /// A separate "is it limited" check followed by a "record the failure" step left the
         /// whole verification in between — a PBKDF2 derivation, tens of milliseconds — for
         /// concurrent requests to pass the check together, so a hundred parallel guesses
         /// all got through a limit of five. Here the check and the count are one step under
@@ -166,18 +150,6 @@ namespace Jellyfin.Profiles.Controllers
                     list.Add(now);
                     return true;
                 }
-            }
-        }
-
-        public void RecordFailure(string ipAddress)
-        {
-            if (string.IsNullOrEmpty(ipAddress)) return;
-            PruneExpiredEntries();
-
-            var list = _attempts.GetOrAdd(ipAddress, _ => new List<DateTime>());
-            lock (list)
-            {
-                list.Add(DateTime.UtcNow);
             }
         }
 
