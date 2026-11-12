@@ -267,6 +267,37 @@ uses('.jpf-note-warn', 'color', '--jpf-warn');
 uses('.jpf-note-error', 'background', '--jpf-bad-tint');
 uses('.jpf-note-ok', 'background', '--jpf-good-tint');
 
+// Secondary buttons: every is="emby-button" raised button that is not a primary
+// (.button-submit), a link, or the red badge. They wore Jellyfin's grey .raised box,
+// which the owner saw clash with the ember (1.9.0.4 eye test). One rule styles them all,
+// so no button can be left grey by being missed.
+const SEC = '.raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad)';
+uses(SEC, 'background', '--jpf-accent-tint');
+uses(SEC, 'color', '--jpf-accent');
+uses(SEC, 'border', '--jpf-accent-line');
+uses(SEC + ':hover', 'background', '--jpf-accent-tint-hover');
+uses(SEC + ':focus', 'background', '--jpf-accent-tint-hover');
+uses(SEC + ':hover', 'color', '--jpf-accent-hover');
+uses(SEC + ':focus', 'color', '--jpf-accent-hover');
+uses(SEC + ':focus-visible', 'outline', '--jpf-ring');
+// Its label, at rest and under the pointer, on every ground of every theme.
+Object.keys(THEMES).forEach(theme => {
+    const tokens = tokensFor(theme);
+    // [label, fill]: at rest, and under the pointer or focus.
+    [['--jpf-accent', '--jpf-accent-tint'], ['--jpf-accent-hover', '--jpf-accent-tint-hover']].forEach(p => {
+        const raw = resolve(tokens, p[1]);
+        const c = raw === null ? null : parse(raw);
+        const lab = parse(resolve(tokens, p[0]) || '');
+        ok(theme + ': ' + p[1] + ' is defined as a plain colour', !!c, String(raw));
+        if (!c || !lab) return;
+        Object.keys(THEMES[theme].grounds).forEach(g => {
+            const bg = over(c, parse(THEMES[theme].grounds[g]));
+            const r = ratio(lab, bg);
+            ok(theme + '/' + g + ': secondary button ' + p[0] + ' on ' + p[1] + ' >= 4.5', r >= 4.5, r.toFixed(2));
+        });
+    });
+});
+
 // The theme-scoped blocks hold tokens and nothing else: a light-only rule would be a
 // second place a colour is decided.
 ['light', 'appletv'].forEach(theme => {

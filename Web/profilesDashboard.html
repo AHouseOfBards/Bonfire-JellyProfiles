@@ -20,6 +20,7 @@
         --jpf-accent-ink: #2b1704;      /* the label on an accent fill: bonfire.json onAccent */
         --jpf-ring: #ffc773;            /* focus rings */
         --jpf-accent-tint: rgba(255, 179, 71, 0.12);
+        --jpf-accent-tint-hover: rgba(255, 179, 71, 0.22); /* a secondary button under the pointer or focus */
         --jpf-accent-line: rgba(255, 179, 71, 0.35);
         /* Distinct from the accent and from each other. Warn is yellow rather than
            orange, because #ff9900 was one step from the ember. */
@@ -54,6 +55,7 @@
         --jpf-accent-ink: #ffffff;
         --jpf-ring: #8f4400;
         --jpf-accent-tint: rgba(143, 68, 0, 0.10);
+        --jpf-accent-tint-hover: rgba(143, 68, 0, 0.18);
         --jpf-accent-line: rgba(143, 68, 0, 0.35);
         --jpf-good: #176a29;
         --jpf-bad: #b02020;
@@ -96,6 +98,19 @@
     #profilesConfigurationPage .button-submit:focus-visible,
     #profilesConfigurationPage a:focus-visible,
     #profilesConfigurationPage .button-link:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
+    /* Secondary buttons: every raised button that is not a primary, a link or the red
+       badge. Jellyfin's own .raised is a grey box, which sat badly against the ember
+       (owner, 1.9.0.4 eye test). Keyed on .raised rather than a class of our own so that
+       a button built in script cannot be missed and come out grey. The :not()s also lift
+       it over jellyfin-web's .raised and .button-accent, whatever order they load in. */
+    #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad) {
+        background: var(--jpf-accent-tint);
+        color: var(--jpf-accent);
+        border: 1px solid var(--jpf-accent-line);
+    }
+    #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):hover,
+    #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):focus { background: var(--jpf-accent-tint-hover); color: var(--jpf-accent-hover); }
+    #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
 
     /* The header: Bonfire's mark, the campfire glyph the client's switcher uses, and its
        name. A header, not a banner. */
