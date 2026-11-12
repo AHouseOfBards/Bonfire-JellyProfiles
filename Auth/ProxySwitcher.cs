@@ -511,7 +511,10 @@ namespace Jellyfin.Profiles.Auth
             switch (route.Kind)
             {
                 case RouteKind.Views:
-                    await ForwardAndEditAsync(context, forward, body => AppendSwitchView(body, session, services, config)).ConfigureAwait(false);
+                    // The tile goes on the first page only: a client paging through the folders
+                    // would otherwise be handed one on every page (r2-05-06).
+                    var firstPage = !int.TryParse(context.Request.Query["StartIndex"].ToString(), out var startIndex) || startIndex <= 0;
+                    await ForwardAndEditAsync(context, forward, body => firstPage ? AppendSwitchView(body, session, services, config) : null).ConfigureAwait(false);
                     return true;
 
                 case RouteKind.Me:

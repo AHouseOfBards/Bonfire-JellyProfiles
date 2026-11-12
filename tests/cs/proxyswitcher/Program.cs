@@ -302,6 +302,9 @@ Ok("and in the query", seenQuery.Contains("UserId=" + N(OPEN)) && !seenQuery.Con
 
 var home = Get("/UserViews");
 Ok("the home screen shows the profile's libraries and Switch profile", Names(home.body) == "Movies, Switch profile", Names(home.body));
+var homePage2 = Get("/UserViews?StartIndex=1");
+Ok("a later page of it does not get another Switch profile (r2-05-06)", Names(homePage2.body) == "Movies", Names(homePage2.body));
+Ok("and StartIndex=0 still does", Names(Get("/UserViews?StartIndex=0").body) == "Movies, Switch profile");
 
 var me = Get("/Users/Me");
 var meObj = JsonNode.Parse(me.body) as JsonObject;
