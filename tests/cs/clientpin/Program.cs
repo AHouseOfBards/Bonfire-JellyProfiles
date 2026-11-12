@@ -1469,6 +1469,89 @@ finally
     knownProp.SetValue(config, liveDevices);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Added by the test audit. Each block below is a break to the provider that stayed
+// green against everything above, and several were a way in rather than a way out:
+// they say what the change was, so none is a restatement of the code.
+// ─────────────────────────────────────────────────────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── Test audit: what a change to the provider could let in ──────");
+bonfireOn.SetValue(config, true);
+enableProp.SetValue(config, true);
+Anywhere(false);
+proxyProp.SetValue(config, new List<string>());
+devicesList.Clear();
+Remember("family-tv", MASTER);
+FromDevice("family-tv");
+
+// A main account with NO PIN whose profile has one. FindMasterWithPin must look at the
+// main account's own row. Matching any row of the household found the child's PIN, and
+// the child's four digits then opened the main account from its television.
+var MASTNP = Guid.NewGuid();
+var KIDNP = Guid.NewGuid();
+mappings.Add(Mapping(MASTNP, MASTNP, null));
+mappings.Add(Mapping(KIDNP, MASTNP, "6060"));
+NameIt(KIDNP, "npkid");
+UserManagerStub.Add(MASTNP, MakeUser(MASTNP, "np"));
+UserManagerStub.Add(KIDNP, MakeUser(KIDNP, "Npkid"));
+Remember("np-tv", MASTNP);
+FromDevice("np-tv");
+Ok("a profile's PIN does not open a main account that has none of its own",
+   Try(MakeUser(MASTNP, "np"), "6060") == "!AuthenticationException");
+Ok("while the profile's PIN still opens the profile there", Try(MakeUser(KIDNP, "Npkid"), "6060") == "Npkid");
+
+// Two households, one name. "Which kids" is the device's to say, and a lookup that did not
+// stay inside the household would hand every device the first "kids" in the list.
+var MASTB = Guid.NewGuid();
+var KIDB = Guid.NewGuid();
+mappings.Add(Mapping(MASTB, MASTB, "8888"));
+mappings.Add(Mapping(KIDB, MASTB, "7777"));
+NameIt(KIDB, "kids");
+UserManagerStub.Add(MASTB, MakeUser(MASTB, "other"));
+UserManagerStub.Add(KIDB, MakeUser(KIDB, "Otherkids"));
+Remember("b-tv", MASTB);
+FromDevice("b-tv");
+Ok("two households that each have a \"kids\": the second household's television opens its own",
+   TryName("kids", "7777") == "Otherkids");
+Ok("and not with the first household's PIN", TryName("kids", "4821") == "!AuthenticationException");
+FromDevice("family-tv");
+ResetAllowance(KID);
+Ok("while the first household's television still opens the first household's",
+   TryName("kids", "4821") == "Bardkids");
+Ok("and not with the second household's PIN", TryName("kids", "7777") == "!AuthenticationException");
+
+// The sign-in by name checks the switch itself. Jellyfin only asks an enabled provider, so
+// this is the second lock on the same door rather than the first.
+enableProp.SetValue(config, false);
+Ok("with PIN login on other apps off, a display name opens nothing", TryName("kids", "4821") == "!AuthenticationException");
+enableProp.SetValue(config, true);
+ResetAllowance(KID);
+Ok("and opens again when it is on", TryName("kids", "4821") == "Bardkids");
+
+// What counts as a PIN. A stored hash for something that is not four to eight digits
+// cannot be written by Bonfire, but if one is there it must not open.
+foreach (var (pinText, label) in new[] { ("123", "three digits"), ("123456789", "nine digits"), ("ab12", "letters") })
+{
+    var SHAPE = Guid.NewGuid();
+    mappings.Add(Mapping(SHAPE, MASTER, pinText));
+    NameIt(SHAPE, "shape");
+    UserManagerStub.Add(SHAPE, MakeUser(SHAPE, "Bardshape"));
+    FromDevice("family-tv");
+    Ok("a profile whose stored PIN is " + label + " is not opened by it",
+       Try(MakeUser(SHAPE, "Bardshape"), pinText) == "!AuthenticationException");
+    mappings.RemoveAt(mappings.Count - 1);
+}
+
+// A main account's password that only looks a little like a PIN is not a PIN guess.
+foreach (var notPin in new[] { "abcd", "123", "123456789" })
+{
+    ResetAllowance(MASTER);
+    for (int i = 0; i < 6; i++) Try(MakeUser(MASTER, "bard"), notPin);
+    Ok("six wrong passwords like \"" + notPin + "\" do not pause the main account's PIN",
+       Try(MakeUser(MASTER, "bard"), "9999") == "bard");
+}
+ResetAllowance(MASTER);
+
 Console.WriteLine();
 if (fails.Count > 0)
 {
