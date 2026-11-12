@@ -37,6 +37,7 @@
         /* Hairlines, washes and strong text. White on the dark themes, black on the
            light ones; the light block below flips every one. The number is the alpha. */
         --jpf-ink-hi: #ffffff;
+        --jpf-scheme: dark;
         --jpf-w04: rgba(255, 255, 255, 0.04);
         --jpf-w05: rgba(255, 255, 255, 0.05);
         --jpf-w06: rgba(255, 255, 255, 0.06);
@@ -68,6 +69,7 @@
         --jpf-warn-tint: rgba(112, 84, 0, 0.10);
         --jpf-warn-line: rgba(112, 84, 0, 0.35);
         --jpf-ink-hi: rgba(0, 0, 0, 0.87);
+        --jpf-scheme: light;
         --jpf-w04: rgba(0, 0, 0, 0.04);
         --jpf-w05: rgba(0, 0, 0, 0.05);
         --jpf-w06: rgba(0, 0, 0, 0.06);
@@ -835,6 +837,21 @@
         font-size: 0.85rem;
     }
     #profilesConfigurationPage .jpf-report.jpf-hidden { display: none; }
+
+    /* Every field takes the page's own wash and ink. jellyfin-web only styles what upgrades
+       (is="emby-input" and friends); the report box, the date and search boxes and anything
+       a script writes are plain elements, and a plain element takes the browser's white, which
+       matches no theme (the report box flashed white when it opened). The colours are the same
+       tokens as everything else here, so they flip with the light themes; color-scheme gives
+       the date picker, the select's list and the scrollbars the matching face. */
+    #profilesConfigurationPage input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="range"]):not([type="color"]),
+    #profilesConfigurationPage select,
+    #profilesConfigurationPage textarea {
+        background-color: var(--jpf-w06);
+        color: var(--jpf-ink-hi);
+        border-color: var(--jpf-w20);
+        color-scheme: var(--jpf-scheme);
+    }
     #profilesConfigurationPage .jpf-upload { margin: 2em 0 1em 0; }
 </style>
     <div data-role="content">
@@ -7269,7 +7286,7 @@
                         'Failure reason: ' + (field(r, 'failureReason') ? 'see dashboard' : 'none'),
                         '',
                         'Main accounts: ' + masters.length + ', profiles: ' + subs.length
-                            + ', main accounts without a PIN: ' + masters.filter(function (x) { return field(x, 'requiresPin') !== true; }).length,
+                            + ', main accounts with profiles and no main PIN: ' + (page._openPins || 0),
                         'Profiles per account: ' + (c.MaxProfilesPerUser || 5),
                         'Require main PIN: ' + on(c.RequireMainPin) + ', PIN tries a day: ' + (c.PinGuessesPerDay || 20),
                         'Email: ' + (page._emailState || 'unknown') + ', PIN reset by email: ' + on(c.EnablePinResetByEmail),

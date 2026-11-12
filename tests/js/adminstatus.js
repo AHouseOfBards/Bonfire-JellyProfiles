@@ -95,17 +95,19 @@ ok('it opens that tab', page._shown === 'troubleshoot');
 ok('and the section, opening Advanced around it', anchor.scrolled && anchor.opened === true);
 
 console.log('\n── The report ──────────────────────────────────────────────────');
+page._openPins = 1; // what the Status row counted: accounts WITH profiles and no main PIN
 page._config = { MaxProfilesPerUser: 5, RequireMainPin: true, PanicCodeHash: 'SECRETHASH', ProxyClients: ['moonfin'] };
 page._mappings = {
     injectionSucceeded: true,
     failureReason: 'Access to /home/robin/jellyfin/index.html denied',
     mechanism: { mode: 'middleware', middlewareRegistered: true, middlewareServed: 3 },
-    masterUsers: [{ profileName: 'Robin', profileUserId: '8e3cdfa579a84bb9bd9a0e96b7dc974a', requiresPin: false }],
+    masterUsers: [{ profileName: 'Robin', profileUserId: '8e3cdfa579a84bb9bd9a0e96b7dc974a', requiresPin: false },
+                  { profileName: 'Sam', profileUserId: 'b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1', requiresPin: false }],
     subProfiles: [{ profileName: 'Kiddo', profileUserId: 'a90f11cb42a1432d94bb97cc2d42ef8b' }],
 };
 fn.buildReport(page).then(text => {
     ok('it has the versions', text.indexOf('Bonfire 1.7.2.0-beta') !== -1 && text.indexOf('Jellyfin 10.11.5') !== -1);
-    ok('and the counts', /Main accounts: 1, profiles: 1, main accounts without a PIN: 1/.test(text));
+    ok('and the counts', /Main accounts: 2, profiles: 1, main accounts with profiles and no main PIN: 1/.test(text));
     ['Robin', 'Kiddo', '8e3cdfa5', 'a90f11cb', 'SECRETHASH', '/home/robin'].forEach(s =>
         ok('it never contains ' + s, text.indexOf(s) === -1));
     finish();
