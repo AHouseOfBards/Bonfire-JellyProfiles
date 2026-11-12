@@ -376,7 +376,6 @@ if (resolve != null)
         null, null, DeviceManagerStub.Create("tv-1", MASTER, DateTime.UtcNow), config, NullLogger.Instance
     });
     Ok("a request with no Authorization header resolves to nothing", noHeader.Count == 0);
-
     // Off means off, whatever else is true.
     cfgType.GetProperty("EnableClientProfileList").SetValue(config, false);
     Ok("and nothing resolves while the setting is off", Resolve("tv-1", MASTER).Count == 0);
@@ -1521,6 +1520,17 @@ Console.WriteLine("── Why a profile goes missing from one television ──�
             sessionType.GetProperty("Client").SetValue(s, "Android TV");
             sessionType.GetProperty("UserId").SetValue(s, user);
             handler.Invoke(listener, new object[] { null, new MediaBrowser.Controller.Session.SessionEventArgs { SessionInfo = s } });
+        }
+        // Only a name a household device carries is noted (r2-06-04), so give both names one.
+        var knownList = (System.Collections.IList)theConfig.GetType().GetProperty("KnownDevices").GetValue(theConfig);
+        var knownElem = knownList.GetType().GetGenericArguments()[0];
+        foreach (var tvName in new[] { "Spare Room TV", "Attic TV" })
+        {
+            var kd = Activator.CreateInstance(knownElem);
+            knownElem.GetProperty("DeviceId").SetValue(kd, "household-" + tvName);
+            knownElem.GetProperty("DeviceName").SetValue(kd, tvName);
+            knownElem.GetProperty("MasterUserId").SetValue(kd, Guid.NewGuid());
+            knownList.Add(kd);
         }
         Start(Guid.NewGuid(), "Spare Room TV");
         Ok("a sign-in by an account outside every household notes the television's name (the control)",
