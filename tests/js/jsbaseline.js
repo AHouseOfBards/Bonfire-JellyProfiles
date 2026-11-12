@@ -44,6 +44,9 @@ function regexAllowedAfter(out) {
         return /^(return|typeof|case|in|of|delete|void|throw|else|do|new)$/.test(out.slice(b + 1, k + 1));
     }
     if (ch === ')' || ch === ']') return false;
+    // `i++ / 2` is a division. Taken for a regex it swallowed the rest of the line, and
+    // whatever syntax was on it went unscanned.
+    if ((ch === '+' || ch === '-') && out[k - 1] === ch) return false;
     if (ch === '"' && out.slice(k - 3, k + 1) === ' "" ') return false;
     return true;
 }
@@ -155,7 +158,61 @@ const FEATURES = [
     ['ResizeObserver',               /ResizeObserver/g,              64],
     ['node.isConnected',             /\.isConnected\b/g,             51],
     ['scrollIntoView(options)',      /\.scrollIntoView\s*\(\s*\{/g,  61],
+    // Added by the test audit: the table was a list of what someone had thought of, and
+    // each of these passed it untouched. AbortController is mentioned twice in the client,
+    // both times in a comment saying why it is not used (58; webOS 4.5 has no such thing).
+    ['AbortController',              /\bAbortController\b/g,         58],
+    ['BigInt',                       /\bBigInt\b|\b\d+n\b/g,         67],
+    ['String.trimStart / trimEnd',   /\.(trimStart|trimEnd)\s*\(/g,  66],
+    ['Object.getOwnPropertyDescriptors', /getOwnPropertyDescriptors/g, 54],
+    ['element.prepend / replaceWith', /\.(prepend|replaceWith)\s*\(/g, 54],
+    ['Intl.RelativeTimeFormat and friends', /Intl\.(RelativeTimeFormat|ListFormat|PluralRules|DisplayNames|Segmenter)/g, 63],
+    ['Symbol.asyncIterator',         /Symbol\.asyncIterator/g,       63],
 ];
+
+/// One line of code that really uses each feature newer than the floor, so the table
+/// below can prove every pattern in it matches something. A pattern that never matches is
+/// indistinguishable from a clean client, and until the audit only three of thirty-odd
+/// were ever shown to match anything.
+const BAIT = {
+    'optional chaining  ?.': 'var a = b?.c; var d = e?.[0]; f?.();',
+    'nullish coalescing  ??': 'var a = b ?? c;',
+    'logical assignment  ||= &&=': 'a ||= 1; b &&= 2; c ??= 3;',
+    'numeric separators  1_000': 'var a = 1_000;',
+    'private class members  #x': 'var a = this.#x;',
+    'async functions': 'async function f() {} var g = async () => 1; var h = { async m() {} };',
+    'optional catch binding': 'try { f(); } catch { }',
+    'trailing comma in a call  f(a,)': 'f(a, b,);',
+    'regex lookbehind  (?<=': 'var r = /(?<=a)b/;',
+    'regex named groups  (?<x>': 'var r = /(?<n>a)/;',
+    'Object.entries / values': 'Object.entries(o); Object.values(o);',
+    'String.padStart / padEnd': 's.padStart(3); s.padEnd(3);',
+    'Promise.prototype.finally': 'p.finally(f);',
+    'String.replaceAll': 's.replaceAll("a", "b");',
+    'Array/String .at()': 'a.at(-1); a.at(0);',
+    'Array.flat / flatMap': 'a.flat(); a.flatMap(f);',
+    'Object.fromEntries': 'Object.fromEntries(a);',
+    'String.matchAll': 's.matchAll(r);',
+    'globalThis': 'var g = globalThis;',
+    'Promise.allSettled': 'Promise.allSettled(a);',
+    'Promise.any': 'Promise.any(a);',
+    'Object.hasOwn': 'Object.hasOwn(o, "a");',
+    'structuredClone': 'structuredClone(o);',
+    'queueMicrotask': 'queueMicrotask(f);',
+    'element.replaceChildren': 'e.replaceChildren();',
+    'element.toggleAttribute': 'e.toggleAttribute("a");',
+    'element.checkVisibility': 'e.checkVisibility();',
+    'AbortSignal.timeout': 'AbortSignal.timeout(5);',
+    'ResizeObserver': 'new ResizeObserver(f);',
+    'scrollIntoView(options)': 'e.scrollIntoView({ block: "center" });',
+    'AbortController': 'var c = new AbortController();',
+    'BigInt': 'var a = 10n; var b = BigInt(1);',
+    'String.trimStart / trimEnd': 's.trimStart(); s.trimEnd();',
+    'Object.getOwnPropertyDescriptors': 'Object.getOwnPropertyDescriptors(o);',
+    'element.prepend / replaceWith': 'e.prepend(x); e.replaceWith(x);',
+    'Intl.RelativeTimeFormat and friends': 'new Intl.RelativeTimeFormat();',
+    'Symbol.asyncIterator': 'var s = Symbol.asyncIterator;',
+};
 
 /// `...` whose innermost open bracket is a brace: object spread or rest, Chromium 60.
 function objectSpreads(code) {
@@ -206,6 +263,17 @@ console.log('── The detector itself ─────────────�
         chainHits("x.split(/[/\"]/); y = a?.b;") === 1);
     ok('a division is not taken for a regex (R-1277)',
         chainHits("var r = a / b; var q = c / d; z = e?.f;") === 1);
+    // Every pattern newer than the floor, pairwise: the bait for it exists, and the
+    // pattern finds it after the stripper has been over it.
+    FEATURES.filter(f => f[2] > FLOOR).forEach(f => {
+        const bait2 = BAIT[f[0]];
+        if (!bait2) { ok('there is bait for the pattern "' + f[0] + '"', false, 'add it to BAIT'); return; }
+        f[1].lastIndex = 0;
+        const n = (stripCommentsAndStrings(bait2).match(f[1]) || []).length;
+        ok('"' + f[0] + '" is detected in code that uses it', n >= 1, 'bait: ' + bait2);
+    });
+    ok('a postfix ++ before a division is not taken for the start of a regex',
+        chainHits('var i = 1; var z = i++ / 2; var q = a?.b;') === 1);
     ok('object spread is detected, and array and call spread are not',
         objectSpreads(stripCommentsAndStrings(
             'const f = { a: 1, ...b }; const g = [...b]; h(...b); const { x, ...rest } = f;')) === 2);
