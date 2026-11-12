@@ -97,6 +97,19 @@ file over `PluginConfiguration.xml`, and start the newer version.
 If anyone outside a household has signed in on a TV with the same name, Bonfire stops hiding
 Quick Connect on every TV with that name, because two sets of the same model look the same.
 
+An account with no password, such as an SSO account, keeps Quick Connect on its own TV.
+
+## LDAP and SSO accounts
+
+- An LDAP or SSO main account can't use its main PIN on a TV sign-in screen. Its profiles'
+  PINs work.
+- An LDAP or SSO main account can't be added to another household's switcher by password.
+  An administrator adds it.
+- Turning an LDAP-linked account into a profile and renaming it isn't supported.
+- A profile's PIN on a TV sign-in screen is first tried under its short name by every other
+  sign-in plugin. If a directory user has that name, LDAP may count the PIN as a failed
+  attempt for them, so give profiles names no directory user has.
+
 ## Where do I get avatars?
 
 Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them
