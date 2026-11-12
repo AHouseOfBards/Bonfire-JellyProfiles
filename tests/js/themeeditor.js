@@ -115,6 +115,7 @@ async function main() {
 // control is a swatch button that opens one popup Bonfire draws itself.
 
 const KEYS = {
+    Tab: { key: 'Tab', code: 'Tab', vk: 9 },
     Enter: { key: 'Enter', code: 'Enter', vk: 13, text: '\r' },
     ' ': { key: ' ', code: 'Space', vk: 32, text: ' ' },
     Escape: { key: 'Escape', code: 'Escape', vk: 27 },
@@ -303,6 +304,25 @@ async function expandChecks(c, s) {
         await wait(200);
         await c.evaluate("document.getElementById('teCancel').click()");
         ok('closing the editor takes it down' + tag, !(await c.evaluate('!!' + X)));
+        // Leaving the page with it open. Its document-level Tab trap and its style element
+        // outlived the page, so Tab stopped working across the rest of jellyfin-web.
+        // viewManager fires viewbeforehide on the page element when it is navigated away.
+        await openEditor(c, s, device);
+        await c.evaluate("document.getElementById('teExpand').click()");
+        await wait(200);
+        await c.evaluate("document.getElementById('profilesConfigurationPage').dispatchEvent(new CustomEvent('viewbeforehide', { bubbles: true, cancelable: true }))");
+        await c.evaluate("(function(){ window.__tabBlocked = null; window.addEventListener('keydown', function (e) { if (e.keyCode === 9) window.__tabBlocked = e.defaultPrevented; }); document.body.focus(); })()");
+        await press(c, 'Tab');
+        const left = await c.evaluate("({ view: !!" + X + ", css: !!document.getElementById('jpfThemeExpandCss'), blocked: window.__tabBlocked })");
+        ok('leaving the page closes the expanded view, frees Tab and removes its style' + tag,
+            !left.view && !left.css && left.blocked === false, JSON.stringify(left));
+        // The colour popup listens on the document in the same way.
+        await c.evaluate("document.getElementById('teAccent').scrollIntoView({block:'center'})");
+        await c.evaluate("document.getElementById('teAccent').click()");
+        await wait(150);
+        const opened = !!(await c.evaluate('!!' + POPUP));
+        await c.evaluate("document.getElementById('profilesConfigurationPage').dispatchEvent(new CustomEvent('viewbeforehide', { bubbles: true, cancelable: true }))");
+        ok('leaving the page closes the colour popup' + tag, opened && !(await c.evaluate("!!document.querySelector('#themeEditor .jpf-te-pop')")), 'opened: ' + opened);
     }
 }
 function rgbOf(h) { const m = /^#([0-9a-f]{6})/i.exec(h || ''); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null; }

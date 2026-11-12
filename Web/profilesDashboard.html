@@ -7257,6 +7257,16 @@
                 loadAdminStrings().then(start, start);
             });
 
+            // Leaving the page. The expanded preview and the colour popup listen on the
+            // document, and the expanded view's style sits in <head>; left open, its Tab trap
+            // kept Tab from working anywhere else in jellyfin-web. viewManager fires
+            // viewbeforehide on the page element on every navigation away (the page* twin
+            // only when it dispatches page events), so this is the one to listen for.
+            document.getElementById('profilesConfigurationPage').addEventListener('viewbeforehide', function () {
+                closeThemeExpanded(this, false);
+                closeColorPopup(this, false);
+            });
+
             function showPage(page) {
                 loadConfiguration(page);
                 ['#enableClientPinLogin', '#enableClientProfileList', '#allowProfileThemes'].forEach(function (sel) {
