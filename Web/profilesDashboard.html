@@ -8141,6 +8141,14 @@
                 c.ClientPinLoginFromAnywhere = sent.clientPinLoginFromAnywhere;
                 c.ProxyClients = sent.proxyClients;
                 c.DefaultTimeZone = sent.defaultTimeZone;
+                // Every field Copy report reads, or it shows the old value after Save (r2-38-01).
+                c.MaxProfilesPerUser = sent.maxProfilesPerUser;
+                c.PinGuessesPerDay = sent.pinGuessesPerDay;
+                c.SkipQuickConnectOnKnownDevices = sent.skipQuickConnectOnKnownDevices;
+                c.DefaultAskOnStartup = sent.defaultAskOnStartup;
+                c.DefaultSwitcherLocation = sent.defaultSwitcherLocation;
+                c.DefaultTheme = sent.defaultTheme;
+                c.AllowProfileThemes = sent.allowProfileThemes;
                 c.TrustedAddressEntries = sent.trustedAddressEntries.map(function (e) {
                     return { Address: e.address, UserIds: e.userIds };
                 });
@@ -8216,7 +8224,7 @@
                         'Theme: ' + (c.DefaultTheme || 'bonfire') + ', profiles choose: ' + on(c.AllowProfileThemes !== false)
                             + ', richer motion: ' + on(c.RichThemeMotion),
                         'Maintenance: ' + ((page._status && (page._status.maintenance || []).length) ? 'closed' : 'open'),
-                        'Emergency code: ' + (c.PanicCodeHash ? 'set' : 'not set'),
+                        'Emergency code: ' + (page._panicConfigured ? 'set' : 'not set'),
                     ];
                     return lines.join('\n');
                 });
