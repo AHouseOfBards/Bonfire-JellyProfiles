@@ -488,7 +488,24 @@ const used = new Set((src.match(/var\((--jpf-[a-z0-9-]+)\)/g) || [])
 // script runs, which since 1.7.2 is where every theme token is. Taken from running the
 // generator, not from its source, so a token it stops writing is undeclared here.
 const CSS_ALL = L.extractCss(fs.readFileSync(SRC_PATH, 'utf8'));
-const declared = new Set(((src + '\n' + CSS_ALL).match(/(--jpf-[a-z0-9-]+)\s*:/g) || [])
+// No built-in theme has a second pattern or an opacity under 1, so the tokens those write
+// (--jpf-deco2, --jpf-deco2-size, --jpf-deco2-opacity) would never be seen above. Run the
+// generator on a theme that has both. Taken from the generator's output, not allowlisted:
+// remove the vars.push that writes them and the tokens are undeclared again.
+let SECOND_PATTERN_CSS = '';
+{
+    const gen = L.themeGenerator(fs.readFileSync(SRC_PATH, 'utf8'));
+    if (typeof gen.themeCss === 'function') {
+        const payload = L.themesPayload();
+        const names = Object.keys(payload.patterns || {});
+        const theme = JSON.parse(fs.readFileSync(path.join(L.themesDir(), 'bloom.json'), 'utf8'));
+        theme.decorations = (theme.decorations || []).filter(d => d.name !== 'pattern' && d.name !== 'pattern2');
+        theme.decorations.push({ name: 'pattern', image: names[0], size: 120, drift: 'none' },
+            { name: 'pattern2', image: names[1], size: 96, drift: 'none', opacity: 0.4 });
+        SECOND_PATTERN_CSS = gen.themeCss(theme, payload.patterns);
+    }
+}
+const declared = new Set(((src + '\n' + CSS_ALL + '\n' + SECOND_PATTERN_CSS).match(/(--jpf-[a-z0-9-]+)\s*:/g) || [])
     .map(m => m.replace(/\s*:$/, '')));
 const undeclared = [...used].filter(v => !declared.has(v));
 ok('every --jpf- custom property used is declared (' + used.size + ' used)',
