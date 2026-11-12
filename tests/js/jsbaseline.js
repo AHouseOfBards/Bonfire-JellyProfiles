@@ -230,6 +230,59 @@ function objectSpreads(code) {
     return hits;
 }
 
+/// What the FEATURES table cannot see, because it reads code with every string blanked out.
+///
+/// 1. Bracket calls. `a["flat"]()` is the same call as `a.flat()` and, with the string
+///    blanked, looks like `a[ "" ]()`. The names are the method names above that are newer
+///    than the floor. This pass reads the raw text, so a comment that quotes such a call
+///    would trip it; none does, and a false alarm is a cheap thing to be told about.
+/// 2. `.append(`. Element.append / ParentNode.append is Chromium 54, a version over the
+///    floor, but FormData, URLSearchParams and Headers have had `.append` far longer and
+///    this client uses them. The receiver decides, and a static read can only see its name,
+///    so: a receiver is fine if the file assigns that same name `new FormData(`,
+///    `new URLSearchParams(` or `new Headers(`, or is such a `new` expression itself. Any
+///    other receiver is reported; use appendChild, or give the object a name that shows
+///    what it is.
+const NEWER_METHODS = ['flat', 'flatMap', 'replaceAll', 'at', 'padStart', 'padEnd', 'finally',
+    'matchAll', 'replaceChildren', 'toggleAttribute', 'checkVisibility', 'trimStart', 'trimEnd',
+    'prepend', 'replaceWith', 'append', 'entries', 'values', 'fromEntries', 'hasOwn', 'allSettled', 'any'];
+const SAFE_APPEND_CTORS = 'FormData|URLSearchParams|Headers';
+
+function bracketCalls(raw) {
+    const out = [];
+    const re = /\[\s*(['"`])([A-Za-z]+)\1\s*\]\s*\(/g;
+    let m;
+    while ((m = re.exec(raw))) {
+        if (NEWER_METHODS.indexOf(m[2]) !== -1) out.push('["' + m[2] + '"]( written as a bracket call');
+    }
+    return out;
+}
+
+function appendCalls(raw, code) {
+    const out = [];
+    const re = /([\w$]*)\s*([)\]]?)\s*\.\s*append\s*\(/g;
+    let m;
+    while ((m = re.exec(code))) {
+        const id = m[1], closer = m[2];
+        if (closer) {
+            // `new FormData(form).append(`: the ctor call just before the dot.
+            const before = code.slice(Math.max(0, m.index - 80), m.index + m[0].length);
+            if (new RegExp('new\\s+(' + SAFE_APPEND_CTORS + ')\\s*\\([^()]*\\)\\s*\\.\\s*append').test(before)) continue;
+            out.push('.append( on the result of a call');
+        } else if (id && new RegExp('\\b' + id.replace(/\$/g, '\\$') + '\\s*=\\s*new\\s+(' + SAFE_APPEND_CTORS + ')\\b').test(code)) {
+            continue;
+        } else {
+            out.push('.append( on "' + (id || '?') + '", which is not a FormData, URLSearchParams or Headers (Element.append is Chromium 54)');
+        }
+    }
+    return out;
+}
+
+function newerCalls(raw) {
+    return bracketCalls(raw).concat(appendCalls(raw, stripCommentsAndStrings(raw)));
+}
+
+
 // ── the detector has to be able to go red ──────────────────────────────────
 // A baseline check that only ever runs over clean source is indistinguishable from one
 // that matches nothing at all. Three of the patterns, and the object spread count, are
@@ -272,6 +325,18 @@ console.log('── The detector itself ─────────────�
         const n = (stripCommentsAndStrings(bait2).match(f[1]) || []).length;
         ok('"' + f[0] + '" is detected in code that uses it', n >= 1, 'bait: ' + bait2);
     });
+    // Bracket calls and .append(, which the table cannot see. Both directions: what must
+    // be reported, and what is fine on Chromium 53 and must not raise an alarm.
+    ok('a bracket call to a newer method is caught: a["flat"]()', newerCalls('var x = a["flat"]();').length === 1);
+    ok('and with single quotes and a gap: a[ \'replaceAll\' ] (', newerCalls("s[ 'replaceAll' ] ('a', 'b');").length === 1);
+    ok('a bracket call to an old method is not', newerCalls('a["push"](1); o["hasOwnProperty"]("x");').length === 0);
+    ok('el.append(child) is caught', newerCalls('var box = document.createElement("div"); box.append(child);').length === 1);
+    ok('a bracket append is caught', newerCalls('box["append"](child);').length === 1);
+    ok('FormData.append is not', newerCalls('var fd = new FormData(); fd.append("a", b);').length === 0);
+    ok('URLSearchParams.append is not', newerCalls('var params = new URLSearchParams(); params.append("a", b);').length === 0);
+    ok('Headers.append is not', newerCalls('var h = new Headers(); h.append("a", b);').length === 0);
+    ok('new FormData(form).append is not', newerCalls('new FormData(form).append("a", b);').length === 0);
+    ok('an append on something that is not shown to be one is', newerCalls('var fd2 = make(); fd2.append("a", b);').length === 1);
     ok('a postfix ++ before a division is not taken for the start of a regex',
         chainHits('var i = 1; var z = i++ / 2; var q = a?.b;') === 1);
     ok('object spread is detected, and array and call spread are not',
@@ -311,6 +376,9 @@ for (const m of code.matchAll(/\bclass\s+\w+[^{]*\{/g)) {
 const spreads = objectSpreads(code);
 if (spreads) over.push(`object spread / rest needs Chromium 60, ${spreads} use(s)`);
 
+const nc = newerCalls(fs.readFileSync(SRC, 'utf8'));
+if (nc.length) over.push(nc.length + ' call(s) the table cannot see: ' + nc.join('; '));
+
 const fieldy = classBodies.filter(b => /^\s*(static\s+)?#?[\w$]+\s*=[^=]/m.test(b));
 if (fieldy.length) over.push(`class fields need Chromium 74, in ${fieldy.length} class body/ies`);
 ok('the client declares no classes, so no class-field syntax to carry',
@@ -343,6 +411,8 @@ if (!fs.existsSync(RUNTIME)) {
     }
     const rtSpreads = objectSpreads(rt);
     if (rtSpreads) rtOver.push(`object spread / rest needs Chromium 60, ${rtSpreads} use(s)`);
+    const rtNc = newerCalls(fs.readFileSync(RUNTIME, 'utf8'));
+    if (rtNc.length) rtOver.push(rtNc.join('; '));
     // No class bodies to search for fields in: ES5 has no classes, so any is too new.
     const rtClasses = (rt.match(/\bclass\s+\w+[^{]*\{/g) || []).length;
     if (rtClasses) rtOver.push(`${rtClasses} class declaration(s); the runtime is ES5`);
