@@ -117,8 +117,17 @@ jobs:
           # a build lands in: the stable manifest on main is a curated list of milestones
           # that everybody's Jellyfin polls, so a beta pushed there would be offered to
           # every install as an upgrade.
+          #
+          # Any label after a '-' is a pre-release and routes to beta, not only the three
+          # spellings once listed: "1.9.1-preview" matched none of them and went to stable.
+          # Beta is the safe side of a mistake, since nobody is offered it unasked. A
+          # missing InformationalVersion fails instead of guessing stable.
+          if [ -z "$INFO" ]; then
+            echo "::error::<InformationalVersion> is missing from Jellyfin.Profiles.csproj; it decides the channel."
+            exit 1
+          fi
           case "$INFO" in
-            *-beta*|*-alpha*|*-rc*)
+            *-*)
               CHANNEL="beta"; BRANCH="beta"; PRERELEASE="true"; LATEST="false" ;;
             *)
               CHANNEL="stable"; BRANCH="main"; PRERELEASE="false"; LATEST="true" ;;
