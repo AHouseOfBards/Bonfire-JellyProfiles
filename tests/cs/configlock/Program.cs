@@ -329,6 +329,61 @@ if (lockField != null)
 }
 
 Console.WriteLine();
+Console.WriteLine("── A PIN upgrade does not hash while holding ConfigLock (r2-08-06) ──");
+
+// VerifyPinAndUpgrade re-hashes a legacy PIN with PBKDF2 (150,000 rounds, tens of
+// milliseconds). Done inside ConfigLock it stalled every other configuration reader for
+// that long, once per legacy PIN entry. This holds the real method against a second
+// thread that keeps taking the lock and records the longest it ever had to wait.
+{
+    var pinHasher = asm.GetType("Jellyfin.Profiles.Auth.PinHasher", true);
+    var hashOnce = pinHasher.GetMethod("Hash", new[] { typeof(string) });
+    var mapType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
+    var verify = baseCtl.GetMethod("VerifyPinAndUpgrade", Any);
+    var cfgLock = baseCtl.GetField("ConfigLock", Any).GetValue(null);
+    var ctl = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true));
+    baseCtl.GetField("_logger", BindingFlags.Instance | BindingFlags.NonPublic)
+        .SetValue(ctl, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
+    hashOnce.Invoke(null, new object[] { "warm" });
+    var sw0 = System.Diagnostics.Stopwatch.StartNew();
+    hashOnce.Invoke(null, new object[] { "1234" });
+    var hashMs = sw0.Elapsed.TotalMilliseconds;
+
+    var legacy = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes("1234"))).ToLowerInvariant();
+    double worst = 0;
+    var stop = false;
+    var watcher = new Thread(() =>
+    {
+        var sw = new System.Diagnostics.Stopwatch();
+        while (!Volatile.Read(ref stop))
+        {
+            sw.Restart();
+            lock (cfgLock) { }
+            worst = Math.Max(worst, sw.Elapsed.TotalMilliseconds);
+            Thread.Sleep(1);
+        }
+    });
+    watcher.Start();
+    object lastMapping = null;
+    for (var i = 0; i < 4; i++)
+    {
+        var m = Activator.CreateInstance(mapType);
+        mapType.GetProperty("PinHash").SetValue(m, legacy);
+        var result = (bool)verify.Invoke(ctl, new object[] { "1234", m });
+        lastMapping = m;
+        if (!result) { fails.Add("VerifyPinAndUpgrade accepted the right PIN"); }
+    }
+    Volatile.Write(ref stop, true);
+    watcher.Join();
+    var upgraded = (string)mapType.GetProperty("PinHash").GetValue(lastMapping);
+    Ok("the legacy PIN is upgraded to PBKDF2", upgraded != null && upgraded.StartsWith("pbkdf2.sha256$"));
+    Ok("another thread never waited on ConfigLock for the hash (waited " + worst.ToString("F1")
+        + " ms; one hash takes " + hashMs.ToString("F1") + " ms)", worst < hashMs / 2);
+}
+
+Console.WriteLine();
 Console.WriteLine("── Every lock in the plugin, one at a time ─────────────────────");
 
 // A lock target is acceptable only if it is a static object whose lifetime does

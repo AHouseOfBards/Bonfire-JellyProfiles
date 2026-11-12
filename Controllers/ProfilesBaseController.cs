@@ -361,6 +361,9 @@ namespace Jellyfin.Profiles.Controllers
 
             if (IsLegacyPinHash(mapping.PinHash))
             {
+                // Hashed before the lock: PBKDF2 takes tens of milliseconds, and every
+                // other reader of the configuration waited for it when it ran inside.
+                var upgraded = HashPin(pin);
                 lock (ConfigLock)
                 {
                     // The row to change is the live one: callers may hold a snapshot's copy,
@@ -372,7 +375,7 @@ namespace Jellyfin.Profiles.Controllers
                     // Re-check inside the lock — a concurrent request may have upgraded it.
                     if (IsLegacyPinHash(row.PinHash))
                     {
-                        row.PinHash = HashPin(pin);
+                        row.PinHash = upgraded;
                         mapping.PinHash = row.PinHash;
                         Plugin.Instance?.SaveConfiguration();
                         _logger.LogInformation(
