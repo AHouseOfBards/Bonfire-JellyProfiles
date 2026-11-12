@@ -483,6 +483,16 @@ namespace Jellyfin.Profiles.Configuration
             => householdId != Guid.Empty && (MasterUserId == householdId || (Owners?.Contains(householdId) ?? false));
 
         /// <summary>
+        /// True if <paramref name="householdId"/> owns this device and nobody else has used it.
+        /// A merge rewrites every household's device lists, so only a device no other household
+        /// has signed in on may be merged by a household (r2-09-01).
+        /// </summary>
+        public bool OnlyOwnedBy(Guid householdId)
+            => OwnedBy(householdId)
+               && (MasterUserId == Guid.Empty || MasterUserId == householdId)
+               && (Owners ?? new List<Guid>()).All(o => o == householdId);
+
+        /// <summary>
         /// True once an administrator has renamed this device by hand, which stops the name
         /// being overwritten by whatever the client sends on its next request.
         /// <para>

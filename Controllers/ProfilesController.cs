@@ -4303,6 +4303,11 @@ namespace Jellyfin.Profiles.Controllers
                 if (owned.Count != 2)
                     return BadRequest("Both devices must be ones this account has used.");
 
+                // A merge rewrites every household's device lists and owner lists. A device
+                // another household has also used would hand it this one's (r2-09-01).
+                if (owned.Any(d => !d.OnlyOwnedBy(masterId)))
+                    return BadRequest("A device another household has used can't be merged.");
+
                 if (!MergeDeviceRecords(config, request.FromDeviceId, request.IntoDeviceId))
                     return BadRequest("Those devices could not be merged.");
 
@@ -4348,7 +4353,8 @@ namespace Jellyfin.Profiles.Controllers
             {
                 // This household's devices only. The list is server-wide, and grouping across
                 // it could fold another household's hardware into this one's whitelist.
-                var owned = config.KnownDevices.Where(d => d.OwnedBy(masterId)).ToList();
+                // Not one another household has also used: see MergeDevices (r2-09-01).
+                var owned = config.KnownDevices.Where(d => d.OnlyOwnedBy(masterId)).ToList();
                 var groups = GroupLikelyDuplicates(owned);
 
                 if (!apply)

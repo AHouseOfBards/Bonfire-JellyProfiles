@@ -492,6 +492,17 @@ Console.WriteLine("── Forgetting a device ───────────�
     Allowed(myKid).Clear();
     r = Call("DeleteDevice", MINE, new() { ["DeviceId"] = "my-tv" });
     Ok("and once it is free, its own device is forgotten outright", r.status == 200 && !Has("my-tv"), r.status + " " + r.message);
+
+    // r2-09-01: merging a shared device rewrote the other household's allow lists.
+    Device("tablet", THEIRS, MINE, THEIRS);
+    Device("my-phone2", MINE, MINE);
+    Allowed(theirKid).Clear(); Allowed(theirKid).Add("tablet");
+    r = Call("MergeDevices", MINE, new() { ["FromDeviceId"] = "tablet", ["IntoDeviceId"] = "my-phone2" });
+    Ok("a device another household has used can't be merged", r.status == 400 && Has("tablet"), r.status + " " + r.message);
+    Ok("and the other household's list is untouched", Allowed(theirKid).Count == 1 && Allowed(theirKid)[0] == "tablet");
+    Device("my-phone3", MINE, MINE);
+    r = Call("MergeDevices", MINE, new() { ["FromDeviceId"] = "my-phone3", ["IntoDeviceId"] = "my-phone2" });
+    Ok("two of its own still merge", r.status == 200 && !Has("my-phone3"), r.status + " " + r.message);
 }
 
 try { Directory.Delete(tempDir, true); } catch { }
