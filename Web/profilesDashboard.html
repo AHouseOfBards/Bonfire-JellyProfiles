@@ -1874,6 +1874,18 @@
         (function () {
             const pluginId = "b1462fca-774b-4b13-8d02-e2d4f2bc18b9";
 
+            // While Bonfire is off the server leaves its script out of every page, but the
+            // theme previews below run on window.BonfireThemePreview from that script. Load it
+            // here when no tag brought it. Off, it only defines the preview and stands down.
+            try {
+                if (!window.__jpLoaded && !window.BonfireThemePreview && typeof ApiClient !== 'undefined') {
+                    const tag = document.createElement('script');
+                    tag.src = ApiClient.getUrl('plugins/profiles/profiles.js');
+                    tag.async = true;
+                    document.head.appendChild(tag);
+                }
+            } catch (e) { /* the previews say they are unavailable */ }
+
             // Every value this page renders came from the server, and a lot of it came to the
             // server from a request header somebody else wrote: a device name, a client
             // name, a profile name typed by any account holder. This page runs with the

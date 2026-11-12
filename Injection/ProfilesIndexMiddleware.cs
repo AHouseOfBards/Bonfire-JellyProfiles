@@ -332,6 +332,8 @@ namespace Jellyfin.Profiles
             // that nothing could add the tags to, would otherwise have taken them off the disk
             // copy with nothing supplying them in their place.
 
+            WebInjection.SyncRegistration();
+
             // The document itself is the Campground coordinator's (Campground.Shared,
             // Injection/IndexMiddleware.cs), which sits inside this middleware and adds every
             // Campground plugin's tags in one pass — Bonfire's included, from

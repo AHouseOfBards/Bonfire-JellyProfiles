@@ -67,6 +67,26 @@ namespace Jellyfin.Profiles
             HeadSnippet: HeadScript,
             HeadId: HeadMarker);
 
+        private static volatile bool _tagsWithdrawn;
+
+        /// <summary>
+        /// Keeps Bonfire's tags out of index.html while Bonfire is off (<see cref="Plugin.IsOff"/>)
+        /// and puts them back when it is on. A server that installed Bonfire and never turned
+        /// it on served every page the head script and the whole client script for nothing.
+        /// Called before each index.html is answered, so it follows the setting and the
+        /// emergency code at once, and changes the registration only when the answer changes.
+        /// The settings page does not depend on the tag: it loads the script itself.
+        /// </summary>
+        internal static void SyncRegistration()
+        {
+            var off = Plugin.IsOff;
+            if (off == _tagsWithdrawn) return;
+
+            _tagsWithdrawn = off;
+            if (off) InjectionCoordinator.Unregister(PluginIds.Bonfire);
+            else InjectionCoordinator.Register(Registration);
+        }
+
         /// <summary>
         /// The Base URL (Dashboard, Networking) as Jellyfin itself normalises it: a leading
         /// slash, no trailing one, and nothing at all when unset.

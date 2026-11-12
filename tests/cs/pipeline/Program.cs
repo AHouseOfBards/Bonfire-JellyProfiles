@@ -511,6 +511,28 @@ var served = (long)servedProp.GetValue(null);
 // served". It is the coordinator's count, read through the property the dashboard reads.
 Check("served count is one per document actually rewritten (got " + served + ")", served == 7);
 
+// ni-S-B1: with Bonfire off nothing of Bonfire's goes into index.html; on, it does. (The
+// emergency flag stands in for the setting: both reach every reader through Plugin.IsOff.)
+if (panicField != null)
+{
+    panicField.SetValue(null, true);
+    try
+    {
+        var offPage = await Run("/web/index.html", SendFile(indexFile));
+        Check("off: no Bonfire script tag in index.html", !offPage.Body.Contains("/plugins/profiles/profiles.js"));
+        Check("off: no Bonfire head script either", !offPage.Body.Contains("jpf-eh"));
+        Check("off: the page itself is still served", offPage.Body.Contains("<div id=\"app\">"));
+    }
+    finally
+    {
+        panicField.SetValue(null, false);
+    }
+
+    var onPage = await Run("/web/index.html", SendFile(indexFile));
+    Check("on again: the script tag is back", onPage.Body.Contains("/plugins/profiles/profiles.js"));
+    Check("on again: and the head script", onPage.Body.Contains("jpf-eh"));
+}
+
 Console.WriteLine();
 Console.WriteLine("── A Base URL (R-1093) ─────────────────────────────────────────");
 
