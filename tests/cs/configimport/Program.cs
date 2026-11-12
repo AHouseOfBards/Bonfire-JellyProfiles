@@ -297,6 +297,9 @@ Console.WriteLine("── The SMTP password ────────────
     string LivePassword() => (string)passwordProp.GetValue(cfgType.GetProperty("Email").GetValue(live));
 
     Overwrite(live, changed);
+    // The fingerprint is an unsalted hash over the connection fields and the password: kept in the file, it confirms a guessed password offline (r2-18-01).
+    var liveEmail = cfgType.GetProperty("Email").GetValue(live);
+    liveEmail.GetType().GetProperty("VerifiedFingerprint").SetValue(liveEmail, liveEmail.GetType().GetMethod("Fingerprint").Invoke(liveEmail, null));
     var exportRaw = ((ObjectResult)((OkObjectResult)exportRoute.Invoke(NewController(), new object[] { true }))).Value;
     var exportJson = JsonSerializer.Serialize(exportRaw);
     // Serialised now: the route may hand back the live object, which the next line resets.
@@ -305,6 +308,7 @@ Console.WriteLine("── The SMTP password ────────────
     Ok("the export holds no password for the mail server", !exportJson.Contains("app-password")
        && !exportEl.GetProperty("Email").EnumerateObject().Any(p => p.Name.Equals("Password", StringComparison.OrdinalIgnoreCase)));
     Ok("but still the rest of the mail settings", exportEl.GetProperty("Email").GetProperty("Host").GetString() == "smtp.example.com");
+    Ok("and no fingerprint that would confirm a guessed one", !exportEl.GetProperty("Email").TryGetProperty("VerifiedFingerprint", out var fp) || string.IsNullOrEmpty(fp.GetString()));
     Ok("exporting did not touch the live password", LivePassword() == "app-password");
 
     // An import without a password keeps the live one, and still takes everything else.

@@ -1700,6 +1700,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 configuration = config.SnapshotForReading();
                 configuration.Email.Password = null!;
+                configuration.Email.VerifiedFingerprint = string.Empty; // a hash of the password too: it would confirm a guess offline (r2-18-01)
                 configuration.PanicCodeHash = null;
                 // Ticked off on the dashboard for a file that is going somewhere careless: a
                 // short PIN is recovered from its hash. A row with no hash keeps the server's
