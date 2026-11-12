@@ -169,6 +169,31 @@ hand.CustomFonts = new List<CustomFont>();
 Ok("and dropped again when the font goes, though the text did not change",
    !ThemeCatalog.ValidCustomThemes(hand).Any(t => (string)t["id"]! == "fonted"));
 
+// r2-20-03: these objects are shared by concurrent anonymous requests, and a parsed JsonNode
+// builds its children on first read. Every object and array in the shared trees must already
+// be built. The detector is proved first: a node straight from Parse is not.
+bool Built(JsonNode n)
+{
+    var flag = BindingFlags.NonPublic | BindingFlags.Instance;
+    if (n is JsonObject o)
+    {
+        var f = typeof(JsonObject).GetFields(flag).First(x => x.Name.ToLowerInvariant().Contains("dictionary"));
+        if (f.GetValue(o) == null) return false;
+        return o.All(p => p.Value == null || Built(p.Value));
+    }
+    if (n is JsonArray a)
+    {
+        var f = typeof(JsonArray).GetFields(flag).First(x => x.Name == "_list");
+        if (f.GetValue(a) == null) return false;
+        return a.All(i => i == null || Built(i));
+    }
+    return true;
+}
+Ok("the detector sees a freshly parsed node as unbuilt", !Built(JsonNode.Parse("{\"a\":{\"b\":[1]}}")!));
+Ok("every built-in theme is fully built before it is shared", ThemeCatalog.BuiltIn.All(t => Built(t)));
+var sharedCfg = new PluginConfiguration { CustomThemes = new List<CustomTheme> { new CustomTheme { Id = "mine", Json = Custom("mine").ToJsonString() } } };
+Ok("and so is a cached custom theme", ThemeCatalog.ValidCustomThemes(sharedCfg).Count == 1 && ThemeCatalog.ValidCustomThemes(sharedCfg).All(t => Built(t)));
+
 Console.WriteLine();
 Console.WriteLine("── GET /themes with custom and hidden themes ────────────────────");
 

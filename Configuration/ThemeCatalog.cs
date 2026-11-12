@@ -316,7 +316,7 @@ namespace Jellyfin.Profiles.Configuration
                         return null;
                     }
 
-                    return node is JsonObject o && ValidateCustom(o, config).Count == 0 ? o : null;
+                    return node is JsonObject o && ValidateCustom(o, config).Count == 0 ? (JsonObject)Materialise(o)! : null;
                 });
                 if (parsed != null && parsed["id"] is JsonValue v && v.TryGetValue<string>(out var id) && id == custom.Id)
                     list.Add(parsed);
@@ -363,6 +363,24 @@ namespace Jellyfin.Profiles.Configuration
             List<JsonObject> Themes, JsonArray Fonts, JsonObject Subsets, Dictionary<string, string> Patterns, HashSet<string> FontFiles,
             HashSet<string> Names);
 
+        // A parsed JsonObject or JsonArray builds its children on first read, and System.Text.Json
+        // documents JsonNode as not safe for concurrent use. The built-ins and the cached custom
+        // themes are shared by every anonymous GET /themes at once, so the lazy build is done here,
+        // once, before anything is published. DeepClone does not do it: a clone is lazy as well.
+        internal static JsonNode? Materialise(JsonNode? node)
+        {
+            if (node is JsonObject o)
+            {
+                foreach (var pair in o) Materialise(pair.Value);
+            }
+            else if (node is JsonArray a)
+            {
+                foreach (var item in a) Materialise(item);
+            }
+
+            return node;
+        }
+
         private static readonly Lazy<Catalog> Loaded = new(Load);
 
         private static Catalog Load()
@@ -391,7 +409,7 @@ namespace Jellyfin.Profiles.Configuration
                 if (!name.StartsWith(ThemePrefix, StringComparison.Ordinal) || !name.EndsWith(".json", StringComparison.Ordinal)) continue;
                 if (name.StartsWith(PatternPrefix, StringComparison.Ordinal)) continue;
 
-                var node = JsonNode.Parse(Read(name));
+                var node = Materialise(JsonNode.Parse(Read(name)));
                 if (name == ThemePrefix + "fonts.json")
                 {
                     if (node?["fonts"] is JsonArray list) fonts = (JsonArray)list.DeepClone();
