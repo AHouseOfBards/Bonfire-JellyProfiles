@@ -267,14 +267,16 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>
         /// Every problem with an administrator's theme: <see cref="Validate"/> against the
-        /// built-in and uploaded fonts, and the three rules only a custom theme has. Its id
+        /// built-in and uploaded fonts, less the contrast rules ("There should be no
+        /// restrictions on custom made themes", the owner, 2026-11-12; the built-ins are still
+        /// held to them), and the three rules only a custom theme has. Its id
         /// cannot be one a built-in answers to, or the two would be drawn as one. It names
         /// itself in text, since a key would need a translation nobody wrote. And it has no
         /// aliases, which exist so a renamed built-in keeps the profiles that chose it.
         /// </summary>
         public static IReadOnlyList<ThemeProblem> ValidateCustom(JsonNode? theme, PluginConfiguration config)
         {
-            var problems = ThemeValidator.Validate(theme, FontFamiliesFor(config), Patterns.Keys).ToList();
+            var problems = ThemeValidator.Validate(theme, FontFamiliesFor(config), Patterns.Keys, contrast: false).ToList();
             if (theme is not JsonObject t) return problems;
 
             if (t["id"] is JsonValue iv && iv.TryGetValue<string>(out var id) && BuiltInNames.Contains(id))

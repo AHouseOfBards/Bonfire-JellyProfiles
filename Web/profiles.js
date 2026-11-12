@@ -500,9 +500,9 @@
 
         // A custom theme's picture (2.0, ThemeBackground on the server): drawn over all of
         // the above, filling the screen, under a layer of the theme's own fill at `dim` so
-        // the text stays readable whatever the picture holds. The server holds every colour
-        // against a white and a black picture under that layer before the theme can be
-        // saved. Only the name is read from the file, and only one the server could have
+        // the text can stay readable whatever the picture holds. How much is the
+        // administrator's call: custom themes have no contrast rules (2026-11-12), and the
+        // editor only suggests a starting dim. Only the name is read from the file, and only one the server could have
         // stored; the address is built here. Written under a rule that needs the picture
         // to have loaded (loadThemePhoto marks <html>), so while it loads, or when it
         // fails, the screen is exactly the theme without it, never the dimming layer over

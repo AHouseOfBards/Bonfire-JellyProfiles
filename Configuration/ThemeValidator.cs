@@ -20,13 +20,19 @@ namespace Jellyfin.Profiles.Configuration
     /// <summary>
     /// Checks a theme file against docs/themes.md, schema 1. Every built-in passes it (see
     /// tests/cs/themes), and an administrator's theme is checked by it before it is saved or
-    /// imported.
+    /// imported, without the contrast rules.
     /// <para>
     /// Strict, because an imported file is untrusted: an unknown field is a problem rather
     /// than something kept, every value is checked for its type and range, and no string may
     /// hold an address. The web client sanitises again as it writes CSS (themeCss forces every
     /// value into its type), so a file that got past this could still not inject CSS; this is
     /// what tells the administrator which value is wrong instead of drawing it as nothing.
+    /// </para>
+    /// <para>
+    /// Contrast is a rule for the built-ins only, which are ours. The owner's decision
+    /// (2026-11-12): "There should be no restrictions on custom made themes", so a theme an
+    /// administrator made is never refused for its contrast, and the settings page does not
+    /// warn about it either. Everything else here still applies to it.
     /// </para>
     /// <para>
     /// Contrast is checked pair by pair against every colour the background has, the fill and
@@ -72,11 +78,12 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>
         /// Every problem with <paramref name="node"/>, or none. <paramref name="fonts"/> and
         /// <paramref name="patterns"/> are the font families and pattern pictures Bonfire
-        /// holds; a theme may only name those.
+        /// holds; a theme may only name those. <paramref name="contrast"/> false leaves out the
+        /// contrast rules, for a theme an administrator made.
         /// </summary>
-        public static IReadOnlyList<ThemeProblem> Validate(JsonNode? node, IEnumerable<string> fonts, IEnumerable<string> patterns)
+        public static IReadOnlyList<ThemeProblem> Validate(JsonNode? node, IEnumerable<string> fonts, IEnumerable<string> patterns, bool contrast = true)
         {
-            var v = new Walker(new HashSet<string>(fonts, StringComparer.Ordinal), new HashSet<string>(patterns, StringComparer.Ordinal));
+            var v = new Walker(new HashSet<string>(fonts, StringComparer.Ordinal), new HashSet<string>(patterns, StringComparer.Ordinal), contrast);
             if (node is not JsonObject theme)
             {
                 v.Add("", "type", "A theme is a JSON object.");
@@ -148,11 +155,13 @@ namespace Jellyfin.Profiles.Configuration
         {
             private readonly HashSet<string> _fonts;
             private readonly HashSet<string> _patterns;
+            private readonly bool _contrast;
 
-            public Walker(HashSet<string> fonts, HashSet<string> patterns)
+            public Walker(HashSet<string> fonts, HashSet<string> patterns, bool contrast)
             {
                 _fonts = fonts;
                 _patterns = patterns;
+                _contrast = contrast;
             }
 
             public List<ThemeProblem> Problems { get; } = new();
@@ -320,7 +329,16 @@ namespace Jellyfin.Profiles.Configuration
                 }
                 DecorationsSection(t);
 
-                if (colors != null && bg.Count > 0)
+                // Range rules, not contrast ones, so a custom theme keeps them too.
+                if (colors != null)
+                {
+                    if (colors["panel"].A < 1) Add("colors.panel", "range", "Must not be see-through.");
+                    if (colors["accent"].A < 1) Add("colors.accent", "range", "Must not be see-through.");
+                    if (colors["accentFocus"].A < 1) Add("colors.accentFocus", "range", "Must not be see-through.");
+                }
+
+                // Built-ins only: see the class summary.
+                if (_contrast && colors != null && bg.Count > 0)
                 {
                     // A name is drawn at type.name.opacity, so that is the colour to check.
                     var opacity = t["type"]?["name"]?["opacity"] is JsonValue ov && ov.GetValueKind() == JsonValueKind.Number
@@ -401,35 +419,29 @@ namespace Jellyfin.Profiles.Configuration
             }
 
             /// <summary>Every colour the background has, each made opaque: the fill, then each
-            /// stop. A picture is one entry, its <c>Color</c> the see-through layer drawn over
-            /// it and <c>Picture</c> true; <see cref="Worst"/> reads it.</summary>
-            private List<(string Path, Rgba Color, bool Picture)> Background(JsonObject t)
+            /// stop.</summary>
+            private List<(string Path, Rgba Color)> Background(JsonObject t)
             {
-                var stops = new List<(string, Rgba, bool)>();
+                var stops = new List<(string, Rgba)>();
                 var o = Obj(t["background"], "background", true, "fill", "layers", "image");
                 if (o == null) return stops;
                 var fill = Color(o, "background", "fill", true);
                 if (fill == null) return stops;
                 var ground = fill.Value with { A = 1 };
                 if (fill.Value.A < 1) Add("background.fill", "range", "Must not be see-through.");
-                stops.Add(("background.fill", ground, false));
+                stops.Add(("background.fill", ground));
 
-                // A picture (ThemeBackground), drawn under the fill at `dim`. What it holds is
-                // not known here, so it is one entry for every picture there could be, and
-                // Worst finds the hardest. Checking only a white and a black picture is not
-                // enough: a colour whose lightness lies between those two finds a grey picture
-                // of its own lightness, and that reads at 1:1 (#5f5f5f on black at dim 0.3
-                // passed at 3.03 and 3.29 and was 1.00 over grey 136).
+                // A picture (ThemeBackground), drawn under the fill at `dim`. Only a custom
+                // theme has one, so it is checked for its shape and not for contrast. Until
+                // 2026-11-12 it was also one contrast entry standing for every picture there
+                // could be, worst case included (a grey picture of the text's own lightness,
+                // 1:1); the owner decided custom themes have no contrast rules.
                 var image = Obj(o["image"], "background.image", false, "file", "dim");
                 if (image != null)
                 {
                     var file = Str(image, "background.image", "file", true);
                     if (file != null && !ThemeLogo.IsFileName(file)) Add("background.image.file", "range", "Not an image Bonfire stored.");
-                    var dim = Num(image, "background.image", "dim", true, 0, ThemeBackground.MaxDim);
-                    if (dim != null)
-                    {
-                        stops.Add(("background.image", ground with { A = dim.Value }, true));
-                    }
+                    Num(image, "background.image", "dim", true, 0, ThemeBackground.MaxDim);
                 }
 
                 var n = o["layers"];
@@ -471,41 +483,19 @@ namespace Jellyfin.Profiles.Configuration
                         if (stop == null) continue;
                         Num(stop, sat, "at", true, 0, 100);
                         var c = Color(stop, sat, "color", true);
-                        if (c != null) stops.Add((sat, Over(c.Value, ground), false));
+                        if (c != null) stops.Add((sat, Over(c.Value, ground)));
                     }
                 }
 
                 return stops;
             }
 
-            /// <summary>The lowest contrast <paramref name="fg"/> has on <paramref name="stop"/>,
-            /// with <paramref name="fill"/>, when given, mixed over the stop first.</summary>
-            /// <remarks>
-            /// For a picture: what is under the text is the layer over some picture, and every
-            /// channel of that moves straight from what a black picture gives to what a white
-            /// one gives, so its lightness takes every value between those two ends. An opaque
-            /// colour whose own lightness is in that range therefore meets a picture of the
-            /// same lightness, 1:1. Outside it, the nearer end is the worst. Both are exact
-            /// for an opaque colour. A see-through one moves with the picture too, and is held
-            /// the same way along the greys, white to black: the sign of its lightness against
-            /// what is under it at the two ends.
-            /// </remarks>
-            private static double Worst(Rgba fg, Rgba? fill, (string Path, Rgba Color, bool Picture) stop)
+            /// <summary>The contrast <paramref name="fg"/> has on <paramref name="stop"/>, with
+            /// <paramref name="fill"/>, when given, mixed over the stop first.</summary>
+            private static double Worst(Rgba fg, Rgba? fill, (string Path, Rgba Color) stop)
             {
-                Rgba Back(Rgba under) => fill is Rgba f ? Over(f, under) : under;
-                if (!stop.Picture)
-                {
-                    var b = Back(stop.Color);
-                    return ThemeValidator.Contrast(Over(fg, b), b);
-                }
-
-                var b0 = Back(Over(stop.Color, new Rgba(0, 0, 0, 1)));
-                var b1 = Back(Over(stop.Color, new Rgba(255, 255, 255, 1)));
-                Rgba t0 = Over(fg, b0), t1 = Over(fg, b1);
-                var d0 = Luminance(t0) - Luminance(b0);
-                var d1 = Luminance(t1) - Luminance(b1);
-                if (d0 * d1 <= 0) return 1;
-                return Math.Min(ThemeValidator.Contrast(t0, b0), ThemeValidator.Contrast(t1, b1));
+                var b = fill is Rgba f ? Over(f, stop.Color) : stop.Color;
+                return ThemeValidator.Contrast(Over(fg, b), b);
             }
 
             private void Shape(JsonObject t)
@@ -767,7 +757,7 @@ namespace Jellyfin.Profiles.Configuration
 
             // ── Contrast ──────────────────────────────────────────────────────────────
 
-            private void Contrast(Dictionary<string, Rgba> c, List<(string Path, Rgba Color, bool Picture)> bg, Dictionary<string, Rgba> parts, bool high)
+            private void Contrast(Dictionary<string, Rgba> c, List<(string Path, Rgba Color)> bg, Dictionary<string, Rgba> parts, bool high)
             {
                 double text = high ? 7 : 4.5;
 
@@ -803,14 +793,12 @@ namespace Jellyfin.Profiles.Configuration
                 OnBackground("accent", 3);
                 OnBackground("danger", 3);
 
+                // Their "must not be see-through" is a range rule, in Run, for every theme.
                 var panel = c["panel"] with { A = 1 };
-                if (c["panel"].A < 1) Add("colors.panel", "range", "Must not be see-through.");
                 Pair("colors.text1", c["text1"], panel, 7, "colors.panel");
 
                 var accent = c["accent"] with { A = 1 };
                 var accentFocus = c["accentFocus"] with { A = 1 };
-                if (c["accent"].A < 1) Add("colors.accent", "range", "Must not be see-through.");
-                if (c["accentFocus"].A < 1) Add("colors.accentFocus", "range", "Must not be see-through.");
                 Pair("colors.onAccent", c["onAccent"], accent, text, "colors.accent");
                 Pair("colors.onAccent", c["onAccent"], accentFocus, text, "colors.accentFocus");
 

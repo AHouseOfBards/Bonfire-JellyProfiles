@@ -317,8 +317,9 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Checks a theme without saving it, for the editor's live warnings. Contrast is
-        /// computed here rather than in the page so there is one implementation of the rules.
+        /// Checks a theme without saving it, for the editor's live warnings. The rules are
+        /// applied here rather than in the page so there is one implementation of them. A
+        /// custom theme has no contrast rules (ThemeCatalog.ValidateCustom).
         /// </summary>
         [HttpPost("admin/themes/validate")]
         [RequestSizeLimit(ThemeValidator.MaxBytes + 4096)]

@@ -2136,8 +2136,6 @@
                 'admin.err.linkGone': 'That account is no longer added. Reload the page.',
                 'admin.err.imageInvalid': 'That image can\'t be used. Choose a different one.',
                 'admin.err.imageGone': 'That avatar is gone. Reload the page.',
-                'admin.themes.p.contrast': 'Contrast {ratio}:1 on {on}. Needs {min}:1.',
-                'admin.themes.p.contrastShort': 'Not enough contrast.',
                 'admin.themes.p.between': 'Must be from {min} to {max}.',
                 'admin.themes.p.oneOf': 'Must be one of: {values}.',
                 'admin.themes.p.opaque': 'Can\'t be see-through.',
@@ -2164,7 +2162,6 @@
                 'admin.themes.photoDim': 'Dim',
                 'admin.themes.photoUploading': 'Uploading…',
                 'admin.themes.photoFailed': 'The image didn\'t upload.',
-                'admin.themes.photoFaint': 'Text is hard to read on this image. Dim it more.',
                 'admin.themes.importedNoPhoto': '{name} imported. Theme files don\'t carry the background image; upload it in the editor.',
                 'admin.themes.p.size': 'Too large. A theme is at most 64 KB.',
                 'admin.themes.p.taken': 'A built-in theme uses this id.',
@@ -4711,10 +4708,10 @@
                 const detail = String((p && p.detail) || '');
                 const path = String((p && p.path) || '');
                 let m;
+                // No 'contrast': a custom theme has no contrast rules (the owner, 2026-11-12:
+                // "There should be no restrictions on custom made themes"), so the server never
+                // sends one for it.
                 switch (code) {
-                    case 'contrast':
-                        m = /^([0-9.]+):1, ([0-9.]+):1 needed, on (.+?)\.?$/.exec(detail);
-                        return m ? t('admin.themes.p.contrast', { ratio: m[1], min: m[2], on: m[3] }) : t('admin.themes.p.contrastShort');
                     case 'range':
                         if ((m = /^Must be from (-?[0-9.]+) to (-?[0-9.]+)\.$/.exec(detail))) return t('admin.themes.p.between', { min: m[1], max: m[2] });
                         if ((m = /^Must be one of: (.+)\.$/.exec(detail))) return t('admin.themes.p.oneOf', { values: m[1] });
@@ -5885,14 +5882,13 @@
             }
 
             /// Shows the draft's picture in every copy of the control: Remove and the slider only
-            /// when there is one, the dim it has, and a warning when the server says the text is
-            /// hard to read on it (a contrast problem "on background.image").
+            /// when there is one, and the dim it has. It used to warn when the text was hard to
+            /// read on the picture; custom themes have no contrast rules, so no warning either.
             function syncThemePhoto(page) {
                 const ed = page._themeEditor;
                 if (!ed) return;
                 const file = getThemePath(ed.draft, 'background.image.file');
                 const dim = getThemePath(ed.draft, 'background.image.dim');
-                const faint = (ed.problems || []).some(function (p) { return p && p.code === 'contrast' && /background\.image/.test(String(p.detail || '')); });
                 page.querySelectorAll('#themeEditor .jpf-te-photo').forEach(function (box) {
                     const remove = box.querySelector('.jpf-te-photo-remove');
                     const range = box.querySelector('.jpf-te-photo-dim');
@@ -5903,18 +5899,15 @@
                     if (document.activeElement !== range) range.value = typeof dim === 'number' ? String(dim) : '0.8';
                     if (ed.photoBusy) note.textContent = t('admin.themes.photoUploading');
                     else if (ed.photoError) note.textContent = ed.photoError;
-                    else note.textContent = file && faint ? t('admin.themes.photoFaint') : t('admin.themes.photoHint');
+                    else note.textContent = t('admin.themes.photoHint');
                 });
             }
 
             /// The dim a new picture starts at: the least, from 0.75 in steps of 0.05, at which
-            /// every colour the server holds against the background still reads on a white
-            /// picture and on a black one under the theme's fill. Only a start, like the text
-            /// colour picked for a new accent: the server is what checks it.
-            /// The server also fails a colour whose lightness lies between those two ends (a
-            /// grey picture of that lightness gives 1:1). That cannot happen from 0.75 up: the
-            /// two ends are then at most about 2:1 apart, and a colour between them could not
-            /// reach 3:1 on both, so checking the ends here gives the server's answer.
+            /// the theme's text colours still read on a white picture and on a black one under
+            /// the theme's fill. Only a start, so the picture looks good, like the text colour
+            /// picked for a new accent: nothing checks it, and the administrator may set any dim
+            /// in range (custom themes have no contrast rules since 2026-11-12).
             function themePhotoDim(draft) {
                 const fill = themeRgb(String(getThemePath(draft, 'background.fill') || '').slice(0, 7)) || [16, 16, 16];
                 const toHex = function (k) { return '#' + k.map(function (x) { return ('0' + Math.round(x).toString(16)).slice(-2); }).join(''); };

@@ -113,10 +113,27 @@ Ok("a name given as a key is refused: nobody wrote its translation",
 var aliased = Custom("aliased");
 aliased["aliases"] = new JsonArray("harbor");
 Ok("aliases are refused", ThemeCatalog.ValidateCustom(aliased, plain).Any(p => p.Path == "aliases"));
+// "There should be no restrictions on custom made themes" (the owner, 2026-11-12): no
+// contrast rule applies to one. This was "text the colour of its surface is refused".
 var bad = Custom("unreadable");
 bad["colors"]!["text1"] = bad["colors"]!["surface1"]!.DeepClone();
-Ok("everything a built-in must pass still applies: text the colour of its surface is refused",
-   ThemeCatalog.ValidateCustom(bad, plain).Any(p => p.Code == "contrast"));
+bad["colors"]!["onAccent"] = bad["colors"]!["accent"]!.DeepClone();
+bad["colors"]!["ring"] = bad["background"]!["fill"]!.DeepClone();
+bad["colors"]!["danger"] = "#3a0000";
+bad["parts"]!["button2"]!["text"] = bad["parts"]!["button2"]!["fill"]!.DeepClone();
+var badProblems = ThemeCatalog.ValidateCustom(bad, plain);
+Ok("a custom theme with no contrast anywhere passes: text on its surface, its accent, ring, danger and button",
+   badProblems.Count == 0, string.Join("; ", badProblems.Select(p => p.Path + " " + p.Code + " " + p.Detail)));
+Ok("while the built-ins are still held to contrast: the same colours on a built-in fail",
+   ThemeCatalog.Validate(bad).Any(p => p.Code == "contrast"));
+// Everything that is not contrast still applies.
+JsonObject SetId(JsonObject t, string id) { var c = t.DeepClone().AsObject(); c["id"] = id; return c; }
+var broken = Custom("broken");
+broken["sparkle"] = true;
+broken["colors"]!["panel"] = "#20202080";
+var brokenProblems = ThemeCatalog.ValidateCustom(broken, plain);
+Ok("an unknown field is still refused", brokenProblems.Any(p => p.Path == "sparkle" && p.Code == "unknown"));
+Ok("and a see-through panel, a range rule", brokenProblems.Any(p => p.Path == "colors.panel" && p.Code == "range"));
 Ok("not an object is refused", ThemeCatalog.ValidateCustom(JsonValue.Create(3), plain).Count > 0
    && ThemeCatalog.ValidateCustom(null, plain).Count > 0);
 
@@ -136,13 +153,15 @@ var hand = new PluginConfiguration
         new CustomTheme { Id = "good", Json = Custom("good").ToJsonString() },
         new CustomTheme { Id = "broken", Json = "{ not json" },
         new CustomTheme { Id = "liar", Json = Custom("other").ToJsonString() },
-        new CustomTheme { Id = "unreadable", Json = bad.ToJsonString() },
+        new CustomTheme { Id = "sparkle", Json = SetId(broken, "sparkle").ToJsonString() },
         new CustomTheme { Id = "fonted", Json = fonted.ToJsonString() },
         new CustomTheme { Id = "good", Json = Custom("good", "crimson").ToJsonString() },
+        // No contrast rules for a custom theme: this one was left out until 2026-11-12.
+        new CustomTheme { Id = "unreadable", Json = bad.ToJsonString() },
     },
 };
 var served = ThemeCatalog.ValidCustomThemes(hand).Select(t => (string)t["id"]!).ToList();
-Ok("only the valid one is served (" + string.Join(", ", served) + ")", served.SequenceEqual(new[] { "good" }));
+Ok("only the valid ones are served, low contrast included (" + string.Join(", ", served) + ")", served.SequenceEqual(new[] { "good", "unreadable" }));
 Ok("the first of two with one id", (string)ThemeCatalog.ValidCustomThemes(hand)[0]["background"]!["fill"]! == (string)ThemeFile("harvest")["background"]!["fill"]!);
 hand.CustomFonts = withFont.CustomFonts;
 Ok("a theme whose font is uploaded is served", ThemeCatalog.ValidCustomThemes(hand).Any(t => (string)t["id"]! == "fonted"));
@@ -524,15 +543,24 @@ Ok("saving it again edits it in place", Status(again) == 200 && !(bool)Body(agai
 var mismatch = Call(As(true), "SaveCustomTheme", "other", Json(Custom("mine")));
 Ok("an id that is not the address's is refused", Status(mismatch) == 400
    && Body(mismatch)!["problems"]!.AsArray().Any(p => (string)p!["path"]! == "id"));
-var invalid = Call(As(true), "SaveCustomTheme", "unreadable", Json(bad));
-Ok("an unreadable theme is refused with what is wrong, and stores nothing",
-   Status(invalid) == 400 && Body(invalid)!["problems"]!.AsArray().Any(p => (string)p!["code"]! == "contrast") && live.CustomThemes.Count == 1);
+// Was the low-contrast theme; contrast is no reason to refuse a custom theme any more.
+var invalid = Call(As(true), "SaveCustomTheme", "broken", Json(broken));
+Ok("an invalid theme is refused with what is wrong, and stores nothing",
+   Status(invalid) == 400 && Body(invalid)!["problems"]!.AsArray().Any(p => (string)p!["code"]! == "unknown") && live.CustomThemes.Count == 1);
 var built = Call(As(true), "SaveCustomTheme", "harvest", Json(Custom("harvest")));
 Ok("a built-in's id is refused", Status(built) == 400);
-var check = Call(As(true), "ValidateCustomTheme", Json(bad));
+var check = Call(As(true), "ValidateCustomTheme", Json(broken));
 Ok("validate answers the problems without saving", Status(check) == 200 && Body(check)!["problems"]!.AsArray().Count > 0 && live.CustomThemes.Count == 1);
 var checkGood = Call(As(true), "ValidateCustomTheme", Json(Custom("fine")));
 Ok("and none for a good one", Status(checkGood) == 200 && Body(checkGood)!["problems"]!.AsArray().Count == 0);
+var checkFaint = Call(As(true), "ValidateCustomTheme", Json(bad));
+Ok("and none for one with no contrast anywhere: no warning either",
+   Status(checkFaint) == 200 && Body(checkFaint)!["problems"]!.AsArray().Count == 0, Body(checkFaint)?.ToJsonString());
+var savedFaint = Call(As(true), "SaveCustomTheme", "unreadable", Json(bad));
+Ok("and it saves", Status(savedFaint) == 200 && live.CustomThemes.Count == 2 && live.CustomThemes.Any(c => c.Id == "unreadable"),
+   Status(savedFaint) + " " + Body(savedFaint)?.ToJsonString());
+// Taken out again, so what follows starts from the one theme it always had.
+Ok("and deletes like any other", Status(Call(As(true), "DeleteCustomTheme", "unreadable")) == 204 && live.CustomThemes.Count == 1);
 
 // A stale tab must not overwrite a newer save (R-1089). A theme's revision goes up on every
 // save and the page sends the one after the one it loaded, so a save whose revision is not
@@ -838,9 +866,10 @@ live.LogoImage = null;
 Console.WriteLine();
 Console.WriteLine("── A custom theme's background image ────────────────────────────");
 
-// The file and the theme that names it. The validator holds the text against a white and a
-// black picture under the theme's fill at `dim`: no dim at all must fail on a dark theme,
-// and the strongest must pass wherever the theme passes without a picture.
+// The file and the theme that names it. Until 2026-11-12 the validator held the text against
+// every picture there could be under the theme's fill at `dim`, and refused the weak ones.
+// The owner decided custom themes have no contrast rules, so every dim in range now passes;
+// the picture's shape (file name, dim range, no unknown field) is still checked.
 JsonObject WithImage(string id, string file, double dim)
 {
     var t = Custom(id);
@@ -861,23 +890,18 @@ Ok("a theme with no picture still passes", Problems(Custom("plain")).Count == 0,
 var strong = Problems(WithImage("strong", hash, ThemeBackground.MaxDim));
 Ok("a picture under the strongest dim passes", strong.Count == 0, Paths(strong));
 var none = Problems(WithImage("none", hash, 0));
-Ok("a picture with no dim fails on the text, against background.image",
-   none.Any(p => p.Code == "contrast" && p.Path == "colors.text1" && p.Detail.Contains("background.image")), Paths(none));
-// A colour that passes on a white and a black picture can still sit between them: a grey
-// picture of its own lightness gives 1:1. The ends were all that was checked, and these
-// two passed: 3.03 and 3.29 at the ends, 1.00 over grey 136; and 4.54 and 4.62 at dim 0.
+Ok("a picture with no dim at all passes: no contrast rule for a custom theme", none.Count == 0, Paths(none));
+// These were refused at 1:1 on a grey picture of their own lightness.
 var midAccent = WithImage("midaccent", hash, 0.3);
 midAccent["background"] = new JsonObject { ["fill"] = "#000000", ["image"] = new JsonObject { ["file"] = hash, ["dim"] = 0.3 } };
 midAccent["colors"]!["accent"] = "#5f5f5f";
 var midA = Problems(midAccent);
-Ok("an accent between the white and the black picture fails, 1:1 on a grey one",
-   midA.Any(p => p.Code == "contrast" && p.Path == "colors.accent" && p.Detail.Contains("background.image") && p.Detail.StartsWith("1.00:1")), Paths(midA));
+Ok("an accent the lightness of some picture passes", midA.Count == 0, Paths(midA));
 var midText = WithImage("midtext", hash, 0);
 midText["background"] = new JsonObject { ["fill"] = "#000000", ["image"] = new JsonObject { ["file"] = hash, ["dim"] = 0 } };
 midText["colors"]!["text2"] = "#767676";
 var midT = Problems(midText);
-Ok("body text between the two pictures at dim 0 fails, 1:1 on a grey one",
-   midT.Any(p => p.Code == "contrast" && p.Path == "colors.text2" && p.Detail.Contains("background.image") && p.Detail.StartsWith("1.00:1")), Paths(midT));
+Ok("and so does body text", midT.Count == 0, Paths(midT));
 Ok("a dim above " + ThemeBackground.MaxDim + " is refused", Problems(WithImage("over", hash, 1)).Any(p => p.Path == "background.image.dim"));
 Ok("a name that is not a stored picture's is refused", Problems(WithImage("path", "../evil.png", 0.9)).Any(p => p.Path == "background.image.file" && p.Code == "range"));
 Ok("an address is refused", Problems(WithImage("addr", "https://example.com/a.jpg", 0.9)).Any(p => p.Code == "address" || p.Path == "background.image.file"));

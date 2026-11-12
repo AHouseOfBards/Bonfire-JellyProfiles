@@ -1516,11 +1516,12 @@ An uploaded font is one file with no subset; use it for everything. Sent with
 
 An administrator can add up to 40 themes of their own and hide any built-in but Bonfire.
 A custom theme is a theme file, schema 1, checked by the same rules as the built-ins (see
-[Themes](themes.md), "Rules every theme passes"), plus three of its own: its `id` can't
-be one a built-in uses, its name is `name.text`, and it has no `aliases`. It may use the
-built-in fonts and any uploaded font.
+[Themes](themes.md), "Rules every theme passes") except contrast, which only the
+built-ins are held to, plus three of its own: its `id` can't be one a built-in uses, its
+name is `name.text`, and it has no `aliases`. It may use the built-in fonts and any
+uploaded font.
 
-A problem is `{ "path": "colors.text2", "code": "contrast", "detail": "…" }`. `detail` is
+A problem is `{ "path": "colors.panel", "code": "range", "detail": "…" }`. `detail` is
 English; show your own text by `code`.
 
 ### `GET /plugins/profiles/admin/themes`

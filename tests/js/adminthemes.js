@@ -140,7 +140,7 @@ const DATA = {
     custom: [
         { id: 'shop', theme: Object.assign({}, bonfireFile, { id: 'shop', name: { text: 'Shop' } }), problems: [] },
         { id: 'broken', theme: Object.assign({}, bonfireFile, { id: 'broken', name: { text: 'Broken' } }),
-          problems: [{ path: 'colors.text1', code: 'contrast', detail: '1.20:1, 7:1 needed, on background.fill.' }] }
+          problems: [{ path: 'colors.panel', code: 'range', detail: 'Must not be see-through.' }] }
     ],
     fonts: [], builtInFonts: ['Outfit', 'Lora']
 };
@@ -262,13 +262,15 @@ console.log('\n── Problems are said in the page\'s language ─────�
     const fns = lift(['themeProblemText']);
     ok('themeProblemText can be run', !!fns);
     if (fns) {
-        const contrast = { path: 'colors.text2', code: 'contrast', detail: '2.10:1, 4.5:1 needed, on background.layers[0].stops[1].' };
-        const en = fns.themeProblemText(contrast);
-        ok('a contrast problem names the ratio, what it was on and the minimum',
-           en.indexOf('2.10') !== -1 && en.indexOf('4.5') !== -1 && en.indexOf('background.layers[0].stops[1]') !== -1, en);
+        // "There should be no restrictions on custom made themes" (the owner, 2026-11-12).
+        // The page said "Contrast 2.10:1 on …. Needs 4.5:1." in every language; it has no
+        // contrast sentence now, in any language, and no warning on a background picture.
+        const dash = L.readDashboard();
+        ok('the editor has no contrast sentence and no picture warning, in any language',
+           !/admin\.themes\.p\.contrast|admin\.themes\.photoFaint|case 'contrast'/.test(dash)
+           && fs.readdirSync(L.i18nDir()).filter(f => /\.json$/.test(f))
+               .every(f => !/admin\.themes\.p\.contrast|admin\.themes\.photoFaint/.test(fs.readFileSync(path.join(L.i18nDir(), f), 'utf8'))));
         fns.setStrings(frenchStrings());
-        const fr = fns.themeProblemText(contrast);
-        ok('and in French, in French', /Contraste 2\.10:1 sur background\.layers\[0\]\.stops\[1\]\. Il faut 4\.5:1\./.test(fr), fr);
         ok('a range is read out of the detail', /0.+64/.test(fns.themeProblemText({ path: 'shape.radius.small', code: 'range', detail: 'Must be from 0 to 64.' }))
            && fns.themeProblemText({ path: 'shape.radius.small', code: 'range', detail: 'Must be from 0 to 64.' }).indexOf('Must') === -1);
         fns.setStrings(null);
@@ -279,13 +281,12 @@ console.log('\n── Problems are said in the page\'s language ─────�
         const codes = Array.from(new Set((cs.match(/(?:Add|ThemeProblem)\([^;]*?,\s*"([a-z]+)",\s*(?:"|Ratio|\$")/g) || [])
             .map(m => /,\s*"([a-z]+)",\s*(?:"|Ratio|\$")/.exec(m)[1])));
         ok('the server\'s problem codes were found (' + codes.join(', ') + ')', codes.length >= 10);
-        const unsaid = codes.filter(c => fns.themeProblemText({ path: 'x', code: c, detail: 'SERVER-DETAIL' }) === 'SERVER-DETAIL');
-        ok('every one has a sentence of the page\'s own', unsaid.length === 0, unsaid.join(', '));
-        // The contrast sentence is parsed out of the server's English; if that changes
-        // shape the page falls back to a shorter sentence, and this says so.
-        ok('the server still writes contrast as the page reads it',
-           cs.indexOf('":1, " + min.ToString("0.#", CultureInfo.InvariantCulture) + ":1 needed,"') !== -1
-           && /Ratio\(r, min\) \+ " on " \+ path \+ "\."/.test(cs));
+        // Contrast is a built-in's rule only, and the page edits custom themes: the server
+        // checks those with contrast: false, so the code never reaches it.
+        ok('the server leaves contrast out for a custom theme',
+           /ValidateCustom\([\s\S]*?ThemeValidator\.Validate\([^;]*contrast: false\)/.test(cs));
+        const unsaid = codes.filter(c => c !== 'contrast' && fns.themeProblemText({ path: 'x', code: c, detail: 'SERVER-DETAIL' }) === 'SERVER-DETAIL');
+        ok('every other one has a sentence of the page\'s own', unsaid.length === 0, unsaid.join(', '));
         ok('an unknown code shows the server\'s detail', fns.themeProblemText({ code: 'zzz', detail: 'As sent.' }) === 'As sent.');
     }
 
@@ -315,7 +316,7 @@ console.log('\n── Problems are said in the page\'s language ─────�
             // Replaced behaviour: English used to show the server's sentence. It is the code's sentence now, in every language.
             ok('in English the code\'s sentence is used, not the server\'s', en.message === 'There\'s already a font with that name.', en.message);
             const invalid = await errs.readThemeError(response('theme_invalid',
-                JSON.stringify({ message: 'That theme isn\'t valid.', problems: [{ path: 'colors.text1', code: 'contrast', detail: 'd' }] })),
+                JSON.stringify({ message: 'That theme isn\'t valid.', problems: [{ path: 'colors.panel', code: 'range', detail: 'd' }] })),
                 'admin.themes.saveFailed', {});
             ok('a refused save hands back its problems', invalid.problems && invalid.problems.length === 1 && invalid.message === 'That theme has problems. Fix them and save again.', invalid.message);
             const offline = await errs.readThemeError(new TypeError('Failed to fetch'), 'admin.themes.saveFailed', {});
