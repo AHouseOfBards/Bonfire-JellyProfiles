@@ -9,6 +9,7 @@ using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Profiles.Auth
 {
@@ -49,6 +50,14 @@ namespace Jellyfin.Profiles.Auth
         internal static void Register(IUserManager? users)
         {
             if (users != null) _users = users;
+            // Said once: with no user manager the administrators are never known, so
+            // maintenance reads as "allowed" for every Campground caller, by design but not
+            // quietly (R2-02-04).
+            if (_users == null && Interlocked.Exchange(ref _saidNoUsers, 1) == 0)
+            {
+                ViewingTracker.Log?.LogWarning("ProfilesPlugin: no user manager, so maintenance is not enforced for other Campground plugins.");
+            }
+
             Limits.Provide(PluginIds.Bonfire, Minor, (userId, _, _) => Task.FromResult(Decide(userId, ViewingTracker.Now())));
             RefreshAdmins();
         }
@@ -66,6 +75,8 @@ namespace Jellyfin.Profiles.Auth
         private static long _adminsAtTicks;
         private static int _refreshing;
         private static IUserManager? _users;
+        private static int _saidNoUsers;
+        private static int _saidRefreshFailed;
 
         /// <summary>Replaces the administrator set. For the refresh, and for tests.</summary>
         internal static void SetAdmins(IEnumerable<Guid> ids, DateTime atUtc)
@@ -105,9 +116,16 @@ namespace Jellyfin.Profiles.Auth
 
                     SetAdmins(ids, DateTime.UtcNow);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Keeps the old set, or none. Tried again by the next call that finds it stale.
+                    // Keeps the old set, or none. Tried again a minute on, not by the very next
+                    // call: stamping the failure as a refresh made every call during
+                    // maintenance start another one (R2-02-04). Said once.
+                    Interlocked.Exchange(ref _adminsAtTicks, DateTime.UtcNow.Ticks);
+                    if (Interlocked.Exchange(ref _saidRefreshFailed, 1) == 0)
+                    {
+                        ViewingTracker.Log?.LogWarning(ex, "ProfilesPlugin: could not read the administrators, so maintenance is not enforced for other Campground plugins until it can.");
+                    }
                 }
                 finally
                 {

@@ -357,7 +357,47 @@ Minutes(8);
 Ok("a game for a profile with no rule is not tracked", Static(tracker, "State", FREE, clockNow) == null);
 
 ClearActivities();
+
+// ── A failing administrator refresh (R2-02-04) ───────────────────────────────
+Section("A failing refresh");
+{
+    // GetUsers hands back a list that throws as it is read, which is what the refresh does
+    // first. A failure used to leave the set "never refreshed", so every call during
+    // maintenance started another refresh.
+    var users = UsersStub.Create();
+    UsersStub.Calls = 0;
+    Static(provider, "ForgetAdmins");
+    Maintenance(true);
+    Static(provider, "Register", (object)users);
+    for (var i = 0; i < 50 && UsersStub.Calls < 1; i++) Thread.Sleep(50);
+    Thread.Sleep(300);
+    Ok("the refresh ran and failed once (" + UsersStub.Calls + ")", UsersStub.Calls == 1);
+    Ask(FREE); Ask(FREE); Ask(FREE);
+    Thread.Sleep(300);
+    Ok("calls during maintenance do not start it again (" + UsersStub.Calls + ")", UsersStub.Calls == 1);
+    Maintenance(false);
+}
+
 return Finish();
+
+public class UsersStub : DispatchProxy
+{
+    public static int Calls;
+    public static MediaBrowser.Controller.Library.IUserManager Create() => Create<MediaBrowser.Controller.Library.IUserManager, UsersStub>();
+
+    static System.Collections.Generic.IEnumerable<Jellyfin.Database.Implementations.Entities.User> Throws()
+    {
+        throw new InvalidOperationException("the database is not ready");
+        yield break;
+    }
+
+    protected override object Invoke(MethodInfo m, object[] args)
+    {
+        Interlocked.Increment(ref Calls);
+        if (m.Name == "GetUsers") return Throws();
+        throw new NotSupportedException(m.Name);
+    }
+}
 
 public class SessionStub : DispatchProxy
 {
