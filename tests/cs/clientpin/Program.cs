@@ -855,6 +855,16 @@ if (reconcile != null)
     var task = Activator.CreateInstance(
         taskType, new StubPaths(tempDir), recordingManager, taskLogger);
 
+    // Two reconciliations at once (startup and a settings save) must not interleave: an older
+    // run finishing last would write what the newer one already corrected (r2-16-03).
+    enableProp.SetValue(config, false);
+    RecordingUserManager.DelayMs = 25;
+    var racers = new[] { new System.Threading.Thread(() => reconcile.Invoke(task, null)), new System.Threading.Thread(() => reconcile.Invoke(task, null)) };
+    foreach (var t in racers) t.Start();
+    foreach (var t in racers) t.Join();
+    RecordingUserManager.DelayMs = 0;
+    Ok("two reconciliations at once run one after the other", RecordingUserManager.MaxActive == 1, RecordingUserManager.MaxActive.ToString());
+
     // Feature ON: profiles point at our provider, and at nothing else.
     enableProp.SetValue(config, true);
     writes.Clear();
@@ -1759,6 +1769,8 @@ public class RecordingUserManager : DispatchProxy
     private Dictionary<Guid, User> _users;
     private List<string> _writes;
 
+    public static int Active, MaxActive, DelayMs;
+
     public static IUserManager Create(Dictionary<Guid, User> users, List<string> writes)
     {
         var proxy = Create<IUserManager, RecordingUserManager>();
@@ -1773,6 +1785,10 @@ public class RecordingUserManager : DispatchProxy
         switch (targetMethod.Name)
         {
             case "GetUserById":
+                var now = System.Threading.Interlocked.Increment(ref Active);
+                lock (_users) MaxActive = Math.Max(MaxActive, now);
+                if (DelayMs > 0) System.Threading.Thread.Sleep(DelayMs);
+                System.Threading.Interlocked.Decrement(ref Active);
                 return _users.TryGetValue((Guid)args[0], out var u) ? u : null;
 
             case "UpdateUserAsync":

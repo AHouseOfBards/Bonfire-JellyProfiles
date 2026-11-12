@@ -307,6 +307,26 @@ namespace Jellyfin.Profiles
         /// </summary>
         internal void ReconcileAuthProviders()
         {
+            // One at a time (r2-16-03): startup and a settings save both come here, and a run that
+            // read the configuration earlier but finished later would write over the newer one's
+            // answer. Each run reads the configuration only once it holds the gate, so the last
+            // to run is the last to have read. A SemaphoreSlim, not a lock: it is not the
+            // configuration object and the work inside waits on the user manager.
+            ReconcileGate.Wait();
+            try
+            {
+                ReconcileAuthProvidersCore();
+            }
+            finally
+            {
+                ReconcileGate.Release();
+            }
+        }
+
+        private static readonly System.Threading.SemaphoreSlim ReconcileGate = new(1, 1);
+
+        private void ReconcileAuthProvidersCore()
+        {
             var config = Plugin.Instance?.Configuration;
             if (config?.Mappings == null) return;
 
