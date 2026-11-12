@@ -505,6 +505,29 @@ Console.WriteLine("── Forgetting a device ───────────�
     Ok("two of its own still merge", r.status == 200 && !Has("my-phone3"), r.status + " " + r.message);
 }
 
+// ── A server with no ChangePassword (r2-08-01) ───────────────────────────────
+Console.WriteLine();
+Console.WriteLine("── A server with no ChangePassword ─────────────────────────────");
+{
+    // A DispatchProxy cannot drop a method, so the cache is told this server has none.
+    var cacheField = baseType.GetField("ChangePasswordCache", BindingFlags.NonPublic | BindingFlags.Static);
+    var cache = cacheField.GetValue(null);
+    cache.GetType().GetMethod("TryAdd").Invoke(cache, new object[] { users.GetType(), null });
+
+    var ctor = ctrlType.GetConstructors().First();
+    var cargs = ctor.GetParameters().Select(p =>
+        p.ParameterType == typeof(IUserManager) ? users
+        : p.ParameterType.Name.StartsWith("ILogger") ? Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(ctrlType))
+        : (object)null).ToArray();
+    var c = ctor.Invoke(cargs);
+    var someone = Guid.NewGuid(); world.Add(someone, "Someone");
+    var compat = baseType.GetMethod("ChangePasswordCompat", BindingFlags.NonPublic | BindingFlags.Instance);
+    Exception thrown = null;
+    try { ((Task)compat.Invoke(c, new object[] { world.Users[someone], "x" })).GetAwaiter().GetResult(); }
+    catch (Exception e) { thrown = e is TargetInvocationException t ? t.InnerException : e; }
+    Ok("setting a password it cannot set is an error, not a success", thrown is MissingMethodException, thrown?.GetType().Name ?? "no exception");
+}
+
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();
 if (fails.Count > 0)

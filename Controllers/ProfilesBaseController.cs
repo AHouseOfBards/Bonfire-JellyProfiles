@@ -950,8 +950,11 @@ namespace Jellyfin.Profiles.Controllers
                 return (Task)resolved.Invoke(_userManager, new[] { firstArg, newPassword })!;
             }
 
+            // Not a quiet success: a caller that carries on believes the account has a password
+            // nobody knows, and was left with one that has none (r2-08-01). Every caller already
+            // catches a throw here and undoes what it did, as it does for RenameUserCompat.
             _logger.LogError("ProfilesPlugin: Could not resolve ChangePassword on IUserManager.");
-            return Task.CompletedTask;
+            throw new MissingMethodException("IUserManager has no ChangePassword this plugin can call.");
         }
 
         private static readonly ConcurrentDictionary<Type, System.Reflection.MethodInfo?> RenameUserCache = new();
