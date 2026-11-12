@@ -445,6 +445,7 @@
   "admin.devices.lede": "Cada sesión abierta, con el hogar al que pertenece cada perfil.",
   "admin.refresh": "Actualizar",
   "admin.security.pinsTitle": "PIN",
+  "admin.security.pinLimitsTitle": "Intentos de PIN y direcciones",
   "admin.security.requireMainPin": "Exigir un PIN principal",
   "admin.security.requireMainPinHint": "Las cuentas principales no pueden cambiar perfiles ni configuración hasta que definan uno.",
   "admin.security.pinResetByEmail": "Permitir a las cuentas principales restablecer un PIN olvidado por correo",

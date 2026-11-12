@@ -445,6 +445,7 @@
   "admin.devices.lede": "Cada sessió oberta, amb la llar a la qual pertany cada perfil.",
   "admin.refresh": "Actualitza",
   "admin.security.pinsTitle": "PIN",
+  "admin.security.pinLimitsTitle": "Intents de PIN i adreces",
   "admin.security.requireMainPin": "Exigeix un PIN principal",
   "admin.security.requireMainPinHint": "Els comptes principals no poden canviar perfils ni configuració fins que en defineixin un.",
   "admin.security.pinResetByEmail": "Permet als comptes principals restablir un PIN oblidat per correu",

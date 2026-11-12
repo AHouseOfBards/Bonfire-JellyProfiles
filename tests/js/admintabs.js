@@ -90,6 +90,18 @@ ok('the emergency disable code is in Security\'s Advanced, and the PINs are not'
 ok('the starter avatars, picture quality and server-folder copy are in Look\'s Advanced',
    ['enableStarterAvatars', 'profileImageQuality', 'avatarScanPath', 'avatarScanBtn'].every(id => inFold('look', id))
    && !inFold('look', 'disallowCustomAvatars') && !inFold('look', 'avatarUploadBtn'));
+// Owner, 1.9.0.4 eye test: "Save code" then the page Save, stacked after the emergency
+// section, read as a duplicate, and the page Save sat after a section it does not save.
+// The PIN settings' Save now follows the last PIN setting directly, and the code's own
+// button is a secondary one inside its block, so the tab has one primary Save.
+const secP = panels.security || '';
+const secSave = secP.indexOf('jpf-save-settings');
+ok('Security\'s Save follows the last PIN setting, with the emergency code before them both',
+   secSave > secP.indexOf('id="trustedBox"') && secP.indexOf('id="trustedBox"') > secP.indexOf('id="savePanicCode"')
+   && secP.slice(secP.indexOf('id="trustedBox"'), secSave).indexOf('savePanicCode') === -1);
+ok('Security has one primary button, its Save',
+   (secP.match(/class="[^"]*button-submit[^"]*"/g) || []).length === 1
+   && !/id="savePanicCode"[^>]*button-submit|button-submit[^>]*id="savePanicCode"/.test(secP));
 ok('a refused emergency code opens its fold',
    /const show = function \(msg, ok\) \{[^}]*if \(!ok\) openAdvancedFor\(result\);/.test(script));
 ok('the theme editor and fonts are in Look\'s Advanced',

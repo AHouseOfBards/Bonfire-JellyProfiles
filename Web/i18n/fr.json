@@ -445,6 +445,7 @@
   "admin.devices.lede": "Chaque session ouverte, avec le foyer de chaque profil.",
   "admin.refresh": "Actualiser",
   "admin.security.pinsTitle": "Codes PIN",
+  "admin.security.pinLimitsTitle": "Essais de PIN et adresses",
   "admin.security.requireMainPin": "Exiger un code PIN principal",
   "admin.security.requireMainPinHint": "Les comptes principaux ne peuvent pas modifier les profils ni les paramètres tant qu'ils n'en ont pas défini un.",
   "admin.security.pinResetByEmail": "Permettre aux comptes principaux de réinitialiser un code PIN oublié par e-mail",

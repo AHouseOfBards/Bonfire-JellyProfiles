@@ -456,6 +456,7 @@
   "admin.devices.lede": "Açık her oturum ve her profilin ait olduğu hane.",
   "admin.refresh": "Yenile",
   "admin.security.pinsTitle": "PIN'ler",
+  "admin.security.pinLimitsTitle": "PIN denemeleri ve adresler",
   "admin.security.requireMainPin": "Ana PIN zorunlu olsun",
   "admin.security.requireMainPinHint": "Ana hesaplar, bir tane belirleyene kadar profilleri ve ayarları değiştiremez.",
   "admin.security.pinResetByEmail": "Ana hesapların unutulan PIN'i e-postayla sıfırlamasına izin ver",

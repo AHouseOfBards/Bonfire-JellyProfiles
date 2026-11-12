@@ -445,6 +445,7 @@
   "admin.devices.lede": "Każda otwarta sesja wraz z gospodarstwem, do którego należy każdy profil.",
   "admin.refresh": "Odśwież",
   "admin.security.pinsTitle": "Kody PIN",
+  "admin.security.pinLimitsTitle": "Próby PIN-u i adresy",
   "admin.security.requireMainPin": "Wymagaj głównego kodu PIN",
   "admin.security.requireMainPinHint": "Konta główne nie mogą zmieniać profili ani ustawień, dopóki go nie ustawią.",
   "admin.security.pinResetByEmail": "Pozwól kontom głównym resetować zapomniany kod PIN przez e-mail",
