@@ -416,6 +416,10 @@ Ok("a device on its list is authorized", Through(Authorize(Initiated("222222", "
 var qcUnknown = Authorize("333333", KID_TOKEN);
 Ok("a code this server never saw asked for is refused: its device cannot be judged", !qcUnknown.reached && qcUnknown.status == 403, Show(qcUnknown));
 Ok("the main account authorizes any device", Through(Authorize(Initiated("444444", "dev-bad"), ADMIN_TOKEN)));
+DeviceManagerStub.ThrowFor = "tok-boom";
+var qcBoom = Authorize(Initiated("777777", "dev-bad"), "tok-boom");
+DeviceManagerStub.ThrowFor = null;
+Ok("a Quick Connect check that breaks refuses the authorize rather than passing it on (r2-17-02)", !qcBoom.reached && qcBoom.status == 403, Show(qcBoom));
 var qcFor = Authorize(Initiated("555555", "dev-bad"), ADMIN_TOKEN, "&userId=" + KID);
 Ok("and is judged as the profile when it authorizes for one", !qcFor.reached && qcFor.status == 403, Show(qcFor));
 
@@ -747,6 +751,7 @@ public class SessionManagerStub : DispatchProxy
 public class DeviceManagerStub : DispatchProxy
 {
     public static int Calls;
+    public static string ThrowFor;
     private Dictionary<string, (Guid user, string app)> _tokens;
 
     public static IDeviceManager Create(Dictionary<string, (Guid, string)> tokens)
@@ -763,6 +768,7 @@ public class DeviceManagerStub : DispatchProxy
         Calls++;
         var q = args[0];
         var token = (string)q.GetType().GetProperty("AccessToken")?.GetValue(q);
+        if (token != null && token == ThrowFor) throw new InvalidOperationException("the device lookup broke");
         var items = new List<Device>();
         if (token != null && _tokens.TryGetValue(token, out var row))
         {

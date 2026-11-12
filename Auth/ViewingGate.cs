@@ -220,10 +220,23 @@ namespace Jellyfin.Profiles.Auth
                 await WriteRefusalAsync(context, refusal.Value.Code, refusal.Value.State).ConfigureAwait(false);
                 return true;
             }
+            catch (MediaBrowser.Controller.Net.SecurityException)
+            {
+                // Jellyfin refusing the token itself: it answers 401 when the request goes on.
+                return false;
+            }
             catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
             {
-                logger.LogWarning(ex, "ProfilesPlugin: the viewing-hours check failed for {Path}; passing it on.", path);
-                return false;
+                // Fails CLOSED (r2-17-02): a check that broke must not let a limited child past
+                // the rule. MaintenanceGate and ProxySwitcher fail open, where a break only costs a rule.
+                logger.LogError(ex, "ProfilesPlugin: the viewing-hours check failed for {Path}; refusing it.", path);
+                var response = context.Response;
+                response.StatusCode = StatusCodes.Status403Forbidden;
+                response.ContentType = "text/plain; charset=utf-8";
+                response.Headers[Controllers.ErrorCodes.Header] = OutsideHours;
+                response.Headers[HeaderNames.CacheControl] = "no-store";
+                await response.WriteAsync("Ask a parent, or try again when viewing hours open. It is outside viewing hours.", context.RequestAborted).ConfigureAwait(false);
+                return true;
             }
         }
 

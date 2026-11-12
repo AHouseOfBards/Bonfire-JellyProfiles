@@ -131,6 +131,7 @@ namespace Jellyfin.Profiles.Auth
                     return true;
                 }
 
+                // Fails OPEN here, on purpose (r2-17-02): only requests that cannot hand over the main account reach this line (see above).
                 logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; passing it on.", context.Request.Path);
                 return false;
             }

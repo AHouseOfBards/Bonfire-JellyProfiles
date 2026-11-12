@@ -784,10 +784,18 @@ namespace Jellyfin.Profiles
                 await Auth.QuickConnectAuthorize.WriteRefusalAsync(context, refusal).ConfigureAwait(false);
                 return true;
             }
+            catch (MediaBrowser.Controller.Net.SecurityException)
+            {
+                // Jellyfin refusing the token itself: it answers 401 when the request goes on.
+                return false;
+            }
             catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
             {
-                _logger.LogWarning(ex, "ProfilesPlugin: the Quick Connect authorize check failed; passing it on.");
-                return false;
+                // Fails CLOSED (r2-17-02): a check that broke must not let a profile sign in a
+                // device its household did not allow. MaintenanceGate and ProxySwitcher fail open.
+                _logger.LogError(ex, "ProfilesPlugin: the Quick Connect authorize check failed; refusing it.");
+                await Auth.QuickConnectAuthorize.WriteRefusalAsync(context, "This profile is not allowed on this device.").ConfigureAwait(false);
+                return true;
             }
         }
 

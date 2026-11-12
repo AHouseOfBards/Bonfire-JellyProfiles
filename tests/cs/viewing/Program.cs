@@ -728,6 +728,11 @@ Through("/Items/" + item + "/PlaybackInfo", "tok-kid", "dev-kid").GetAwaiter().G
 Ok("once a minute, not once a retry", stub.Messages.Count == 1);
 http = Through("/Items/" + item + "/PlaybackInfo", "tok-main", "dev-main").GetAwaiter().GetResult();
 Ok("the parent's own request goes through", !(bool)http.Items["handled"]);
+// An internal failure while judging a limited child refuses the request: failing open would let a child past the rule (r2-17-02, g22).
+DeviceStub.ThrowFor = "tok-boom";
+http = Through("/Items/" + item + "/PlaybackInfo", "tok-boom", "dev-kid").GetAwaiter().GetResult();
+DeviceStub.ThrowFor = null;
+Ok("a check that breaks refuses the request rather than passing it on", (bool)http.Items["handled"] && http.Response.StatusCode == 403, http.Response.StatusCode.ToString());
 
 // Who a request is from is Jellyfin's to say. The gate read the headers itself and
 // disagreed with Jellyfin four ways; where it found no user it let the request through,
@@ -1212,6 +1217,7 @@ public class LibraryStub : DispatchProxy
 public class DeviceStub : DispatchProxy
 {
     public static int Calls;
+    public static string ThrowFor;
     private Dictionary<string, Guid> _tokens;
 
     public static IDeviceManager Create(Dictionary<string, Guid> tokens)
@@ -1226,6 +1232,7 @@ public class DeviceStub : DispatchProxy
         if (m.Name != "GetDevices") throw new NotSupportedException("IDeviceManager." + m.Name + " is not modelled");
         Calls++;
         var token = (string)args[0].GetType().GetProperty("AccessToken")?.GetValue(args[0]);
+        if (token != null && token == ThrowFor) throw new InvalidOperationException("the device lookup broke");
         var items = new List<Device>();
         if (token != null && _tokens.TryGetValue(token, out var user))
         {

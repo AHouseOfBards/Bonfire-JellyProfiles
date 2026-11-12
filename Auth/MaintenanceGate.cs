@@ -429,6 +429,7 @@ namespace Jellyfin.Profiles.Auth
             }
             catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
             {
+                // Fails OPEN, on purpose (r2-17-02): a break only costs a maintenance rule, never a child's limit.
                 // Never the reason a request fails. Jellyfin answers it as it would without us.
                 logger.LogWarning(ex, "ProfilesPlugin: the maintenance check failed for {Path}; passing it on.", path);
                 return false;
