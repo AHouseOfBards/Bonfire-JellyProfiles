@@ -28,7 +28,7 @@ ok('there is a Reopen automatically tick box', !!box);
 ok('it is off by default', !!box && !/\schecked/.test(box[0]));
 ok('it sits with Back by, before Stop what people are watching',
    !!box && html.indexOf('id="mntUntil"') < html.indexOf('id="mntReopen"') && html.indexOf('id="mntReopen"') < html.indexOf('id="mntStop"'));
-ok('and carries its words through the translations', /data-i18n="admin\.mnt\.reopen"/.test(html) && /data-i18n="admin\.mnt\.reopenHint"/.test(html));
+ok('and carries its words through the translations, with no hint repeating what the label says', /data-i18n="admin\.mnt\.reopen"/.test(html) && !/data-i18n="admin\.mnt\.reopenHint"/.test(html));
 
 if (!/function renderMaintenance\s*\(/.test(script) || !box) {
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
