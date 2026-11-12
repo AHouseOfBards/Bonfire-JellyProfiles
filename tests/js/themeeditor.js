@@ -99,6 +99,7 @@ async function main() {
         await wait(600);
         const phone = await c.evaluate(PREVIEW_WITH('#tePattern'));
         ok('on a phone the preview is on screen at the last control', phone.inView, JSON.stringify(phone));
+        await previewSizeChecks(c, s);
         await pickerChecks(c, s);
         await expandChecks(c, s);
     } finally {
@@ -138,15 +139,70 @@ const overlaps = (a, b) => a && b && a.l < b.r && a.r > b.l && a.t < b.b && a.b 
 const CARD = "document.querySelector('#tePreview .jpf-theme-preview')";
 const POP_Q = "document.querySelector('#themeEditor .jpf-te-pop";
 
-async function openEditor(c, s, device) {
+async function openEditor(c, s, device, before) {
     await c.open('http://127.0.0.1:' + s.port + '/dashboard?tab=look&device=' + device + '&theme=dark', device);
     await c.evaluate("[].slice.call(document.querySelectorAll('details')).forEach(function(d){ if (d.querySelector('#themeEditor')) d.open = true; })");
     await c.evaluate("new Promise(function(r){var s=document.createElement('script'); s.src='/bonfire.js'; s.onload=r; s.onerror=r; document.head.appendChild(s);})");
     await c.evaluate('window.__bonfire.injectStyles()');
     await c.evaluate("(function(){var a=ApiClient.ajax; ApiClient.ajax=function(o){ if(o && /admin\\/themes\\/validate/.test(o.url)) return Promise.resolve({problems: []}); return a.apply(this, arguments); };})()");
+    if (before) await c.evaluate(before);
     await c.evaluate("document.getElementById('themeNew').click()");
     await wait(600);
     await c.evaluate(frame);
+}
+
+// ── The preview's size and place (owner, 1.9.0.4-beta) ───────────────────────────
+// It was a ~240 px card at the top right. On a wide page it is now a column of about 45% of
+// the editor, kept in view below Jellyfin's header; on a phone, where nothing fits beside
+// the form, a short strip that stays at the top, its Expand button still opening it full size.
+// Chromium 53 has no position: sticky, so the same is checked with sticky taken away.
+const HEADER = "(function(){ var h = document.createElement('div'); h.className = 'skinHeader'; h.style.cssText = 'position:fixed;top:0;left:0;right:0;height:56px;z-index:50;background:#333'; document.body.appendChild(h); })()";
+const NO_STICKY = "(function(){ var real = CSS.supports; CSS.supports = function (p, v) { if (/sticky/.test(String(v) + String(p))) return false; return real.apply(CSS, arguments); };" +
+    " var st = document.createElement('style'); st.textContent = '#profilesConfigurationPage .jpf-te-side { position: relative !important; }'; document.head.appendChild(st); })()";
+const AT_LAST_FIELD = `(async function () {
+  document.querySelector('#themeEditor .jpf-te-mode[data-view=advanced]').click();
+  await new Promise(function (r) { setTimeout(r, 300); });
+  [].slice.call(document.querySelectorAll('#teAdvancedFields details')).forEach(function (d) { d.open = true; });
+  await new Promise(function (r) { setTimeout(r, 200); });
+  document.querySelector('#teAdvancedFields > :last-child').scrollIntoView({ block: 'end' });
+  await new Promise(function (r) { setTimeout(r, 250); });
+  var side = document.querySelector('#themeEditor .jpf-te-side').getBoundingClientRect();
+  var card = document.querySelector('#tePreview .jpf-theme-preview').getBoundingClientRect();
+  var body = document.querySelector('#themeEditor .jpf-te-body').getBoundingClientRect();
+  var tile = document.querySelector('#tePreview .jpf-theme-preview-tile').getBoundingClientRect();
+  var hb = document.querySelector('.skinHeader').getBoundingClientRect().bottom;
+  var ex = document.getElementById('teExpand').getBoundingClientRect();
+  var mid = document.elementFromPoint(card.left + 8, card.top + card.height / 2);
+  return { cardW: Math.round(card.width), bodyW: Math.round(body.width), tile: Math.round(tile.width),
+    cardTop: Math.round(card.top), cardBottom: Math.round(card.bottom), sideTop: Math.round(side.top), sideBottom: Math.round(side.bottom), sideH: Math.round(side.height),
+    hb: Math.round(hb), vh: window.innerHeight, expandIn: ex.top >= side.top - 1 && ex.bottom <= side.bottom + 1 && ex.height > 0,
+    seen: !!(mid && mid.closest('#tePreview')) };
+})()`;
+
+async function previewSizeChecks(c, s) {
+    console.log('\n  preview size and place');
+    for (const variant of ['', ' without position: sticky']) {
+        await openEditor(c, s, 'desktop', variant ? NO_STICKY : null);
+        await c.evaluate(HEADER);
+        const d = await c.evaluate(AT_LAST_FIELD);
+        const tag = ' (desktop' + variant + ')';
+        ok('the preview is a column of at least 42% of the editor' + tag, d.cardW >= 0.42 * d.bodyW, JSON.stringify(d));
+        ok('and its tiles are drawn large enough to judge' + tag, d.tile >= 44, JSON.stringify(d));
+        ok('at the last Advanced field it is on screen, below Jellyfin\'s header' + tag,
+            d.cardTop >= d.hb - 1 && d.cardBottom <= d.vh && d.seen, JSON.stringify(d));
+
+        await openEditor(c, s, 'phone', variant ? NO_STICKY : null);
+        await c.evaluate(HEADER);
+        const p = await c.evaluate(AT_LAST_FIELD);
+        const ptag = ' (phone' + variant + ')';
+        ok('on a phone it is a strip at the top at the last Advanced field' + ptag,
+            p.sideTop >= p.hb - 1 && p.sideTop <= p.hb + 16 && p.sideH <= 0.15 * p.vh && p.seen, JSON.stringify(p));
+        ok('with Expand in the strip' + ptag, p.expandIn, JSON.stringify(p));
+        await c.evaluate("document.getElementById('teExpand').click()");
+        await wait(250);
+        ok('and Expand opens it full size from there' + ptag, await c.evaluate("!!document.getElementById('teExpanded')"));
+        await press(c, 'Escape');
+    }
 }
 
 async function pickerChecks(c, s) {

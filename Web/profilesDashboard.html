@@ -432,8 +432,38 @@
        on a line of its own above them once they do not. The bases are sized so both fit
        the dashboard's column on a desktop (26em + 20em did not, so it always wrapped below). */
     #profilesConfigurationPage .jpf-te-body { display: flex; flex-direction: row-reverse; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+    /* The preview takes 45% of the editor beside the fields: at 18em it was a 240 px card
+       too small to judge a theme by. Sticky below Jellyfin's header (bindThemePreviewStick
+       sets top to the header's foot), and on Chromium 53, which has no sticky, the same
+       function moves it with a transform instead. */
     #profilesConfigurationPage .jpf-te-fields { flex: 1 1 21em; min-width: 0; }
-    #profilesConfigurationPage .jpf-te-side { flex: 0 1 18em; min-width: 14em; position: -webkit-sticky; position: sticky; top: 0.5em; z-index: 2; }
+    #profilesConfigurationPage .jpf-te-side { flex: 0 1 45%; min-width: 16em; position: relative; position: -webkit-sticky; position: sticky; top: 0.5em; z-index: 2; }
+    #profilesConfigurationPage .jpf-te-side .jpf-theme-preview { padding: 28px 18px; gap: 16px; }
+    #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-name { font-size: calc(1.5rem * var(--jpf-title-scale)); }
+    #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-tiles { gap: 18px; }
+    #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-tile { width: 52px; height: 52px; }
+    #profilesConfigurationPage .jpf-te-side .jpf-te-preview-text { font-size: 0.95rem; }
+    #profilesConfigurationPage .jpf-te-side .jpf-te-preview-primary,
+    #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-button { font-size: 0.85rem; padding: 6px 16px; }
+    /* A phone has no room beside the form: the preview is a short strip along the top,
+       name and tiles only, with Expand on it for the full picker. */
+    @media (max-width: 47.99em) {
+        #profilesConfigurationPage .jpf-te-side { flex: 1 1 100%; min-width: 0; }
+        #profilesConfigurationPage .jpf-te-side .jpf-theme-preview {
+            flex-direction: row; justify-content: flex-start; gap: 12px; padding: 8px 7.5em 8px 12px;
+        }
+        #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-name {
+            font-size: 1rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-tiles { gap: 8px; }
+        #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-tile { width: 26px; height: 26px; }
+        #profilesConfigurationPage .jpf-te-side .jpf-te-preview-text,
+        #profilesConfigurationPage .jpf-te-side .jpf-te-preview-actions { display: none; }
+        #profilesConfigurationPage .jpf-te-side .jpf-te-expand {
+            position: absolute; right: 8px; top: 50%; margin: 0; padding: 0.35em 0.9em;
+            -webkit-transform: translateY(-50%); transform: translateY(-50%);
+        }
+    }
     #profilesConfigurationPage .jpf-te-checks { margin-top: 0.5em; }
     #profilesConfigurationPage .jpf-te-side-title { margin: 1em 0 0.25em; }
     #profilesConfigurationPage .jpf-te-colors {
@@ -4897,6 +4927,54 @@
                 themeDraftChanged(page, true);
                 try { editor.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { editor.scrollIntoView(); }
                 page.querySelector('#teName').focus();
+                bindThemePreviewStick(page);
+            }
+
+            /// Keeps the preview below Jellyfin's fixed header while the fields scroll. Where
+            /// position: sticky works this only sets its top to the header's foot; on Chromium
+            /// 53, which has none, it moves the preview down with a transform, never past the
+            /// foot of the editor's body. Bound while the editor is open.
+            function bindThemePreviewStick(page) {
+                unbindThemePreviewStick(page);
+                const side = page.querySelector('#themeEditor .jpf-te-side');
+                const body = page.querySelector('#themeEditor .jpf-te-body');
+                if (!side || !body) return;
+                let sticky = false;
+                try {
+                    sticky = !!(window.CSS && CSS.supports && (CSS.supports('position', 'sticky') || CSS.supports('position', '-webkit-sticky')));
+                } catch (e) { sticky = false; }
+                let queued = false;
+                const place = function () {
+                    queued = false;
+                    const header = document.querySelector('.skinHeader');
+                    const hb = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+                    // A phone's strip sits right under the header; a column keeps a small gap.
+                    const line = Math.round(hb + (side.offsetWidth >= body.offsetWidth - 2 ? 0 : 8));
+                    if (sticky) { side.style.top = line + 'px'; return; }
+                    side.style.top = '0px';
+                    const b = body.getBoundingClientRect();
+                    const y = Math.max(0, Math.min(line - b.top, b.height - side.offsetHeight));
+                    side.style.webkitTransform = side.style.transform = y ? 'translateY(' + Math.round(y) + 'px)' : '';
+                };
+                const onMove = function () {
+                    if (queued) return;
+                    queued = true;
+                    (window.requestAnimationFrame || window.setTimeout)(place);
+                };
+                window.addEventListener('scroll', onMove, true);
+                window.addEventListener('resize', onMove);
+                page._themeStick = { onMove: onMove, side: side };
+                place();
+            }
+
+            function unbindThemePreviewStick(page) {
+                const s = page._themeStick;
+                if (!s) return;
+                page._themeStick = null;
+                window.removeEventListener('scroll', s.onMove, true);
+                window.removeEventListener('resize', s.onMove);
+                s.side.style.top = '';
+                s.side.style.webkitTransform = s.side.style.transform = '';
             }
 
             function closeThemeEditor(page) {
@@ -4904,6 +4982,7 @@
                 if (ed) clearTimeout(ed.timer);
                 closeColorPopup(page, false);
                 closeThemeExpanded(page, false);
+                unbindThemePreviewStick(page);
                 page._themeEditor = null;
                 page.querySelector('#themeEditor').classList.add('jpf-hidden');
                 const style = document.getElementById('jpfThemeEditorCss');
@@ -7342,9 +7421,11 @@
             document.getElementById('profilesConfigurationPage').addEventListener('viewbeforehide', function () {
                 closeThemeExpanded(this, false);
                 closeColorPopup(this, false);
+                unbindThemePreviewStick(this);
             });
 
             function showPage(page) {
+                if (page._themeEditor) bindThemePreviewStick(page);
                 loadConfiguration(page);
                 ['#enableClientPinLogin', '#enableClientProfileList', '#allowProfileThemes'].forEach(function (sel) {
                     const box = page.querySelector(sel);
