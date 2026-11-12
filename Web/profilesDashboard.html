@@ -556,10 +556,54 @@
             -webkit-transform: translateY(-50%); transform: translateY(-50%);
         }
     }
+    /* Three columns, from 1280 px, in Advanced only: the group list, the preview, and the
+       selected group's fields. The class is set by applyThemeColumns from the same width the
+       script asks (themeWide3), so the CSS and the script cannot disagree about the number.
+       Between 900 and 1279 px, and in Simple, none of this applies. The outline and the preview
+       are sticky together; the preview is larger than the one beside the fields. */
+    #profilesConfigurationPage .jpf-te-outline { display: none; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-body {
+        display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(21em, 25em);
+        grid-template-areas: "outline preview fields"; gap: 24px; align-items: start;
+    }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-outline {
+        display: flex; flex-direction: column; gap: 2px; grid-area: outline;
+        position: -webkit-sticky; position: sticky; top: 0.5em; z-index: 2;
+    }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-side { grid-area: preview; min-width: 0; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-fields { grid-area: fields; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-side .jpf-theme-preview { padding: 56px 28px; gap: 28px; min-height: 28em; justify-content: center; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-side .jpf-theme-preview-name { font-size: calc(2rem * var(--jpf-title-scale)); }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-side .jpf-theme-preview-tiles { gap: 24px; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-side .jpf-theme-preview-tile { width: 76px; height: 76px; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-side .jpf-te-preview-text { font-size: 1.05rem; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-side .jpf-te-preview-primary,
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-side .jpf-theme-preview-button { font-size: 1rem; padding: 8px 22px; }
+    #profilesConfigurationPage .jpf-te-opt {
+        display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; box-sizing: border-box;
+        margin: 0; padding: 0.55em 0.7em; font: inherit; text-align: left; color: inherit; cursor: pointer;
+        background: transparent; border: 0; border-left: 3px solid transparent; border-radius: 4px; opacity: 0.8;
+    }
+    #profilesConfigurationPage .jpf-te-opt:hover { background: rgba(128, 128, 128, 0.15); opacity: 1; }
+    #profilesConfigurationPage .jpf-te-opt.is-selected { background: rgba(128, 128, 128, 0.2); border-left-color: var(--jpf-accent); font-weight: 600; opacity: 1; }
+    #profilesConfigurationPage .jpf-te-opt:focus, #profilesConfigurationPage .jpf-te-opt:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: -2px; }
+    #profilesConfigurationPage .jpf-te-opt.jpf-hidden { display: none; }
+    #profilesConfigurationPage .jpf-te-ocount { font-size: 0.8rem; font-weight: 400; opacity: 0.75; }
+    #profilesConfigurationPage .jpf-te-opt.jpf-te-has-problem::after { content: "!"; color: var(--jpf-bad); font-weight: 700; }
+    /* One group at a time. Its heading stays as a title and no longer folds; the outline is the way
+       between groups. */
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-group:not(.is-selected) { display: none; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-group > summary { pointer-events: none; list-style: none; font-size: 1.1rem; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-group > summary::-webkit-details-marker { display: none; }
+    /* The colours sit two across: a colour is a swatch and a short box, and the column is wide
+       enough for a pair. (.jpf-te-colors is Simple's grid; its 14em minimum put four colours in one
+       column at this width.) */
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-adv.jpf-te-adv-color { display: inline-grid; width: 50%; box-sizing: border-box; padding: 6px 8px 6px 0; vertical-align: top; }
+    #profilesConfigurationPage .jpf-te-3col .jpf-te-adv.jpf-te-adv-color.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-te-checks { margin-top: 0.5em; }
     #profilesConfigurationPage .jpf-te-side-title { margin: 1em 0 0.25em; }
     #profilesConfigurationPage .jpf-te-colors {
-        display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr));
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(9em, 1fr));
         gap: 10px 16px; margin-bottom: 1.5em;
     }
     #profilesConfigurationPage .jpf-te-color { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; }
@@ -1316,6 +1360,9 @@
                          so a change can be seen without scrolling to it. It sat under every
                          control, about 1,000 px down in Advanced. -->
                     <div class="jpf-te-body">
+                        <!-- The group list, drawn only at 1280 px and wider in Advanced (jpf-te-3col):
+                             buildThemeAdvanced fills it. Below that the groups fold open in place. -->
+                        <div class="jpf-te-outline" id="teOutline" role="group" aria-label="Sections" data-i18n-aria-label="admin.themes.sections"></div>
                         <div class="jpf-te-side">
                             <div id="tePreview"></div>
                             <button is="emby-button" type="button" class="raised jpf-te-expand" id="teExpand" data-i18n="admin.themes.expand">Expand</button>
@@ -5458,7 +5505,8 @@
                     }
                     // A phone's strip sits right under the bar; a column keeps a small gap.
                     const line = Math.round(hb + barH + (side.offsetWidth >= body.offsetWidth - 2 ? 0 : 8));
-                    if (sticky) { side.style.top = line + 'px'; return; }
+                    const outline = page.querySelector('#teOutline');
+                    if (sticky) { side.style.top = line + 'px'; if (outline) outline.style.top = line + 'px'; return; }
                     side.style.top = '0px';
                     const b = body.getBoundingClientRect();
                     const y = Math.max(0, Math.min(line - b.top, b.height - side.offsetHeight));
@@ -5482,6 +5530,8 @@
                 window.removeEventListener('scroll', s.onMove, true);
                 window.removeEventListener('resize', s.onMove);
                 s.side.style.top = '';
+                const o = page.querySelector('#teOutline');
+                if (o) o.style.top = '';
                 s.side.style.webkitTransform = s.side.style.transform = '';
                 const bar = page.querySelector('#themeEditor .jpf-te-bar');
                 if (bar) { bar.style.top = ''; bar.style.webkitTransform = bar.style.transform = ''; }
@@ -6362,6 +6412,8 @@
                         if (changed) n++;
                     });
                     g.querySelector('.jpf-te-gcount').textContent = n ? t('admin.themes.nChanged', { n: n }) : '';
+                    const oc = page.querySelector('#teOutline .jpf-te-opt[data-outline="' + g.getAttribute('data-group') + '"] .jpf-te-ocount');
+                    if (oc) oc.textContent = n ? String(n) : '';
                     g.querySelector('.jpf-te-gtools').classList.toggle('jpf-hidden', !n);
                 });
             }
@@ -6448,7 +6500,7 @@
                                 hint = { html: hint };
                             }
                             const hintHtml = typeof hint === 'object' ? hint.html : escapeHtml(hint);
-                            return '<div class="jpf-te-field jpf-te-adv" data-paths="' + escapeHtml(path) + '" data-search="' + search + '">' +
+                            return '<div class="jpf-te-field jpf-te-adv' + (kind === 'color' ? ' jpf-te-adv-color' : '') + '" data-paths="' + escapeHtml(path) + '" data-search="' + search + '">' +
                                 '<label class="jpf-te-adv-label" for="' + id + '"><span class="jpf-te-adv-name">' + escapeHtml(themeFieldName(path)) +
                                 '</span><code>' + path + '</code></label>' + control +
                                 (hintHtml ? '<div class="fieldDescription jpf-te-hint">' + hintHtml + '</div>' : '') + themeRowMarksHtml(path) + '</div>';
@@ -6457,10 +6509,37 @@
                 // Which groups are open is remembered per viewer. A toggle does not bubble, so
                 // it is caught on the way down. While a search is typed the groups are opened
                 // and shut for it, which is not the viewer's choice and is not saved.
+                // In three columns the selected group is held open and the rest are not shown, which
+                // is not the viewer's choice either.
                 box.addEventListener('toggle', function () {
-                    if (box.dataset.searching) return;
+                    if (box.dataset.searching || box.closest('.jpf-te-3col')) return;
                     themeSaveOpenGroups(box);
                 }, true);
+                const outline = page.querySelector('#teOutline');
+                if (outline) {
+                    outline.innerHTML = themeFieldList().map(function (group) {
+                        return '<button type="button" class="jpf-te-opt" data-outline="' + escapeHtml(group[0]) + '" aria-pressed="false">' +
+                            '<span>' + escapeHtml(t(group[0])) + '</span><span class="jpf-te-ocount"></span></button>';
+                    }).join('');
+                    outline.addEventListener('click', function (e) {
+                        const b = e.target.closest ? e.target.closest('.jpf-te-opt') : null;
+                        if (b) themeSelectGroup(page, b.getAttribute('data-outline'));
+                    });
+                    // Up and down move between the buttons, Home and End go to the ends; Enter and
+                    // Space are the button's own. Codes: 38 up, 40 down, 36 Home, 35 End.
+                    outline.addEventListener('keydown', function (e) {
+                        const opts = Array.prototype.filter.call(outline.querySelectorAll('.jpf-te-opt'), function (o) { return !o.classList.contains('jpf-hidden'); });
+                        const at = opts.indexOf(document.activeElement);
+                        let to = -1;
+                        if (e.keyCode === 40) to = Math.min(opts.length - 1, at + 1);
+                        else if (e.keyCode === 38) to = Math.max(0, at - 1);
+                        else if (e.keyCode === 36) to = 0;
+                        else if (e.keyCode === 35) to = opts.length - 1;
+                        if (to < 0 || !opts[to]) return;
+                        e.preventDefault();
+                        opts[to].focus();
+                    });
+                }
                 box.addEventListener('click', function (e) {
                     const b = e.target.closest ? e.target.closest('[data-reset], [data-reset-group]') : null;
                     if (!b) return;
@@ -6503,6 +6582,63 @@
                     if (hit) any = true;
                 });
                 page.querySelector('#teNoMatch').classList.toggle('jpf-hidden', !(words.length && !any));
+                // Three columns show one group: if the one selected has no match, the first that has.
+                if (page._themeEditor) themeSelectGroup(page, page._themeEditor.group);
+            }
+
+            /// Three columns, from 1280 px: the same width the stylesheet's class stands for.
+            function themeWide3() {
+                try { return !!window.matchMedia && window.matchMedia('(min-width: 1280px)').matches; } catch (e) { return false; }
+            }
+
+            /// Advanced at 1280 px or wider: the group list, the preview, one group's fields.
+            function themeThreeCol(page) {
+                const ed = page._themeEditor;
+                return !!ed && ed.view === 'advanced' && themeWide3();
+            }
+
+            /// Sets the editor's layout class for the view and the window. Run on every view
+            /// switch and when the window crosses 1280 px.
+            function applyThemeColumns(page) {
+                const ed = page._themeEditor;
+                const editor = page.querySelector('#themeEditor');
+                if (!ed || !editor) return;
+                const three = themeThreeCol(page);
+                const was = editor.classList.contains('jpf-te-3col');
+                editor.classList.toggle('is-advanced', ed.view === 'advanced');
+                editor.classList.toggle('jpf-te-3col', three);
+                // A heading that no longer folds is not a stop on the way round.
+                Array.prototype.forEach.call(page.querySelectorAll('#teAdvancedFields details.jpf-te-group > summary'), function (s) {
+                    if (three) s.setAttribute('tabindex', '-1'); else s.removeAttribute('tabindex');
+                });
+                if (three) themeSelectGroup(page, ed.group);
+                // Leaving three columns puts the folds back as the viewer (or the search) had them.
+                else if (was) themeFilterAdvanced(page);
+                if (page._themeStick) page._themeStick.onMove();
+            }
+
+            /// Selects a group: its fields show in the right column, its entry is marked in the
+            /// outline. A group hidden by the search cannot be selected; the first that is not
+            /// takes its place. Without three columns this only records the choice.
+            function themeSelectGroup(page, key) {
+                const ed = page._themeEditor;
+                if (!ed) return;
+                const groups = Array.prototype.slice.call(page.querySelectorAll('#teAdvancedFields details.jpf-te-group'));
+                const shown = groups.filter(function (g) { return !g.classList.contains('jpf-hidden'); });
+                const pick = shown.filter(function (g) { return g.getAttribute('data-group') === key; })[0] || shown[0];
+                if (!pick) return;
+                ed.group = pick.getAttribute('data-group');
+                groups.forEach(function (g) { g.classList.toggle('is-selected', g === pick); });
+                // Only the selected group is open while the columns show one; applyThemeColumns
+                // puts the viewer's folds back on the way out.
+                if (themeThreeCol(page)) groups.forEach(function (g) { g.open = g === pick; });
+                Array.prototype.forEach.call(page.querySelectorAll('#teOutline .jpf-te-opt'), function (b) {
+                    const on = b.getAttribute('data-outline') === ed.group;
+                    b.classList.toggle('is-selected', on);
+                    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+                    const g = groups.filter(function (x) { return x.getAttribute('data-group') === b.getAttribute('data-outline'); })[0];
+                    b.classList.toggle('jpf-hidden', !!g && g.classList.contains('jpf-hidden'));
+                });
             }
 
             const THEME_GROUPS_KEY = 'bonfire-theme-groups';
@@ -6640,6 +6776,7 @@
                 });
                 if (!group) return;
                 group.open = true;
+                if (themeThreeCol(page)) themeSelectGroup(page, group.getAttribute('data-group'));
                 if (group.scrollIntoView) group.scrollIntoView({ block: 'start' });
                 const summary = group.querySelector('summary');
                 if (summary && summary.focus) summary.focus();
@@ -6659,6 +6796,7 @@
                     b.setAttribute('aria-selected', on ? 'true' : 'false');
                 });
                 fillThemeEditor(page);
+                applyThemeColumns(page);
                 showThemeProblems(page);
             }
 
@@ -6815,6 +6953,10 @@
                         field.appendChild(msg);
                     });
                 });
+                Array.prototype.forEach.call(page.querySelectorAll('#teAdvancedFields details.jpf-te-has-problem'), function (g) {
+                    const b = page.querySelector('#teOutline .jpf-te-opt[data-outline="' + g.getAttribute('data-group') + '"]');
+                    if (b) b.classList.add('jpf-te-has-problem');
+                });
                 page.querySelector('#teProblems').innerHTML = ed.checkFailed
                     ? '<div class="jpf-error">' + escapeHtml(t('admin.themes.checkFailed')) + '</div>'
                     : themeProblemsHtml(problems);
@@ -6840,6 +6982,8 @@
                 }
                 if (!first) return;
                 for (let g = first.closest('details'); g; g = g.parentNode && g.parentNode.closest ? g.parentNode.closest('details') : null) g.open = true;
+                const own = first.closest('details.jpf-te-group');
+                if (own && themeThreeCol(page)) themeSelectGroup(page, own.getAttribute('data-group'));
                 try { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { first.scrollIntoView(); }
             }
 
@@ -7730,6 +7874,10 @@
                         if (!wide.matches && page._themeEditor && page._themeEditor.view === 'advanced') setThemeEditorView(page, 'simple');
                     };
                     if (wide.addEventListener) wide.addEventListener('change', narrowed); else if (wide.addListener) wide.addListener(narrowed);
+                    // Crossing 1280 px with Advanced open changes the columns, not the view.
+                    const three = window.matchMedia('(min-width: 1280px)');
+                    const recolumn = function () { applyThemeColumns(page); };
+                    if (three.addEventListener) three.addEventListener('change', recolumn); else if (three.addListener) three.addListener(recolumn);
                 }
                 page.querySelector('#teExpand').addEventListener('click', function () { openThemeExpanded(page); });
                 page.querySelector('#teCount').addEventListener('click', function () { jumpToThemeProblem(page); });

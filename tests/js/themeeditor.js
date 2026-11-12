@@ -56,6 +56,14 @@ async function main() {
     }
     const s = await fixture.start(0, { dashboard: process.argv[2] || undefined });
     const c = await chrome.launch();
+    // These checks are about the editor in two columns, which is what it is from 900 to 1279 px.
+    // At the desktop's 1440 it is three (tests/js/themecolumns.js), so the page is held at 1200.
+    const open0 = c.open;
+    c.open = async function (url, device, o) {
+        const r = await open0(url, device, o);
+        if (device === 'desktop') await c.page('Emulation.setDeviceMetricsOverride', { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false });
+        return r;
+    };
     try {
         await c.open('http://127.0.0.1:' + s.port + '/dashboard?tab=look&device=desktop&theme=dark', 'desktop');
         await c.evaluate("[].slice.call(document.querySelectorAll('details')).forEach(function(d){ if (d.querySelector('#themeEditor')) d.open = true; })");
