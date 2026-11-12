@@ -264,6 +264,15 @@ s1 = Eval(both, london, 50 * 60, null, Utc(2026, 11, 4, 19, 55));
 Ok("whichever ends first binds: 5 minutes of hours before 10 of limit", (string)Get(s1, "Binding") == "hours"
    && (int?)Get(s1, "MinutesLeft") == 5, Show(s1));
 
+// Audit (wave 4). A spent limit is spent for the day: a second window later today does not
+// reopen it, tomorrow's first does.
+var twoWindows = Rules(true, 60, null, Window(Weekdays, "15:00", "17:00"), Window(Weekdays, "19:00", "20:00"));
+s1 = Eval(twoWindows, london, 60 * 60, null, Utc(2026, 11, 4, 16));
+Ok("limit spent in the first window: not open again at the second, but tomorrow", !Bool(s1, "Allowed")
+   && (string)Get(s1, "Reason") == "limit" && (DateTime?)Get(s1, "NextStartUtc") == Utc(2026, 11, 5, 15), Show(s1));
+Ok("a clock that reads negative usage bills nothing",
+   (int)Get(Eval(both, london, -120, null, Utc(2026, 11, 4, 16)), "UsedMinutes") == 0);
+
 s1 = Eval(school, london, 0, Utc(2026, 11, 4, 21, 30), Utc(2026, 11, 4, 21));
 Ok("extra time opens it outside the hours, for exactly that long", Bool(s1, "Allowed") && (string)Get(s1, "Binding") == "extra"
    && (int?)Get(s1, "MinutesLeft") == 30 && (DateTime?)Get(s1, "UntilUtc") == Utc(2026, 11, 4, 21, 30), Show(s1));
@@ -611,6 +620,14 @@ Ok("a download of the original file is playback", Kind("/Items/" + item + "/Down
 Ok("but not what an item page reads", Kind("/Items/" + item + "/Images/Primary") == "None"
    && Kind("/Items/" + item + "/Similar") == "None" && Kind("/Items/" + item + "/Download/x") == "None"
    && Kind("/Items/not-a-guid/Download") == "None");
+// Audit (wave 4). ASP.NET routes are case-insensitive, so a lower-case route is the same one,
+// and a player that lower-cases the path must not walk past the gate.
+Ok("the routes are matched whatever the case",
+   Kind("/videos/" + item + "/stream.mkv") == "VideoStream" && Kind("/VIDEOS/" + item + "/main.m3u8") == "VideoStream"
+   && Kind("/items/" + item + "/playbackinfo") == "PlaybackInfo" && Kind("/ITEMS/" + item + "/FILE") == "Download");
+// Only an item's own routes: the transcode housekeeping under /Videos is not playback.
+Ok("a /Videos route that names no item is not playback",
+   Kind("/Videos/ActiveEncodings") == "None" && Kind("/Videos/not-a-guid/stream") == "None");
 // A trailing slash is the same route to ASP.NET (R-1020).
 Ok("a trailing slash changes nothing", Kind("/Items/" + item + "/PlaybackInfo/") == "PlaybackInfo"
    && Kind("/Items/" + item + "/Download/") == "Download" && Kind("/Videos/" + item + "/stream.mkv//") == "VideoStream"
