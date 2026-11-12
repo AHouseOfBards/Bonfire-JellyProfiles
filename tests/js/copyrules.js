@@ -108,7 +108,9 @@ const SRC = L.readProfiles();
         ok('choosing a profile enables the button', btn.disabled === false);
         btn.click();
         await settle();
-        ok('it asks first, naming both profiles', confirms.length === 1 && /Kid/.test(confirms[0].message) && /Sib &lt;b&gt;/.test(confirms[0].message), JSON.stringify(confirms));
+        // showConfirmDialog escapes the message itself (r2-24-03, held by dialogescape.js), so
+        // the name arrives raw here; an escaped one would show as "&lt;b&gt;" on screen.
+        ok('it asks first, naming both profiles', confirms.length === 1 && /Kid/.test(confirms[0].message) && /Sib <b>/.test(confirms[0].message) && !/&lt;|&amp;/.test(confirms[0].message), JSON.stringify(confirms));
         const sent = posts.filter(p => /copy-rules/.test(p.url));
         ok('and sends one request to copy-rules', sent.length === 1, posts.map(p => p.url).join(','));
         ok('with the source, the target and the main PIN', sent.length === 1

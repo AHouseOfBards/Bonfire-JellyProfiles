@@ -368,31 +368,45 @@ Console.WriteLine("── A PIN upgrade does not hash while holding ConfigLock (
 
     var legacy = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
         System.Text.Encoding.UTF8.GetBytes("1234"))).ToLowerInvariant();
-    double worst = 0;
-    var stop = false;
-    var watcher = new Thread(() =>
-    {
-        var sw = new System.Diagnostics.Stopwatch();
-        while (!Volatile.Read(ref stop))
-        {
-            sw.Restart();
-            lock (cfgLock) { }
-            worst = Math.Max(worst, sw.Elapsed.TotalMilliseconds);
-            Thread.Sleep(1);
-        }
-    });
-    watcher.Start();
+    // Only a wait on a lock someone else holds is timed (TryEnter failed first), so the
+    // watcher being descheduled on a busy machine is not mistaken for one; timing every
+    // pass failed the net10 gate at 392 ms with three agents and Chrome running. And the
+    // best of three trials is kept: the bug holds the lock for the whole hash in every
+    // trial, so it fails all three, while a one-off stall fails one.
+    double worst = double.MaxValue;
     object lastMapping = null;
-    for (var i = 0; i < 4; i++)
+    for (var trial = 0; trial < 3 && worst >= hashMs / 2; trial++)
     {
-        var m = Activator.CreateInstance(mapType);
-        mapType.GetProperty("PinHash").SetValue(m, legacy);
-        var result = (bool)verify.Invoke(ctl, new object[] { "1234", m });
-        lastMapping = m;
-        if (!result) { fails.Add("VerifyPinAndUpgrade accepted the right PIN"); }
+        double trialWorst = 0;
+        var stop = false;
+        var watcher = new Thread(() =>
+        {
+            var sw = new System.Diagnostics.Stopwatch();
+            while (!Volatile.Read(ref stop))
+            {
+                if (Monitor.TryEnter(cfgLock)) { Monitor.Exit(cfgLock); }
+                else
+                {
+                    sw.Restart();
+                    lock (cfgLock) { }
+                    trialWorst = Math.Max(trialWorst, sw.Elapsed.TotalMilliseconds);
+                }
+                Thread.Sleep(1);
+            }
+        });
+        watcher.Start();
+        for (var i = 0; i < 4; i++)
+        {
+            var m = Activator.CreateInstance(mapType);
+            mapType.GetProperty("PinHash").SetValue(m, legacy);
+            var result = (bool)verify.Invoke(ctl, new object[] { "1234", m });
+            lastMapping = m;
+            if (!result) { fails.Add("VerifyPinAndUpgrade accepted the right PIN"); }
+        }
+        Volatile.Write(ref stop, true);
+        watcher.Join();
+        worst = Math.Min(worst, trialWorst);
     }
-    Volatile.Write(ref stop, true);
-    watcher.Join();
     var upgraded = (string)mapType.GetProperty("PinHash").GetValue(lastMapping);
     Ok("the legacy PIN is upgraded to PBKDF2", upgraded != null && upgraded.StartsWith("pbkdf2.sha256$"));
     Ok("another thread never waited on ConfigLock for the hash (waited " + worst.ToString("F1")
