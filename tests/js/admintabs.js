@@ -90,6 +90,12 @@ ok('the emergency disable code is in Security\'s Advanced, and the PINs are not'
 ok('the starter avatars, picture quality and server-folder copy are in Look\'s Advanced',
    ['enableStarterAvatars', 'profileImageQuality', 'avatarScanPath', 'avatarScanBtn'].every(id => inFold('look', id))
    && !inFold('look', 'disallowCustomAvatars') && !inFold('look', 'avatarUploadBtn'));
+// Owner, 1.9.0.4 eye test: the "Where profiles are managed" note moves from Status to
+// Troubleshoot, with its wording and its keys.
+ok('the "Where profiles are managed" note is on Troubleshoot, not Status',
+   (panels.troubleshoot || '').indexOf('data-i18n="admin.status.whereTitle"') !== -1
+   && (panels.troubleshoot || '').indexOf('data-i18n="admin.status.whereBody"') !== -1
+   && (panels.status || '').indexOf('admin.status.where') === -1);
 // Owner, 1.9.0.4 eye test: "Save code" then the page Save, stacked after the emergency
 // section, read as a duplicate, and the page Save sat after a section it does not save.
 // The PIN settings' Save now follows the last PIN setting directly, and the code's own

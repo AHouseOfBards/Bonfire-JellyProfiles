@@ -885,10 +885,6 @@
                     <h3 class="jpf-gs-title" data-i18n="admin.gs.title">Getting started</h3>
                     <div class="jpf-checks" id="gettingStarted"></div>
                 </div>
-                <div class="jpf-note jpf-mt-3">
-                    <strong class="jpf-label-block" data-i18n="admin.status.whereTitle">Where profiles are managed</strong>
-                    <span data-i18n="admin.status.whereBody">Each household manages its own profiles from the Jellyfin home screen. This page sets what they're allowed to do.</span>
-                </div>
             </div><!-- /status -->
 
             <!-- ── Households ─────────────────────────────────────────────────────── -->
@@ -1600,6 +1596,12 @@
 
             <!-- ── Troubleshoot ───────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelTroubleshoot" data-panel="troubleshoot" role="tabpanel" aria-labelledby="jpfTabTroubleshoot" hidden>
+                <!-- Was at the foot of Status; moved here by the owner (1.9.0.4 eye test).
+                     The keys keep their admin.status. names so no translation is lost. -->
+                <div class="jpf-note">
+                    <strong class="jpf-label-block" data-i18n="admin.status.whereTitle">Where profiles are managed</strong>
+                    <span data-i18n="admin.status.whereBody">Each household manages its own profiles from the Jellyfin home screen. This page sets what they're allowed to do.</span>
+                </div>
                 <div class="sectionTitleContainer jpf-section" id="jpfFaq">
                     <h2 class="sectionTitle" data-i18n="admin.help.title">Common problems</h2>
                 </div>
