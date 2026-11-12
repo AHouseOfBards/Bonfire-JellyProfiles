@@ -445,16 +445,19 @@
     #profilesConfigurationPage .jpf-te-pop.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-te-expand { display: block; margin: 8px auto 0; }
     /* The expanded preview: the profile picker's own classes under the theme being edited
-       (data-jpf-theme), so Bonfire's stylesheet draws it. It sits inside the page and is
-       sized by script (positionThemeExpanded) to the part of the page that is on screen,
-       below Jellyfin's header. The gate rules below are the real overlay's, under another id:
-       the real id is the client's, and its route poll would take a copy of it down. */
-    #profilesConfigurationPage .jpf-te-xwrap { position: absolute; left: 0; width: 100%; z-index: 40; overflow: hidden; }
+       (data-jpf-theme), so Bonfire's stylesheet draws it. One fixed layer over the whole
+       window, Jellyfin's header included, as the real picker is. It was absolute inside the
+       page and sized to the part of it on screen; on a live server that drew it at the top
+       of the page with the dashboard showing under it. positionThemeExpanded corrects for an
+       ancestor that makes fixed relative to itself. The gate rules below are the real
+       overlay's, under another id: the real id is the client's, and its route poll would
+       take a copy of it down. */
+    #profilesConfigurationPage .jpf-te-xwrap { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1100; overflow: hidden; }
     #profilesConfigurationPage #teExpandGate {
         position: relative; width: 100%; height: 100%; box-sizing: border-box;
         display: flex; align-items: center; justify-content: center; overflow-y: auto;
         background: var(--jpf-gate-bg); color: var(--jpf-text-1); font-family: var(--jpf-font);
-        padding: 2rem 0;
+        padding: 2rem 0; overscroll-behavior: contain;
     }
     #profilesConfigurationPage #teExpandGate button { font-family: inherit; }
     #profilesConfigurationPage .jpf-te-xclose { position: absolute; top: 10px; right: 10px; margin: 0; z-index: 2; }
@@ -5218,17 +5221,33 @@
                     '</div>';
             }
 
-            /// Sizes the view to the part of the page on screen: from the page's own top or the
-            /// bottom of Jellyfin's header, whichever is lower, to the foot of the window.
+            /// Fits the fixed layer to the window. An ancestor with a transform or a filter makes
+            /// position: fixed relative to itself, so the box is measured and moved by however
+            /// far it landed from the window's corner.
             function positionThemeExpanded(page) {
                 const x = page._themeExpand;
                 if (!x) return;
-                const pr = page.getBoundingClientRect();
-                const header = document.querySelector('.skinHeader');
-                const top = Math.max(pr.top, header ? header.getBoundingClientRect().bottom : 0);
-                const bottom = Math.min(pr.bottom, window.innerHeight);
-                x.wrap.style.top = Math.round(top - pr.top) + 'px';
-                x.wrap.style.height = Math.max(0, Math.round(bottom - top)) + 'px';
+                const s = x.wrap.style;
+                s.top = '0px'; s.left = '0px';
+                s.width = window.innerWidth + 'px'; s.height = window.innerHeight + 'px';
+                const r = x.wrap.getBoundingClientRect();
+                if (Math.abs(r.top) > 0.5) s.top = Math.round(-r.top) + 'px';
+                if (Math.abs(r.left) > 0.5) s.left = Math.round(-r.left) + 'px';
+            }
+
+            /// Where the page and everything around it is scrolled, to put back on closing.
+            function themeScrollPositions(page) {
+                const out = [{ el: null, top: window.pageYOffset, left: window.pageXOffset }];
+                for (let e = page; e && e !== document.documentElement; e = e.parentElement) {
+                    if (e.scrollTop || e.scrollLeft) out.push({ el: e, top: e.scrollTop, left: e.scrollLeft });
+                }
+                return out;
+            }
+
+            function restoreThemeScroll(list) {
+                (list || []).forEach(function (p) {
+                    if (p.el) { p.el.scrollTop = p.top; p.el.scrollLeft = p.left; } else window.scrollTo(p.left, p.top);
+                });
             }
 
             /// Writes the editor's sheet for the view. Called with the text renderThemeDraftPreview
@@ -5286,8 +5305,12 @@
                 window.removeEventListener('resize', x.onMove);
                 if (x.wrap.parentNode) x.wrap.parentNode.removeChild(x.wrap);
                 if (x.style.parentNode) x.style.parentNode.removeChild(x.style);
-                if (x.madeRelative) page.style.position = '';
-                if (restoreFocus) { const b = page.querySelector('#teExpand'); if (b) b.focus(); }
+                if (restoreFocus) {
+                    const b = page.querySelector('#teExpand');
+                    // preventScroll is Chrome 64; the scroll is put back after it either way.
+                    if (b) { try { b.focus({ preventScroll: true }); } catch (e) { b.focus(); } }
+                }
+                restoreThemeScroll(x.scroll);
             }
 
             function openThemeExpanded(page) {
@@ -5301,9 +5324,7 @@
                 const style = document.createElement('style');
                 style.id = 'jpfThemeExpandCss';
                 document.head.appendChild(style);
-                // Positioned against the page, which Jellyfin may or may not have positioned.
-                const x = { wrap: wrap, style: style, madeRelative: getComputedStyle(page).position === 'static' };
-                if (x.madeRelative) page.style.position = 'relative';
+                const x = { wrap: wrap, style: style, scroll: themeScrollPositions(page) };
                 page.appendChild(wrap);
                 page._themeExpand = x;
                 x.onKey = function (e) {

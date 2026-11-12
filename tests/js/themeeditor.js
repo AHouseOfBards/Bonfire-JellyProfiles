@@ -264,17 +264,32 @@ async function expandChecks(c, s) {
         // Jellyfin's own header: fixed along the top, outside the plugin's page.
         await c.evaluate("(function(){ var h = document.createElement('div'); h.className = 'skinHeader'; h.style.cssText = 'position:fixed;top:0;left:0;right:0;height:56px;z-index:50;background:#333'; document.body.appendChild(h); })()");
         ok('the preview card has an Expand button' + tag, await c.evaluate("!!document.getElementById('teExpand') && !" + X));
+        // Pressed with the page scrolled well past the editor's top, the way an administrator
+        // reaches it in Advanced. It drew at the top of the page with the dashboard showing
+        // under it (owner's screenshot, 1.9.0.4-beta). It is now one fixed layer over the
+        // whole window, Jellyfin's header included, and the page stays where it was.
+        await c.evaluate("document.getElementById('teCancel').scrollIntoView({block:'end'})");
+        await wait(100);
+        const before = await c.evaluate('window.pageYOffset');
+        await c.evaluate("document.getElementById('teExpand').click()");
+        await wait(300);
+        const x = await c.evaluate("(function () { var g = " + X + "; if (!g) return null; var r = g.getBoundingClientRect(), w = window.innerWidth, h = window.innerHeight;" +
+            "var pts = [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3], [w / 2, h / 2], [w / 2, 20]];" +
+            "var mine = pts.filter(function (p) { var e = document.elementFromPoint(p[0], p[1]); return !!(e && g.contains(e)); }).length;" +
+            "return { l: Math.round(r.left), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), vw: w, vh: h, mine: mine, of: pts.length }; })()");
+        ok('Expand shows the expanded view' + tag, !!x, 'no #teExpanded');
+        if (!x) continue;
+        ok('it is the size of the window, wherever the page is scrolled' + tag,
+            Math.abs(x.l) <= 1 && Math.abs(x.t) <= 1 && Math.abs(x.w - x.vw) <= 1 && Math.abs(x.h - x.vh) <= 1, JSON.stringify(x));
+        ok('and nothing of the page shows at its corners, its middle or under the header' + tag, x.mine === x.of, JSON.stringify(x));
+        await c.evaluate("document.querySelector('#teExpanded .jpf-te-xclose').click()");
+        await wait(100);
+        const after = await c.evaluate('window.pageYOffset');
+        ok('closing it leaves the page scrolled where it was' + tag, before > 0 && Math.abs(after - before) <= 1, before + ' -> ' + after);
+        ok('with focus on Expand' + tag, await c.evaluate("document.activeElement === document.getElementById('teExpand')"));
         await c.evaluate("document.getElementById('teExpand').scrollIntoView({block:'center'})");
         await c.evaluate("document.getElementById('teExpand').click()");
         await wait(300);
-        const x = await c.evaluate("(function () { var g = " + X + "; if (!g) return null; var r = g.getBoundingClientRect(), p = document.getElementById('profilesConfigurationPage').getBoundingClientRect(), h = document.querySelector('.skinHeader').getBoundingClientRect();" +
-            "var mid = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2), top = document.elementFromPoint(window.innerWidth / 2, 20);" +
-            "return { l: r.left, t: r.top, r: r.right, b: r.bottom, pl: p.left, pr: p.right, hb: h.bottom, vh: window.innerHeight, midIn: !!(mid && g.contains(mid)), headerIsHeader: !!(top && top.closest('.skinHeader')) }; })()");
-        ok('Expand shows the expanded view' + tag, !!x, 'no #teExpanded');
-        if (!x) continue;
-        ok('it covers the settings page and nothing outside it' + tag,
-            x.l >= x.pl - 1 && x.r <= x.pr + 1 && x.r - x.l >= x.pr - x.pl - 2 && x.t >= x.hb - 1 && x.b >= Math.min(x.vh, 100000) - 1 && x.midIn, JSON.stringify(x));
-        ok('and leaves Jellyfin\'s header uncovered' + tag, x.headerIsHeader, JSON.stringify(x));
         const parts = await c.evaluate("({ cards: document.querySelectorAll('#teExpanded .profile-card').length, add: document.querySelectorAll('#teExpanded .action-add-profile').length," +
             "title: !!document.querySelector('#teExpanded .profiles-title'), buttons: document.querySelectorAll('#teExpanded .profiles-btn').length })");
         ok('it shows sample profiles, the add tile, the title and the buttons' + tag, parts.cards >= 4 && parts.add === 1 && parts.title && parts.buttons >= 1, JSON.stringify(parts));
