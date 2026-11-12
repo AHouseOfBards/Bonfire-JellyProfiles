@@ -324,7 +324,11 @@ namespace Jellyfin.Profiles.Auth
                 // A PIN, an empty box or a switch refreshes, never makes a device known.
                 // A sign-in with no note at all (SSO's own endpoint) counts as a password
                 // one. See RequestDevice.MayMakeDeviceKnown.
-                var mayGrant = RequestDevice.MayMakeDeviceKnown();
+                var mayGrant = RequestDevice.MayMakeDeviceKnown()
+                    // A profile approving a Quick Connect code vouches for a device its household
+                    // never signed in on. A main account approving is a real sign-in (Android TV).
+                    && !(RequestDevice.IsQuickConnectAuthorize
+                         && config.Mappings.Any(m => m.ProfileUserId == session.UserId && m.MasterUserId != m.ProfileUserId));
 
                 DeviceRegistry.RecordSightingAndSave(
                     session.DeviceId,

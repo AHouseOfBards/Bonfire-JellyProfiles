@@ -203,6 +203,12 @@ namespace Jellyfin.Profiles
                 // record. Started in a helper it would not flow back out.
                 Auth.RequestDevice.BeginSignIn();
             }
+            else if (Auth.QuickConnectAuthorize.IsAuthorizePath(context.Request.Method, context.Request.Path.Value))
+            {
+                // Jellyfin creates the approved device's session inside this request, so the
+                // session listener reads this note. See RequestDevice.BeginQuickConnectAuthorize.
+                Auth.RequestDevice.BeginQuickConnectAuthorize();
+            }
 
             // Closed for maintenance: anyone but an administrator is answered here. Before the
             // picker, so an app on it is closed too. One field read when it is off.

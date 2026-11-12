@@ -224,6 +224,25 @@ Console.WriteLine("── Only a password makes a device known ─────�
     Ok("and a PIN sign-in there afterwards keeps it", DeviceOwnedBy("pw-tv", MAIN));
 }
 
+Console.WriteLine();
+Console.WriteLine("── A Quick Connect approval (R2-01-01) ─────────────────────────");
+{
+    // Jellyfin creates the session inside the approver's own POST /QuickConnect/Authorize;
+    // the middleware starts this note for it. A profile approving a code for a device the
+    // household never signed in on must not make that device known; a main account may.
+    var rd = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", true);
+    var qc = rd.GetMethod("BeginQuickConnectAuthorize", BindingFlags.Public | BindingFlags.Static);
+    Ok("a Quick Connect note exists to start", qc != null);
+
+    qc?.Invoke(null, null);
+    Raise("SessionStarted", Session("s-qc1", "qc-foreign", KID));
+    Ok("a profile approving a code does not make the device known", !DeviceKnown("qc-foreign"));
+
+    qc?.Invoke(null, null);
+    Raise("SessionStarted", Session("s-qc2", "qc-tv", MAIN));
+    Ok("a main account approving a code still does", DeviceOwnedBy("qc-tv", MAIN));
+}
+
 ((Microsoft.Extensions.Hosting.IHostedService)listener).StopAsync(CancellationToken.None).GetAwaiter().GetResult();
 Ok("stopping unsubscribes from both", world.Handlers.Values.All(l => l.Count == 0));
 

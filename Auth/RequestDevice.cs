@@ -114,6 +114,20 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         public static bool MayMakeDeviceKnown() => SignIn?.ByPin != true;
 
+        /// <summary>
+        /// Starts a note for a Quick Connect authorize. Jellyfin makes the session inside the
+        /// approver's own request, so the session listener sees it with this note: a code
+        /// approved by a profile is the profile vouching for a device the household has never
+        /// signed in on, which must not make that device known (R2-01-01).
+        /// </summary>
+        public static void BeginQuickConnectAuthorize()
+        {
+            _signIn.Value = new SignInNote { QuickConnect = true };
+        }
+
+        /// <summary>True when the current request is a Quick Connect authorize.</summary>
+        public static bool IsQuickConnectAuthorize => SignIn?.QuickConnect == true;
+
         /// <summary>Marks the current sign-in as one a PIN, an empty box or a switch let in.</summary>
         public static void NoteNotByPassword()
         {
@@ -126,6 +140,9 @@ namespace Jellyfin.Profiles.Auth
     public sealed class SignInNote
     {
         private volatile bool _byPin;
+
+        /// <summary>True when this note is a Quick Connect authorize, not a sign-in request.</summary>
+        public bool QuickConnect { get; set; }
 
         /// <summary>
         /// True when a PIN, a PIN-less profile or a profile switch let this sign-in in rather
