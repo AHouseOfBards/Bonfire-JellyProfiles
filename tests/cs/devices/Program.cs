@@ -380,6 +380,23 @@ Console.WriteLine("── One device that got a new id is one row ────�
         if (forgetScreens != null) forgetScreens.Invoke(null, null);
     }
 
+    // 1c. R2-02-02: a household at its row cap gives up its oldest unlisted row for a new
+    //     device instead of refusing it, and an allow-listed row is never the one to go.
+    {
+        var cap = (int)registry.GetField("MaxDevicesPerHousehold", Any).GetRawConstantValue();
+        var h = Household(1);
+        var allow = (IList)mappingType.GetProperty("AllowedDeviceIds")
+            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h.Cfg))[0]);
+        for (var i = 0; i < cap; i++) See(h.Cfg, "minted-" + i.ToString("D4") + "-xxxxxxxx", "Box " + i, TV, h.Master, t0.AddMinutes(i));
+        allow.Add("minted-0000-xxxxxxxx");
+        Ok("the household is at its cap (" + h.List.Count + ")", h.List.Count == cap);
+        See(h.Cfg, "real-device-yyyyyyyy", "Real TV", TV, h.Master, t0.AddDays(1));
+        Ok("a new device is still recorded at the cap (" + h.List.Count + ")",
+           Ids(h.List).Contains("real-device-yyyyyyyy") && h.List.Count == cap);
+        Ok("the oldest row on a device list stays", Ids(h.List).Contains("minted-0000-xxxxxxxx"));
+        Ok("the oldest row nothing depends on went", !Ids(h.List).Contains("minted-0001-xxxxxxxx"));
+    }
+
     // 2. One television, four accounts: four derived ids in use side by side. The time rule
     //    cannot join these; the derivation can, once the set's own id has been seen.
     {

@@ -717,9 +717,39 @@ namespace Jellyfin.Profiles.Auth
             {
                 // A new row is bounded, per household and overall, so a signed-in account
                 // cannot grow a file that is rewritten whole on every save.
-                if (config.KnownDevices.Count >= MaxKnownDevices
-                    || (ownerId != Guid.Empty && config.KnownDevices.Count(d => d.OwnedBy(ownerId)) >= MaxDevicesPerHousehold))
+                //
+                // A household at its cap gives up its oldest row nobody depends on instead of
+                // refusing the new device (R2-02-02): a household that fills its 200 rows
+                // with ids it minted would otherwise never record a real device again, and
+                // nothing said so.
+                if (ownerId != Guid.Empty && config.KnownDevices.Count(d => d.OwnedBy(ownerId)) >= MaxDevicesPerHousehold)
                 {
+                    var allowed = (config.Mappings ?? new List<ProfileMapping>())
+                        .SelectMany(m => m.AllowedDeviceIds ?? new List<string>())
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .ToList();
+                    var oldest = config.KnownDevices
+                        .Where(d => d.MasterUserId == ownerId
+                                    && (d.Owners ?? new List<Guid>()).All(o => o == ownerId)
+                                    && !allowed.Any(id => d.Answers(id)))
+                        .OrderBy(d => d.LastSeen)
+                        .FirstOrDefault();
+                    if (oldest == null)
+                    {
+                        logger?.LogWarning(
+                            "ProfilesPlugin: a household is at its limit of {Max} devices and every one is on a device list, so {DeviceId} was not recorded.",
+                            MaxDevicesPerHousehold, deviceId);
+                        return false;
+                    }
+
+                    config.KnownDevices.Remove(oldest);
+                }
+
+                if (config.KnownDevices.Count >= MaxKnownDevices)
+                {
+                    logger?.LogWarning(
+                        "ProfilesPlugin: the server is at its limit of {Max} known devices, so {DeviceId} was not recorded.",
+                        MaxKnownDevices, deviceId);
                     return false;
                 }
 
