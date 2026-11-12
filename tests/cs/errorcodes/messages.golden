@@ -62,6 +62,7 @@ BadRequest|invalid_request|Pick two different profiles.
 BadRequest|invalid_request|Picture quality must be '{ImageQualities.Standard}', '{ImageQualities.High}', '{ImageQualities.Maximum}' or '{ImageQualities.Ultra}'.
 BadRequest|invalid_request|Switcher location must be '{SwitcherLocations.Button}' or '{SwitcherLocations.Menu}'.
 BadRequest|invalid_request|That account does not exist.
+BadRequest|invalid_request|That file couldn't be read. Nothing was changed.
 BadRequest|invalid_request|That file does not look like a Bonfire configuration — it has none of the expected sections. Nothing was changed.
 BadRequest|invalid_request|That folder could not be read: 
 BadRequest|invalid_request|That image could not be saved.

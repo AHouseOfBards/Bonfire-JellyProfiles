@@ -3397,7 +3397,7 @@
             }
 
             function importSummary(res) {
-                let msg = t('admin.backup.imported', { profiles: res.mappings, devices: res.devices, bonfires: res.bonfires });
+                let msg = t('admin.backup.imported', { profiles: res.mappings == null ? '-' : res.mappings, devices: res.devices, bonfires: res.bonfires });
                 if (res.droppedMappings && res.droppedMappings.length) {
                     msg += ' ' + t('admin.backup.skipped', {
                         count: res.droppedMappings.length, names: res.droppedMappings.join(', ')

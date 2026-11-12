@@ -477,6 +477,57 @@ Console.WriteLine("── A backup from a version that had settings since cut �
     Ok("and the old field is not written back", !JsonSerializer.Serialize(mapRows).Contains("SwitcherMode"));
 }
 
+// A file with one wrong value, a null section, or ids this server does not have
+// (r2-12-01, 03, 05).
+Console.WriteLine();
+Console.WriteLine("── A damaged or foreign file ────────────────────────────────────");
+{
+    int StatusOf(object r) => r is ObjectResult ro ? (ro.StatusCode ?? 200) : r is StatusCodeResult sr ? sr.StatusCode : -1;
+    string LiveJson(string name) => Json(cfgType.GetProperty(name).GetValue(live));
+    var mapsT = cfgType.GetProperty("Mappings");
+
+    // One mistyped value ("MaxProfilesPerUser": "five") must not turn the file into defaults.
+    Overwrite(live, changed);
+    var before = LiveJson("Mappings") + LiveJson("KnownDevices") + LiveJson("AvatarLibrary");
+    var bad = JsonSerializer.SerializeToElement(new Dictionary<string, object>
+    {
+        ["Mappings"] = new object[0], ["KnownDevices"] = new object[0], ["MaxProfilesPerUser"] = "five",
+    });
+    var badR = importRoute.Invoke(NewController(), new object[] { bad });
+    Ok("a file with one mistyped value is refused", StatusOf(badR) == 400, StatusOf(badR).ToString());
+    Ok("and nothing was changed", before == LiveJson("Mappings") + LiveJson("KnownDevices") + LiveJson("AvatarLibrary") && before.Length > 12);
+
+    // "Email": null does not remove the section.
+    Overwrite(live, changed);
+    var withNull = JsonSerializer.SerializeToElement(new Dictionary<string, object>
+    {
+        ["Mappings"] = new object[0], ["Email"] = null, ["Onboarding"] = null, ["Maintenance"] = null,
+    });
+    var nullR = importRoute.Invoke(NewController(), new object[] { withNull });
+    Ok("a file with null sections is accepted", StatusOf(nullR) == 200, StatusOf(nullR).ToString());
+    Ok("and null does not remove Email, Onboarding or Maintenance",
+       cfgType.GetProperty("Email").GetValue(live) != null && cfgType.GetProperty("Onboarding").GetValue(live) != null
+       && cfgType.GetProperty("Maintenance").GetValue(live) != null);
+
+    // Account ids this server does not have are dropped from the sections copied whole, and a
+    // file without Mappings does not claim it restored 0.
+    var ghost = Guid.NewGuid();
+    Overwrite(live, Defaults());
+    var foreign = JsonSerializer.SerializeToElement(new Dictionary<string, object>
+    {
+        ["KnownDevices"] = new object[0],
+        ["HouseholdsSeenLocally"] = new object[] { ghost, MASTER },
+        ["Onboarding"] = new { Seen = new object[] { new { UserId = ghost, Generation = 1 }, new { UserId = MASTER, Generation = 1 } } },
+    });
+    var foreignR = JsonSerializer.SerializeToElement(((ObjectResult)importRoute.Invoke(NewController(), new object[] { foreign })).Value);
+    var seenLocally = ((IList)cfgType.GetProperty("HouseholdsSeenLocally").GetValue(live)).Cast<Guid>().ToList();
+    Ok("a household id this server does not have is dropped, a real one kept", seenLocally.SequenceEqual(new[] { MASTER }), string.Join(",", seenLocally));
+    var seenRows = (IList)cfgType.GetProperty("Onboarding").GetValue(live).GetType().GetProperty("Seen").GetValue(cfgType.GetProperty("Onboarding").GetValue(live));
+    Ok("and so is an onboarding record for one", seenRows.Count == 1, seenRows.Count.ToString());
+    Ok("a file without Mappings reports none, not zero",
+       foreignR.TryGetProperty("mappings", out var mp) && mp.ValueKind == JsonValueKind.Null, foreignR.GetRawText());
+}
+
 // A backup holds the names of pictures, not the pictures (R-1150): like a font or the logo,
 // a profile picture or a library avatar whose file is not on this server is dropped, and
 // one whose file is there is kept.

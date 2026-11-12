@@ -1773,7 +1773,12 @@ namespace Jellyfin.Profiles.Controllers
                     + "expected sections. Nothing was changed.");
             }
 
-            var incoming = Read<PluginConfiguration>(root) ?? new PluginConfiguration();
+            // A value of the wrong type anywhere (a number where a list goes) makes the whole
+            // read fail, and substituting a default configuration there would write
+            // emptiness over every section. Refuse instead. r2-12-01.
+            var incoming = Read<PluginConfiguration>(root);
+            if (incoming == null)
+                return BadRequest("That file couldn't be read. Nothing was changed.");
 
             // Anything absent from the file keeps its current value rather than being reset,
             // so a partial or older export cannot silently clear a setting it predates.
@@ -1840,8 +1845,14 @@ namespace Jellyfin.Profiles.Controllers
                         .GroupBy(l => (l.HouseholdId, l.UserId)).Select(g => g.First())
                         .ToList();
                 }
-                if (hasDevices) config.KnownDevices = incoming.KnownDevices;
-                if (hasLimits) config.UserProfileLimitOverrides = incoming.UserProfileLimitOverrides;
+                if (hasDevices)
+                {
+                    config.KnownDevices = incoming.KnownDevices;
+                    foreach (var d in config.KnownDevices ?? new List<KnownDevice>())
+                        d?.Owners?.RemoveAll(id => !Exists(id));
+                }
+                if (hasLimits)
+                    config.UserProfileLimitOverrides = (incoming.UserProfileLimitOverrides ?? new List<UserProfileLimitOverride>()).Where(o => o != null && Exists(o.UserId)).ToList();
                 // Only entries whose file is here, and whose id is a plain name: the id is joined
                 // onto a folder path.
                 if (hasAvatars)
@@ -1977,11 +1988,16 @@ namespace Jellyfin.Profiles.Controllers
                 // fields were each added after it was written, none came back from a backup,
                 // and the answer was still "success" (R-1146). Only what is named in
                 // ImportNotRestored stays as the server has it.
+                var nullability = new NullabilityInfoContext();
                 foreach (var property in typeof(PluginConfiguration).GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
                     if (property.DeclaringType != typeof(PluginConfiguration) || !property.CanRead || !property.CanWrite) continue;
                     if (ImportHandledAbove.Contains(property.Name) || ImportNotRestored.Contains(property.Name)) continue;
                     if (!TryProperty(root, property.Name, out _)) continue;
+                    // "Email": null is a file that says nothing, not an instruction to remove
+                    // the section. Only a property declared nullable may be set to null. r2-12-03.
+                    if (property.GetValue(incoming) == null
+                        && nullability.Create(property).WriteState != NullabilityState.Nullable) continue;
                     if (property.Name == nameof(PluginConfiguration.Email)
                         && string.IsNullOrEmpty(incoming.Email?.Password))
                     {
@@ -1995,6 +2011,11 @@ namespace Jellyfin.Profiles.Controllers
                     property.SetValue(config, property.GetValue(incoming));
                 }
 
+                // The sections the loop above copied whole carry account ids too: drop any this
+                // server does not have. r2-12-05.
+                config.HouseholdsSeenLocally?.RemoveAll(id => !Exists(id));
+                config.Onboarding?.Seen?.RemoveAll(r => r == null || !Exists(r.UserId));
+
                 bonfireOn = config.BonfireOn;
                 Plugin.Instance?.SaveConfiguration();
             }
@@ -2007,7 +2028,9 @@ namespace Jellyfin.Profiles.Controllers
 
             return Ok(new
             {
-                mappings = (incoming.Mappings ?? new List<ProfileMapping>()).Count - droppedMappings.Count,
+                // Null when the file had no Mappings section, rather than a 0 that reads as
+                // "restored none".
+                mappings = hasMappings ? (int?)((incoming.Mappings ?? new List<ProfileMapping>()).Count - droppedMappings.Count) : null,
                 droppedMappings,
                 devices = (incoming.KnownDevices ?? new List<KnownDevice>()).Count,
                 bonfires = (incoming.BonfireGroups ?? new List<BonfireGroup>()).Count,
