@@ -3042,7 +3042,11 @@
                     ? (v.binding === 'limit' || v.untilUtc ? this.viewingLine(v) : t('viewing.canWatch'))
                     : this.viewingLine(Object.assign({}, v, { askedUtc: null }));
                 const used = v && v.limitMinutes !== null ? t('viewing.usedToday', { used: v.usedMinutes, limit: v.limitMinutes }) : '';
+                // Two halves: the limits and their note, then the times. Side by side on a wide
+                // form, where Viewing limits spans both columns (.jpf-viewing-split); stacked
+                // in this order on a narrow one, as before.
                 slot.innerHTML = this.renderSection('schedule', t('viewing.title'), t('viewing.subtitle'), `
+                  <div class="jpf-viewing-split"><div class="jpf-viewing-side">
                     ${v ? `<div class="jpf-form-hint jpf-viewing-now">${escapeHtml([now, used].filter(Boolean).join(' · '))}</div>` : ''}
                     ${v && v.askedUtc ? `<div class="jpf-form-hint jpf-viewing-asked">${t('viewing.askedHint', { name: escapeHtml(profile.profileName) })}</div>` : ''}
                     ${v && !creating ? `
@@ -3063,6 +3067,7 @@
                         <select id="viewing-weekend">${limitOptions(weekend === null || weekend === undefined ? '' : weekend, true)}</select>
                         <div class="jpf-form-hint">${t('viewing.hint')}</div>
                     </div>
+                  </div><div class="jpf-viewing-side">
                     <div class="jpf-form-group">
                         <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                             <input type="checkbox" id="viewing-hours" ${f(rules, 'hoursEnabled') ? 'checked' : ''} style="accent-color: var(--jpf-accent);" />
@@ -3071,6 +3076,7 @@
                         <div class="jpf-viewing-days" id="viewing-days">${rows}</div>
                         <div class="jpf-form-hint jpf-viewing-nodays" id="viewing-nodays" role="status" hidden style="color: var(--jpf-danger);">${t('viewing.noDays')}</div>
                     </div>
+                  </div></div>
                 `);
 
                 // The seven rows are only there once "hours" is ticked, and the weekend
@@ -6697,7 +6703,15 @@
                 if (dir === 'down'  && dy <  1) return;
 
                 const along  = horizontal ? Math.abs(dx) : Math.abs(dy);
-                const across = horizontal ? Math.abs(dy) : Math.abs(dx);
+                // Up and Down: a control that spans the column we are in is straight above or
+                // below, however far its centre is. Viewing limits and the More row span the
+                // whole form, and by centre alone Down from the right-hand half skipped the
+                // More row for the tag box under it.
+                let across = horizontal ? Math.abs(dy) : Math.abs(dx);
+                // The same from the wide one's side: Down from the More row reaches the first
+                // control of either column, nearest first, not only the one nearer its centre.
+                const cx = r.left + r.width / 2;
+                if (!horizontal && ((fx >= r.left && fx <= r.right) || (cx >= from.left && cx <= from.right))) across = 0;
                 const score = along + across * 3;
                 if (score < bestScore) { bestScore = score; best = el; }
             });
@@ -10093,8 +10107,8 @@
                         </div>
                         <div class="jpf-form-col">
                             ${this.renderSection('video_library', t('profileForm.sectionWatchTitle'), t('profileForm.sectionWatchSubtitle'), createLibraries)}
-                            <div id="create-viewing-slot"></div>
                         </div>
+                        <div id="create-viewing-slot" class="jpf-viewing-slot"></div>
                         ${this.renderMoreSettings('create', [
                             this.renderSection('timer', t('profileForm.sectionLockingTitle'), '',createLocking),
                             this.renderThemeSection('create', null)
@@ -10524,8 +10538,8 @@
                         ${isSub ? `
                         <div class="jpf-form-col">
                             ${this.renderSection('video_library', t('profileForm.sectionWatchTitle'), t('profileForm.sectionWatchSubtitle'), librariesBody)}
-                            <div id="edit-viewing-slot"></div>
                         </div>
+                        <div id="edit-viewing-slot" class="jpf-viewing-slot"></div>
                         ${this.renderMoreSettings('edit', [
                             this.renderSection('timer', t('profileForm.sectionLockingTitle'), '',lockingBody),
                             this.renderThemeSection('edit', profile.theme),
