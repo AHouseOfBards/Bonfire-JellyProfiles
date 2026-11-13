@@ -158,7 +158,14 @@ try
     for (var w = 0; w < 500 && Count(aged) != 2; w++) Thread.Sleep(10);
     Ok("and the file loses it the next time it is written", Count(aged) == 2);
 
-    File.WriteAllText(aged, "[" + Entry("a", DateTime.UtcNow) + "," + Entry("b", DateTime.UtcNow) + "]");
+    // The pruning write above runs off-thread and can still hold the file for a moment after
+    // its contents are on disk (the full gate, 2026-11-13: "being used by another process").
+    // Wait for it to let go; this changes when the harness writes, not what it checks.
+    for (var w = 0; ; w++)
+    {
+        try { File.WriteAllText(aged, "[" + Entry("a", DateTime.UtcNow) + "," + Entry("b", DateTime.UtcNow) + "]"); break; }
+        catch (IOException) when (w < 500) { Thread.Sleep(10); }
+    }
     cacheField.SetValue(null, null);
     Shown(ac);
     if (clear != null) clear.Invoke(ac, null);

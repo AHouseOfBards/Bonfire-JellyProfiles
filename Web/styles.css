@@ -1897,7 +1897,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-onboarding-dots { display: flex; justify-content: center; margin: 0 0 1.25rem 0; }
 .jpf-onboarding-dot {
     display: block; box-sizing: border-box; width: 10px; height: 10px; margin: 0 4px;
-    border-radius: 5px; border: 2px solid var(--jpf-accent); background: transparent; opacity: 0.45;
+    border-radius: 999px; border: 2px solid var(--jpf-accent); background: transparent; opacity: 0.45;
 }
 .jpf-onboarding-dot.is-done { background: var(--jpf-accent); opacity: 0.75; }
 .jpf-onboarding-dot.is-current { width: 28px; background: var(--jpf-accent); opacity: 1; }
