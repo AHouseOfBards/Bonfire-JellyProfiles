@@ -50,6 +50,22 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public ActionResult<IEnumerable<object>> GetProfiles()
         {
+            if (GetCurrentUserId() == null) return Unauthorized();
+            var failed = BuildProfileList(out var list);
+            if (failed != null) return failed;
+
+            // Apps ask for this every time the profile screen opens, and on a television
+            // that is most of what they ask. An unchanged list costs them a 304.
+            return ETagged(list!);
+        }
+
+        /// <summary>
+        /// What <c>/list</c> answers, or the refusal it would give. Shared with
+        /// <c>/startup</c>, so the two cannot disagree about who a caller may see.
+        /// </summary>
+        private ActionResult? BuildProfileList(out List<object>? result)
+        {
+            result = null;
             _logger.LogDebug("ProfilesPlugin: GetProfiles endpoint called.");
 
             // A copy: this route only reads, and walks several lists while another request
@@ -261,9 +277,8 @@ namespace Jellyfin.Profiles.Controllers
                 });
             }
 
-            // Apps ask for this every time the profile screen opens, and on a television
-            // that is most of what they ask. An unchanged list costs them a 304.
-            return ETagged(profileList);
+            result = profileList;
+            return null;
         }
 
         /// <summary>
@@ -4785,8 +4800,14 @@ namespace Jellyfin.Profiles.Controllers
 
             // Revalidated every time, never served stale: one that has just ended, or just
             // started, changes the body and so the tag.
+            return ETagged(BuildAnnouncements());
+        }
+
+        /// <summary>The announcements showing now; shared with <c>/startup</c>.</summary>
+        private object BuildAnnouncements()
+        {
             var all = Plugin.Instance?.Configuration?.Announcements;
-            return ETagged(Configuration.Announcements.Active(all, DateTime.UtcNow).Select(DescribeAnnouncement).ToList());
+            return Configuration.Announcements.Active(all, DateTime.UtcNow).Select(DescribeAnnouncement).ToList();
         }
 
         /// <summary>Every announcement, showing or not, for the settings page.</summary>
@@ -5325,9 +5346,15 @@ namespace Jellyfin.Profiles.Controllers
         public ActionResult<InfoResponse> GetInfo()
         {
             Response.Headers["Cache-Control"] = "no-store";
+            return Ok(BuildInfo());
+        }
+
+        /// <summary>What <c>/info</c> answers; shared with <c>/startup</c>.</summary>
+        private InfoResponse BuildInfo()
+        {
             var config = ReadConfigSnapshot();
 
-            return Ok(new InfoResponse
+            return new InfoResponse
             {
                 Version = GetPluginVersion(),
                 ApiVersion = 2,
@@ -5348,7 +5375,7 @@ namespace Jellyfin.Profiles.Controllers
                 Maintenance = Auth.MaintenanceGate.Active() is MaintenanceMode m
                     ? new InfoMaintenance { Message = m.ShownMessage(), UntilUtc = m.UntilUtc }
                     : null,
-            });
+            };
         }
 
         /// <summary>
@@ -5363,6 +5390,16 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public ActionResult<MeResponse> GetMe()
         {
+            if (GetCurrentUserId() == null) return Unauthorized();
+            var failed = BuildMe(out var me);
+            if (failed != null) return failed;
+            return Ok(me!);
+        }
+
+        /// <summary>What <c>/me</c> answers, or the refusal it would give; shared with <c>/startup</c>.</summary>
+        private ActionResult? BuildMe(out MeResponse? result)
+        {
+            result = null;
             var userId = GetCurrentUserId();
             if (userId == null) return Unauthorized();
             var user = _userManager.GetUserById(userId.Value);
@@ -5373,7 +5410,7 @@ namespace Jellyfin.Profiles.Controllers
             var isProfile = row != null && row.MasterUserId != Guid.Empty && row.MasterUserId != userId.Value;
             var mainId = isProfile ? row!.MasterUserId : userId.Value;
 
-            return Ok(new MeResponse
+            result = new MeResponse
             {
                 UserId = userId.Value,
                 Name = isProfile ? row!.ProfileName : user.Username,
@@ -5385,7 +5422,46 @@ namespace Jellyfin.Profiles.Controllers
                 ProfileCount = config.Mappings.Count(m => m.MasterUserId == mainId && m.ProfileUserId != mainId),
                 MaxProfiles = GetMaxProfilesForUser(mainId, config),
                 PinResetByEmail = !isProfile && PinResetPossible(mainId, config),
-            });
+            };
+            return null;
+        }
+
+        /// <summary>
+        /// Everything a client needs to draw the profile picker, in one request:
+        /// <c>info</c>, <c>profiles</c>, <c>me</c>, <c>themes</c> and <c>announcements</c>.
+        /// <para>
+        /// Each part is built by the code its own route runs, never a second copy, so the two
+        /// cannot drift. If a part would be refused, the whole call is refused the same way:
+        /// a partial body would look like a household with no profiles. Not cached, because
+        /// <c>/info</c> is not.
+        /// </para>
+        /// </summary>
+        [HttpGet("startup")]
+        [Produces("application/json")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult GetStartup()
+        {
+            if (GetCurrentUserId() == null) return Unauthorized();
+
+            var failed = BuildProfileList(out var profiles);
+            if (failed != null) return failed;
+            failed = BuildMe(out var me);
+            if (failed != null) return failed;
+            var themes = BuildThemesPayload(customOnly: false);
+            if (themes == null) return NotFound();
+
+            Response.Headers["Cache-Control"] = "no-store";
+            using var themesDoc = System.Text.Json.JsonDocument.Parse(themes);
+            var body = new
+            {
+                info = BuildInfo(),
+                profiles = profiles!,
+                me = me!,
+                themes = themesDoc.RootElement.Clone(),
+                announcements = BuildAnnouncements(),
+            };
+            return Ok(body);
         }
 
         /// <summary>Whether a code is configured, and whether it has been used this run.</summary>

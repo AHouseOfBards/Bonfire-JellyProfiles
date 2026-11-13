@@ -42,13 +42,14 @@ because other people build against it too.
 
 ## All routes
 
-All 107 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 108 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
 | --- | --- | --- |
 | `GET /plugins/profiles/list` | user | Profiles the caller can switch to. |
 | `GET /plugins/profiles/me` | user | Who the caller is: a profile or a main account, and whose. |
+| `GET /plugins/profiles/startup` | user | `info`, `profiles`, `me`, `themes` and `announcements` in one request. |
 | `GET /plugins/profiles/form-options` | user | What the profile form reads: libraries, rating limits, avatars, time zones. |
 | `POST /plugins/profiles/create` | user | Create a profile. |
 | `POST /plugins/profiles/update` | user | Change a profile. |
@@ -255,6 +256,27 @@ account, a profile or a PIN.
 `maintenance` is null, or `{ "message": "…", "untilUtc": "…" }` while the server is closed:
 see [Maintenance](#maintenance). Sent with
 `no-store`.
+
+### `GET /plugins/profiles/startup`
+
+**Authorisation:** signed-in user. No token, or an API key (which has no user), is `401`.
+
+Everything the profile picker needs, in one request. Each key holds exactly what the
+route of the same name returns for the same caller, built by the same code:
+
+```json
+{
+  "info": { "...": "GET /info" },
+  "profiles": [ "...GET /list" ],
+  "me": { "...": "GET /me" },
+  "themes": { "...": "GET /themes" },
+  "announcements": [ "...GET /announcements" ]
+}
+```
+
+If any part would be refused, the whole call is refused the same way (for example `404`
+when the account can't be found), never a partial body. Sent with `no-store`. The separate
+routes are unchanged, and `/info` stays public for the sign-in screen.
 
 ### Switching
 

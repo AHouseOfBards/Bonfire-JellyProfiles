@@ -25,19 +25,8 @@ namespace Jellyfin.Profiles.Controllers
         [Produces("application/json")]
         public ActionResult GetThemes([FromQuery] string? part = null)
         {
-            // Copied under the lock, built outside it. The payload reads the custom theme and
-            // font lists, which a save can change underneath it, but on a cache miss it
-            // re-checks every custom theme, and an anonymous caller must not make an
-            // administrator's save wait for that.
-            PluginConfiguration snapshot;
-            lock (ConfigLock)
-            {
-                var config = Plugin.Instance?.Configuration;
-                if (config == null) return NotFound();
-                snapshot = config.SnapshotForThemes();
-            }
-
-            var payload = ThemeCatalog.PublicPayload(snapshot, customOnly: part == "custom");
+            var payload = BuildThemesPayload(customOnly: part == "custom");
+            if (payload == null) return NotFound();
 
             var etag = ThemeCatalog.ETagFor(payload);
             Response.Headers["ETag"] = etag;
@@ -50,6 +39,27 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return Content(payload, "application/json", Encoding.UTF8);
+        }
+
+        /// <summary>
+        /// The body <c>/themes</c> sends, or null when there is no configuration (its 404);
+        /// shared with <c>/startup</c>.
+        /// </summary>
+        private string? BuildThemesPayload(bool customOnly)
+        {
+            // Copied under the lock, built outside it. The payload reads the custom theme and
+            // font lists, which a save can change underneath it, but on a cache miss it
+            // re-checks every custom theme, and an anonymous caller must not make an
+            // administrator's save wait for that.
+            PluginConfiguration snapshot;
+            lock (ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null) return null;
+                snapshot = config.SnapshotForThemes();
+            }
+
+            return ThemeCatalog.PublicPayload(snapshot, customOnly);
         }
 
         /// <summary>One font file Bonfire serves, or the licence that comes with it.</summary>
