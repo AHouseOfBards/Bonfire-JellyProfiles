@@ -660,7 +660,7 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>
         /// Sets one profile's theme for the account that owns it: the rule behind
-        /// <c>POST /plugins/profiles/theme</c>, kept here so it can be tested without a server.
+        /// <c>POST /plugins/profiles/update</c>, kept here so it can be tested without a server.
         /// The caller holds <c>ConfigLock</c> and saves. Empty or null means "follow the
         /// server default". Nothing is changed unless the answer is <see cref="ThemeChange.Changed"/>.
         /// </summary>

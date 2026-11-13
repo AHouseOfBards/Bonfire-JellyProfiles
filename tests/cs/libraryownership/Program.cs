@@ -31,7 +31,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 //
 //   - ProfilePolicySync keeps what the account already has, in both lists, and adds nothing;
 //   - it is never in "every library";
-//   - it is not on GET libraries, and not copied on create, update or make-profile.
+//   - it is not on GET form-options libraries, and not copied on create, update or make-profile.
 //
 // Every case below asks one thing on its own, with the real ApplyAsync and the real
 // controller against a modelled Jellyfin. A library owned with AccessManagedByOwner false
@@ -306,18 +306,19 @@ Console.WriteLine("── The library screens and create ───────�
         };
     }
 
-    // GET libraries: the owned ones are not offered, whoever the caller is.
+    // GET form-options libraries: the owned ones are not offered, whoever the caller is.
     Register(false, GT);
-    var listed = Call("GetLibraries", "{}");
+    var formOptions = Call("GetFormOptions", "{}");
+    var listed = (status: formOptions.status, value: formOptions.value?.GetType().GetProperty("Libraries")?.GetValue(formOptions.value));
     var ids = listed.value is IEnumerable e
         ? e.Cast<object>().Select(o => (string)o.GetType().GetProperty("Id").GetValue(o)).ToList()
         : new List<string>();
     string Id(Guid g) => g.ToString("N");
-    Ok("GET libraries answers", listed.status == 200 && ids.Count > 0, listed.status + " " + listed.value);
-    Ok("GET libraries lists an ordinary library", ids.Contains(Id(L1)) && ids.Contains(Id(L2)));
-    Ok("GET libraries does not list a \"For You:\" library", !ids.Contains(Id(FY)), string.Join(",", ids.Select(i => Name(Guid.Parse(i)))));
-    Ok("GET libraries does not list one in a fieldguide- folder", !ids.Contains(Id(FM)));
-    Ok("GET libraries lists a library its owner leaves to the admin (GameTent's Shelf)", ids.Contains(Id(GT)));
+    Ok("GET form-options libraries answers", listed.status == 200 && ids.Count > 0, listed.status + " " + listed.value);
+    Ok("GET form-options libraries lists an ordinary library", ids.Contains(Id(L1)) && ids.Contains(Id(L2)));
+    Ok("GET form-options libraries does not list a \"For You:\" library", !ids.Contains(Id(FY)), string.Join(",", ids.Select(i => Name(Guid.Parse(i)))));
+    Ok("GET form-options libraries does not list one in a fieldguide- folder", !ids.Contains(Id(FM)));
+    Ok("GET form-options libraries lists a library its owner leaves to the admin (GameTent's Shelf)", ids.Contains(Id(GT)));
     Unregister();
 
     // R-1136: a create that fails after the account exists takes the account away again, or

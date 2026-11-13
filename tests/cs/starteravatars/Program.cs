@@ -171,9 +171,9 @@ try
 
     List<JsonElement> Listed()
     {
-        var res = controller.GetAvatarLibrary();
+        var res = controller.GetFormOptions();
         var value = (res.Result as OkObjectResult)?.Value ?? res.Value;
-        var json = JsonSerializer.SerializeToElement(value);
+        var json = JsonSerializer.SerializeToElement(value).GetProperty("Avatars");
         return json.GetProperty("Avatars").EnumerateArray().ToList();
     }
     bool IsStarter(JsonElement a) => a.TryGetProperty("IsStarter", out var v) && v.ValueKind == JsonValueKind.True;
@@ -296,6 +296,7 @@ static ProfilesController MakeController(Guid userId, IUserManager users)
 #pragma warning restore SYSLIB0050
     typeof(ProfilesBaseController).GetField("_logger", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(c, NullLogger.Instance);
     typeof(ProfilesBaseController).GetField("_userManager", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(c, users);
+    typeof(ProfilesBaseController).GetField("_libraryManager", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(c, DispatchProxy.Create<MediaBrowser.Controller.Library.ILibraryManager, NoLibraries>());
     var http = new DefaultHttpContext();
     http.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("Jellyfin-UserId", userId.ToString()) }, "test"));
     c.ControllerContext = new ControllerContext { HttpContext = http };
@@ -364,4 +365,11 @@ public class UserManagerStub : DispatchProxy
                 throw new NotSupportedException("IUserManager." + targetMethod.Name + " is not modelled here");
         }
     }
+}
+
+// The form options list the caller libraries as well; this harness has none.
+public class NoLibraries : DispatchProxy
+{
+    protected override object Invoke(MethodInfo m, object[] args)
+        => m.Name == "GetVirtualFolders" ? new List<MediaBrowser.Model.Entities.VirtualFolderInfo>() : throw new NotSupportedException(m.Name);
 }

@@ -193,7 +193,7 @@ var profileRoutes = new (string method, Dictionary<string, object> body)[]
     ("CreateProfile", new() { ["ProfileName"] = "New" }),
     ("UpdateProfile", new() { ["ProfileId"] = Guid.NewGuid(), ["ProfileName"] = "Kid" }),
     ("DeleteProfile", new() { ["ProfileId"] = Guid.NewGuid() }),
-    ("SetProfileTheme", new() { ["ProfileId"] = Guid.NewGuid(), ["Theme"] = "ember" }),
+    
     ("SetLibraryArtwork", new() { ["ProfileId"] = LOCKED_KID, ["LibraryId"] = Guid.NewGuid() }),
 };
 

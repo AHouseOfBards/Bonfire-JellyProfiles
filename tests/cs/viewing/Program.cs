@@ -469,10 +469,10 @@ r = Call("UpdateAccount", MAIN, B(("TimeZone", "America/New_York"), ("MasterPin"
 Ok("it can choose one", r.status == 200 && (string)mapType.GetProperty("TimeZone").GetValue(Mapping(MAIN)) == "America/New_York", r.status + " " + r.value);
 r = Call("GetViewingLimits", KID, null, KID);
 Ok("and its profiles are read in it at once", (string)Get(r.value, "TimeZone") == "America/New_York", (string)Get(r.value, "TimeZone"));
-r = Call("GetTimeZones", KID);
+r = Call("GetFormOptions", KID); r = (r.status, Get(r.value, "TimeZones"));
 Ok("the zone list says which is in use, for anyone in the household", r.status == 200 && (string)Get(r.value, "Household") == "America/New_York"
    && (string)Get(r.value, "Effective") == "America/New_York" && ((IEnumerable<string>)Get(r.value, "Zones")).Contains("Europe/London"), r.status + " " + r.value);
-r = Call("GetTimeZones", Guid.Empty);
+r = Call("GetFormOptions", Guid.Empty);
 Ok("but not for nobody", r.status == 401);
 cfgType.GetProperty("DefaultTimeZone").SetValue(config, "Europe/London");
 r = Call("UpdateAccount", MAIN, B(("TimeZone", ""), ("MasterPin", "1234")));
@@ -1377,6 +1377,7 @@ public class LibraryStub : DispatchProxy
 
     protected override object Invoke(MethodInfo m, object[] args)
     {
+        if (m.Name == "GetVirtualFolders") return new List<MediaBrowser.Model.Entities.VirtualFolderInfo>();
         if (m.Name == "GetItemById" && args.Length == 1 && args[0] is Guid id)
         {
             if (!Items.TryGetValue(id, out var type)) return null;

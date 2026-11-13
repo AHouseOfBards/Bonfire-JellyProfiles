@@ -369,7 +369,7 @@ Console.WriteLine("── Bonfire leave/delete from a profile, library cap ─�
     while (library.Count < 200) { var it = Activator.CreateInstance(itemType); itemType.GetProperty("Id").SetValue(it, "fill" + library.Count); library.Add(it); }
     var full = Call("AddLibraryAvatar", ADMIN, new { Image = "data:image/png;base64,AAAA" });
     Ok("a full avatar library refuses another (" + Say(full) + ")", full.status == 400 && library.Count == 200);
-    var listed = Call("GetAvatarLibrary", PARENT);
+    var listed = Call("GetFormOptions", PARENT);
     Ok("and is still listed (" + Say(listed) + ")", listed.status == 200);
     library.Clear();
 }
@@ -584,6 +584,8 @@ public class WorldProxy : DispatchProxy
     {
         switch (m.Name)
         {
+            case "GetVirtualFolders":
+                return new List<MediaBrowser.Model.Entities.VirtualFolderInfo>();
             case "GetUserById":
                 return W.Users.TryGetValue((Guid)args[0], out var u) ? u : null;
             case "GetUserDto":

@@ -341,23 +341,18 @@ namespace Jellyfin.Profiles.Controllers
         /// The time zones this server knows, and the one the caller's household uses. For the
         /// zone picker in Your account and on the settings page.
         /// </summary>
-        [HttpGet("timezones")]
-        [ProducesResponseType(typeof(TimeZonesResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<TimeZonesResponse> GetTimeZones()
+        private TimeZonesResponse TimeZonesFor(Guid? caller)
         {
-            var caller = GetCurrentUserId();
-            if (caller == null && !CallerIsApiKey()) return Unauthorized();
             var config = ReadConfigSnapshot() ?? new PluginConfiguration();
             var household = caller == null ? null : config.Mappings.FirstOrDefault(m => m.ProfileUserId == HouseholdOf(config, caller.Value))?.TimeZone;
-            return Ok(new TimeZonesResponse
+            return new TimeZonesResponse
             {
                 Zones = HouseholdTime.Zones(),
                 Server = HouseholdTime.IdOf(TimeZoneInfo.Local),
                 Default = config.DefaultTimeZone ?? string.Empty,
                 Household = household ?? string.Empty,
                 Effective = HouseholdTime.IdOf(HouseholdTime.Resolve(household, config.DefaultTimeZone)),
-            });
+            };
         }
     }
 }

@@ -360,7 +360,7 @@ if (info != null)
     var json = JsonSerializer.Serialize(value);
     Ok("answers without a signed-in caller", value != null, json);
     Ok("names itself and its version", json.Contains("\"Name\":\"Bonfire\"") && json.Contains("\"Version\":\""), json);
-    Ok("carries an API version", json.Contains("\"ApiVersion\":1"), json);
+    Ok("carries an API version", json.Contains("\"ApiVersion\":2"), json);
     // Matched key by key: a substring test caught "SkipQuickConnectOnKnownDevices" as a
     // device list, and "ClientPinLogin" as a PIN.
     var keys = new List<string>();

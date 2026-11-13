@@ -280,21 +280,60 @@ namespace Jellyfin.Profiles.Controllers
                 ? image
                 : null;
 
-        [HttpGet("libraries")]
+        /// <summary>
+        /// Everything the profile form needs that is the same for every profile: the libraries
+        /// the caller can give one, the rating limits, the avatar library and the time zones.
+        /// One request where the form used to make four. Each part is built by the method the
+        /// four old routes shared, so none of it is filtered twice.
+        /// <para>
+        /// An administrator's API key may read the time zones, and that is all it may read
+        /// here: the other three parts are null for a key, as their routes were 401.</para>
+        /// </summary>
+        [HttpGet("form-options")]
         [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public ActionResult<IEnumerable<object>> GetLibraries()
+        public ActionResult<object> GetFormOptions()
         {
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null)
+            var callerId = GetCurrentUserId();
+            if (callerId == null)
             {
-                return Unauthorized();
+                if (!CallerIsApiKey()) return Unauthorized();
+                return Ok(new
+                {
+                    Libraries = (object?)null,
+                    Ratings = (object?)null,
+                    Avatars = (object?)null,
+                    TimeZones = (object?)TimeZonesFor(null)
+                });
             }
-            Guid currentUserId = currentUserIdVal.Value;
 
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var libraries = LibrariesFor(callerId.Value, out var refusal);
+            if (libraries == null) return refusal!;
+
+            return Ok(new
+            {
+                Libraries = (object?)libraries,
+                Ratings = (object?)RatingsAnswer(),
+                Avatars = (object?)AvatarLibraryAnswer(config),
+                TimeZones = (object?)TimeZonesFor(callerId.Value)
+            });
+        }
+
+        /// <summary>The libraries the caller can give a profile, or null with the refusal to send.</summary>
+        private List<object>? LibrariesFor(Guid currentUserId, out ActionResult? refusal)
+        {
+            refusal = null;
             var caller = _userManager.GetUserById(currentUserId);
-            if (caller == null) return NotFound("Calling user not found.");
+            if (caller == null)
+            {
+                refusal = NotFound("Calling user not found.");
+                return null;
+            }
 
             // A library another plugin manages access to is not Bonfire's to list: a profile form offering
             // it would grant or block it, which is the owner's to do.
@@ -313,15 +352,14 @@ namespace Jellyfin.Profiles.Controllers
             // A library with no item id — never scanned, or its folder is gone — cannot be
             // granted to anybody, and listing it put an "undefined" checkbox in the form that
             // failed the whole create the moment it was ticked (issue #33).
-            var libraries = folders
+            return folders
                 .Where(f => Guid.TryParse(f.ItemId, out var parsed) && parsed != Guid.Empty)
-                .Select(f => new
-            {
-                Id = f.ItemId,
-                Name = f.Name,
-                CollectionType = f.CollectionType
-            });
-            return Ok(libraries);
+                .Select(f => (object)new
+                {
+                    Id = f.ItemId,
+                    Name = f.Name,
+                    CollectionType = f.CollectionType
+                }).ToList();
         }
 
         /// <summary>
@@ -334,13 +372,8 @@ namespace Jellyfin.Profiles.Controllers
         /// route, and a server that cannot supply one still answers.
         /// </para>
         /// </summary>
-        [HttpGet("ratings")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<object> GetRatings()
+        private object RatingsAnswer()
         {
-            if (GetCurrentUserId() == null) return Unauthorized();
-
             var services = HttpContext?.RequestServices;
             var localization = services?.GetService(typeof(MediaBrowser.Model.Globalization.ILocalizationManager));
             var serverConfig = services?.GetService(typeof(MediaBrowser.Controller.Configuration.IServerConfigurationManager))
@@ -351,7 +384,7 @@ namespace Jellyfin.Profiles.Controllers
                 ? new List<RatingChoice>()
                 : RatingSystems.ForCountry(localization.GetType().Assembly, country, _logger);
 
-            return Ok(new { Country = country, Ratings = ratings });
+            return new { Country = country, Ratings = ratings };
         }
 
         [HttpPost("create")]
@@ -2159,6 +2192,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
         {
@@ -2221,6 +2255,12 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
+            // A theme is refused, not ignored, while the server does not let profiles choose:
+            // Settings -> Theme saves through here, and a save that says nothing about why the
+            // tick did not move reads as the setting not taking. The profile form leaves the
+            // field out when it has no picker, so a form without one is not refused.
+            if (request.Theme != null && !config.AllowProfileThemes)
+                return StatusCode(StatusCodes.Status403Forbidden, "This server does not let profiles choose a theme.");
             var themeError = ValidateTheme(request.Theme, config);
             if (themeError != null) return BadRequest(themeError);
 
@@ -2449,6 +2489,8 @@ namespace Jellyfin.Profiles.Controllers
 
             var pinChanged = false;
             string? renamedTo = null;
+            string resolvedTheme = string.Empty;
+            string? storedTheme = null;
             lock (ConfigLock)
             {
                 // Fetch or create mapping for this profile inside the lock
@@ -2487,13 +2529,15 @@ namespace Jellyfin.Profiles.Controllers
                         mappingEntry.TransparentAvatar = request.TransparentAvatar.Value;
                     }
 
-                    // Null leaves it alone, for the same reason. Ignored while the server
-                    // does not let profiles choose: the form hides the picker then, so a
-                    // theme arriving anyway is a stale page, not a decision.
-                    if (request.Theme != null && config.AllowProfileThemes)
+                    // Null leaves it alone, for the same reason; "" follows the server's default.
+                    // Refused above while the server does not let profiles choose. The rule
+                    // itself is Themes.SetFor's, which POST /theme used to call on its own.
+                    if (request.Theme != null)
                     {
-                        mappingEntry.Theme = ThemeToStore(request.Theme, config);
+                        Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme, masterUser.Username);
                     }
+                    resolvedTheme = Themes.Resolve(mappingEntry, config);
+                    storedTheme = mappingEntry.Theme;
 
                     if (imageChanged)
                     {
@@ -2599,7 +2643,9 @@ namespace Jellyfin.Profiles.Controllers
             // Another household that opened it with the old PIN is out (R-1302b).
             if (pinChanged) await SignOutAfterPinChangeAsync(request.ProfileId).ConfigureAwait(false);
 
-            return Ok();
+            // The theme this profile now sees, and the one it has stored, for a caller that
+            // saved only the theme and has nothing else on the page to refresh.
+            return Ok(new { ProfileId = request.ProfileId, Theme = resolvedTheme, Stored = storedTheme });
         }
 
         /// <summary>
@@ -3594,67 +3640,6 @@ namespace Jellyfin.Profiles.Controllers
             }
             _logger.LogInformation("ProfilesPlugin: First-time setup will be shown again to every main account.");
             return Ok(new { Generation = generation });
-        }
-
-        /// <summary>
-        /// Sets one profile's theme. The Settings page uses this rather than <c>update</c>,
-        /// which rewrites every field of the profile — its rating, libraries and devices —
-        /// from whatever the caller sends, and a page that only knows the theme has none of
-        /// those to send. Same checks as <c>update</c>: the master only, with its PIN.
-        /// </summary>
-        [HttpPost("theme")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public ActionResult<object> SetProfileTheme([FromBody] SetProfileThemeRequest request)
-        {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-            if (request == null) return BadRequest("Missing request body.");
-
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-            Guid currentUserId = currentUserIdVal.Value;
-
-            var currentMapping = FindMapping(currentUserId);
-            Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
-            if (currentUserId != masterUserId)
-            {
-                return Unauthorized("Only the master profile can manage profiles.");
-            }
-
-            if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
-
-            ThemeChange result;
-            string resolved;
-            // Read before the lock: a user lookup can reach the database, and nothing else
-            // waits on ConfigLock for that.
-            var ownName = _userManager.GetUserById(masterUserId)?.Username;
-            lock (ConfigLock)
-            {
-                result = Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme, ownName);
-                var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
-                resolved = Themes.Resolve(row, config);
-                if (result == ThemeChange.Changed) Plugin.Instance?.SaveConfiguration();
-            }
-
-            switch (result)
-            {
-                case ThemeChange.NotAllowed:
-                    return StatusCode(StatusCodes.Status403Forbidden, "This server does not let profiles choose a theme.");
-                case ThemeChange.UnknownTheme:
-                    return BadRequest(ValidateTheme(request.Theme, config));
-                case ThemeChange.NotInHousehold:
-                    return Unauthorized("Unauthorized profile update attempt.");
-            }
-
-            return Ok(new
-            {
-                ProfileId = request.ProfileId,
-                Theme = resolved,
-                Stored = Themes.IsKnown(request.Theme, config) ? Themes.Normalize(request.Theme, config) : null
-            });
         }
 
         [HttpPost("preferences")]
@@ -5345,7 +5330,7 @@ namespace Jellyfin.Profiles.Controllers
             return Ok(new InfoResponse
             {
                 Version = GetPluginVersion(),
-                ApiVersion = 1,
+                ApiVersion = 2,
                 Disabled = Plugin.IsOff,
                 Features = new InfoFeatures
                 {
@@ -5480,21 +5465,14 @@ namespace Jellyfin.Profiles.Controllers
         /// The avatars anyone may choose from, plus whether custom uploads are still allowed.
         /// Metadata only — the images themselves come from <c>avatars/{id}</c>.
         /// </summary>
-        [HttpGet("avatars")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<object> GetAvatarLibrary()
+        private object AvatarLibraryAnswer(PluginConfiguration config)
         {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-            if (GetCurrentUserId() == null) return Unauthorized();
-
             // A copy, taken under the lock: the list is added to and removed from by the
             // administrator, and walking it live can throw halfway through (R-1167).
             List<AvatarLibraryItem> library;
             lock (ConfigLock) { library = config.AvatarLibrary.ToList(); }
 
-            return Ok(new
+            return new
             {
                 AllowCustomUploads = !config.DisallowCustomAvatarUploads,
                 // What the browser should render a picture at before sending it. Every
@@ -5521,7 +5499,7 @@ namespace Jellyfin.Profiles.Controllers
                         ThumbUrl = $"/plugins/profiles/avatars/{StarterAvatars.IdFor(s.Slug)}",
                         IsStarter = true
                     })).ToList()
-            });
+            };
         }
 
         /// <summary>What a browser should render a picture at before sending it, and the size limit.</summary>
