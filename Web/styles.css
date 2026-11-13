@@ -680,17 +680,27 @@ body.profiles-no-scroll [id*="spinner"] {
     padding-bottom: 0.75rem;
     border-bottom: var(--jpf-section-rule);
 }
+/* Bonfire's mark, an svg drawn in currentColor. It is sized in em so the font-size rules
+   written for the glyph it replaced still size it; the baseline offset keeps a heading
+   from shifting. text-shadow does nothing on an svg, so the glow is a drop-shadow. */
+.jpf-mark {
+    display: inline-block;
+    width: 1em; height: 1em;
+    flex-shrink: 0;
+    vertical-align: middle;
+    fill: currentColor;
+}
 /* Your own Bonfire: a warm amber flame. */
 .profiles-home-icon {
     font-size: 1.8rem;
     color: var(--jpf-warn);
-    text-shadow: 0 2px 10px rgba(255, 153, 0, 0.35);
+    filter: drop-shadow(0 2px 10px rgba(255, 153, 0, 0.35));
 }
 /* A linked household's Bonfire: deeper ember, so the two read as different
-   groups without needing a second glyph. */
+   groups without needing a second mark. */
 .profiles-home-icon.bonfire-icon-color {
     color: var(--jpf-flame-deep);
-    text-shadow: 0 2px 10px rgba(255, 85, 0, 0.3);
+    filter: drop-shadow(0 2px 10px rgba(255, 85, 0, 0.3));
 }
 .profiles-home-title {
     font-size: 1.5rem;
@@ -2888,10 +2898,12 @@ html.jpf-fading { transition: opacity 0.18s ease; }
     box-shadow: 0 0 0 var(--jpf-ring-w) var(--jpf-ring);
 }
 .jpf-flat .profiles-title,
-.jpf-flat .jpf-theme-preview-name,
+.jpf-flat .jpf-theme-preview-name {
+    text-shadow: none;
+}
 .jpf-flat .profiles-home-icon,
 .jpf-flat .profiles-home-icon.bonfire-icon-color {
-    text-shadow: none;
+    filter: none;
 }
 .jpf-flat .jpf-anim-fade-in {
     animation: none;

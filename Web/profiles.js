@@ -91,6 +91,18 @@
         return dev.client || dev.Client || t('profileForm.unknownClient');
     }
 
+    // Bonfire's mark: a flame with a cut-out center over two crossed logs. One color, taken
+    // from currentColor, so a theme recolors it the way it recolored the Material flame glyph
+    // this replaced; no ids, so any number of copies can share a page. It is sized in em
+    // (.jpf-mark), so the font-size rules written for the glyph still size it.
+    function bonfireMark(cls, style) {
+        return '<svg class="jpf-mark ' + cls + '"' + (style ? ' style="' + style + '"' : '') + ' viewBox="14 2 92 120" fill="currentColor" aria-hidden="true" focusable="false">'
+            + '<path fill-rule="evenodd" d="M60 6 C64 24 84 38 88 60 C92 82 78 98 60 98 C42 98 28 84 30 64 C31 52 37 44 43 36 C43 48 47 55 53 58 C49 40 54 22 60 6 Z M60 50 C65 60 73 68 73 79 C73 89 67 95 60 95 C53 95 47 89 47 81 C47 71 55 62 60 50 Z"></path>'
+            + '<rect x="22" y="100" width="76" height="12" rx="6" fill-opacity="0.55" transform="rotate(-14 60 106)"></rect>'
+            + '<rect x="22" y="100" width="76" height="12" rx="6" transform="rotate(14 60 106)"></rect>'
+            + '</svg>';
+    }
+
     function escapeHtml(str) {
         // 0 is a value, not an absence: a count of none must draw as "0" (R-1176).
         if (!str && str !== 0) return '';
@@ -7099,7 +7111,9 @@
                         ` : ''}
                         ${p.isBonfire ? `
                         <div class="jpf-profile-bonfire-indicator" aria-hidden="true" title="${p.isLinked ? t('gate.addedAccount') : t('gate.bonfireProfile')}">
-                            <span class="material-icons" aria-hidden="true" style="font-size: 1.15rem; color: #fff;">${p.isLinked ? 'link' : 'local_fire_department'}</span>
+                            ${p.isLinked
+                                ? '<span class="material-icons" aria-hidden="true" style="font-size: 1.15rem; color: #fff;">link</span>'
+                                : bonfireMark('jpf-badge-mark', 'font-size: 1.15rem; color: #fff;')}
                         </div>
                         ` : ''}
                     </div>
@@ -7126,23 +7140,20 @@
                 const isLocalGroup = (k === localMasterId);
 
                 let headerTitle = '';
-                let headerIcon = '';
                 let isBonfireIcon = false;
 
-                // Both headers use the campfire glyph — it was the Bonfire's own section, and a
+                // Both headers use Bonfire's mark — it was the Bonfire's own section, and a
                 // house icon read as a different concept entirely. The headings say household
                 // now (a main account and its profiles; "Bonfire" is the product, and an
-                // invite-code group), but the glyph stays. Your own household keeps the warm
+                // invite-code group), but the mark stays. Your own household keeps the warm
                 // flame colour; linked ones are tinted by .bonfire-icon-color so the two
                 // remain distinguishable at a glance.
                 if (isLocalGroup) {
                     headerTitle = t('gate.yourBonfire');
-                    headerIcon = "local_fire_department";
                 } else {
                     const masterProfileForGroup = groupProfiles.find(p => p.isMaster);
                     const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : t('gate.guest');
                     headerTitle = t('gate.bonfireOf', { name: groupName });
-                    headerIcon = "local_fire_department";
                     isBonfireIcon = true;
                 }
 
@@ -7181,7 +7192,7 @@
                 sectionsHtml += `
                     <div class="profiles-home-section">
                         <div class="profiles-home-header">
-                            <span class="material-icons profiles-home-icon ${isBonfireIcon ? 'bonfire-icon-color' : ''}" aria-hidden="true">${headerIcon}</span>
+                            ${bonfireMark('profiles-home-icon' + (isBonfireIcon ? ' bonfire-icon-color' : ''))}
                             <span class="profiles-home-title">${headerTitle}</span>
                         </div>
                         <div class="profiles-grid">
@@ -11836,7 +11847,7 @@
 
             const entry = (id, icon, title, body) => `
                 <div class="settings-menu-entry jpf-choice focusable" id="${id}" tabindex="0" role="button">
-                    <span class="material-icons jpf-choice-icon" aria-hidden="true">${icon}</span>
+                    ${icon === 'bonfire' ? bonfireMark('jpf-choice-icon') : `<span class="material-icons jpf-choice-icon" aria-hidden="true">${icon}</span>`}
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -11852,7 +11863,7 @@
                             t('settings.accountBody'))}
                         ${entry('settings-switcher-style', 'switch_account', t('settings.switcherTitle'),
                             t('settings.switcherStyleBody'))}
-                        ${entry('settings-your-bonfire', 'local_fire_department', t('settings.sharingTitle'),
+                        ${entry('settings-your-bonfire', 'bonfire', t('settings.sharingTitle'),
                             t('settings.yourBonfireBody'))}
                         ${this._themeSettings && this._themeSettings.allow
                             ? entry('settings-theme', 'palette', t('settings.lookTitle'), t('settings.themeBody'))

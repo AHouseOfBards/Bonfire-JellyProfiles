@@ -236,6 +236,19 @@
 
     var SCENES = {
         picker: gate,
+        // Your household and another Bonfire's (a different main account, so its own section),
+        // for the mark that heads each.
+        households: function (P) {
+            var OTHER = '99999999999999999999999999999999';
+            PROFILES.push({
+                profileUserId: OTHER, profileName: 'Gran', masterUserId: OTHER,
+                isMaster: true, isBonfire: true, isLinked: false,
+                requiresPin: false, avatarColor: '#9b5de5', avatarInitial: 'G',
+                profileImage: null, transparentAvatar: false, maxSubProfiles: 5, viewing: null
+            });
+            PROFILES[1].isBonfire = true;
+            return gate(P);
+        },
         announcement: gate,
         // The server's logo, top right: a picture, then a line of text.
         logo: function (P) {

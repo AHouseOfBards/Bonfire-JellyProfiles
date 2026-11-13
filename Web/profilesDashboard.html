@@ -116,10 +116,10 @@
     #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):focus { background: var(--jpf-accent-tint-hover); color: var(--jpf-accent-hover); }
     #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
 
-    /* The header: Bonfire's mark, the campfire glyph the client's switcher uses, and its
+    /* The header: Bonfire's mark, the same svg the client's switcher draws, and its
        name. A header, not a banner. */
     #profilesConfigurationPage .jpf-brand { display: flex; align-items: center; gap: 0.5em; margin: 0 0 1.25em 0; }
-    #profilesConfigurationPage .jpf-brand-mark { font-size: 1.5rem; color: var(--jpf-accent); }
+    #profilesConfigurationPage .jpf-brand-mark { font-size: 1.5rem; width: 1em; height: 1em; flex-shrink: 0; color: var(--jpf-accent); fill: currentColor; }
     #profilesConfigurationPage .jpf-brand-name { font-size: 1.15rem; font-weight: 600; color: var(--jpf-accent); }
 
     /* Five unrelated jobs — limits, pictures, accounts, history, the panic switch —
@@ -1044,7 +1044,7 @@
     <div data-role="content">
         <div class="content-primary">
             <div class="jpf-brand">
-                <span class="material-icons jpf-brand-mark" translate="no" role="img" aria-label="Bonfire logo" data-i18n-aria-label="admin.brand.logo">local_fire_department</span>
+                <svg class="jpf-brand-mark" translate="no" role="img" aria-label="Bonfire logo" data-i18n-aria-label="admin.brand.logo" viewBox="14 2 92 120" fill="currentColor" focusable="false"><path fill-rule="evenodd" d="M60 6 C64 24 84 38 88 60 C92 82 78 98 60 98 C42 98 28 84 30 64 C31 52 37 44 43 36 C43 48 47 55 53 58 C49 40 54 22 60 6 Z M60 50 C65 60 73 68 73 79 C73 89 67 95 60 95 C53 95 47 89 47 81 C47 71 55 62 60 50 Z"></path><rect x="22" y="100" width="76" height="12" rx="6" fill-opacity="0.55" transform="rotate(-14 60 106)"></rect><rect x="22" y="100" width="76" height="12" rx="6" transform="rotate(14 60 106)"></rect></svg>
                 <span class="jpf-brand-name" translate="no">Bonfire</span>
             </div>
             <!-- Installed or updated while Jellyfin was running. The pipeline hook can only

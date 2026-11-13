@@ -350,7 +350,7 @@ ok('the header carries the mark as an image role', !!mark);
 const altKey = mark ? /data-i18n-aria-label="(admin\.[\w.]+)"/.exec(mark[0]) : null;
 ok('the mark\'s alt text is a data-i18n-aria-label admin key', !!altKey);
 ok('the mark has an English aria-label', !!mark && /aria-label="[^"]+"/.test(mark[0]));
-ok('the mark is the campfire glyph the client uses', !!brand && /local_fire_department/.test(brand[1]));
+ok('the mark is the svg flame the client uses, in the current color', !!brand && /<svg[^>]*class="jpf-brand-mark"[^>]*fill="currentColor"/.test(brand[1]) && /viewBox="14 2 92 120"/.test(brand[1]));
 // The product's name is a name, not a word: it stays as it is, marked so.
 ok('the header\'s name is marked translate="no"', !!brand && /translate="no"[^>]*>Bonfire</.test(brand[1]));
 const nameKey = null;
