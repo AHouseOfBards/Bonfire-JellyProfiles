@@ -6573,7 +6573,7 @@
         /// Nearest focusable in a direction. Movement across the axis is penalised so a
         /// grid walks along its row instead of cutting diagonally to a closer card.
         _moveOverlayFocus: function (root, dir) {
-            const items = this._overlayFocusables(root);
+            let items = this._overlayFocusables(root);
             if (!items.length) return;
 
             const current = (document.activeElement && root.contains(document.activeElement))
@@ -6584,6 +6584,31 @@
             const fx = from.left + from.width / 2;
             const fy = from.top + from.height / 2;
             const horizontal = (dir === 'left' || dir === 'right');
+
+            // The sticky Save bar sits nearer than the last field above it, so Down skipped
+            // that field. The bar comes after every control in the form's own content: Down
+            // reaches it from the last one, Up goes back to the last one.
+            const bar = root.querySelector('.jpf-profile-dialog-actions');
+            const inBar = (el) => !!bar && bar.contains(el);
+            const content = bar ? items.filter(el => !inBar(el)) : items;
+            if (bar && content.length && (dir === 'up' || dir === 'down')) {
+                if (inBar(current)) {
+                    if (dir === 'up') {
+                        // Last on the screen, not in the markup: the form has two columns.
+                        let lowest = content[0], lowestY = -Infinity;
+                        content.forEach(el => {
+                            const r = el.getBoundingClientRect();
+                            if (r.top + r.height / 2 > lowestY) { lowestY = r.top + r.height / 2; lowest = el; }
+                        });
+                        this._focusVisibly(lowest);
+                        return;
+                    }
+                } else {
+                    const below = content.some(el => el !== current &&
+                        el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2 - fy >= 1);
+                    if (dir === 'down' && below) items = content;
+                }
+            }
 
             let best = null, bestScore = Infinity;
             items.forEach(el => {

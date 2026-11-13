@@ -70,13 +70,7 @@ async function main() {
                 const lab = await tv.evaluate(LABEL_OF + '(' + JSON.stringify(at) + ')');
                 if (!lab || e.reached.indexOf(lab) === -1) lost.push(at);
             }
-            // Open, not fixed: on the add form the theme dropdown is the last field and sits
-            // under the sticky Save bar, so Down from the rows above lands on the bar and
-            // never on it. Named here so it is not lost; nothing else is excused.
-            const open = lost.filter(at => label === 'add' && at === '#create-theme-select');
-            open.forEach(at => console.log('  OPEN  ' + label + ': ' + at + ' is not reached by the arrows (under the sticky bar)'));
-            const rest = lost.filter(at => open.indexOf(at) === -1);
-            ok(label + ': the arrows reach every visible control', rest.length === 0, 'unreached: ' + rest.join(' ; '));
+            ok(label + ': the arrows reach every visible control', lost.length === 0, 'unreached: ' + lost.join(' ; '));
             ok(label + ': no arrow sends focus to the body', !e.edges.some(x => / --> body$/.test(x)), e.edges.filter(x => / --> body$/.test(x)).join(' ; '));
             const dead = e.reached.filter(at => at !== 'body' && e.edges.filter(x => x.indexOf(at + ' --') === 0).length > 0
                 && e.edges.filter(x => x.indexOf(at + ' --') === 0).every(x => x.split('--> ')[1] === at));
@@ -108,6 +102,42 @@ async function main() {
             const open = await tv.evaluate('document.querySelector("details.jpf-more").open');
             ok(scene + ': OK on More opens it', open === true, 'open ' + open);
             ok(scene + ': focus stays visible after opening More', st.visible && st.onTop && st.ring, JSON.stringify(st));
+        }
+
+        // The sticky Save bar comes after every field. Focus each other control the way an
+        // arrow would (scrolled clear of the bar) and press Down: it may not land on the
+        // bar while a field lies below it, which the bar being nearer used to do. Then Down
+        // from the last field reaches the bar, and Up from the bar goes back to it.
+        const PICK = '(function(i){var b=window.__bonfire,root=b._activeTrapSurface();var bar=root.querySelector(".jpf-profile-dialog-actions");' +
+            'var c=b._overlayFocusables(root).filter(function(e){return !bar.contains(e)});' +
+            'function cy(e){var r=e.getBoundingClientRect();return r.top+r.height/2}' +
+            'var L=c[0];c.forEach(function(e){if(cy(e)>cy(L))L=e});' +
+            'var src=c.filter(function(e){return e!==L&&e.tagName!=="SELECT"});' +
+            'if(i>=src.length)return{done:true,last:window.__tw.describe(L)};' +
+            'var P=src[i];P.focus();' +
+            'return{from:window.__tw.describe(P),usable:document.activeElement===P&&cy(L)>cy(P)+1,last:window.__tw.describe(L)}})';
+        for (const scene of ['add-more', 'edit-more']) {
+            await tv.load(scene);
+            const wrong = [];
+            let tried = 0, last = null;
+            for (let i = 0; ; i++) {
+                const s = await tv.evaluate(PICK + '(' + i + ')');
+                last = s.last;
+                if (s.done) break;
+                if (!s.usable) continue;
+                tried++;
+                await tv.press('ArrowDown');
+                if (await tv.evaluate('!!document.activeElement.closest(".jpf-profile-dialog-actions")')) wrong.push(s.from);
+            }
+            ok(scene + ': Down from a field lands on the Save bar only after the last field', tried > 5 && wrong.length === 0,
+                tried + ' tried; to the bar from: ' + wrong.join(' ; '));
+            await tv.evaluate('window.__bonfire._focusVisibly(window.__tw.find(' + JSON.stringify(last) + '))');
+            await tv.press('ArrowDown');
+            const onBar = await tv.evaluate('!!document.activeElement.closest(".jpf-profile-dialog-actions")');
+            ok(scene + ': Down from the last field reaches the Save bar', onBar === true, 'at ' + (await tv.state()).at);
+            await tv.press('ArrowUp');
+            const at = (await tv.state()).at;
+            ok(scene + ': Up from the Save bar returns to the last field', at === last, 'got ' + at + ', wanted ' + last);
         }
 
         // The crop dialog: the view takes the arrows, OK moves on to Use, the buttons are
