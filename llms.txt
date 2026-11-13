@@ -11,7 +11,7 @@
 
 ## Facts that are easy to get wrong
 
-- Each profile is a real Jellyfin user, hidden from sign-in screens and linked to a main account. It has its own watch history, favourites and settings.
+- Each profile is a real Jellyfin user, hidden from sign-in screens and linked to a main account. It has its own watch history, favorites and settings.
 - Up to 20 profiles per account. The default limit is five; administrators can change it for the server or for one account.
 - Library access, rating limits and tag filters are set on the profile's Jellyfin account, so the server enforces them in every app, including apps that can't show the switcher. A profile never gets more access than its main account.
 - Rating limits use the ratings of the server's preferred metadata country, not only US ratings.
@@ -24,8 +24,8 @@
 - Languages: English, Catalan, French, Polish, Spanish and Turkish, matching the Display language set in Jellyfin. The admin page uses the same languages.
 - Administrators can set an emergency code that turns the profile screen off until Jellyfin restarts.
 - Full switcher: Jellyfin Web, Jellyfin for Android, Jellyfin for iOS (iPhone and iPad), Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen (after a one-time setup).
-- Profile sign-in on the app's own screen: Jellyfin for Android TV (confirmed), Roku, Swiftfin, Findroid and Wholphin (not yet confirmed). Turn it on under Dashboard → Bonfire → TVs & Apps, and type the profile's PIN as the password.
-- Apps with only a username and password box (Streamyfin, Plezy, Tsukimi) work by typing a profile's name and PIN, once the main account has signed in on that app. This needs "Let profiles be opened with their PIN on any app" under TVs & Apps.
+- Profile sign-in on the app's own screen: Jellyfin for Android TV (confirmed), Roku, Swiftfin, Findroid and Wholphin (not yet confirmed). Turn it on under Dashboard → Plugins → Bonfire → Clients, and type the profile's PIN as the password.
+- Apps with only a username and password box (Streamyfin, Plezy, Tsukimi) work by typing a profile's name and PIN, once the main account has signed in on that app. This needs "Let profiles sign in with their PIN" under Clients.
 - Not supported: Infuse (no Jellyfin user list). Apps with their own interface, rather than the server's web client, don't run plugin code, so they get profile sign-in instead of the switcher.
 - Moonfin: sign in as the main account and pick a profile on its home screen (beta).
 

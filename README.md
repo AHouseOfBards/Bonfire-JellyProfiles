@@ -27,7 +27,7 @@ Works with Jellyfin 10.11 and 12.0. Part of [Campground](https://github.com/AHou
   Jellyfin's own light and dark themes. Each profile can
   have its own, set from **Settings → Theme** on the main account. Administrators choose
   the default and can turn choosing off.
-- **Your choice of switcher.** A Bonfire button in the header or a **Switch Profile**
+- **Your choice of switcher.** A Bonfire button in the header or a **Switch profile**
   entry in Jellyfin's own menu, with an optional "Who's watching?" screen on startup.
 - **Six languages.** English, Catalan, French, Polish, Spanish and Turkish, following the
   language set in Jellyfin. [Add yours](Web/i18n/README.md).

@@ -65,7 +65,7 @@ profile. That's what restores a profile after Jellyfin resets a user's settings.
 Adding or removing a library in **Dashboard → Users** sticks from 1.7.2: the profile's
 list follows it. Two exceptions:
 
-- A profile set to every library (nothing ticked in **Edit Profile → Libraries**) always
+- A profile set to every library (nothing ticked in **Edit profile → Libraries**) always
   gets every library its main account has. Tick the ones it should have instead.
 - On a profile not entered since the upgrade, a removal made before its first sign-in
   comes back once. Remove it again.
@@ -120,7 +120,7 @@ An account with no password, such as an SSO account, keeps Quick Connect on its 
 
 ## Can't sign in with the password after removing Bonfire
 
-If "PIN sign-in on other apps" was on, Bonfire set some accounts to its own sign-in provider. Uninstalling puts them back. If one was missed, or Bonfire failed to load, go to **Dashboard → Users →** the user **→ Authentication provider** and choose **Default**.
+If **Let profiles sign in with their PIN** was on, Bonfire set some accounts to its own sign-in provider. Uninstalling puts them back. If one was missed, or Bonfire failed to load, go to **Dashboard → Users →** the user **→ Authentication provider** and choose **Default**.
 
 ## Where do I get avatars?
 

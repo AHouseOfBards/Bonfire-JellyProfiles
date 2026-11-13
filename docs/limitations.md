@@ -3,7 +3,7 @@
 ## Custom themes
 
 Some themes and skin managers push the Bonfire button out of place. Switch to
-**Jellyfin's user menu** under **Settings → Switcher Style**, which removes the button.
+**Jellyfin's user menu** under **Settings → Switch button**, which removes the button.
 Please also open an issue naming the theme.
 
 ## Profiles are managed from the home screen
@@ -34,7 +34,7 @@ Each "no" in the [app table](clients.md#what-each-app-can-do), and why.
 - **Announcements, themes, logo, first-time setup, linked accounts, auto-lock.** These are
   screens in the web client. An app that doesn't load it has nowhere to show them.
 - **Ask for more time.** It needs a button on a screen Bonfire draws. A parent can still
-  give time from Manage Profiles in any browser.
+  give time from Manage profiles in any browser.
 - **PIN reset by email.** It needs a form. Native sign-in screens and the Moonfin keypad
   have none, so an administrator resets the PIN instead.
 - **Time-up warning.** The server sends it as a message. Swiftfin and Findroid ignore
