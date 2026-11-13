@@ -422,10 +422,27 @@ Ok("in words for the account, not the server's", (r.value as string ?? "").Conta
 r = Call("GetAccountEmail", MAIN, pinHeader: "1234");
 Ok("and leaves no code waiting", (string)Get(r.value, "PendingAddress") == "");
 
-r = Call("SetAccountEmailNotifications", MAIN, B(("NotifyNewDevice", (bool?)false), ("MasterPin", "1234")));
-Ok("notices can be turned off one at a time", r.status == 200 && !Bool(AccountRow(MAIN), "NotifyNewDevice") && Bool(AccountRow(MAIN), "NotifyLockout"));
-r = Call("SetAccountEmailNotifications", KID, B(("NotifyLockout", (bool?)false)));
+r = Call("SetAccountEmail", MAIN, B(("NotifyNewDevice", (bool?)false), ("MasterPin", "1234")));
+Ok("notices can be turned off one at a time, with no address in the body", r.status == 200 && !Bool(AccountRow(MAIN), "NotifyNewDevice") && Bool(AccountRow(MAIN), "NotifyLockout")
+   && StoredAddress(MAIN) != null, r.status + " " + r.value);
+r = Call("SetAccountEmail", MAIN, B(("NotifyNewDevice", (bool?)false), ("NotifyLockout", (bool?)false), ("NotifyTimeAsked", (bool?)false), ("NotifyLimitReached", (bool?)true), ("MasterPin", "1234")));
+Ok("all four switches are one call", r.status == 200 && !Bool(AccountRow(MAIN), "NotifyLockout") && !Bool(AccountRow(MAIN), "NotifyTimeAsked")
+   && Bool(AccountRow(MAIN), "NotifyLimitReached"), r.status + " " + r.value);
+Call("SetAccountEmail", MAIN, B(("NotifyLockout", (bool?)true), ("NotifyTimeAsked", (bool?)true), ("NotifyLimitReached", (bool?)false), ("MasterPin", "1234")));
+r = Call("SetAccountEmail", MAIN, B(("NotifyNewDevice", (bool?)true), ("MasterPin", "0000")));
+Ok("switches need the main PIN as an address does", r.status == 400 && !Bool(AccountRow(MAIN), "NotifyNewDevice"));
+r = Call("SetAccountEmail", MAIN, B(("MasterPin", "1234")));
+Ok("a call that changes nothing is refused", r.status == 400, r.status + " " + r.value);
+r = Call("SetAccountEmail", KID, B(("NotifyLockout", (bool?)false)));
 Ok("but not by a profile", r.status == 401 && Bool(AccountRow(MAIN), "NotifyLockout"));
+before = Sent();
+var storedBefore = StoredAddress(MAIN);
+r = Call("SetAccountEmail", MAIN, B(("Address", "parent4@example.com"), ("NotifyLockout", (bool?)false), ("MasterPin", "1234")));
+Ok("a new address with a switch sends the code and sets the switch on the confirmed address",
+   r.status == 200 && Sent() == before + 1 && !Bool(AccountRow(MAIN), "NotifyLockout") && StoredAddress(MAIN) == storedBefore, r.status + " " + r.value);
+Call("SetAccountEmail", MAIN, B(("NotifyLockout", (bool?)true), ("MasterPin", "1234")));
+Ok("the removed routes are gone",
+   ctrlType.GetMethod("SetAccountEmailNotifications") == null && ctrlType.GetMethod("RemoveAccountEmail") == null);
 
 // OTHER has no PIN, so needs none; it writes in English.
 Call("SetAccountEmail", OTHER, B(("Address", "other@example.com")));
@@ -451,7 +468,7 @@ void Service(string id, string name, Guid owner) =>
 before = Sent();
 Device("dev-living-room", "Living room TV", MAIN);
 Ok("no new-device mail when the account turned it off", Sent() == before);
-Call("SetAccountEmailNotifications", MAIN, B(("NotifyNewDevice", (bool?)true), ("MasterPin", "1234")));
+Call("SetAccountEmail", MAIN, B(("NotifyNewDevice", (bool?)true), ("MasterPin", "1234")));
 Device("dev-kitchen", "Kitchen tablet", MAIN);
 var note = Last();
 Ok("a new device is mailed when it is on", Sent() == before + 1 && note.To == "parent@example.com" && note.Body.Contains("Kitchen tablet"),
@@ -672,10 +689,13 @@ r = Call("RemoveAccountEmailAsAdmin", MAIN, B(("UserId", OTHER)));
 Ok("a non-administrator cannot remove one", (r.status == 401 || r.status == 403) && StoredAddress(OTHER) != null);
 r = Admin("RemoveAccountEmailAsAdmin", B(("UserId", OTHER)));
 Ok("the administrator can", r.status == 200 && StoredAddress(OTHER) == null && !MePinReset(OTHER));
-r = Call("RemoveAccountEmail", MAIN, B(("MasterPin", "0000")));
+r = Call("SetAccountEmail", MAIN, B(("Address", ""), ("MasterPin", "0000")));
 Ok("an account needs its PIN to remove its own", r.status == 400 && StoredAddress(MAIN) != null);
-r = Call("RemoveAccountEmail", MAIN, B(("MasterPin", "2468")));
+r = Call("SetAccountEmail", KID, B(("Address", "")));
+Ok("a profile cannot remove it", r.status == 401 && StoredAddress(MAIN) != null);
+r = Call("SetAccountEmail", MAIN, B(("Address", ""), ("NotifyLockout", (bool?)false), ("MasterPin", "2468")));
 Ok("and with it, it is gone", r.status == 200 && StoredAddress(MAIN) == null && !MePinReset(MAIN));
+Ok("an empty address leaves nothing waiting to be confirmed", (string)Get(r.value, "PendingAddress") == "" && (string)Get(r.value, "Address") == "");
 
 // ── An address that changes ──────────────────────────────────────────────────
 Section("An address that changes, a send that fails, a full server");
@@ -753,7 +773,11 @@ r = Admin("UpdateEmailSettings", B(("Host", "smtp.example.com"), ("Port", (int?)
 Ok("port 465 is refused with security none too", r.status == 400 && (int)Get(Email(), "Port") != 465, r.status + " " + Get(Email(), "Port"));
 
 // Back to where the next section expects MAIN: no confirmed address.
-Call("RemoveAccountEmail", MAIN, B(("MasterPin", "2468")));
+Call("SetAccountEmail", MAIN, B(("Address", ""), ("MasterPin", "2468")));
+r = Call("SetAccountEmail", MAIN, B(("NotifyLockout", (bool?)false), ("MasterPin", "2468")));
+Ok("switches with no confirmed address are refused", r.status == 400, r.status + " " + r.value);
+r = Call("SetAccountEmail", MAIN, B(("Address", "p5@example.com"), ("NotifyLockout", (bool?)false), ("MasterPin", "2468")));
+Ok("and so is a new address sent with them: no code goes out", r.status == 400, r.status + " " + r.value);
 
 // ── Stored and served ────────────────────────────────────────────────────────
 Section("Stored and served");

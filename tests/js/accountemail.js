@@ -41,20 +41,15 @@ env.setRespond((url, body) => {
     if (url === 'plugins/profiles/startup') return { status: 200, body: { me: server.me } };
     if (url === 'plugins/profiles/account/email' && !body) return { status: 200, body: server.email };
     if (url === 'plugins/profiles/account/email') {
-        server.email = Object.assign({}, server.email, { pendingAddress: body.address });
-        return { status: 200, body: server.email };
-    }
-    if (url === 'plugins/profiles/account/email/confirm') {
-        server.email = Object.assign({}, server.email, { address: server.email.pendingAddress, pendingAddress: '' });
-        return { status: 200, body: server.email };
-    }
-    if (url === 'plugins/profiles/account/email/notifications') {
+        // One route since 2.0: address '' removes, an address is sent a code, a switch is stored.
+        if (body.address === '') server.email = Object.assign({}, server.email, { address: '', pendingAddress: '' });
+        else if (body.address !== undefined) server.email = Object.assign({}, server.email, { pendingAddress: body.address });
         server.email = Object.assign({}, server.email, body.notifyLockout !== undefined ? { notifyLockout: body.notifyLockout } : {},
             body.notifyNewDevice !== undefined ? { notifyNewDevice: body.notifyNewDevice } : {});
         return { status: 200, body: server.email };
     }
-    if (url === 'plugins/profiles/account/email/remove') {
-        server.email = Object.assign({}, server.email, { address: '', pendingAddress: '' });
+    if (url === 'plugins/profiles/account/email/confirm') {
+        server.email = Object.assign({}, server.email, { address: server.email.pendingAddress, pendingAddress: '' });
         return { status: 200, body: server.email };
     }
     if (url === 'plugins/profiles/account/pin-reset/send') return { status: 200, body: { sentTo: 'p•••@example.com' } };
@@ -156,9 +151,10 @@ const last = url => sent(url).pop();
     box.checked = false;
     box.fire('change');
     await settle();
-    p = last('plugins/profiles/account/email/notifications');
-    ok('turning a notice off saves only that one', p && p.body.notifyLockout === false && !('notifyNewDevice' in p.body));
-    server.refuse['plugins/profiles/account/email/notifications'] = [400, 'No.', 'forbidden'];
+    p = last('plugins/profiles/account/email');
+    ok('turning a notice off saves only that one, and leaves the address alone', p && p.body.notifyLockout === false
+       && !('notifyNewDevice' in p.body) && !('address' in p.body));
+    server.refuse['plugins/profiles/account/email'] = [400, 'No.', 'forbidden'];
     const dev = q('#account-email-device');
     dev.checked = false;
     dev.fire('change');
@@ -184,7 +180,7 @@ const last = url => sent(url).pop();
 
     q('#account-email-remove').click();
     await settle();
-    ok('Remove posts and goes back to an empty field', !!last('plugins/profiles/account/email/remove')
+    ok('Remove posts an empty address and goes back to an empty field', last('plugins/profiles/account/email').body.address === ''
        && !!q('#account-email-input') && q('#account-email-status').textContent === 'Email removed.');
 
     server.refuse['plugins/profiles/account/email'] = [429, 'Too many codes sent.', 'rate_limited'];

@@ -42,7 +42,7 @@ because other people build against it too.
 
 ## All routes
 
-All 105 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 103 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -60,10 +60,8 @@ All 105 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/account/verify-pin` | user | Check the main account's PIN. |
 | `POST /plugins/profiles/account` | user | Set the main account's PIN and whether opening it asks. |
 | `GET /plugins/profiles/account/email` | user | The main account's email address and notices. |
-| `POST /plugins/profiles/account/email` | user | Send a code to a new address. |
+| `POST /plugins/profiles/account/email` | user | Send a code to a new address, remove the address, or choose which notices to get. |
 | `POST /plugins/profiles/account/email/confirm` | user | Confirm the address with the code. |
-| `POST /plugins/profiles/account/email/notifications` | user | Choose which notices to get. |
-| `POST /plugins/profiles/account/email/remove` | user | Remove the address. |
 | `POST /plugins/profiles/account/pin-reset/send` | user | Email a code to reset a forgotten main PIN. |
 | `POST /plugins/profiles/account/pin-reset` | user | Set a new main PIN with the code. |
 | `GET /plugins/profiles/limits/{profileId}` | user | A profile's viewing hours and where it stands now. |
@@ -445,6 +443,8 @@ you.
 - `GET /me`, `GET /announcements` and `GET /onboarding`: read the `me`, `announcements` and
   `onboarding` parts of [`GET /startup`](#get-pluginsprofilesstartup). `POST /me` and
   `POST /onboarding/done` stay.
+- `POST /account/email/notifications` and `POST /account/email/remove`: send the switches, or
+  `"address": ""`, to [`POST /account/email`](#post-pluginsprofilesaccountemail).
 - `POST /theme`: send `theme` to [`POST /update`](#post-pluginsprofilesupdate).
 - `POST /update` now refuses a `theme` with `403` while the server doesn't let profiles
   choose, where it used to ignore it, and answers `{ profileId, theme, stored }`.
@@ -1769,8 +1769,15 @@ a server restart means sending a new one. Mail is in the language the client pas
 { "address": "parent@example.com", "language": "en", "masterPin": "1234" }
 ```
 
-Sends a code to the address. Nothing is stored until it's confirmed. Returns the `GET`
-shape with `pendingAddress` set.
+The main account's email settings in one call. All fields but `masterPin` are optional, and
+at least one of `address` and the four switches is needed (`400` otherwise). Returns the
+`GET` shape.
+
+| Field | Description |
+| --- | --- |
+| `address` | A new address: a code is sent to it, and nothing is stored until it's confirmed (`pendingAddress` is set). An empty string removes the address and any code waiting for one. Left out, the address is not touched. |
+| `notifyLockout`, `notifyNewDevice`, `notifyTimeAsked`, `notifyLimitReached` | Which notices to get. Left out, the stored value is kept. `400` without a confirmed address, before any code is sent. Ignored when the same call removes the address. |
+| `language` | The language the mail is written in. |
 
 ### `POST /plugins/profiles/account/email/confirm`
 
@@ -1781,22 +1788,6 @@ shape with `pendingAddress` set.
 ```
 
 Stores the address. `language` is kept for notices sent later. Returns the `GET` shape.
-
-### `POST /plugins/profiles/account/email/notifications`
-
-**Authorization:** signed-in user. The main account only, with its PIN.
-
-```json
-{ "notifyLockout": true, "notifyNewDevice": false, "notifyTimeAsked": true, "notifyLimitReached": false, "masterPin": "1234" }
-```
-
-All optional. `400` without a confirmed address.
-
-### `POST /plugins/profiles/account/email/remove`
-
-**Authorization:** signed-in user. The main account only, with its PIN.
-
-Removes the address. Body `{ "masterPin": "1234" }`.
 
 ### `POST /plugins/profiles/account/pin-reset/send`
 

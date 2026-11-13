@@ -8433,6 +8433,8 @@
             return fetch(ApiClient.getUrl('plugins/profiles/' + path), init).then(res => {
                 if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.error')); }
                 if (!res.ok) throw refusalError(res, t('errors.error'));
+                // An address added or removed changes whether Forgot PIN is offered.
+                if (body !== undefined) this._startupHeld = null;
                 return res.text().then(text => {
                     try { return text ? JSON.parse(text) : {}; } catch (e) { return {}; }
                 });
@@ -8661,7 +8663,7 @@
                 const change = q('account-email-change');
                 if (change) change.addEventListener('click', () => { editing = true; draw(); });
                 const remove = q('account-email-remove');
-                if (remove) remove.addEventListener('click', () => run('account/email/remove', {}, t('accountEmail.removed')));
+                if (remove) remove.addEventListener('click', () => run('account/email', { address: '' }, t('accountEmail.removed')));
 
                 [['account-email-lockout', 'notifyLockout'], ['account-email-device', 'notifyNewDevice'],
                     ['account-email-asked', 'notifyTimeAsked'], ['account-email-limit', 'notifyLimitReached']].forEach(pair => {
@@ -8670,7 +8672,7 @@
                     el.addEventListener('change', () => {
                         const body = {};
                         body[pair[1]] = el.checked;
-                        this._emailCall('account/email/notifications', body)
+                        this._emailCall('account/email', body)
                             .then(reply => { data = reply; say(t('account.saved')); })
                             .catch(err => { el.checked = !el.checked; say(this._failText(err, err.message), true); });
                     });

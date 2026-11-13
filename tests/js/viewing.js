@@ -53,7 +53,7 @@ env.setRespond((url, body) => {
     }
     if (url === 'plugins/profiles/form-options') return { status: 200, body: { timeZones: server.zones } };
     if (url === 'plugins/profiles/account/email' && !body) return { status: 200, body: server.email };
-    if (url === 'plugins/profiles/account/email/notifications') return { status: 200, body: Object.assign({}, server.email, body) };
+    if (url === 'plugins/profiles/account/email') return { status: 200, body: Object.assign({}, server.email, body) };
     return { status: 200, body: {} };
 });
 
@@ -288,7 +288,7 @@ const last = url => sent(url).pop();
     limitBox.checked = true;
     limitBox.fire('change');
     await settle();
-    const n = last('plugins/profiles/account/email/notifications');
+    const n = last('plugins/profiles/account/email');
     ok('turning it on saves that one notice', n && n.body.notifyLimitReached === true && Object.keys(n.body).filter(k => k !== 'masterPin' && k !== 'language').length === 1,
        JSON.stringify(n && n.body));
 

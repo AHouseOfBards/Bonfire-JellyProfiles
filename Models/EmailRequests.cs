@@ -31,13 +31,21 @@ namespace Jellyfin.Profiles.Models
         public Guid UserId { get; set; }
     }
 
-    /// <summary>POST /account/email: send a code to a new address.</summary>
+    /// <summary>
+    /// POST /account/email. <c>Address</c> absent leaves the address alone, empty removes
+    /// it, anything else is a new one to confirm; each switch changes only when sent.
+    /// </summary>
     public class AccountEmailRequest
     {
-        public string Address { get; set; } = string.Empty;
+        public string? Address { get; set; }
 
         /// <summary>The language to write the mail in, as the client is showing it.</summary>
         public string? Language { get; set; }
+
+        public bool? NotifyLockout { get; set; }
+        public bool? NotifyNewDevice { get; set; }
+        public bool? NotifyTimeAsked { get; set; }
+        public bool? NotifyLimitReached { get; set; }
 
         public string? MasterPin { get; set; }
     }
@@ -47,22 +55,6 @@ namespace Jellyfin.Profiles.Models
     {
         public string Code { get; set; } = string.Empty;
         public string? Language { get; set; }
-        public string? MasterPin { get; set; }
-    }
-
-    /// <summary>POST /account/email/notifications. Only what is sent changes.</summary>
-    public class AccountEmailNotificationsRequest
-    {
-        public bool? NotifyLockout { get; set; }
-        public bool? NotifyNewDevice { get; set; }
-        public bool? NotifyTimeAsked { get; set; }
-        public bool? NotifyLimitReached { get; set; }
-        public string? MasterPin { get; set; }
-    }
-
-    /// <summary>POST /account/email/remove.</summary>
-    public class AccountEmailRemoveRequest
-    {
         public string? MasterPin { get; set; }
     }
 

@@ -256,8 +256,16 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Sends a code to a new address. Nothing is stored until the code comes back:
-        /// the address waits in memory with it (see <see cref="EmailCodes"/>).
+        /// The main account's email settings, in one call. <c>address</c> absent leaves it
+        /// alone; empty removes it (and any code waiting for one); an address sends a code to
+        /// it, and nothing is stored until the code comes back: the address waits in memory
+        /// with it (see <see cref="EmailCodes"/>). The four notice switches change only
+        /// when sent, and only for a confirmed address.
+        /// <para>
+        /// Removal wins over the switches in the same call: with no address left there is
+        /// nothing for them to apply to. Switches sent with a new address apply to the
+        /// address already confirmed; with none, the call is refused before a code is sent.
+        /// </para>
         /// </summary>
         [HttpPost("account/email")]
         [ProducesResponseType(typeof(AccountEmailResponse), StatusCodes.Status200OK)]
@@ -273,15 +281,63 @@ namespace Jellyfin.Profiles.Controllers
             if (notMain != null) return notMain;
             if (!ManagementAllowed(mainId, config, request.MasterPin, out var refusal)) return refusal!;
 
-            var snapshot = ReadConfigSnapshot() ?? config;
-            if (!Features.Available(Features.Email, snapshot)) return BadRequest(EmailUnavailable);
-            if (!Mailer.IsValidAddress(request.Address)) return BadRequest("That email address isn't valid.");
-            var address = request.Address.Trim();
+            var hasSwitches = request.NotifyLockout.HasValue || request.NotifyNewDevice.HasValue
+                || request.NotifyTimeAsked.HasValue || request.NotifyLimitReached.HasValue;
+            if (request.Address == null && !hasSwitches) return BadRequest("Nothing to change.");
 
-            var sent = await SendCode(snapshot, mainId, EmailCodes.ConfirmAddress, address, request.Language,
-                "email.confirm.subject", "email.confirm.body").ConfigureAwait(false);
-            if (sent != null) return sent;
-            return Ok(AccountEmailView(mainId, snapshot));
+            // An empty address removes it.
+            if (request.Address != null && request.Address.Length == 0)
+            {
+                PluginConfiguration? removed;
+                lock (ConfigLock)
+                {
+                    var live = Plugin.Instance?.Configuration;
+                    if (live == null) return BadRequest("Plugin configuration missing.");
+                    live.AccountEmails.RemoveAll(a => a.UserId == mainId);
+                    Plugin.Instance?.SaveConfiguration();
+                    removed = live.SnapshotForReading();
+                }
+                EmailCodes.Forget(EmailCodes.ConfirmAddress, mainId);
+                EmailCodes.Forget(EmailCodes.ResetPin, mainId);
+                return Ok(AccountEmailView(mainId, removed));
+            }
+
+            var snapshot = ReadConfigSnapshot() ?? config;
+            string? address = null;
+            if (request.Address != null)
+            {
+                if (!Features.Available(Features.Email, snapshot)) return BadRequest(EmailUnavailable);
+                if (!Mailer.IsValidAddress(request.Address)) return BadRequest("That email address isn't valid.");
+                address = request.Address.Trim();
+            }
+
+            // Checked before a code is sent, so a refused call changes nothing.
+            if (hasSwitches && !snapshot.AccountEmails.Any(a => a.UserId == mainId && !string.IsNullOrEmpty(a.Address)))
+                return BadRequest("Add an email address first.");
+
+            if (address != null)
+            {
+                var sent = await SendCode(snapshot, mainId, EmailCodes.ConfirmAddress, address, request.Language,
+                    "email.confirm.subject", "email.confirm.body").ConfigureAwait(false);
+                if (sent != null) return sent;
+                if (!hasSwitches) return Ok(AccountEmailView(mainId, snapshot));
+            }
+
+            PluginConfiguration? saved;
+            lock (ConfigLock)
+            {
+                var live = Plugin.Instance?.Configuration;
+                if (live == null) return BadRequest("Plugin configuration missing.");
+                var row = live.AccountEmails.FirstOrDefault(a => a.UserId == mainId);
+                if (row == null || string.IsNullOrEmpty(row.Address)) return BadRequest("Add an email address first.");
+                if (request.NotifyLockout.HasValue) row.NotifyLockout = request.NotifyLockout.Value;
+                if (request.NotifyNewDevice.HasValue) row.NotifyNewDevice = request.NotifyNewDevice.Value;
+                if (request.NotifyTimeAsked.HasValue) row.NotifyTimeAsked = request.NotifyTimeAsked.Value;
+                if (request.NotifyLimitReached.HasValue) row.NotifyLimitReached = request.NotifyLimitReached.Value;
+                Plugin.Instance?.SaveConfiguration();
+                saved = live.SnapshotForReading();
+            }
+            return Ok(AccountEmailView(mainId, saved));
         }
 
         /// <summary>The code from the mail: the address is confirmed and stored.</summary>
@@ -355,66 +411,6 @@ namespace Jellyfin.Profiles.Controllers
                     }
                 }));
             }
-            return Ok(AccountEmailView(mainId, saved));
-        }
-
-        /// <summary>Which notices the main account gets. Only what is sent changes.</summary>
-        [HttpPost("account/email/notifications")]
-        [ProducesResponseType(typeof(AccountEmailResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-        public ActionResult<AccountEmailResponse> SetAccountEmailNotifications([FromBody] AccountEmailNotificationsRequest request)
-        {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-            if (request == null) return BadRequest("Missing request body.");
-            var notMain = RequireMainAccount(config, GetCurrentUserId(), out var mainId);
-            if (notMain != null) return notMain;
-            if (!ManagementAllowed(mainId, config, request.MasterPin, out var refusal)) return refusal!;
-
-            PluginConfiguration? saved;
-            lock (ConfigLock)
-            {
-                var live = Plugin.Instance?.Configuration;
-                if (live == null) return BadRequest("Plugin configuration missing.");
-                var row = live.AccountEmails.FirstOrDefault(a => a.UserId == mainId);
-                if (row == null || string.IsNullOrEmpty(row.Address)) return BadRequest("Add an email address first.");
-                if (request.NotifyLockout.HasValue) row.NotifyLockout = request.NotifyLockout.Value;
-                if (request.NotifyNewDevice.HasValue) row.NotifyNewDevice = request.NotifyNewDevice.Value;
-                if (request.NotifyTimeAsked.HasValue) row.NotifyTimeAsked = request.NotifyTimeAsked.Value;
-                if (request.NotifyLimitReached.HasValue) row.NotifyLimitReached = request.NotifyLimitReached.Value;
-                Plugin.Instance?.SaveConfiguration();
-                saved = live.SnapshotForReading();
-            }
-            return Ok(AccountEmailView(mainId, saved));
-        }
-
-        /// <summary>Removes the main account's address, and any code waiting for one.</summary>
-        [HttpPost("account/email/remove")]
-        [ProducesResponseType(typeof(AccountEmailResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-        public ActionResult<AccountEmailResponse> RemoveAccountEmail([FromBody] AccountEmailRemoveRequest request)
-        {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-            var notMain = RequireMainAccount(config, GetCurrentUserId(), out var mainId);
-            if (notMain != null) return notMain;
-            if (!ManagementAllowed(mainId, config, request?.MasterPin, out var refusal)) return refusal!;
-
-            PluginConfiguration? saved;
-            lock (ConfigLock)
-            {
-                var live = Plugin.Instance?.Configuration;
-                if (live == null) return BadRequest("Plugin configuration missing.");
-                live.AccountEmails.RemoveAll(a => a.UserId == mainId);
-                Plugin.Instance?.SaveConfiguration();
-                saved = live.SnapshotForReading();
-            }
-            EmailCodes.Forget(EmailCodes.ConfirmAddress, mainId);
-            EmailCodes.Forget(EmailCodes.ResetPin, mainId);
             return Ok(AccountEmailView(mainId, saved));
         }
 

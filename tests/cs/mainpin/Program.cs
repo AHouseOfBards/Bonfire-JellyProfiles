@@ -183,8 +183,8 @@ var household = new (string method, Dictionary<string, object> body, object[] ra
     ("GetAccountEmail", null, null),
     ("SetAccountEmail", new() { ["Address"] = "a@b.example" }, null),
     ("ConfirmAccountEmail", new() { ["Code"] = "123456" }, null),
-    ("SetAccountEmailNotifications", null, null),
-    ("RemoveAccountEmail", null, null),
+    ("SetAccountEmail", new() { ["Address"] = "" }, null),
+    ("SetAccountEmail", new() { ["NotifyLockout"] = false }, null),
 };
 // The five that already asked for it. Artwork checks the profile is the caller's first.
 var LOCKED_KID = Guid.NewGuid();
