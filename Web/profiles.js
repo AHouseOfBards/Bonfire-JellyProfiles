@@ -8219,9 +8219,9 @@
                     <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
                     <input type="text" id="jpf-main-pin-new" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('mainPin.setTitle'))}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
-                    <div class="jpf-pin-actions jpf-actions">
+                    <div class="jpf-pin-actions jpf-actions${setup ? ' jpf-onboarding-actions' : ''}">
                         <button id="main-pin-save" class="profiles-btn jpf-btn-primary">${t('mainPin.set')}</button>
-                        ${setup && !setup.onSkip ? '' : `<button id="main-pin-skip" class="profiles-btn jpf-btn-secondary">${required && !setup ? t('common.cancel') : t('mainPin.notNow')}</button>`}
+                        ${setup && !setup.onSkip ? '' : `<button id="main-pin-skip" class="profiles-btn ${setup ? 'jpf-btn-text' : 'jpf-btn-secondary'}">${setup ? t('onboarding.skip') : required ? t('common.cancel') : t('mainPin.notNow')}</button>`}
                     </div>
                 </div>
             `;
@@ -11500,14 +11500,15 @@
             const content = document.querySelector('.profiles-modal-content');
             if (!content) return null;
             content.innerHTML = `
+                ${extraClass === 'jpf-onboarding-welcome' ? bonfireMark('jpf-onboarding-mark') : ''}
                 <h1 class="profiles-title">${title}</h1>
+                ${this._onboardingStepLine()}
                 <div class="jpf-create-profile-container jpf-onboarding${extraClass ? ' ' + extraClass : ''}" style="max-width: var(--jpf-w-form); width: 100%;">
-                    ${this._onboardingStepLine()}
                     ${body}
                     <div id="onboarding-error" class="profiles-pin-error" role="alert" hidden></div>
                     <div class="bonfire-dialog-actions jpf-actions jpf-onboarding-actions">
                         <button id="onboarding-next" class="profiles-btn jpf-btn-primary">${nextLabel}</button>
-                        ${skip ? `<button id="onboarding-skip" class="profiles-btn jpf-btn-secondary">${t('onboarding.skip')}</button>` : ''}
+                        ${skip ? `<button id="onboarding-skip" class="profiles-btn jpf-btn-text">${t('onboarding.skip')}</button>` : ''}
                     </div>
                 </div>
             `;
@@ -11518,15 +11519,18 @@
             return content;
         },
 
-        /// "Step 2 of 5" for the step on screen, or '' with nothing to count. The PIN step
-        /// draws its own screen and calls this too, so it is numbered like the rest (P2-110).
+        /// One dot per step: done, current (the wide one) and to come. "Step 2 of 5" stays as
+        /// the label for a screen reader. '' with nothing to count. The PIN step draws its own
+        /// screen and calls this too, so it is numbered like the rest (P2-110).
         _onboardingStepLine: function () {
             const ob = this._onboarding;
             if (!ob) return '';
             const shown = ob.steps.filter(s => s.id !== 'welcome' && !s.given);
             const position = shown.indexOf(ob.steps[ob.index]);
-            return position !== -1 && shown.length > 1
-                ? `<p class="jpf-onboarding-step">${t('onboarding.step', { n: position + 1, total: shown.length })}</p>` : '';
+            if (position === -1 || shown.length < 2) return '';
+            const dots = shown.map((s, i) => '<span class="jpf-onboarding-dot' + (i < position ? ' is-done' : i === position ? ' is-current' : '') + '"'
+                + (i === position ? ' aria-current="step"' : '') + '></span>').join('');
+            return `<div class="jpf-onboarding-dots" role="img" aria-label="${escapeHtml(t('onboarding.step', { n: position + 1, total: shown.length }))}">${dots}</div>`;
         },
 
         _onboardingError: function (content, message) {

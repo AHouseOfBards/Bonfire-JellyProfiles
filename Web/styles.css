@@ -1837,18 +1837,42 @@ body.profiles-no-scroll [id*="spinner"] {
 
 /* ── First-time setup (1.7.2) ───────────────────────────────────────
    Margins, not flex gap: the whole setup runs on televisions first. */
-.jpf-onboarding { text-align: left; }
-/* The welcome is a title, one sentence and one button, not a form: pinned left under a
-   centred title it looked unfinished. The steps after it are forms and stay left. */
-.jpf-onboarding.jpf-onboarding-welcome { text-align: center; }
-.jpf-onboarding.jpf-onboarding-welcome .jpf-onboarding-actions { justify-content: center; }
-.jpf-onboarding-step {
-    margin: 0 0 0.75rem 0;
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    opacity: 0.6;
+/* Every step is one centered column: heading, a line of text, the field or choices, the
+   buttons. Welcome and the PIN were centered and the four steps between left-aligned, so
+   the content jumped sideways from one step to the next. Fields and choice cards fill the
+   column. */
+.jpf-onboarding { text-align: center; }
+.jpf-onboarding .bonfire-form-group label { text-align: center; }
+.jpf-onboarding .bonfire-form-group input { text-align: left; }
+.jpf-onboarding .jpf-choice, .jpf-onboarding .jpf-theme-option { text-align: left; }
+.jpf-onboarding .jpf-onboarding-actions { justify-content: center; }
+.jpf-onboarding-actions > * + * { margin-left: var(--jpf-gap); }
+/* The PIN screen's column already spaces its rows. */
+.jpf-pin-actions.jpf-onboarding-actions { margin-top: 0 !important; justify-content: center; }
+/* Welcome's mark, over the title, in the theme's accent. */
+.jpf-onboarding-mark {
+    display: block; margin: 0 auto 0.5rem auto;
+    font-size: 3.5rem; color: var(--jpf-accent);
+}
+/* Progress, one dot a step: done is filled, the current one is the wide dot, the rest are
+   rings. Shape as well as color, so a theme with little contrast between them (the
+   high-contrast one) still shows where you are. Margins, not gap: it runs on televisions. */
+.jpf-onboarding-dots { display: flex; justify-content: center; margin: 0 0 1.25rem 0; }
+.jpf-onboarding-dot {
+    display: block; box-sizing: border-box; width: 10px; height: 10px; margin: 0 4px;
+    border-radius: 5px; border: 2px solid var(--jpf-accent); background: transparent; opacity: 0.45;
+}
+.jpf-onboarding-dot.is-done { background: var(--jpf-accent); opacity: 0.75; }
+.jpf-onboarding-dot.is-current { width: 28px; background: var(--jpf-accent); opacity: 1; }
+.jpf-pin-entry-container > .jpf-onboarding-dots { margin-bottom: 0; }
+/* Skip: the quiet button beside the main one. */
+.jpf-btn-text {
+    background: transparent; border-color: transparent; color: var(--jpf-accent-text, var(--jpf-accent));
+    box-shadow: none; text-decoration: underline;
+}
+.jpf-btn-text:hover, .jpf-btn-text:focus {
+    background: transparent; border-color: transparent; box-shadow: none; outline: 2px solid var(--jpf-accent);
+    outline-offset: 2px; transform: none;
 }
 /* Under "Manage Profiles": the badges on each tile are status, not buttons (P2-112). */
 .jpf-manage-hint {
@@ -1870,9 +1894,10 @@ body.profiles-no-scroll [id*="spinner"] {
     align-items: center;
     cursor: pointer;
     font-weight: 600;
+    margin-left: 0;   /* the library label's -8px pulled the centered row off the line */
 }
 .jpf-onboarding-check input { margin: 0 0.5rem 0 0 !important; width: 18px; height: 18px; accent-color: var(--jpf-accent); }
-.jpf-onboarding .jpf-form-hint { margin: 4px 0 1.5rem 1.6rem; opacity: 0.8; font-size: 0.85rem; }
+.jpf-onboarding .jpf-form-hint { margin: 4px 0 1.5rem 0; text-align: center; opacity: 0.8; font-size: 0.85rem; }
 .jpf-onboarding-label { font-weight: 600; margin-bottom: 10px; }
 .jpf-onboarding-choices > * + * { margin-top: var(--jpf-gap); }
 .jpf-onboarding-actions { margin-top: 2rem !important; }
