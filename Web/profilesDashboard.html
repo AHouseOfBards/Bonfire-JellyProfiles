@@ -1646,10 +1646,10 @@
                     <select is="emby-select" id="profileImageQuality">
                         <!-- The values are stored ids and are not the words: "high" is 1024 px and
                              "maximum" 2048 px, as in every saved config. See ImageQualities. -->
-                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Low (512 px, up to 2 MB)</option>
-                        <option value="high" data-i18n="admin.avatars.qualityHigh">Medium (1024 px, up to 4 MB)</option>
-                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High (2048 px, up to 8 MB)</option>
-                        <option value="ultra" data-i18n="admin.avatars.qualityUltra">Maximum (4096 px, up to 16 MB)</option>
+                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Low — 512 px, up to 2 MB</option>
+                        <option value="high" data-i18n="admin.avatars.qualityHigh">Medium — 1024 px, up to 4 MB</option>
+                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High — 2048 px, up to 8 MB</option>
+                        <option value="ultra" data-i18n="admin.avatars.qualityUltra">Maximum — 4096 px, up to 16 MB</option>
                     </select>
                     <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">More disk. Applies to new avatars.</div>
                 </div>
@@ -1940,7 +1940,7 @@
                     <div class="sectionTitleContainer jpf-section">
                         <h2 class="sectionTitle" data-i18n="admin.backup.title">Backup</h2>
                     </div>
-                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export and import skip the mail password and emergency code. Keep the file private, since it can hold PINs.</div>
+                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export saves everything except the mail password and emergency code. Import replaces everything except those two. The file holds scrambled PINs, so keep it private.</div>
                     <div class="jpf-backup-row">
                         <button is="emby-button" type="button" id="exportConfigBtn" class="raised">
                             <span data-i18n="admin.backup.export">Export</span>
@@ -2165,7 +2165,7 @@
                 'admin.audit.showing': 'Showing {shown} of {total} switches.',
                 'admin.audit.countOne': '1 switch.',
                 'admin.audit.countMany': '{count} switches.',
-                'admin.audit.empty': 'No profile switches yet.',
+                'admin.audit.empty': 'No profile switches yet. They show up here as people switch.',
                 'admin.audit.noMatch': 'No events match this filter. Clear it to see all.',
                 'admin.audit.loadFailed': 'Couldn\'t load the switch log.',
                 'admin.audit.deleteTitle': 'Delete the log',
