@@ -6538,11 +6538,15 @@
         /// Puts focus on the first control of a screen that was just drawn, on a television
         /// only. A remote has no pointer, so a screen that starts with nothing focused makes
         /// the person press a key to find out where they are. Not on a phone or a desktop:
-        /// focusing a text box there pops the keyboard before anyone asked for it. Screens
-        /// that know a better first control focus it themselves afterwards.
+        /// focusing a text box there pops the keyboard before anyone asked for it. A screen
+        /// that knows a better first control focuses it itself, and this leaves that alone:
+        /// the setup steps focus theirs at 50 ms, and this used to land on Next at 100 ms
+        /// over the top of it (the theme step opened on Next, not the checked card).
         _focusFirstOnTv: function (root, selector) {
             if (!document.documentElement.classList.contains('jpf-tv')) return;
             setTimeout(() => {
+                const active = document.activeElement;
+                if (active && active !== root && root.contains(active)) return;
                 const first = root.querySelector(selector || 'input:not([type="hidden"]), select, button, [tabindex="0"]');
                 if (first) first.focus();
             }, 100);
@@ -11596,7 +11600,7 @@
             `;
             const skipBtn = content.querySelector('#onboarding-skip');
             if (skipBtn) skipBtn.addEventListener('click', skip);
-            // The step's own control, if it has a better one, focuses it afterwards.
+            // Next on a TV, unless the step has already focused a better control of its own.
             this._focusFirstOnTv(content, '#onboarding-next');
             return content;
         },

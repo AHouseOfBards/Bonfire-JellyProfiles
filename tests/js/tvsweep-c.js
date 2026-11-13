@@ -34,14 +34,16 @@ const ICONS = path.join(ROOT, 'tests', 'screens', '.cache', 'material-icons.woff
 const SCREENS = [
     { scene: 'settings', start: /^#settings-account$/, back: '#settings-back-btn' },
     { scene: 'themes', start: /^button\.jpf-theme-option/, back: '#theme-settings-back-btn' },
-    // The welcome has no Skip, so Back is absorbed there. The other steps start on Next on
-    // purpose: it is the one control every step has.
+    // The welcome has no Skip, so Back is absorbed there. Each later step starts on its own
+    // control, as it does off a TV: Next there would send an empty address or name. This
+    // list once said Next "on purpose"; that was the frame's TV focus landing on top of the
+    // step's own, which setupfocus.js now holds against.
     { scene: 'ob-welcome', start: /^#onboarding-next$/, back: null },
     { scene: 'ob-mainpin', start: /^#jpf-main-pin-new$/, back: '#main-pin-skip' },
-    { scene: 'ob-email', start: /^#onboarding-next$/, back: '#onboarding-skip' },
-    { scene: 'ob-profile', start: /^#onboarding-next$/, back: '#onboarding-skip' },
-    { scene: 'ob-switcher', start: /^#onboarding-next$/, back: '#onboarding-skip' },
-    { scene: 'ob-theme', start: /^#onboarding-next$/, back: '#onboarding-skip' }
+    { scene: 'ob-email', start: /^#onboarding-email$/, back: '#onboarding-skip' },
+    { scene: 'ob-profile', start: /^#onboarding-profile-name$/, back: '#onboarding-skip' },
+    { scene: 'ob-switcher', start: /\.switcher-location-option/, back: '#onboarding-skip' },
+    { scene: 'ob-theme', start: /^button\.jpf-theme-option/, back: '#onboarding-skip' }
 ];
 
 const EXITS = '#theme-settings-back-btn, #settings-back-btn, #account-back-btn, #onboarding-skip, #main-pin-skip, #bonfire-back-btn, #switcher-mode-back-btn';
