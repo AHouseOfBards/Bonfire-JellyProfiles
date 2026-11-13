@@ -37,6 +37,8 @@ function runSet(stubs, opts) {
     const ms = Date.now() - t0;
     const lockLeft = fs.existsSync(path.join(tmp, 'bonfire-tests.lock'));
     const left = fs.readdirSync(tmp);
+    let timings = '';
+    try { timings = fs.readFileSync(path.join(tmp, 'bonfire-timings.txt'), 'utf8'); } catch (e) { /* none written */ }
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(tmp, { recursive: true, force: true });
     const out = (r.stdout || '') + (r.stderr || '');
@@ -45,7 +47,7 @@ function runSet(stubs, opts) {
         const m = /^ {2}(\S+) /.exec(l);
         return m && Object.prototype.hasOwnProperty.call(stubs, m[1]);
     });
-    return { out: out, lines: lines, status: r.status, ms: ms, lockLeft: lockLeft, left: left };
+    return { out: out, lines: lines, status: r.status, ms: ms, lockLeft: lockLeft, left: left, timings: timings };
 }
 
 function run(body) {
@@ -106,7 +108,20 @@ const slow = (ms) => "setTimeout(function () { console.log('1 passed, 0 failed')
 const ordered = runSet({ aa: slow(700), bb: slow(10), cc: slow(300), dd: slow(10), ee: slow(10) }, { env: { BONFIRE_JOBS: '4' } });
 const order = ordered.lines.map(function (l) { return l.trim().split(/\s+/)[0]; }).join(',');
 check('results print in name order: ' + order, order === 'aa,bb,cc,dd,ee');
-check('the same label and last-line format is printed', /^ {2}aa[ ]+1 passed, 0 failed$/m.test(ordered.out));
+check('the same label and last-line format is printed, then how long it took', /^ {2}aa[ ]+1 passed, 0 failed  \(\d+\.\ds\)$/m.test(ordered.out));
+// Every harness line carries its time, and the end of the run lists the slowest and says
+// where the timings went, in the format tests/timings.txt is kept in.
+check('every harness line ends with its seconds', ordered.lines.length === 5 && ordered.lines.every(function (l) { return /\(\d+\.\ds\)$/.test(l); }));
+{
+    // The shared-copy check runs too and may be the slowest of all; what is asserted is the
+    // order, and that the slow stub is in the list.
+    const m = /the ten slowest:\n((?:    \S+\s+[0-9.]+s .*\n)+)/.exec(ordered.out);
+    const secs = m ? m[1].trim().split('\n').map(function (l) { return Number(/\s([0-9.]+)s\s/.exec(l)[1]); }) : [];
+    check('the ten slowest are listed, slowest first, and include the slow stub',
+          secs.length >= 5 && secs.every(function (s, i) { return i === 0 || secs[i - 1] >= s; }) && /\bjs\/aa\b/.test(m[1]), ordered.out.slice(-500));
+}
+check('and the timings file is written in the timings.txt format',
+      ordered.left.indexOf('bonfire-timings.txt') !== -1 && /^js\/aa \d+\.\d parallel$/m.test(ordered.timings), ordered.timings);
 
 // A failure keeps its tail, and does not take the others down with it.
 const failing = runSet({
@@ -114,7 +129,7 @@ const failing = runSet({
     bb: "console.log('the evidence'); console.log('1 passed, 1 failed'); process.exit(1);\n",
     cc: "console.log('1 passed, 0 failed');\n"
 }, { env: { BONFIRE_JOBS: '4' } });
-check('a failing parallel harness is FAILED with its tail', /bb[ ]+FAILED\n\s+the evidence\n\s+1 passed, 1 failed/.test(failing.out));
+check('a failing parallel harness is FAILED with its tail', /bb[ ]+FAILED  \(\d+\.\ds\)\n\s+the evidence\n\s+1 passed, 1 failed/.test(failing.out));
 check('and the run exits 1 naming it', failing.status === 1 && /3 harnesses|4 harnesses/.test(failing.out) && /failed: bb/.test(failing.out));
 check('the others still ran green', /aa[ ]+1 passed/.test(failing.out) && /cc[ ]+1 passed/.test(failing.out));
 
