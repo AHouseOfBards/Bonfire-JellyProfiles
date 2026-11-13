@@ -349,6 +349,96 @@ Section("/update sets a theme under the rules /theme had");
     SetCfg("AllowProfileThemes", true);
 }
 
+// ── A theme-only /update changes nothing else ────────────────────────────────
+// Settings -> Theme and first-time setup send profileId, profileName, theme and the main PIN
+// and nothing more. POST /theme, which they used, touched only the theme; /update also runs the
+// sub-profile's policy sync, so "left out keeps what is stored" has to hold for every field it
+// can change, in the mapping and in the Jellyfin account Bonfire writes to.
+Section("A theme-only /update leaves every other field as it was");
+{
+    SetCfg("AllowProfileThemes", true);
+    SetCfg("HiddenThemes", new List<string> { "glass" });
+    var kidHash = hasher.GetMethod("Hash").Invoke(null, new object[] { "5678" });
+    var libA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+    // Every mapping field set to something that is not its default, each from JSON so the
+    // nested types need no reflection of their own.
+    void Fill(Guid id, string fields)
+    {
+        var row = MapOf(id);
+        foreach (var p in JsonDocument.Parse(fields).RootElement.EnumerateObject())
+        {
+            var prop = mapType.GetProperty(p.Name) ?? throw new Exception("no mapping field " + p.Name);
+            prop.SetValue(row, JsonSerializer.Deserialize(p.Value.GetRawText(), prop.PropertyType));
+        }
+    }
+    const string Common = @"{
+        ""AvatarColor"": ""#AA33CC"", ""TransparentAvatar"": true, ""IsHidden"": false, ""KeepAccountOnDelete"": true,
+        ""LockoutMinutes"": 17, ""BypassPinOnLocalNetwork"": true, ""AskPinToOpen"": false,
+        ""AllowHouseholdLanBypass"": true, ""AllowedDeviceIds"": [""dev-one"", ""dev-two""],
+        ""OwnLimits"": { ""RemoteClientBitrateLimit"": 2000000, ""MaxActiveSessions"": 2, ""ForceRemoteSourceTranscoding"": true, ""SyncPlayAccessName"": ""None"", ""BlockUnratedItemNames"": [""Movie""] },
+        ""LastAppliedLimits"": { ""RemoteClientBitrateLimit"": 1000000, ""MaxActiveSessions"": 3, ""ForceRemoteSourceTranscoding"": false, ""SyncPlayAccessName"": ""JoinGroups"", ""BlockUnratedItemNames"": [] },
+        ""OwnRating"": { ""Score"": 7, ""SubScore"": null }, ""LastAppliedRating"": { ""Score"": 7, ""SubScore"": null },
+        ""LastAppliedSchedules"": [""mon"", ""tue""], ""OwnSchedules"": [""wed""],
+        ""Viewing"": { ""HoursEnabled"": true, ""Windows"": [{ ""Days"": 62, ""Start"": ""15:00"", ""End"": ""19:30"" }], ""DailyMinutes"": 90, ""WeekendMinutes"": 150, ""Language"": ""fr"" },
+        ""TimeZone"": ""Pacific/Auckland"", ""ProfileImage"": ""/plugins/profiles/profile-image/x.png"",
+        ""LibraryArtwork"": [{ ""LibraryId"": ""11111111-1111-1111-1111-111111111111"", ""Mode"": ""none"" }],
+        ""HideMySubProfilesFromOthers"": true, ""HideOthersSubProfilesFromMe"": true,
+        ""AskOnStartup"": false, ""SwitcherLocation"": ""sidebar"", ""Theme"": ""crimson"" }";
+    Fill(KID, Common);
+    mapType.GetProperty("PinHash").SetValue(MapOf(KID), kidHash);
+    mapType.GetProperty("ProfileName").SetValue(MapOf(KID), "Kid");
+    Fill(KID, @"{ ""BlockedTags"": [""scary""], ""AllowedTags"": [""family""],
+        ""EnabledFolders"": [""11111111-1111-1111-1111-111111111111""], ""AllLibraries"": false,
+        ""LastAppliedFolders"": [""11111111-1111-1111-1111-111111111111""] }");
+    Fill(MAIN, Common);
+
+    // The account behind the profile: a rating of its own, tags, one library, and the limits
+    // Bonfire writes at sign-in, all non-default. Its blocked tags are the profile's own plus the
+    // main account's ("adult"), which is what the sign-in sync leaves; /update merges them again.
+    // The main account has its own policy, never written.
+    world.Policies[KID] = Policy(u =>
+    {
+        u.EnableAllFolders = false; u.EnabledFolders = new[] { libA };
+        u.MaxParentalRating = 7; u.MaxParentalSubRating = null;
+        u.BlockedTags = new[] { "scary", "adult" }; u.AllowedTags = new[] { "family" };
+        u.RemoteClientBitrateLimit = 2000000; u.MaxActiveSessions = 2;
+        u.ForceRemoteSourceTranscoding = true; u.EnableContentDeletion = true;
+        u.SyncPlayAccess = Jellyfin.Database.Implementations.Enums.SyncPlayUserAccessType.None;
+        u.BlockUnratedItems = new[] { Jellyfin.Data.Enums.UnratedItem.Movie };
+        u.AccessSchedules = new[] { new Jellyfin.Database.Implementations.Entities.AccessSchedule(Jellyfin.Database.Implementations.Enums.DynamicDayOfWeek.Monday, 8, 20, KID) };
+    });
+    world.Policies[MAIN] = Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = null; u.BlockedTags = new[] { "adult" }; });
+
+    string Snap(Guid id)
+    {
+        var m = JsonNode.Parse(JsonSerializer.Serialize(MapOf(id), mapType, json)).AsObject();
+        m.Remove("theme"); m.Remove("Theme");
+        return m.ToJsonString();
+    }
+    string PolicySnap(Guid id) => JsonSerializer.Serialize(world.Policies[id], json);
+
+    void Check(string label, Guid target, object body, string expectedTheme)
+    {
+        var before = (kid: Snap(KID), main: Snap(MAIN), kidPolicy: PolicySnap(KID), mainPolicy: PolicySnap(MAIN),
+                      kidName: world.Users[KID].Username, other: Snap(OTHERKID));
+        var r = Call("UpdateProfile", MAIN, body);
+        Ok(label + ": answers 200", r.status == 200, Say(r));
+        Ok(label + ": the theme is stored", ThemeOf(target) == expectedTheme, "stored=" + ThemeOf(target));
+        Ok(label + ": the profile's stored fields are as they were", before.kid == Snap(KID), "was " + before.kid + "\n    now " + Snap(KID));
+        Ok(label + ": the main account's stored fields are as they were", before.main == Snap(MAIN), "was " + before.main + "\n    now " + Snap(MAIN));
+        Ok(label + ": the profile's Jellyfin account policy is as it was", before.kidPolicy == PolicySnap(KID), "was " + before.kidPolicy + "\n    now " + PolicySnap(KID));
+        Ok(label + ": the main account's Jellyfin policy is as it was", before.mainPolicy == PolicySnap(MAIN), "was " + before.mainPolicy + "\n    now " + PolicySnap(MAIN));
+        Ok(label + ": the account name is as it was", before.kidName == world.Users[KID].Username);
+        Ok(label + ": another household's profile is as it was", before.other == Snap(OTHERKID));
+    }
+
+    // Sent the way the client sends it: id, name, theme, PIN, and nothing else.
+    Check("sub-profile, a theme", KID, new { ProfileId = KID, ProfileName = "Kid", Theme = "harbor", MasterPin = PIN }, "harbor");
+    Check("sub-profile, back to the server default", KID, new { ProfileId = KID, ProfileName = "Kid", Theme = "", MasterPin = PIN }, null);
+    Check("the main account's own", MAIN, new { ProfileId = MAIN, ProfileName = "home", Theme = "harbor", MasterPin = PIN }, "harbor");
+}
+
 Console.WriteLine();
 if (fails.Count > 0)
 {
