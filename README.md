@@ -1,4 +1,4 @@
-# Bonfire/JellyProfiles
+# Bonfire
 
 ![Bonfire](images/banner.png)
 
