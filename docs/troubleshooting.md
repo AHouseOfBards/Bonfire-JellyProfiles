@@ -96,8 +96,8 @@ file over `PluginConfiguration.xml`, and start the newer version.
 
 Bonfire keeps a copy of its settings beside the file, as `PluginConfiguration.xml.lastgood`. If `PluginConfiguration.xml` is deleted, Bonfire restores it from that copy, so to start over with default settings, stop Jellyfin and delete both.
 
-{: .warning }
-Deleting both files erases every Bonfire setting.
+> [!WARNING]
+> Deleting both files erases every Bonfire setting.
 
 
 ## Quick Connect still shows on my Android TV

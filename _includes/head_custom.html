@@ -1,0 +1,17 @@
+<script>
+  // The docs mark warnings with GitHub's alert syntax ("> [!WARNING]"), which GitHub renders as a box but
+  // GitHub Pages' kramdown leaves as a quote starting with the literal marker. Turn those quotes into the
+  // theme's callouts (the `callouts:` block in _config.yml) so both places show a box. Without JavaScript the
+  // site shows a plain quote, which still reads.
+  document.addEventListener('DOMContentLoaded', function () {
+    var kinds = { WARNING: 'warning', NOTE: 'note' };
+    document.querySelectorAll('blockquote').forEach(function (q) {
+      var p = q.querySelector('p');
+      if (!p) return;
+      var m = /^\s*\[!(WARNING|NOTE)\]\s*/.exec(p.innerHTML);
+      if (!m) return;
+      p.innerHTML = p.innerHTML.slice(m[0].length);
+      q.classList.add(kinds[m[1]]);
+    });
+  });
+</script>

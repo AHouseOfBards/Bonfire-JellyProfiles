@@ -35,8 +35,8 @@ Under **Advanced**:
 - **PIN tries a day.** 1 to 20, default 20. Per account, all apps together.
 - **Addresses that skip PINs.** Add an address, then choose which accounts skip the PIN from it.
 
-{: .warning }
-The emergency disable code can't be shown again, so write it down.
+> [!WARNING]
+> The emergency disable code can't be shown again, so write it down.
 
 More in [Security](security.md).
 
@@ -83,8 +83,8 @@ For apps without a switcher, such as Android TV, Roku and Swiftfin. Set each app
 
 The last 1,000 profile switches, kept for 90 days. Filter by **Main account or profile** and by **From** and **To** dates. **Download JSON** includes IP addresses. **Delete the log** clears it. Other events are in **Dashboard → Activity**.
 
-{: .warning }
-**Delete the log** can't be undone, and the JSON download includes IP addresses.
+> [!WARNING]
+> **Delete the log** can't be undone, and the JSON download includes IP addresses.
 
 
 ## Troubleshoot
@@ -93,8 +93,8 @@ The last 1,000 profile switches, kept for 90 days. Filter by **Main account or p
 - **Report a problem.** **Copy report** copies versions, settings and counts to paste into a GitHub issue. It has no names, ids, addresses or PINs.
 - **Client script** and **Backup** (Advanced). The script check shows whether the client script loads. **Export** and **Import** back up the settings, without the mail password and emergency code. **Include PINs** is on by default.
 
-{: .warning }
-The backup file holds every PIN. Keep it private.
+> [!WARNING]
+> The backup file holds every PIN. Keep it private.
 
 
 Longer answers are in [Troubleshooting](troubleshooting.md). Scripts that call the server are in the [Developer API](developer-api.md).

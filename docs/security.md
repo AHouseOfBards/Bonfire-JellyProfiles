@@ -61,7 +61,9 @@ These hold in every app and can't be turned off from a browser.
 - **Emergency disable code.** It skips the profile screen on any browser signed in to a
   main account. Make it long.
 
-{: .warning }
-A four-digit PIN can be recovered from its hash in seconds. Keep an exported configuration file safe like a password.
 - **Device and app names** on the Bonfire settings page can be set by any account.
   The page shows them as plain text. If you build tools on the API, do the same.
+
+> [!WARNING]
+> A four-digit PIN can be recovered from its hash in seconds. Keep an exported
+> configuration file safe like a password.

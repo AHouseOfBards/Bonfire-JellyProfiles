@@ -74,9 +74,11 @@ Turn it on under **Dashboard → Plugins → Bonfire → Clients**.
 | Findroid (phone and TV) | Not yet confirmed on hardware. |
 | Wholphin | Not yet confirmed on hardware. |
 
-{: .warning }
-**Make the app ask every time.** These apps save a sign-in, and a saved profile opens
-without its PIN unless the app is set to ask:
+> [!WARNING]
+> **Make the app ask every time.** These apps save a sign-in, and a saved profile opens
+> without its PIN unless the app is set to ask.
+
+To set each app to ask:
 
 - **Android TV:** **Settings → Login → Always ask for credentials**.
 - **Roku:** **Settings → Global**, then turn off **Remember Me?**. Bonfire then makes the app ask
