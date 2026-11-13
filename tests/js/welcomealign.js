@@ -1,11 +1,11 @@
 /*
  * First-time setup: the welcome step is a title, one sentence and one button, and it read as
- * unfinished with the sentence and button pinned left under a centred title. The welcome is
- * centred; the steps after it are forms and stay left-aligned like every other form (the
- * owner's choice, 2026-11-10).
- *
- * Asked per scene and size on its own: the sentence's text-align, and whether the Next button's
- * centre sits on the sheet's centre.
+ * unfinished with the sentence and button pinned left under a centred title. The welcome was
+ * centred and the steps after it left-aligned (2026-11-10); the owner then asked for one
+ * centred column on every step, so every sentence is centred here. setuplook.js measures the
+ * whole column; this one keeps the sentence's text-align, and on Welcome, which has one
+ * button, whether Next sits on the sheet's centre (with Skip beside it the pair is centred,
+ * not Next).
  *
  * Needs Chrome and the Material Icons font, like formfactors.js, and says it was skipped,
  * exiting 0, without them.
@@ -55,7 +55,7 @@ const MEASURE = `(function () {
 })()`;
 
 // scene -> whether it should be centred
-const CASES = [['ob-welcome', true], ['ob-profile', false], ['ob-email', false]];
+const CASES = [['ob-welcome', true], ['ob-profile', true], ['ob-email', true]];
 
 async function main() {
     try { chrome.findChrome(); } catch (e) {
@@ -81,7 +81,7 @@ async function main() {
                 if (m.missing) { ok(label + ' has a sheet, a sentence and a Next button', false); continue; }
                 if (centred) {
                     ok(label + ': the sentence is centred', m.align === 'center', m.align);
-                    ok(label + ': Next sits on the sheet\'s centre', m.offset <= 2, m.offset.toFixed(1) + 'px off');
+                    if (scene === 'ob-welcome') ok(label + ': Next sits on the sheet\'s centre', m.offset <= 2, m.offset.toFixed(1) + 'px off');
                 } else {
                     ok(label + ': the form sentence stays left-aligned', m.align === 'left' || m.align === 'start', m.align);
                     ok(label + ': the form\'s buttons are not centred', m.offset > 2, m.offset.toFixed(1) + 'px off');

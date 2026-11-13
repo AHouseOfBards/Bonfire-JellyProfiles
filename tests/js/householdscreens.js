@@ -162,7 +162,7 @@ PP.handleSessionExpired = () => {};
         welcome: '', index: 1, waiting: false
     };
     PP.promptSetMainPin([], false, () => {}, { onSkip: () => {} });
-    ok('the PIN step says which step it is', /class="jpf-onboarding-step">Step 1 of 4</.test(content.innerHTML), content.innerHTML.slice(0, 120));
+    ok('the PIN step says which step it is', /class="jpf-onboarding-dots"[^>]*aria-label="Step 1 of 4"/.test(content.innerHTML), content.innerHTML.slice(0, 160));
     PP._onboardingSwitcher(() => {}, () => {});
     ok('the switcher step says it can be changed later', /id="onboarding-switcher-later"/.test(content.innerHTML));
     const css = L.extractCss(SRC);
