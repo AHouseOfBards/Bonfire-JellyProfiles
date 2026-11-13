@@ -1383,6 +1383,7 @@
   "admin.themes.file": "Dosya",
   "admin.themes.fileDownload": "Tema dosyasını indir",
   "admin.themes.fileLoad": "Tema dosyası yükle",
+  "admin.themes.fileMoonfin": "Moonfin için indir",
   "admin.themes.fileTooBig": "Bu dosya 256 KB'tan büyük.",
   "admin.themes.deco.missing": "Resim eksik",
   "admin.themes.changed": "Değişti",

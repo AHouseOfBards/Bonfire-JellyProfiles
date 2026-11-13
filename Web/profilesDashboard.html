@@ -1375,6 +1375,7 @@
                                 <button type="button" class="jpf-te-lbtn" id="teFile" aria-haspopup="true" aria-expanded="false" data-i18n="admin.themes.file">File</button>
                                 <div class="jpf-te-menu jpf-hidden" id="teFileMenu" role="menu">
                                     <button type="button" class="jpf-te-lbtn" role="menuitem" id="teFileDownload" data-i18n="admin.themes.fileDownload">Download theme file</button>
+                                    <button type="button" class="jpf-te-lbtn" role="menuitem" id="teFileMoonfin" data-i18n="admin.themes.fileMoonfin">Download for Moonfin</button>
                                     <button type="button" class="jpf-te-lbtn" role="menuitem" id="teFileLoad" data-i18n="admin.themes.fileLoad">Load theme file</button>
                                 </div>
                                 <input type="file" id="teFileInput" class="jpf-hidden" accept=".json,application/json" tabindex="-1" aria-hidden="true" />
@@ -7456,16 +7457,216 @@
                 const bg = copy.background && typeof copy.background === 'object' ? copy.background : null;
                 if (bg && bg.image && typeof bg.image === 'object') bg.image = { dim: bg.image.dim };
                 else if (bg) delete bg.image;
-                const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
+                downloadJsonFile(id + '.json', copy);
+            }
+
+            function downloadJsonFile(filename, obj) {
+                const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = id + '.json';
+                a.download = filename;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
             }
+
+            // moonfin:begin
+            // Moonfin's theme files (<id>.theme.json). Its colours put alpha first, #AARRGGBB;
+            // Bonfire's put it last, #RRGGBBAA. Everything here is plain data in, data out, so
+            // tests/js/moonfinthemes.js runs this block on its own: keep it free of the page.
+
+            function mfParseColor(c) {
+                const m = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.exec(String(c));
+                if (!m) return null;
+                return {
+                    r: parseInt(m[1].slice(0, 2), 16),
+                    g: parseInt(m[1].slice(2, 4), 16),
+                    b: parseInt(m[1].slice(4, 6), 16),
+                    a: m[2] ? parseInt(m[2], 16) / 255 : 1
+                };
+            }
+
+            function mfHex2(n) {
+                const s = Math.max(0, Math.min(255, Math.round(n))).toString(16);
+                return s.length < 2 ? '0' + s : s;
+            }
+
+            /// {r,g,b,a} as Bonfire writes it: #rrggbb, with the alpha last only when see-through.
+            function mfBonfireColor(c) {
+                const a = Math.round(c.a * 255);
+                return '#' + mfHex2(c.r) + mfHex2(c.g) + mfHex2(c.b) + (a >= 255 ? '' : mfHex2(a));
+            }
+
+            /// {r,g,b,a} as Moonfin writes it: #RRGGBB, or #AARRGGBB when see-through.
+            function mfMoonfinColor(c) {
+                const a = Math.round(c.a * 255);
+                return ('#' + (a >= 255 ? '' : mfHex2(a)) + mfHex2(c.r) + mfHex2(c.g) + mfHex2(c.b)).toUpperCase();
+            }
+
+            /// Colour `top` laid over colour `bottom`.
+            function mfOver(top, bottom) {
+                const a = top.a + bottom.a * (1 - top.a);
+                if (a <= 0) return { r: 0, g: 0, b: 0, a: 0 };
+                const mix = function (t, b) { return (t * top.a + b * bottom.a * (1 - top.a)) / a; };
+                return { r: mix(top.r, bottom.r), g: mix(top.g, bottom.g), b: mix(top.b, bottom.b), a: a };
+            }
+
+            function mfWithAlpha(c, a) {
+                return { r: c.r, g: c.g, b: c.b, a: Math.max(0, Math.min(1, a)) };
+            }
+
+            function mfNum(v, lo, hi, dflt) {
+                return typeof v === 'number' && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : dflt;
+            }
+
+            function mfGet(obj, path) {
+                return String(path).split('.').reduce(function (o, k) {
+                    return o && typeof o === 'object' ? o[k] : undefined;
+                }, obj);
+            }
+
+            function mfId(id) {
+                let s = String(id || 'theme').toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 40);
+                if (s.length < 2) s = 'b-' + s;
+                return s;
+            }
+
+            /// Moonfin's corner radius for a Bonfire shape: a pill or circle is 999.
+            function mfRadius(kind, radius, round) {
+                if (kind === round) return 999;
+                if (kind === 'square' && round === 'pill') return 0;
+                return mfNum(radius, 0, 9999, 0);
+            }
+
+            /// A Bonfire theme as a Moonfin theme file's object. What has no counterpart is
+            /// worked out from the theme's own colours; the book, the badges, recordings and
+            /// the request statuses are fixed neutral values, as Bonfire draws none of them.
+            function moonfinExport(theme, name) {
+                const col = function (path, fallback) { return mfParseColor(mfGet(theme, path)) || mfParseColor(fallback); };
+                const out = mfMoonfinColor;
+                const panelC = col('colors.panel', '#1d1b26');
+                const bg = col('background.fill', '#121521');
+                const text1 = col('colors.text1', '#ffffff');
+                const text2 = col('colors.text2', '#ffffffbe');
+                const text3 = col('colors.text3', '#ffffffa6');
+                const accent = col('colors.accent', '#ffb347');
+                const onAccent = col('colors.onAccent', '#000000');
+                const ring = col('colors.ring', '#ffffff');
+                const shadow = col('colors.shadow', '#000000');
+                const danger = col('colors.danger', '#ff6b6b');
+                const warning = col('colors.warning', '#ff9900');
+                const surface2 = col('colors.surface2', '#ffffff0f');
+                const surface3 = col('colors.surface3', '#ffffff1c');
+                const border2 = col('colors.border2', '#ffffff26');
+                const border3 = col('colors.border3', '#ffffff42');
+                const btnFill = col('parts.button2.fill', '#ffffff12');
+                const btnText = col('parts.button2.text', '#ffffff');
+                const btnFocusFill = col('parts.button2.focus.fill', '#ffb347');
+                const btnFocusText = col('parts.button2.focus.text', '#000000');
+                const btnLine = col('parts.button2.border.color', '#ffffff24');
+                const inputFill = col('parts.input.fill', '#232230');
+                const inputLine = col('parts.input.line', '#ffffff26');
+                const cardFill = col('parts.card.fill', '#ffffff08');
+                const cardLine = col('parts.card.line', '#ffffff17');
+                const raised = mfOver(surface3, panelC);
+
+                const side = function (shadowSpec, spreadOk) {
+                    const colorOwn = mfParseColor(shadowSpec.color);
+                    const c = colorOwn || mfWithAlpha(shadow, mfNum(shadowSpec.opacity, 0, 1, 1));
+                    const g = {
+                        color: out(c),
+                        blurRadius: mfNum(shadowSpec.blur, 0, 64, 0),
+                        offsetX: mfNum(shadowSpec.x, -500, 500, 0),
+                        offsetY: mfNum(shadowSpec.y, -500, 500, 0)
+                    };
+                    g.spreadRadius = spreadOk ? mfNum(shadowSpec.spread, -32, 32, 0) : 0;
+                    return g;
+                };
+                const glow = mfGet(theme, 'focus.glow');
+                const title = mfGet(theme, 'depth.title');
+                const font = mfGet(theme, 'type.font.family');
+                const decorations = Array.isArray(theme && theme.decorations) ? theme.decorations : [];
+
+                const file = {
+                    schemaVersion: 1,
+                    exportedByEditorVersion: 'bonfire-2.0',
+                    id: mfId(theme && theme.id),
+                    displayName: (String(name || '').replace(/<script/gi, '').trim().slice(0, 80)) || mfId(theme && theme.id),
+                    colors: {
+                        background: out(bg),
+                        onBackground: out(text1),
+                        surface: out(panelC),
+                        onSurface: out(text1),
+                        surfaceVariant: out(raised),
+                        scrim: out(mfWithAlpha(shadow, 0.7)),
+                        accent: out(accent),
+                        onAccent: out(onAccent),
+                        buttonNormal: out(btnFill),
+                        buttonFocused: out(btnFocusFill),
+                        buttonDisabled: out(surface2),
+                        buttonActive: out(accent),
+                        onButtonNormal: out(btnText),
+                        onButtonFocused: out(btnFocusText),
+                        onButtonDisabled: out(text3),
+                        inputBackground: out(inputFill),
+                        inputFocused: out(mfOver(surface2, inputFill)),
+                        inputBorder: out(inputLine),
+                        inputBorderFocused: out(ring),
+                        rangeTrack: out(border2),
+                        rangeProgress: out(accent),
+                        rangeThumb: out(accent),
+                        seekbarBuffered: out(border3),
+                        badgeBackground: '#B3000000',
+                        onBadge: '#FFFFFF',
+                        badgeUnplayed: '#3F8FD2',
+                        badgeWatched: '#3FA34D',
+                        recordingActive: '#E53935',
+                        recordingScheduled: '#FB8C00',
+                        error: out(danger),
+                        card: out(mfOver(cardFill, panelC))
+                    },
+                    semantic: {
+                        statusAvailable: '#3FA34D',
+                        statusRequested: '#8E5BC9',
+                        statusPending: '#E0A030',
+                        statusDownloading: '#3F8FD2',
+                        mediaTypeBadgeMovie: '#3F8FD2',
+                        mediaTypeBadgeShow: '#8E5BC9',
+                        statusError: out(danger)
+                    },
+                    book: {
+                        background: out(bg),
+                        accent: out(accent),
+                        mutedText: out(text3),
+                        primaryText: out(text1),
+                        sectionTitle: out(text2),
+                        divider: out(border2),
+                        placeholder: out(raised),
+                        shadow: out(shadow),
+                        gradientTop: out(bg),
+                        gradientBottom: out(panelC),
+                        inactiveChip: out(mfOver(surface2, panelC)),
+                        placeholderPalette: [out(accent), out(danger), out(warning), out(raised)]
+                    },
+                    borders: {
+                        cardBorder: { color: out(cardLine), width: 1 },
+                        chipBorder: { color: out(btnLine), width: mfNum(mfGet(theme, 'parts.button2.border.width'), 0, 16, 1) },
+                        focusBorder: { color: out(ring), width: mfNum(mfGet(theme, 'shape.ringWidth'), 0, 16, 3) },
+                        cardRadius: mfRadius(mfGet(theme, 'shape.avatar.kind'), mfGet(theme, 'shape.avatar.radius'), 'circle'),
+                        chipRadius: mfRadius(mfGet(theme, 'shape.button.kind'), mfGet(theme, 'shape.button.radius'), 'pill'),
+                        chipBackground: out(btnFill),
+                        focusGlow: glow && typeof glow === 'object' ? [side(glow, true)] : []
+                    }
+                };
+                if (typeof font === 'string' && font) file.fontFamily = font;
+                if (decorations.some(function (d) { return d && d.name === 'frost'; })) file.isGlass = true;
+                if (title && typeof title === 'object') file.textGlow = [side(title, false)];
+                return file;
+            }
+
+            // moonfin:end
 
             /// A file that did not save, made ready for the editor: a custom theme's name is
             /// text and it has no aliases, so those two are put right and the rest is left
@@ -8001,6 +8202,13 @@
                 page.querySelector('#teFileDownload').addEventListener('click', function () {
                     closeThemeMenu(page);
                     if (page._themeEditor) exportTheme(page._themeEditor.draft);
+                });
+                page.querySelector('#teFileMoonfin').addEventListener('click', function () {
+                    closeThemeMenu(page);
+                    const ed = page._themeEditor;
+                    if (!ed) return;
+                    const file = moonfinExport(ed.draft, getThemePath(ed.draft, 'name.text'));
+                    downloadJsonFile(file.id + '.theme.json', file);
                 });
                 page.querySelector('#teFileLoad').addEventListener('click', function () {
                     closeThemeMenu(page);

@@ -1383,6 +1383,7 @@
   "admin.themes.file": "Plik",
   "admin.themes.fileDownload": "Pobierz plik motywu",
   "admin.themes.fileLoad": "Wczytaj plik motywu",
+  "admin.themes.fileMoonfin": "Pobierz dla Moonfin",
   "admin.themes.fileTooBig": "Ten plik ma ponad 256 KB.",
   "admin.themes.deco.missing": "Brak obrazu",
   "admin.themes.changed": "Zmieniono",

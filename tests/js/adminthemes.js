@@ -806,7 +806,7 @@ async function part8() {
 
         // Export leaves the picture out; import never brings one.
         let blobText = null;
-        const ex = lift(['exportTheme'], {
+        const ex = lift(['exportTheme', 'downloadJsonFile'], {
             Blob: function (parts) { blobText = parts.join(''); }, URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
             document: { createElement: () => ({ click() {} }), body: { appendChild() {}, removeChild() {} } }
         });

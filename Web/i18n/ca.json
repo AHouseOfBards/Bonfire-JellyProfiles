@@ -1383,6 +1383,7 @@
   "admin.themes.file": "Fitxer",
   "admin.themes.fileDownload": "Baixa el fitxer del tema",
   "admin.themes.fileLoad": "Carrega un fitxer de tema",
+  "admin.themes.fileMoonfin": "Baixa per a Moonfin",
   "admin.themes.fileTooBig": "Aquest fitxer supera els 256 KB.",
   "admin.themes.deco.missing": "Falta la imatge",
   "admin.themes.changed": "Canviat",
