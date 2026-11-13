@@ -33,7 +33,7 @@ Under **Advanced**:
 
 - **Emergency disable code.** At least 10 characters. Anyone with the code can turn Bonfire off until Jellyfin restarts, so signed-in devices skip the profile screen. Blank turns it off. **Save code** saves it on its own, not with **Save**.
 - **PIN tries a day.** 1 to 20, default 20. Per account, all apps together.
-- **Addresses that skip PINs.** Add an address, then choose which accounts skip the PIN from it.
+- **Addresses that skip PINs.** Add an address, then choose which accounts skip the PIN from it. This is for a household that watches from somewhere else, such as relatives in another town: use the public address of their home internet, which they can find by searching "what is my IP" there. Most home addresses change from time to time, so if the PIN comes back, check it again. The server's own network doesn't need an entry; each profile already has **Skip the PIN on the server's network**.
 
 > [!WARNING]
 > The emergency disable code can't be shown again, so write it down.
