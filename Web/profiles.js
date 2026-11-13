@@ -7707,6 +7707,7 @@
             content.classList.remove('jpf-fitted');
             content.style.removeProperty('--jpf-tile');
             content.style.removeProperty('--jpf-name-fit');
+            content.style.removeProperty('--jpf-line-fit');
             balance();
             if (fits()) return;
 
@@ -7737,7 +7738,12 @@
             // a shorter grid, which is part of what fits() measures.
             const tryTile = (size) => {
                 content.style.setProperty('--jpf-tile', size + 'px');
-                content.style.setProperty('--jpf-name-fit', Math.max(size / natural, nameFloor).toFixed(3));
+                // The lines under it shrink with the tile too, never below 0.8: at full size
+                // "Signed in" was wider than a 120px tile's column and wrapped in two. The
+                // name's floor follows them down, so it is still never smaller than they are.
+                const lineFit = Math.max(size / natural, 0.8);
+                content.style.setProperty('--jpf-line-fit', lineFit.toFixed(3));
+                content.style.setProperty('--jpf-name-fit', Math.max(size / natural, nameFloor * lineFit).toFixed(3));
                 balance();
                 return fits();
             };

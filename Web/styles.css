@@ -2777,6 +2777,18 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-name {
     font-size: calc(1.75rem * var(--jpf-name-scale) * var(--jpf-name-fit, 1));
 }
+/* The lines under the name shrink a little with the tile too (--jpf-line-fit, set beside
+   --jpf-name-fit, never below 0.8). At a fixed 1.1rem, "Signed in" was 156px in a 140px
+   tile and broke into "Signed" / "in" when two households shared the screen; "45 min left"
+   and "Time's up" wrapped the same way. Whatever still does not fit is cut with an
+   ellipsis, so a longer translation cannot wrap into a second line either. */
+.jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-viewing,
+.jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-current-badge {
+    font-size: calc(1.1rem * var(--jpf-line-fit, 1));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-name > span:first-child {
     white-space: nowrap;
     overflow: hidden;
@@ -2955,6 +2967,12 @@ html.jpf-fading { transition: opacity 0.18s ease; }
     /* 44px dots in a 4px gap fill the row the same as 36px in 12px did. */
     .jpf-color-dot { width: 44px; height: 44px; }
     .jpf-avatar-color-picker { gap: 4px; }
+}
+/* The same floor off a phone: on a desktop window the signed-in and time-left lines under a
+   tile were 10.4 and 11.2px (0.75rem of a 13.9px root). A television sets its own size above. */
+.jpf-profile-viewing,
+.jpf-profile-current-badge {
+    font-size: 12px;
 }
 /* Phones: nothing a person has to read is under 12px. Hints and section subtitles were 10.8
    and 11.2px, the signed-in, PIN and time-left lines under a tile 10.1 and 10.8px, because
