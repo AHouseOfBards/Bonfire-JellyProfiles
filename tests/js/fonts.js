@@ -38,7 +38,9 @@ const SUBSETS = list.subsets || {};
 
 console.log('\n── The served fonts are the files they claim ──────────────────');
 ok('Noto Sans is served, and first', served.length > 0 && served[0].family === 'Noto Sans');
-ok('eight to thirty fonts are served (' + served.length + ')', served.length >= 8 && served.length <= 30);
+// The ceiling was twelve with ten served; fourteen were added on 2026-11-12, so it moved by
+// fourteen and no further. A new font raises it on purpose, in the same commit.
+ok('eight to twenty-six fonts are served (' + served.length + ')', served.length >= 8 && served.length <= 26);
 ok('the latin and latin-ext ranges are given', !!SUBSETS.latin && !!SUBSETS['latin-ext']);
 
 const read = {};
