@@ -38,7 +38,7 @@ const SUBSETS = list.subsets || {};
 
 console.log('\n── The served fonts are the files they claim ──────────────────');
 ok('Noto Sans is served, and first', served.length > 0 && served[0].family === 'Noto Sans');
-ok('eight to twelve fonts are served (' + served.length + ')', served.length >= 8 && served.length <= 12);
+ok('eight to thirty fonts are served (' + served.length + ')', served.length >= 8 && served.length <= 30);
 ok('the latin and latin-ext ranges are given', !!SUBSETS.latin && !!SUBSETS['latin-ext']);
 
 const read = {};
@@ -54,8 +54,11 @@ served.forEach(f => {
         // Subset files are named for their default instance ("Montserrat Thin"), so the
         // family is a prefix of the name, not the whole of it.
         ok(name + ' is ' + f.family + ' (' + r.family + ')', !!r.family && r.family.indexOf(f.family.replace(/ Next$/, '')) === 0);
+        // A single-weight family (Bebas Neue) has no wght axis: it is listed as [400, 400].
         ok(name + ' spans the weights fonts.json says (' + (r.weight ? r.weight.min + '-' + r.weight.max : 'static') + ')',
-            !!r.weight && Array.isArray(f.weight) && r.weight.min === f.weight[0] && r.weight.max === f.weight[1]);
+            Array.isArray(f.weight) && (r.weight ? r.weight.min === f.weight[0] && r.weight.max === f.weight[1]
+                : f.weight[0] === 400 && f.weight[1] === 400));
+        ok(name + ' starts with the wOF2 signature', fs.readFileSync(file).slice(0, 4).toString('latin1') === 'wOF2');
     });
     const lic = f.licence && path.join(DIR, f.licence);
     ok(f.family + ' carries its licence, the SIL Open Font License',

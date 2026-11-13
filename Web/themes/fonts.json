@@ -167,6 +167,230 @@
       "licence": "quicksand-OFL.txt"
     },
     {
+      "family": "Comfortaa",
+      "fallback": "rounded",
+      "local": [
+        "Comfortaa"
+      ],
+      "weight": [
+        300,
+        700
+      ],
+      "files": {
+        "latin": "comfortaa-latin.woff2",
+        "latin-ext": "comfortaa-latin-ext.woff2"
+      },
+      "licence": "comfortaa-OFL.txt"
+    },
+    {
+      "family": "Baloo 2",
+      "fallback": "rounded",
+      "local": [
+        "Baloo 2"
+      ],
+      "weight": [
+        400,
+        800
+      ],
+      "files": {
+        "latin": "baloo-2-latin.woff2",
+        "latin-ext": "baloo-2-latin-ext.woff2"
+      },
+      "licence": "baloo-2-OFL.txt"
+    },
+    {
+      "family": "Manrope",
+      "fallback": "sans-serif",
+      "local": [
+        "Manrope"
+      ],
+      "weight": [
+        200,
+        800
+      ],
+      "files": {
+        "latin": "manrope-latin.woff2",
+        "latin-ext": "manrope-latin-ext.woff2"
+      },
+      "licence": "manrope-OFL.txt"
+    },
+    {
+      "family": "Figtree",
+      "fallback": "sans-serif",
+      "local": [
+        "Figtree"
+      ],
+      "weight": [
+        300,
+        900
+      ],
+      "files": {
+        "latin": "figtree-latin.woff2",
+        "latin-ext": "figtree-latin-ext.woff2"
+      },
+      "licence": "figtree-OFL.txt"
+    },
+    {
+      "family": "Plus Jakarta Sans",
+      "fallback": "sans-serif",
+      "local": [
+        "Plus Jakarta Sans"
+      ],
+      "weight": [
+        200,
+        800
+      ],
+      "files": {
+        "latin": "plus-jakarta-sans-latin.woff2",
+        "latin-ext": "plus-jakarta-sans-latin-ext.woff2"
+      },
+      "licence": "plus-jakarta-sans-OFL.txt"
+    },
+    {
+      "family": "Lexend",
+      "fallback": "sans-serif",
+      "local": [
+        "Lexend"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "lexend-latin.woff2",
+        "latin-ext": "lexend-latin-ext.woff2"
+      },
+      "licence": "lexend-OFL.txt"
+    },
+    {
+      "family": "Oswald",
+      "fallback": "sans-serif",
+      "local": [
+        "Oswald"
+      ],
+      "weight": [
+        200,
+        700
+      ],
+      "files": {
+        "latin": "oswald-latin.woff2",
+        "latin-ext": "oswald-latin-ext.woff2"
+      },
+      "licence": "oswald-OFL.txt"
+    },
+    {
+      "family": "Bebas Neue",
+      "fallback": "sans-serif",
+      "local": [
+        "Bebas Neue"
+      ],
+      "weight": [
+        400,
+        400
+      ],
+      "files": {
+        "latin": "bebas-neue-latin.woff2",
+        "latin-ext": "bebas-neue-latin-ext.woff2"
+      },
+      "licence": "bebas-neue-OFL.txt"
+    },
+    {
+      "family": "Righteous",
+      "fallback": "sans-serif",
+      "local": [
+        "Righteous"
+      ],
+      "weight": [
+        400,
+        400
+      ],
+      "files": {
+        "latin": "righteous-latin.woff2",
+        "latin-ext": "righteous-latin-ext.woff2"
+      },
+      "licence": "righteous-OFL.txt"
+    },
+    {
+      "family": "Cinzel",
+      "fallback": "serif",
+      "local": [
+        "Cinzel"
+      ],
+      "weight": [
+        400,
+        900
+      ],
+      "files": {
+        "latin": "cinzel-latin.woff2",
+        "latin-ext": "cinzel-latin-ext.woff2"
+      },
+      "licence": "cinzel-OFL.txt"
+    },
+    {
+      "family": "Merriweather",
+      "fallback": "serif",
+      "local": [
+        "Merriweather"
+      ],
+      "weight": [
+        300,
+        900
+      ],
+      "files": {
+        "latin": "merriweather-latin.woff2",
+        "latin-ext": "merriweather-latin-ext.woff2"
+      },
+      "licence": "merriweather-OFL.txt"
+    },
+    {
+      "family": "Fraunces",
+      "fallback": "serif",
+      "local": [
+        "Fraunces"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "fraunces-latin.woff2",
+        "latin-ext": "fraunces-latin-ext.woff2"
+      },
+      "licence": "fraunces-OFL.txt"
+    },
+    {
+      "family": "JetBrains Mono",
+      "fallback": "sans-serif",
+      "local": [
+        "JetBrains Mono"
+      ],
+      "weight": [
+        100,
+        800
+      ],
+      "files": {
+        "latin": "jetbrains-mono-latin.woff2",
+        "latin-ext": "jetbrains-mono-latin-ext.woff2"
+      },
+      "licence": "jetbrains-mono-OFL.txt"
+    },
+    {
+      "family": "Press Start 2P",
+      "fallback": "sans-serif",
+      "local": [
+        "Press Start 2P"
+      ],
+      "weight": [
+        400,
+        400
+      ],
+      "files": {
+        "latin": "press-start-2p-latin.woff2",
+        "latin-ext": "press-start-2p-latin-ext.woff2"
+      },
+      "licence": "press-start-2p-OFL.txt"
+    },
+    {
       "family": "Helvetica Neue",
       "local": [
         "Helvetica Neue",

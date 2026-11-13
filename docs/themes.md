@@ -176,8 +176,10 @@ A custom theme can have one picture behind the switcher. Built-in themes don't.
 ```
 
 - `font.family` is one of the fonts in `GET /themes`. Bonfire serves Noto Sans, Outfit,
-  Inter, Nunito, Montserrat, DM Sans, Atkinson Hyperlegible Next, Lora, Playfair Display
-  and Quicksand, so you don't need them installed. Each covers every language Bonfire is
+  Inter, Nunito, Montserrat, DM Sans, Atkinson Hyperlegible Next, Lora, Playfair Display,
+  Quicksand, Comfortaa, Baloo 2, Manrope, Figtree, Plus Jakarta Sans, Lexend, Oswald,
+  Bebas Neue, Righteous, Cinzel, Merriweather, Fraunces, JetBrains Mono and Press Start 2P,
+  so you don't need them installed. Each covers every language Bonfire is
   translated into.
 - `font.fallback` is `sans-serif`, `serif` or `rounded`. Use it when you can't load the
   family.

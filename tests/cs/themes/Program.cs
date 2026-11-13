@@ -285,8 +285,8 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
         Console.WriteLine("── The served fonts ─────────────────────────────────────────────");
         var fontDir = Path.Combine(dir, "fonts");
         var servedFonts = pub["fonts"]!.AsArray().Where(f => f!["files"]!.AsArray().Count > 0).ToList();
-        Ok("Noto Sans first, and ten served (" + servedFonts.Count + ")",
-           servedFonts.Count == 10 && (string)servedFonts[0]!["family"]! == "Noto Sans");
+        Ok("Noto Sans first, and 24 served (" + servedFonts.Count + ")",
+           servedFonts.Count == 24 && (string)servedFonts[0]!["family"]! == "Noto Sans");
         foreach (var f in servedFonts)
         {
             var family = (string)f!["family"]!;
