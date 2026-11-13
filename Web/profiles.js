@@ -3595,6 +3595,14 @@
                 addBtn.addEventListener('click', (e) => { e.preventDefault(); addTag(); input.focus(); });
                 input.addEventListener('keydown', (e) => {
                     if (isKey(e, 'Enter')) { e.preventDefault(); addTag(); }
+                    // The caret keeps left and right while typing, and the button sits to the
+                    // right of the box, so no arrow reached it. Right at the end of the text
+                    // is the way on.
+                    if (isKey(e, 'ArrowRight') && input.selectionStart === input.value.length
+                        && input.selectionEnd === input.value.length) {
+                        e.preventDefault();
+                        addBtn.focus();
+                    }
                 });
                 // Committing on blur means a typed-but-not-added tag isn't silently lost on save.
                 input.addEventListener('blur', () => addTag());
@@ -6534,6 +6542,16 @@
                 // before that.
                 if (r.top < 0 || r.bottom > h) {
                     el.scrollIntoView(r.top < 0);
+                }
+                // The Save bar sticks to the bottom of the profile forms. A field in the
+                // viewport but under it counts as visible above, so a remote landed on
+                // controls it could not see. Scroll the form until the field clears the bar.
+                const bar = document.querySelector('.jpf-profile-dialog-actions');
+                const form = el.closest && el.closest('.jpf-create-profile-container');
+                if (bar && form && !bar.contains(el)) {
+                    const b = bar.getBoundingClientRect();
+                    const r2 = el.getBoundingClientRect();
+                    if (b.height > 0 && b.top > r2.top && r2.bottom > b.top) form.scrollTop += r2.bottom - b.top + 16;
                 }
             } catch (e) { /* no layout information — focus alone will do */ }
         },

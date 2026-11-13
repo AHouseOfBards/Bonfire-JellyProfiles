@@ -331,6 +331,44 @@
         'account': function (P) { return manage(P).then(function () { P.showAccountSettings(); return when('#account-email-input, .jpf-create-profile-container'); }); },
         'switcher': function (P) { return manage(P).then(function () { P.showSwitcherModeModal(); return when('.jpf-create-profile-container'); }); },
         'sharing': function (P) { return manage(P).then(function () { P.showBonfireModal(); return when('.jpf-create-profile-container'); }); },
+        // The crop dialog and the library artwork picker open from a file chooser and a
+        // button press; a remote cannot drive the chooser, so these call the opener the
+        // chooser's change handler calls, over the edit form.
+        'crop': function (P) {
+            return manage(P).then(function () {
+                P.showEditProfileModal(PROFILES[2]);
+                return when('#edit-name-input');
+            }).then(function () {
+                var c = document.createElement('canvas');
+                c.width = 400; c.height = 300;
+                var g = c.getContext('2d');
+                g.fillStyle = '#c0572b'; g.fillRect(0, 0, 400, 300);
+                g.fillStyle = '#f2c14e'; g.fillRect(120, 80, 160, 140);
+                return new Promise(function (resolve) {
+                    var img = new Image();
+                    img.onload = function () { P.showCropDialog(img, function () {}); resolve(); };
+                    img.src = c.toDataURL('image/png');
+                });
+            });
+        },
+        // A profile's own name-and-picture form (the "me" route's screen), reached from the
+        // picker's own-profile button; that button needs a session the fixture has not got.
+        'own': function (P) {
+            return gate(P).then(function () {
+                P._resumeState = { token: 'fixture-token', userId: PROFILES[2].profileUserId };
+                P.showOwnProfileForm(PROFILES[2]);
+                return when('#self-name-input');
+            });
+        },
+        'libart': function (P) {
+            return manage(P).then(function () {
+                P.showEditProfileModal(PROFILES[2]);
+                return when('#edit-name-input');
+            }).then(function () {
+                P.pickLibraryArtwork(function () {}, function () {});
+                return when('#profiles-libart-dialog');
+            });
+        },
         'mainpin': function (P) { return gate(P).then(function () { P.promptSetMainPin(PROFILES, false, function () {}); }); },
         'masterpin': function (P) { return gate(P).then(function () { P.promptMasterPinEntry('manage', function () {}); }); },
         'pinreset': function (P) { return gate(P).then(function () { P.showPinReset(function () {}, function () {}); return when('#jpf-pin-reset-code'); }); },
