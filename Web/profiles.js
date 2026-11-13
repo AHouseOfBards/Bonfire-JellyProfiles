@@ -6452,10 +6452,22 @@
         _overlayFocusables: function (root) {
             return Array.prototype.filter.call(
                 root.querySelectorAll('button, input, select, textarea, a[href], [role="radio"], [tabindex]:not([tabindex="-1"])'),
-                el => !el.disabled && el.offsetParent !== null &&
+                el => !el.disabled && el.offsetParent !== null && !this._inClosedFold(el) &&
                     // a checkbox inside a .jpf-library-check-label: the label is its stop
                     !(el.type === 'checkbox' && el.getAttribute && el.getAttribute('tabindex') === '-1')
             );
+        },
+
+        /// True for a control inside a closed More fold, other than the fold's own summary.
+        /// Newer Chromium lays a closed fold's content out (offsetParent is not null) but
+        /// will not focus it, so a control there was the nearest stop and focus() did
+        /// nothing: the arrows stopped on the summary above it, with Back below out of reach.
+        _inClosedFold: function (el) {
+            for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+                if (n.tagName === 'SUMMARY') return false;
+                if (n.tagName === 'DETAILS' && !n.open) return true;
+            }
+            return false;
         },
 
         /// One Tab stop for a group of radio cards, as a radio group is: the one that has
@@ -6655,9 +6667,14 @@
                     if (inside) {
                         // Left/right belong to the caret while typing a PIN or a name.
                         if ((tag === 'input' || tag === 'textarea') && (dir === 'left' || dir === 'right')) return;
-                        // Up/down change the value of a dropdown, which is what a remote
-                        // expects. Left/right stay ours, so there is still a way off it.
-                        if (tag === 'select' && (dir === 'up' || dir === 'down')) return;
+                        // Up/down change the value of a dropdown with a keyboard. On a
+                        // television Enter opens the list and the keys never reach here
+                        // while it is open, so a press that does reach here is leaving.
+                        // Keeping it for the value left Your account stuck on its time
+                        // zone, with everything below out of reach (Left stays, Right
+                        // jumps back up the form).
+                        if (tag === 'select' && (dir === 'up' || dir === 'down') &&
+                            !document.documentElement.classList.contains('jpf-tv')) return;
                     }
                     e.preventDefault();
                     e.stopPropagation();
