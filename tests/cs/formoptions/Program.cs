@@ -325,6 +325,8 @@ Section("/update sets a theme under the rules /theme had");
     Ok("a wrong main PIN is refused", r.status != 200 && ThemeOf(KID) == "crimson", Say(r) + " stored=" + ThemeOf(KID));
 
     r = Update(KID, new { ProfileId = KID, ProfileName = "Kid", Theme = "harbor" });
+    // 401 and not 403: this harness calls the controller directly. On the wire ErrorCodes.cs
+    // turns a 401 with a message into 403, which is what the doc says for /update.
     Ok("a profile may not set its own", r.status == 401 && ThemeOf(KID) == "crimson", Say(r) + " stored=" + ThemeOf(KID));
 
     r = Update(MAIN, new { ProfileId = KID, ProfileName = "Kid", Theme = "neon" });

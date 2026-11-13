@@ -1064,7 +1064,7 @@ image. The client does the swap, so it only applies where Bonfire's script runs.
 **Authorization:** signed-in user.
 
 The caller's choices. With `?profileId=<id>`, the same list for one of the caller's
-profiles: `401` if it isn't theirs, or if the caller is a profile.
+profiles: `403` if it isn't theirs, or if the caller is a profile.
 
 ```json
 [{ "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805", "mode": "custom", "url": "/plugins/profiles/library-art/<profileId>/<libraryId>?v=638..." }]

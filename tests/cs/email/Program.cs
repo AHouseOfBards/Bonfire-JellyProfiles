@@ -692,6 +692,8 @@ Ok("the administrator can", r.status == 200 && StoredAddress(OTHER) == null && !
 r = Call("SetAccountEmail", MAIN, B(("Address", ""), ("MasterPin", "0000")));
 Ok("an account needs its PIN to remove its own", r.status == 400 && StoredAddress(MAIN) != null);
 r = Call("SetAccountEmail", KID, B(("Address", "")));
+// 401 is what the controller returns when this harness calls it directly; on the wire
+// ErrorCodes.cs turns a 401 with a message into 403, which is what the doc says.
 Ok("a profile cannot remove it", r.status == 401 && StoredAddress(MAIN) != null);
 r = Call("SetAccountEmail", MAIN, B(("Address", ""), ("NotifyLockout", (bool?)false), ("MasterPin", "2468")));
 Ok("and with it, it is gone", r.status == 200 && StoredAddress(MAIN) == null && !MePinReset(MAIN));
