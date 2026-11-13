@@ -66,7 +66,14 @@ const MEASURE = `(function () {
     var lines = [].slice.call(n.children).filter(function (s) { return !s.classList.contains('jpf-sr'); }).map(function (s) { return getComputedStyle(s).overflow === 'hidden' ? r(s) : textBox(s); });
     return { box: r(c), pic: r(a), name: r(n), lines: lines };
   });
+  // The buttons where the layout puts them. While the households overflow, the row is pinned
+  // to the bottom of the screen and is meant to lie over the tiles scrolled behind it
+  // (pickerbar.js is what judges that), so it is measured in the flow, with the pin off.
+  var footer = root.querySelector('.profiles-footer');
+  var pinned = !!footer && footer.classList.contains('jpf-footer-stuck');
+  if (pinned) footer.classList.remove('jpf-footer-stuck');
   var buttons = [].slice.call(root.querySelectorAll('.profiles-footer .profiles-btn')).map(r);
+  if (pinned) footer.classList.add('jpf-footer-stuck');
   return { found: true, vw: innerWidth, vh: innerHeight, root: parseFloat(getComputedStyle(document.documentElement).fontSize),
     sideways: Math.max(document.documentElement.scrollWidth - innerWidth, root.scrollWidth - root.clientWidth),
     fits: root.scrollHeight <= root.clientHeight + 1,
