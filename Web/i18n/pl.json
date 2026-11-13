@@ -906,7 +906,6 @@
   "admin.help.appsQ": "Działa w przeglądarce, ale nie w aplikacji",
   "admin.help.appsA": "Przełącznik pokazują tylko klienty, które wczytują stronę internetową Jellyfin z Twojego serwera. Dla pozostałych klientów włącz logowanie kodem PIN w zakładce Klienty. Kontrola rodzicielska i tak działa w każdym kliencie.",
   "admin.help.librariesQ": "Dostęp profilu do bibliotek wraca do poprzedniego",
-  "admin.help.librariesA": "Zmieniaj biblioteki profilu w „Edytuj profil”, nie w Panel → Użytkownicy, gdzie usunięcie biblioteki się nie utrzyma.",
   "admin.help.librariesOwned": "Biblioteki zarządzane przez inne wtyczki, jak FieldGuide, nie są wyświetlane ani zmieniane.",
   "admin.help.pinQ": "Ktoś zapomniał swojego kodu PIN",
   "admin.help.pinA": "Wyczyść go w zakładce Gospodarstwa. Konto może potem ustawić nowy.",

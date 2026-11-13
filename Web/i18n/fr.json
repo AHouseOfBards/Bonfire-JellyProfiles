@@ -906,7 +906,6 @@
   "admin.help.appsQ": "Ça marche dans un navigateur mais pas dans une application",
   "admin.help.appsA": "Seuls les clients qui chargent la page web de Jellyfin depuis votre serveur affichent le sélecteur. Pour les autres clients, activez la connexion par code PIN dans Clients. Le contrôle parental s'applique de toute façon dans tous les clients.",
   "admin.help.librariesQ": "L'accès d'un profil aux bibliothèques revient en arrière",
-  "admin.help.librariesA": "Modifiez les bibliothèques d'un profil dans « Modifier le profil », pas dans Tableau de bord → Utilisateurs, où en retirer une ne tient pas.",
   "admin.help.librariesOwned": "Les bibliothèques gérées par d'autres extensions, comme celles de FieldGuide, ne sont ni listées ni modifiées.",
   "admin.help.pinQ": "Quelqu'un a oublié son code PIN",
   "admin.help.pinA": "Effacez-le dans Foyers. Le compte pourra ensuite en définir un nouveau.",

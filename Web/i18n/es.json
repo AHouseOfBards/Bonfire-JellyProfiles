@@ -906,7 +906,6 @@
   "admin.help.appsQ": "Funciona en un navegador pero no en una aplicación",
   "admin.help.appsA": "Solo los clientes que cargan la página web de Jellyfin desde tu servidor muestran el selector. Para los demás clientes, activa el inicio de sesión con PIN en Clientes. El control parental se aplica en todos los clientes de todos modos.",
   "admin.help.librariesQ": "El acceso de un perfil a las bibliotecas vuelve atrás",
-  "admin.help.librariesA": "Cambia las bibliotecas de un perfil en «Editar perfil», no en Panel → Usuarios, donde quitar una no se mantiene.",
   "admin.help.librariesOwned": "Las bibliotecas que gestionan otros complementos, como las de FieldGuide, no se muestran ni se cambian.",
   "admin.help.pinQ": "Alguien ha olvidado su PIN",
   "admin.help.pinA": "Bórralo en Hogares. Después la cuenta puede poner uno nuevo.",

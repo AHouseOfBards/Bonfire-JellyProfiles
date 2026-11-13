@@ -906,7 +906,6 @@
   "admin.help.appsQ": "Tarayıcıda çalışıyor ama bir uygulamada çalışmıyor",
   "admin.help.appsA": "Seçiciyi yalnızca Jellyfin'in web sayfasını sunucunuzdan yükleyen istemciler gösterir. Diğer istemciler için İstemciler altından PIN ile oturum açmayı açın. Ebeveyn denetimi her durumda her istemcide geçerlidir.",
   "admin.help.librariesQ": "Bir profilin kitaplık erişimi eski haline dönüyor",
-  "admin.help.librariesA": "Bir profilin kitaplıklarını Pano → Kullanıcılar'dan değil, \"Profili düzenle\" bölümünden değiştirin. Orada kaldırılan kitaplık kalıcı olmaz.",
   "admin.help.librariesOwned": "FieldGuide gibi başka eklentilerin yönettiği kitaplıklar listelenmez ve değiştirilmez.",
   "admin.help.pinQ": "Biri PIN'ini unuttu",
   "admin.help.pinA": "Haneler altından temizleyin. Hesap ardından yeni bir PIN belirleyebilir.",
