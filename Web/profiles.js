@@ -6111,7 +6111,7 @@
 
             // Existing choices arrive after the form is drawn; the rows work meanwhile.
             if (masterState && masterState.token && rows.length) {
-                fetch(ApiClient.getUrl("plugins/profiles/library-artwork/" + profileId), {
+                fetch(ApiClient.getUrl("plugins/profiles/library-artwork?profileId=" + encodeURIComponent(profileId)), {
                     cache: "no-store",
                     headers: this.getAuthHeaders(masterState.token)
                 })

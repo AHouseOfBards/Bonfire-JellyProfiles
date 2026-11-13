@@ -3962,13 +3962,15 @@ namespace Jellyfin.Profiles.Controllers
         // storage and the source of truth behind that.
 
         /// <summary>
-        /// The calling profile's own artwork choices. Only entries that change something are
+        /// A profile's artwork choices: the caller's own, or with <c>profileId</c> one profile's
+        /// for the edit form, which is restricted to that profile's master, the same rule that
+        /// governs every other profile setting. Only entries that change something are
         /// returned — an untouched library inherits Jellyfin's artwork and is simply absent.
         /// </summary>
         [HttpGet("library-artwork")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<IEnumerable<object>> GetMyLibraryArtwork()
+        public ActionResult<IEnumerable<object>> GetLibraryArtwork([FromQuery] Guid? profileId = null)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -3976,28 +3978,12 @@ namespace Jellyfin.Profiles.Controllers
             var currentUserIdVal = GetCurrentUserId();
             if (currentUserIdVal == null) return Unauthorized();
 
-            return Ok(DescribeLibraryArtwork(config, currentUserIdVal.Value));
-        }
+            if (profileId == null) return Ok(DescribeLibraryArtwork(config, currentUserIdVal.Value));
 
-        /// <summary>
-        /// One profile's choices, for the edit form. Restricted to that profile's master, the
-        /// same rule that governs every other profile setting.
-        /// </summary>
-        [HttpGet("library-artwork/{profileId}")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<IEnumerable<object>> GetProfileLibraryArtwork(Guid profileId)
-        {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-
-            var denied = DenyUnlessProfileOwner(config, currentUserIdVal.Value, profileId);
+            var denied = DenyUnlessProfileOwner(config, currentUserIdVal.Value, profileId.Value);
             if (denied != null) return denied;
 
-            return Ok(DescribeLibraryArtwork(config, profileId));
+            return Ok(DescribeLibraryArtwork(config, profileId.Value));
         }
 
         /// <summary>Sets or clears one profile's artwork for one library.</summary>

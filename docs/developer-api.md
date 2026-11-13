@@ -42,7 +42,7 @@ because other people build against it too.
 
 ## All routes
 
-All 103 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 102 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -71,9 +71,8 @@ All 103 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/time-requests` | user | The household's profiles waiting for more time. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
-| `GET /plugins/profiles/image/{profileId}` | anon | A profile image. |
-| `GET /plugins/profiles/library-artwork` | user | The caller's library artwork. |
-| `GET /plugins/profiles/library-artwork/{profileId}` | user | One profile's library artwork. |
+| `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
+| `GET /plugins/profiles/library-artwork` | user | The caller's library artwork, or one of their profiles' with `profileId`. |
 | `POST /plugins/profiles/library-artwork` | user | Set library artwork. |
 | `GET /plugins/profiles/library-art/{profileId}/{libraryId}` | anon | One library tile image. |
 | `GET /plugins/profiles/devices` | user | The household's devices. |
@@ -445,6 +444,8 @@ you.
   `POST /onboarding/done` stay.
 - `POST /account/email/notifications` and `POST /account/email/remove`: send the switches, or
   `"address": ""`, to [`POST /account/email`](#post-pluginsprofilesaccountemail).
+- `GET /library-artwork/{profileId}`: send `profileId` as a query to
+  [`GET /library-artwork`](#get-pluginsprofileslibrary-artwork).
 - `POST /theme`: send `theme` to [`POST /update`](#post-pluginsprofilesupdate).
 - `POST /update` now refuses a `theme` with `403` while the server doesn't let profiles
   choose, where it used to ignore it, and answers `{ profileId, theme, stored }`.
@@ -1060,7 +1061,8 @@ image. The client does the swap, so it only applies where Bonfire's script runs.
 
 **Authorization:** signed-in user.
 
-The caller's choices.
+The caller's choices. With `?profileId=<id>`, the same list for one of the caller's
+profiles: `401` if it isn't theirs, or if the caller is a profile.
 
 ```json
 [{ "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805", "mode": "custom", "url": "/plugins/profiles/library-art/<profileId>/<libraryId>?v=638..." }]
@@ -1068,12 +1070,6 @@ The caller's choices.
 
 `mode` is `custom` (use `url`) or `none` (no image). Libraries left on the default aren't
 listed.
-
-### `GET /plugins/profiles/library-artwork/{profileId}`
-
-**Authorization:** signed-in user.
-
-The same list for one of the caller's profiles. `403` if it isn't theirs.
 
 ### `POST /plugins/profiles/library-artwork`
 

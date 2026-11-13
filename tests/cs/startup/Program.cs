@@ -261,6 +261,41 @@ Ok("a signed-in account the server cannot find is refused as /list refuses it, w
     cfgType.GetProperty("Onboarding").SetValue(config, null);
 }
 
+// ── GET /library-artwork?profileId= (replaces GET /library-artwork/{profileId}) ──
+{
+    var artType = asm.GetType("Jellyfin.Profiles.Configuration.LibraryArtwork", true);
+    var libA = Guid.NewGuid();
+    var libB = Guid.NewGuid();
+    void Choose(Guid profile, Guid library)
+    {
+        var row = mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == profile);
+        var a = Activator.CreateInstance(artType);
+        artType.GetProperty("LibraryId").SetValue(a, library);
+        artType.GetProperty("Mode").SetValue(a, "none");
+        ((IList)mapType.GetProperty("LibraryArtwork").GetValue(row)).Add(a);
+    }
+    Choose(KID, libA);
+    Choose(OTHERKID, libB);
+    string Art(Guid caller, Guid? profile) => Json(Call("GetLibraryArtwork", UserPrincipal(caller), new object[] { profile }).value);
+    int ArtStatus(Guid caller, Guid? profile) => Call("GetLibraryArtwork", UserPrincipal(caller), new object[] { profile }).status;
+
+    Ok("a profile's own choices, with no profileId, are its own", Art(KID, null).Contains(libA.ToString(), StringComparison.OrdinalIgnoreCase)
+       && !Art(KID, null).Contains(libB.ToString(), StringComparison.OrdinalIgnoreCase), Art(KID, null));
+    Ok("the main account with a profile's id gets that profile's choices, as /library-artwork/{id} did",
+       Art(MAIN, KID).Contains(libA.ToString(), StringComparison.OrdinalIgnoreCase), Art(MAIN, KID));
+    Ok("the main account with no id gets its own, which are none", Art(MAIN, null) == "[]", Art(MAIN, null));
+    Ok("the main account may ask for its own id", ArtStatus(MAIN, MAIN) == 200);
+    Ok("another household's profile is refused, with the old route's answer",
+       ArtStatus(MAIN, OTHERKID) == 401 && !Art(MAIN, OTHERKID).Contains(libB.ToString(), StringComparison.OrdinalIgnoreCase));
+    Ok("a profile cannot read a sibling's or its own by id, as before", ArtStatus(KID, KID) == 401);
+    Ok("no user: 401", Call("GetLibraryArtwork", new ClaimsPrincipal(new ClaimsIdentity()), new object[] { null }).status == 401
+       && Call("GetLibraryArtwork", new ClaimsPrincipal(new ClaimsIdentity()), new object[] { KID }).status == 401);
+    Ok("the {profileId} route is gone: one GET route at library-artwork, and the two old methods are not there",
+       ctrlType.GetMethod("GetMyLibraryArtwork") == null && ctrlType.GetMethod("GetProfileLibraryArtwork") == null
+       && ctrlType.GetMethods().SelectMany(m => m.GetCustomAttributes(typeof(HttpGetAttribute), false).Cast<HttpGetAttribute>())
+              .Count(a => (a.Template ?? "").StartsWith("library-artwork")) == 1);
+}
+
 // The three reads startup replaced are gone, and the two writes beside them stay.
 foreach (var gone3 in new[] { "GetMe", "GetAnnouncements", "GetOnboarding" })
     Ok(gone3 + " is removed", ctrlType.GetMethod(gone3) == null);

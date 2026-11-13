@@ -61,6 +61,12 @@ async function open(failedList) {
     const err = r.dialog.querySelector('#profiles-libart-error');
     ok('a failed list says so', err && err.style.display === 'block' && /\S/.test(err.textContent), err && err.textContent);
 
+    // The edit form reads one profile's choices from the one GET route, by query. No
+    // harness drives the form's fetch, so this reads the source, which is what it can.
+    const src = L.readProfiles();
+    ok('the edit form asks /library-artwork?profileId=, not a path with the id in it',
+       /plugins\/profiles\/library-artwork\?profileId=/.test(src) && !/plugins\/profiles\/library-artwork\/["'`]/.test(src));
+
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);
 })();

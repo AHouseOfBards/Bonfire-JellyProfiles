@@ -148,9 +148,10 @@
                 binding: p.viewing.binding || '', minutesLeft: p.viewing.minutesLeft || 0, untilUtc: null, nextStartUtc: null,
                 usedMinutes: 15, limitMinutes: 60, extraUntilUtc: null, askedUtc: null, timeZone: 'America/Chicago',
                 rules: { hoursEnabled: true, windows: [{ days: 62, start: '15:00', end: '20:00' }], dailyMinutes: 60, weekendMinutes: 120 } };
-        }],
-        [/^library-artwork\/(\w+)$/, function () { return []; }]
+        }]
     ];
+    // One route since 2.0: a profile's choices are ?profileId= on the caller's own.
+    ROUTES['library-artwork'] = empty;
     // Jellyfin's own user record, which the edit form reads a profile's policy from.
     function jellyfinUser(id) {
         var p = people.filter(function (x) { return x.id === id; })[0] || people[0];
