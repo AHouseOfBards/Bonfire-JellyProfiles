@@ -251,7 +251,7 @@
         return (stored || 'dark') === match ? null : match;
     }
 
-    /// GET plugins/profiles/ratings -> [[score, labels], ...], one entry per age.
+    /// GET plugins/profiles/form-options, its ratings part -> [[score, labels], ...], one entry per age.
     ///
     /// The server reads the rating table of its own Preferred metadata country — the one
     /// Jellyfin scored the library with — so these are that country's ratings and no
@@ -3307,31 +3307,25 @@
 
         // ── Shared form data ────────────────────────────────────────────────
 
-        /// Cached answer to the four requests that are the same for every profile.
+        /// Cached answer to the requests that are the same for every profile.
         ///
         /// Add and Edit Profile each fired five requests and waited for all of them.
         /// Only one — Users/{id} — is about the profile you clicked; the available
         /// libraries, the connected devices, the library tags and the avatar library
-        /// belong to the account and were refetched in full every single time.
+        /// belong to the account and were refetched in full every single time. Since 2.0
+        /// the libraries, ratings, avatars and time zones are one request (form-options).
         _sharedForm: null,
 
         /// Fetches them once per gate session. Prefetched when the overlay opens, so
         /// by the time anyone picks a profile the shared half is already in hand and
-        /// opening a form costs one request instead of five.
+        /// opening a form costs one request for the profile itself.
         fetchSharedFormData: function (apiClient, masterState) {
             if (this._sharedForm) return this._sharedForm;
 
-            const headers = this.getAuthHeaders(masterState.token);
             this._sharedForm = Promise.all([
-                // Checked like the others. Reading a 401's empty body as JSON showed
-                // "Unexpected end of JSON input" and never told the page the session
-                // had ended (R-1177).
-                fetch(apiClient.getUrl('plugins/profiles/libraries'), { headers })
-                    .then(res => {
-                        if (res.status === 401) this.handleSessionExpired();
-                        if (!res.ok) throw new Error(t('errors.generic'));
-                        return res.json();
-                    }),
+                // The libraries, ratings, avatars and time zones are one request. It fails the
+                // form as the libraries alone used to: with nothing to tick there is no form.
+                this.fetchFormOptions(apiClient, masterState.token),
                 // null, not [], when the list could not be read. The edit form rebuilds a
                 // profile's allowed devices from the boxes it draws, so an empty list here
                 // used to save as "any device" and switch the restriction off.
@@ -3341,15 +3335,15 @@
                     .then(res => this.checked(res).ok ? res.json() : null)
                     .then(list => Array.isArray(list) ? list : null)
                     .catch(() => null),
-                this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.token),
+                this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId)
+            ]).then(([options, devices, libraryTags]) => ({
+                libraries: this._field(options, 'libraries') || [],
+                devices,
+                libraryTags,
+                avatarLibrary: this.readAvatarLibrary(this._field(options, 'avatars')),
                 // The server country's own rating system. Never fails the form: null falls
                 // back to the US list in renderRatingSelect.
-                fetch(apiClient.getUrl('plugins/profiles/ratings'), { headers })
-                    .then(res => this.checked(res).ok ? res.json() : null)
-                    .catch(() => null)
-            ]).then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => ({
-                libraries, devices, libraryTags, avatarLibrary, ratings
+                ratings: this._field(options, 'ratings') || null
             })).catch(err => {
                 // Never cache a failure. A server that was briefly unreachable would
                 // otherwise keep every form broken until the overlay was closed.
@@ -3358,6 +3352,23 @@
             });
 
             return this._sharedForm;
+        },
+
+        /// What the profile form reads that is the same for every profile, in one request:
+        /// { libraries, ratings, avatars, timeZones }. It was four, and the avatar picker and
+        /// the time zone box each still want a part of it on their own.
+        fetchFormOptions: function (apiClient, token) {
+            return fetch(apiClient.getUrl('plugins/profiles/form-options'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(token)
+            }).then(res => {
+                // Checked like the others. Reading a 401's empty body as JSON showed
+                // "Unexpected end of JSON input" and never told the page the session
+                // had ended (R-1177).
+                if (res.status === 401) this.handleSessionExpired();
+                if (!res.ok) throw new Error(t('errors.generic'));
+                return res.json();
+            });
         },
 
         /// Dropped when the overlay closes, so reopening the gate always re-reads the
@@ -3492,7 +3503,7 @@
         /// `maxRating` is compared with ===, so it must already be a number or null.
         /// Passing the raw string from a form control would preselect nothing and
         /// quietly reset the profile's rating on the next save.
-        /// `ratings` is the server's plugins/profiles/ratings answer. With it, the
+        /// `ratings` is the ratings part of the server's form-options answer. With it, the
         /// options are that country's ratings and nothing else; without it — an older
         /// server, a failed request — they are the four US ones this form always had.
         renderRatingSelect: function (mode, maxRating, ratings) {
@@ -9359,18 +9370,18 @@
         /// Fetches the administrator's avatar library. Resolves to a safe empty shape on
         /// failure so a picker can always render.
         fetchAvatarLibrary: function (apiClient, token) {
-            return fetch(apiClient.getUrl('plugins/profiles/avatars'), {
-                cache: 'no-store',
-                headers: this.getAuthHeaders(token)
-            })
-            .then(res => this.checked(res).ok ? res.json() : Promise.reject(new Error('unavailable')))
-            .then(data => {
-                // The administrator's picture quality rides along with the avatar list,
-                // because every picker that could save a picture has already asked for it.
-                this._imageSpec = this.parseImageSpec(data.image || data.Image);
-                return data;
-            })
-            .then(data => ({
+            return this.fetchFormOptions(apiClient, token)
+                .then(options => this.readAvatarLibrary(this._field(options, 'avatars')))
+                .catch(() => ({ allowCustomUploads: true, avatars: [], failed: true }));
+        },
+
+        /// The avatars part of the form options, in the shape the pickers use.
+        readAvatarLibrary: function (data) {
+            data = data || {};
+            // The administrator's picture quality rides along with the avatar list,
+            // because every picker that could save a picture has already asked for it.
+            this._imageSpec = this.parseImageSpec(data.image || data.Image);
+            return {
                 allowCustomUploads: (data.allowCustomUploads !== undefined ? data.allowCustomUploads : data.AllowCustomUploads) !== false,
                 avatars: (data.avatars || data.Avatars || []).map(a => ({
                     id: a.id || a.Id,
@@ -9378,8 +9389,7 @@
                     url: a.url || a.Url,
                     thumbUrl: a.thumbUrl || a.ThumbUrl
                 }))
-            }))
-            .catch(() => ({ allowCustomUploads: true, avatars: [], failed: true }));
+            };
         },
 
         /// Renders the profile-picture block. Shared by the create and edit forms so the two
@@ -11185,8 +11195,8 @@
             if (!slot) return;
             const masterState = this.readMasterState();
             if (!masterState) return;
-            fetch(ApiClient.getUrl('plugins/profiles/timezones'), { headers: this.getAuthHeaders(masterState.token) })
-                .then(res => (this.checked(res).ok ? res.json() : null))
+            this.fetchFormOptions(ApiClient, masterState.token)
+                .then(options => this._field(options, 'timeZones'))
                 .then(data => {
                     if (!data || !document.body.contains(slot)) return;
                     const zones = this._field(data, 'zones') || [];
@@ -11736,7 +11746,7 @@
                     if (busy) return;
                     busy = true;
                     const masterState = this.readMasterState();
-                    fetch(ApiClient.getUrl('plugins/profiles/theme'), {
+                    fetch(ApiClient.getUrl('plugins/profiles/update'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
                         // The default theme goes on the wire as '', so the account follows
@@ -11952,10 +11962,12 @@
                     busy = true;
                     status.classList.remove('is-error');
                     status.textContent = '';
-                    fetch(ApiClient.getUrl('plugins/profiles/theme'), {
+                    fetch(ApiClient.getUrl('plugins/profiles/update'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
-                        body: JSON.stringify({ profileId: person.profileUserId, theme: value, masterPin: this.masterPin })
+                        // The name is for a profile's own row: /update wants it for anyone but the
+                        // main account, and leaves it as it is when it matches.
+                        body: JSON.stringify({ profileId: person.profileUserId, profileName: person.profileName, theme: value, masterPin: this.masterPin })
                     })
                     .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
                     .then(saved => {

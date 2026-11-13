@@ -42,15 +42,14 @@ because other people build against it too.
 
 ## All routes
 
-All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 107 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
 | --- | --- | --- |
 | `GET /plugins/profiles/list` | user | Profiles the caller can switch to. |
 | `GET /plugins/profiles/me` | user | Who the caller is: a profile or a main account, and whose. |
-| `GET /plugins/profiles/libraries` | user | Libraries the caller can give a profile. |
-| `GET /plugins/profiles/ratings` | user | The rating limits a profile can be given. |
+| `GET /plugins/profiles/form-options` | user | What the profile form reads: libraries, rating limits, avatars, time zones. |
 | `POST /plugins/profiles/create` | user | Create a profile. |
 | `POST /plugins/profiles/update` | user | Change a profile. |
 | `POST /plugins/profiles/copy-rules` | user | Copy one profile's rules onto another. |
@@ -72,7 +71,6 @@ All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/limits/{profileId}/grant` | user | Give a profile more time, or say no. |
 | `POST /plugins/profiles/limits/{profileId}/ask` | user | Ask for more time. |
 | `GET /plugins/profiles/time-requests` | user | The household's profiles waiting for more time. |
-| `GET /plugins/profiles/timezones` | user | Time zones, and the one the household uses. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
 | `GET /plugins/profiles/image/{profileId}` | anon | A profile image. |
@@ -98,7 +96,6 @@ All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/accounts/links/remove` | user | Take an account off, or leave another switcher. |
 | `GET /plugins/profiles/preferences` | user | Switcher preferences. |
 | `POST /plugins/profiles/preferences` | user | Change them. |
-| `POST /plugins/profiles/theme` | user | Set one profile's theme. |
 | `GET /plugins/profiles/themes` | anon | Every theme, for other apps. |
 | `GET /plugins/profiles/themes/patterns/{name}` | anon | One pattern image. |
 | `GET /plugins/profiles/themes/pattern-files/{file}` | anon | A custom theme's uploaded pattern image. |
@@ -107,7 +104,6 @@ All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/themes/backgrounds/{file}` | anon | A custom theme's background image. |
 | `GET /plugins/profiles/onboarding` | user | First-time setup for this account. |
 | `POST /plugins/profiles/onboarding/done` | user | Record that it was seen. |
-| `GET /plugins/profiles/avatars` | user | The avatar library. |
 | `GET /plugins/profiles/avatars/{id}` | anon | One avatar image. |
 | `POST /plugins/profiles/admin/avatars` | admin | Add an avatar. |
 | `DELETE /plugins/profiles/admin/avatars/{id}` | admin | Remove an avatar. |
@@ -230,7 +226,7 @@ means an administrator has switched it off: show no Bonfire screens.
 {
   "name": "Bonfire",
   "version": "1.7.1.2-beta",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "disabled": false,
   "features": {
     "clientPinLogin": true,
@@ -418,6 +414,16 @@ you.
 - Error wording can change in any release. Branch on `X-Bonfire-Error`, not the text.
 - `apiVersion` in `GET /info` goes up only when a released route changes in a way that
   breaks callers.
+
+### Changes in 2.0
+
+`apiVersion` is 2. These routes are gone, with no deprecation period:
+
+- `GET /libraries`, `GET /ratings`, `GET /avatars` and `GET /timezones`: use
+  [`GET /form-options`](#get-pluginsprofilesform-options), which returns all four.
+- `POST /theme`: send `theme` to [`POST /update`](#post-pluginsprofilesupdate).
+- `POST /update` now refuses a `theme` with `403` while the server doesn't let profiles
+  choose, where it used to ignore it, and answers `{ profileId, theme, stored }`.
 
 ---
 
@@ -699,13 +705,18 @@ Values worth knowing:
   list, and sending neither keeps them. Both at once is `400`.
 - **`pin`:** `""` clears it, `null` keeps it.
 - **`profileImage`:** `""` clears it, `null` keeps it.
-- **`theme`:** `""` goes back to the server default, `null` keeps it.
+- **`theme`:** `""` goes back to the server default, `null` keeps it. Only the main account
+  may set one, with its PIN. `400` for an id the server doesn't offer or has hidden; `403`
+  while the server doesn't let profiles choose. The `200` answer is
+  `{ profileId, theme, stored }`: `theme` is what that profile now sees, `stored` its own
+  choice or `null`. `profileName` is still required for a profile, so a theme-only save
+  sends the name it already has.
 - **`blockedTags`, `allowedTags`:** `[]` clears them, `null` keeps them. Ignored for the
   main account.
 - **Rating sub-score:** a sub-score set in **Dashboard → Users** (TV-PG against TV-PG-V) is kept
   while the rating stays the same.
 
-Returns `200`. Errors as for `/create`.
+Returns `200`. Errors as for `/create`, plus the `theme` ones above.
 
 ### `POST /plugins/profiles/copy-rules`
 
@@ -760,40 +771,55 @@ Returns `200`. `403 not_your_profile` for a profile that isn't in your household
 not it exists. `500` if the account couldn't be deleted; it's disabled instead, so it can't
 be signed in to, and the profile stays listed so you can try again.
 
-### `GET /plugins/profiles/libraries`
+### `GET /plugins/profiles/form-options`
 
 **Authorization:** signed-in user.
 
-The libraries the main account can see, which are the ones it can give a profile.
-
-```json
-[{ "id": "e67b2d5a39cb400ba45a7b0a70198de7", "name": "Movies", "collectionType": "movies" }]
-```
-
-### `GET /plugins/profiles/ratings`
-
-**Authorization:** signed-in user.
-
-The ratings of the server's **Preferred metadata country**, one entry per age, for a
-profile's rating limit. These are the ratings Jellyfin scored the library with.
+Everything the profile form reads that is the same for every profile, in one request.
 
 ```json
 {
-  "country": "GB",
-  "ratings": [
-    { "score": 0, "labels": ["0+", "All", "E", "G", "U"] },
-    { "score": 12, "labels": ["12A", "12PG"] },
-    { "score": 15, "labels": ["15"] }
-  ]
+  "libraries": [{ "id": "e67b2d5a39cb400ba45a7b0a70198de7", "name": "Movies", "collectionType": "movies" }],
+  "ratings": {
+    "country": "GB",
+    "ratings": [
+      { "score": 0, "labels": ["0+", "All", "E", "G", "U"] },
+      { "score": 12, "labels": ["12A", "12PG"] },
+      { "score": 15, "labels": ["15"] }
+    ]
+  },
+  "avatars": {
+    "allowCustomUploads": true,
+    "starterAvatarsEnabled": true,
+    "image": { "quality": "high", "masterSize": 1024, "thumbSize": 256, "jpegQuality": 0.9, "maxBytes": 4194304 },
+    "avatars": [
+      { "id": "9f2c41a0b7d3", "displayName": "Fox", "url": "/plugins/profiles/avatars/9f2c41a0b7d3", "thumbUrl": "/plugins/profiles/avatars/9f2c41a0b7d3?size=thumb", "isStarter": false }
+    ]
+  },
+  "timeZones": {
+    "zones": ["Africa/Abidjan", "…"],
+    "server": "Europe/London",
+    "default": "",
+    "household": "Europe/Paris",
+    "effective": "Europe/Paris"
+  }
 }
 ```
 
-Send `score` as `maxParentalRating` to [`/create`](#post-pluginsprofilescreate) or
-[`/update`](#post-pluginsprofilesupdate). Adult and banned ratings aren't listed; leave the
-limit out for those. `ratings` is empty if Jellyfin has no table for the country.
+| Part | Description |
+| --- | --- |
+| `libraries` | The libraries the caller can see, which are the ones it can give a profile. |
+| `ratings` | The ratings of the server's **Preferred metadata country**, one entry per age, for a profile's rating limit. `ratings` inside it is empty if Jellyfin has no table for the country. |
+| `avatars` | The [avatar library](#avatar-library). |
+| `timeZones` | The time zones this server knows. `default` and `household` are empty when not set. `effective` is the zone in use. |
 
-Unlike `/Localization/ParentalRatings`, this doesn't add Jellyfin's generic ages
-(`10`, `13`, `14`, `21`) to countries that don't have them.
+Send a rating's `score` as `maxParentalRating` to [`/create`](#post-pluginsprofilescreate) or
+[`/update`](#post-pluginsprofilesupdate). Adult and banned ratings aren't listed; leave the
+limit out for those. Unlike `/Localization/ParentalRatings`, this doesn't add Jellyfin's
+generic ages (`10`, `13`, `14`, `21`) to countries that don't have them.
+
+An administrator's API key is answered with `timeZones` only: the other three parts are
+`null`. `404` if the calling user isn't found.
 
 ### How restrictions reach a profile
 
@@ -993,10 +1019,10 @@ Send `If-None-Match`, or every image is downloaded again on every page load.
 
 `profileImage` and `profileImageThumb` on `/create` and `/update` take a
 `data:image/…;base64,…` value. The size limit is set by the server's image quality: 2, 4,
-8 or 16 MB. `GET /avatars` reports it, and the size to draw at.
+8 or 16 MB. The `avatars` part of `GET /form-options` reports it, and the size to draw at.
 
 The server doesn't resize or convert anything, so the client draws both sizes itself, at
-the sizes `GET /avatars` gives. JPEG, PNG, WebP and GIF are accepted; SVG isn't. `profileImage` can also be an `http(s)` URL, which is stored as a
+the sizes `GET /form-options` gives. JPEG, PNG, WebP and GIF are accepted; SVG isn't. `profileImage` can also be an `http(s)` URL, which is stored as a
 link.
 
 ---
@@ -1396,7 +1422,7 @@ turned on count as having seen it.
 
 Each step changes things through the usual routes: [`/account`](#post-pluginsprofilesaccount)
 for the PIN, [`/create`](#post-pluginsprofilescreate), [`/preferences`](#post-pluginsprofilespreferences)
-and [`/theme`](#post-pluginsprofilestheme).
+and [`/update`](#post-pluginsprofilesupdate) with `theme`.
 
 ### `POST /plugins/profiles/onboarding/done`
 
@@ -1434,38 +1460,14 @@ proper names and aren't translated.
 | `high-contrast` | Yellow on black, large type. |
 
 A theme is per profile. Set it with `theme` on [`/create`](#post-pluginsprofilescreate) or
-[`/update`](#post-pluginsprofilesupdate), or on its own with
-[`/theme`](#post-pluginsprofilestheme); read the one to show from
+[`/update`](#post-pluginsprofilesupdate), which a profile's theme can be the only field
+of; read the one to show from
 [`/preferences`](#get-pluginsprofilespreferences). The administrator sets the default and
 whether profiles may choose, under [`admin/settings`](#post-pluginsprofilesadminsettings).
 
 An administrator can also hide built-in themes and add their own; see
 [Custom themes](#custom-themes). A profile that chose a hidden or deleted theme sees the
 default, and gets its choice back if the theme returns.
-
-### `POST /plugins/profiles/theme`
-
-**Authorization:** signed-in user. Main account only, with its PIN if it has one.
-
-```json
-{ "profileId": "…", "theme": "nightfall", "masterPin": "1234" }
-```
-
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `profileId` | GUID | Yes | Any profile in the caller's household, the main account included. |
-| `theme` | string | No | A [theme](#themes) id. Omit or `""` to follow the server default. |
-| `masterPin` | string | When the main account has a PIN | The main account's PIN. |
-
-Changes the theme and nothing else. Returns `{ profileId, theme, stored }`: `theme` is what
-that profile now sees, `stored` its own choice or `null`.
-
-Errors:
-
-- `400`: an unknown theme, or a wrong main-account PIN.
-- `403`: the caller is a profile rather than the main account, `profileId` is outside
-  the household, or the server doesn't let profiles choose.
-- `429`: too many wrong PINs.
 
 ### `GET /plugins/profiles/themes`
 
@@ -2006,42 +2008,13 @@ today; at 0 only no is left. Answer with `limits/{profileId}/grant`.
 No body. The main account's open apps get a message, and an email if it chose that. Once
 every ten minutes; sooner is `429`. Returns the `GET` shape without `rules`.
 
-### `GET /plugins/profiles/timezones`
-
-**Authorization:** signed-in user.
-
-```json
-{
-  "zones": ["Africa/Abidjan", "…"],
-  "server": "Europe/London",
-  "default": "",
-  "household": "Europe/Paris",
-  "effective": "Europe/Paris"
-}
-```
-
-`default` and `household` are empty when not set. `effective` is the zone in use.
-
 ## Avatar library
 
 Images an administrator publishes for everyone to choose from, plus thirty built-in
 starter avatars unless they're turned off. Choosing one copies it to the profile, so
 removing it from the library later doesn't affect profiles that use it.
 
-### `GET /plugins/profiles/avatars`
-
-**Authorization:** signed-in user.
-
-```json
-{
-  "allowCustomUploads": true,
-  "starterAvatarsEnabled": true,
-  "image": { "quality": "high", "masterSize": 1024, "thumbSize": 256, "jpegQuality": 0.9, "maxBytes": 4194304 },
-  "avatars": [
-    { "id": "9f2c41a0b7d3", "displayName": "Fox", "url": "/plugins/profiles/avatars/9f2c41a0b7d3", "thumbUrl": "/plugins/profiles/avatars/9f2c41a0b7d3?size=thumb", "isStarter": false }
-  ]
-}
-```
+The library is the `avatars` part of [`GET /form-options`](#get-pluginsprofilesform-options).
 
 | Field | Description |
 | --- | --- |

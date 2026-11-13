@@ -4083,10 +4083,12 @@
             function loadAvatarLibrary(page) {
                 ApiClient.ajax({
                     type: 'GET',
-                    url: ApiClient.getUrl('plugins/profiles/avatars'),
+                    url: ApiClient.getUrl('plugins/profiles/form-options'),
                     dataType: 'json'
-                }).then(function (data) {
-                    const avatars = field(data, 'avatars') || [];
+                }).then(function (options) {
+                    // The avatar library is one part of what the profile form reads.
+                    const library = field(options || {}, 'avatars') || {};
+                    const avatars = field(library, 'avatars') || [];
                     const grid = page.querySelector('#avatarLibraryGrid');
 
                     if (!avatars.length) {
@@ -9192,8 +9194,8 @@
                 while (select.options.length > 1) select.remove(1);
                 if (saved) add(saved);
                 select.value = saved;
-                ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('plugins/profiles/timezones'), dataType: 'json' }).then(function (data) {
-                    data = data || {};
+                ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('plugins/profiles/form-options'), dataType: 'json' }).then(function (options) {
+                    const data = field(options || {}, 'timeZones') || {};
                     (data.Zones || data.zones || []).forEach(function (zone) { if (zone !== saved) add(zone); });
                     select.value = saved;
                     const server = data.Server || data.server || '';

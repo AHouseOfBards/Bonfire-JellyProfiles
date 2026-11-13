@@ -133,6 +133,13 @@ console.log('── Four of five requests stop happening ───────�
     check('the first open fetches the shared data', firstCount > 0, true);
     check('it returns all four parts',
         ['libraries', 'devices', 'libraryTags', 'avatarLibrary'].every(k => k in first), true);
+    // 2.0: the libraries, ratings, avatars and time zones are one request, so the shared
+    // half of the form is that, the devices and the library tags.
+    const formReads = requests.filter(u => /plugins\/profiles\/form-options/.test(u));
+    const oldReads = requests.filter(u => /plugins\/profiles\/(libraries|ratings|timezones|avatars)(\?|$)/.test(u));
+    check('the profile form reads form-options once', formReads.length, 1);
+    check('and none of the four routes it replaced', oldReads.length, 0);
+    check('three requests in all, where it was five', firstCount, 3);
 
     requests.length = 0;
     const second = await PP.fetchSharedFormData(sandbox.ApiClient, masterState);

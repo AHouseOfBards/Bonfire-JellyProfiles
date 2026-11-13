@@ -127,6 +127,12 @@
                 emergencyCodeConfigured: false, theme: THEME, defaultTheme: 'bonfire', allowProfileThemes: true, onboardingPending: false };
         }
     };
+    // The profile form's four reads are one request since 2.0.
+    var PARTS = { libraries: ROUTES.libraries, ratings: ROUTES.ratings, avatars: ROUTES.avatars, timeZones: ROUTES.timezones };
+    delete ROUTES.libraries; delete ROUTES.ratings; delete ROUTES.avatars; delete ROUTES.timezones;
+    ROUTES['form-options'] = function () {
+        return { libraries: PARTS.libraries(), ratings: PARTS.ratings(), avatars: PARTS.avatars(), timeZones: PARTS.timeZones() };
+    };
     // Routes with an id in them: Rosalind's limits are what the edit scene shows.
     var PATTERNS = [
         [/^limits\/(\w+)$/, function (m) {

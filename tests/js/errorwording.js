@@ -50,7 +50,7 @@ function run(res, shared) {
         setTimeout() { return 1; }, clearTimeout() {}, setInterval() {}, clearInterval() {},
         // In the shared-form run only the library list refuses: since R-1228 the other
         // reads report a 401 too, and this asks about the library list alone.
-        fetch: (url) => (shared && String(url).indexOf('plugins/profiles/libraries') === -1)
+        fetch: (url) => (shared && String(url).indexOf('plugins/profiles/form-options') === -1)
             ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) })
             : Promise.resolve(res),
         document: {

@@ -44,7 +44,7 @@ env.setRespond((url, body) => {
     if (url === 'plugins/profiles/preferences' && !body) return { status: 200, body: prefs };
     if (url === 'plugins/profiles/preferences') return { status: 200, body: body };
     if (url === 'plugins/profiles/onboarding') return { status: 200, body: onboarding };
-    if (url === 'plugins/profiles/theme') return { status: 200, body: { theme: body.theme || 'bonfire', stored: body.theme } };
+    if (url === 'plugins/profiles/update') return { status: 200, body: { theme: body.theme || 'bonfire', stored: body.theme } };
     if (url === 'plugins/profiles/create' && body.profileName === 'Taken') return { status: 400, body: 'A user with this name already exists.', headers: { 'X-Bonfire-Error': 'name_taken' } };
     return { status: 200, body: {} };
 });
@@ -156,8 +156,8 @@ const html = () => content.innerHTML;
     themeNext.click();
     themeNext.click();
     await settle();
-    ok('a double Next saves the theme once', sent('plugins/profiles/theme').filter(p => p.body).length === 1);
-    const theme = sent('plugins/profiles/theme').pop();
+    ok('a double Next saves the theme once', sent('plugins/profiles/update').filter(p => p.body).length === 1);
+    const theme = sent('plugins/profiles/update').pop();
     ok("Next saves the main account's theme",
        theme && theme.body.profileId === 'main' && theme.body.theme === 'harbor' && theme.body.masterPin === '1234');
 

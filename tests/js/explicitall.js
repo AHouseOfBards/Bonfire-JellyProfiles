@@ -105,7 +105,7 @@ const show = s => (s ? JSON.stringify({ r: s.body.maxParentalRating, f: s.body.e
         ok('a ' + status + ' on the profile\'s own read draws no edit form', !env.content.querySelector('#edit-submit-btn'));
         ok('and says so', alerts.length === 1);
     }
-    // R-1215: Add had no .catch, so a failed /libraries left the button doing nothing.
+    // R-1215: Add had no .catch, so a failed form-options read left the button doing nothing.
     {
         const env = setup({});
         const alerts = [];

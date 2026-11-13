@@ -104,6 +104,10 @@
         'admin/cleanup-orphans': function () { return { applied: false, orphans: [], deadGroups: [], deadMembers: [] }; },
         'info': function () { return { version: '1.7.2.0', informationalVersion: '1.7.2-beta' }; }
     };
+    // The avatar library and the time zones are parts of the profile form's one read since 2.0.
+    var PARTS = { avatars: ROUTES.avatars, timeZones: ROUTES.timezones };
+    delete ROUTES.avatars; delete ROUTES.timezones;
+    ROUTES['form-options'] = function () { return { avatars: PARTS.avatars(), timeZones: PARTS.timeZones() }; };
 
     function lookup(url, method) {
         var u = new URL(url, location.href);

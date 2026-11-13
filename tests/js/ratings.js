@@ -10,7 +10,7 @@
  * The fixtures are Jellyfin's own tables (tests/fixtures/ratings, copied from
  * release-10.11.z Emby.Server.Implementations/Localization/Ratings). The server reads the
  * same tables (Configuration/RatingSystems.cs, checked against these fixtures by tests/cs/ratings);
- * serverAnswer() below is the shape GET plugins/profiles/ratings sends for one of them.
+ * serverAnswer() below is the shape the ratings part of GET plugins/profiles/form-options holds for one of them.
  *
  * Not /Localization/ParentalRatings, which the first version of this used: Jellyfin pads
  * that list with generic ages ("10", "13", "14", "21") the country lacks, and France has a
@@ -38,7 +38,7 @@ function ok(name, cond, detail) {
 // ── What Jellyfin sends ───────────────────────────────────────────────────────
 const FIXTURES = path.join(L.ROOT, 'tests', 'fixtures', 'ratings');
 
-/** What GET plugins/profiles/ratings answers for a server in `code`. */
+/** What the ratings part of GET plugins/profiles/form-options holds for a server in `code`. */
 function serverAnswer(code) {
     const table = JSON.parse(fs.readFileSync(path.join(FIXTURES, code + '.json'), 'utf8'));
     const byScore = {};
@@ -180,8 +180,8 @@ console.log('── without the server list, the old choices ──────�
 console.log('── the forms fetch it and pass it on ───────────────────────────');
 {
     const raw = fs.readFileSync(L.profilesPath(), 'utf8');
-    ok('the shared form data asks the plugin for the country\'s ratings',
-       /getUrl\('plugins\/profiles\/ratings'\)/.test(raw));
+    ok('the shared form data asks the plugin for the country\'s ratings, in the one form-options read',
+       /getUrl\('plugins\/profiles\/form-options'\)/.test(raw) && /ratings: this\._field\(options, 'ratings'\)/.test(raw));
     ok('and not Jellyfin\'s padded list', !/Localization\/ParentalRatings'\)/.test(raw));
     ok('the create form passes them in', /renderRatingSelect\('create', null, ratings\)/.test(raw));
     ok('the edit form passes them in', /renderRatingSelect\('edit', maxRating, ratings\)/.test(raw));

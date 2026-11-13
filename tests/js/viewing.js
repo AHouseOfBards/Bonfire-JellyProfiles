@@ -51,7 +51,7 @@ env.setRespond((url, body) => {
     if (url === 'plugins/profiles/limits/kid/grant' || url === 'plugins/profiles/limits/kid/ask') {
         return { status: 200, body: Object.assign({}, server.limits, { rules: null }) };
     }
-    if (url === 'plugins/profiles/timezones') return { status: 200, body: server.zones };
+    if (url === 'plugins/profiles/form-options') return { status: 200, body: { timeZones: server.zones } };
     if (url === 'plugins/profiles/account/email' && !body) return { status: 200, body: server.email };
     if (url === 'plugins/profiles/account/email/notifications') return { status: 200, body: Object.assign({}, server.email, body) };
     return { status: 200, body: {} };

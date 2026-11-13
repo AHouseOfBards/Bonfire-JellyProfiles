@@ -828,8 +828,9 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
        !!menu && /this\._themeSettings && this\._themeSettings\.allow\s*\?\s*entry\('settings-theme'/.test(menu.body));
     ok('and opens the Theme page from it', !!menu && /open\('settings-theme', \(\) => this\.showThemeSettings\(null\)\)/.test(menu.body));
     const page = method('showThemeSettings');
-    ok('the Theme page saves through /theme, which touches nothing else on the profile',
-       !!page && /plugins\/profiles\/theme/.test(page.body) && !/plugins\/profiles\/update/.test(page.body));
+    ok('the Theme page saves through /update, which leaves what it does not send as it is',
+       !!page && /plugins\/profiles\/update/.test(page.body) && !/plugins\/profiles\/theme['"`]/.test(page.body)
+       && /profileName: person\.profileName/.test(page.body));
     // A remote's Back key clicks the screen's own back button, from a fixed list. A screen
     // missing from it swallows Back with nothing happening, which on Tizen is a dead remote.
     const dismiss = method('_dismissSurface');
@@ -838,7 +839,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
     ok('and its cards take the thick focus ring a television needs',
        /\.jpf-tv \.jpf-theme-option:focus/.test(CSS) && /\.jpf-tv \.jpf-theme-person:focus/.test(CSS)
        && /\.jpf-tv \.jpf-choice:focus/.test(CSS));
-    ok('it sends the main account\'s PIN, which /theme checks', !!page && /masterPin: this\.masterPin/.test(page.body));
+    ok('it sends the main account\'s PIN, which /update checks', !!page && /masterPin: this\.masterPin/.test(page.body));
     ok('and puts the theme on now when the profile is the one signed in',
        !!page && /=== signedIn\)\s*\{\s*this\._setThemeSettings\(/.test(page.body));
 
