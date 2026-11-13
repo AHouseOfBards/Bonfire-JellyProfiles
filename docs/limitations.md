@@ -14,8 +14,8 @@ PIN resets, TV and app sign-in, and the emergency disable code.
 
 ## Back on the PIN keypad
 
-**Back** on the PIN keypad steps back one level at a time, not straight to the profile
-list. This is by design.
+In the profile picker (Moonfin), **Back** on the PIN keypad undoes one key press at a time,
+not straight to the profile list. Each press is a page in the app.
 
 ## Wrong PINs are counted per profile
 
