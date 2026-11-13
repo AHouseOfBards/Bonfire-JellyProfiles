@@ -358,6 +358,7 @@
     #profilesConfigurationPage .jpf-extras-form { align-items: flex-end; }
     #profilesConfigurationPage .jpf-extras-form > .fieldDescription { flex: 0 0 100%; }
     #profilesConfigurationPage .jpf-extras-form.jpf-hidden { display: none; }
+    #profilesConfigurationPage .jpf-link-select { margin-bottom: 0; min-width: 14em; }
     #profilesConfigurationPage .jpf-chip {
         display: inline-flex; align-items: center; gap: 2px;
         padding: 2px 4px 2px 10px; border-radius: 999px;
@@ -2101,16 +2102,16 @@
                 'admin.households.noSubs': 'No profiles',
                 'admin.households.unlinkedTitle': 'Profiles without a main account',
                 'admin.households.unlinkedBody': 'These profiles point at a main account that no longer exists.',
-                'admin.links.alsoHere': 'Also on the profile screen:',
-                'admin.links.removeAria': 'Take {name} off this screen',
+                'admin.links.alsoHere': 'Also in this household:',
+                'admin.links.removeAria': 'Remove {name} from this household',
                 'admin.aria.named': '{action}: {name}',
                 'admin.themes.fontUnset': 'Not set',
-                'admin.links.add': 'Show another account',
+                'admin.links.add': 'Add an account to this household',
                 'admin.links.account': 'Account',
-                'admin.links.go': 'Show',
-                'admin.links.note': 'Its tile opens its own account.',
-                'admin.links.none': 'No other accounts to show. Create another user first.',
-                'admin.links.failed': 'Couldn\'t show the account.',
+                'admin.links.go': 'Add',
+                'admin.links.note': 'Its tile goes on this household\'s profile screen. It stays its own account.',
+                'admin.links.none': 'No other accounts to add. Create another user first.',
+                'admin.links.failed': 'Couldn\'t add the account.',
                 'admin.links.removeFailed': 'Couldn\'t take it off.',
                 'admin.pins.button': 'PIN prompts',
                 'admin.pins.ask': 'Ask for the PIN to open this account',
@@ -3433,7 +3434,11 @@
                                '<div class="link-form jpf-extras-form jpf-hidden">' +
                                '<div class="fieldDescription">' + escapeHtml(t('admin.links.note')) + '</div>' +
                                (others.length
-                                   ? '<label class="jpf-sa-label">' + escapeHtml(t('admin.links.account')) + '<select is="emby-select" class="link-user">' + others.map(option).join('') + '</select></label>' +
+                                   // Built the way the page's other selects are, inside a selectContainer:
+                                   // emby-select draws its arrow into the select's parent, and inside a
+                                   // plain <label> it had nowhere to sit, so this read as a text box.
+                                   ? '<div class="selectContainer jpf-link-select"><label class="selectLabel" for="link-user-' + id + '">' + escapeHtml(t('admin.links.account')) + '</label>' +
+                                     '<select is="emby-select" class="link-user" id="link-user-' + id + '">' + others.map(option).join('') + '</select></div>' +
                                      '<button type="button" class="raised button-submit button-mini link-go jpf-sa-btn">' + escapeHtml(t('admin.links.go')) + '</button>'
                                    : '<div class="fieldDescription">' + escapeHtml(t('admin.links.none')) + '</div>') +
                                '</div>' +
