@@ -1279,7 +1279,10 @@ body.profiles-no-scroll [id*="spinner"] {
    without sticky (Chromium 53, webOS 4.x) the shadow would be a screen-wide block. There
    the row is the last thing in the gate, and the remote's focus move scrolls to it. */
 @supports (position: sticky) {
-    #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+    /* The theme step of first-time setup pins its Next / Skip row the same way
+       (_pinSetupRow). */
+    #profiles-gate-overlay .profiles-footer.jpf-footer-stuck,
+    #profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck {
         /* Above the lock and the Bonfires badge on a tile (z-index 10), which are drawn over
            the tile and would otherwise show on top of the row. */
         position: sticky; z-index: 12;
@@ -1301,8 +1304,15 @@ body.profiles-no-scroll [id*="spinner"] {
         box-shadow: 0 0 0 100vmax var(--jpf-panel), 0 -1px 0 100vmax var(--jpf-border-1);
         clip-path: inset(-1px -100vmax 0 -100vmax);
     }
+    /* The setup row sits inside the sheet, not directly in the gate, so its margin box is
+       pulled down through the sheet's own padding as well. */
+    #profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck {
+        margin-bottom: calc(-2rem - var(--jpf-form-pad));
+        margin-bottom: calc(-2rem - env(safe-area-inset-bottom) - var(--jpf-form-pad));
+    }
     /* A television crops its edges: keep the buttons inside the 5% the logo keeps to. */
-    .jpf-tv #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+    .jpf-tv #profiles-gate-overlay .profiles-footer.jpf-footer-stuck,
+    .jpf-tv #profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck {
         padding-bottom: calc(1rem + 5vh);
     }
 }
@@ -1883,6 +1893,10 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-onboarding .bonfire-form-group input { text-align: left; }
 .jpf-onboarding .jpf-choice, .jpf-onboarding .jpf-theme-option { text-align: left; }
 .jpf-onboarding .jpf-onboarding-actions { justify-content: center; }
+/* A step taller than the screen (the theme step) is not a sheet that scrolls inside itself:
+   the gate scrolls and the button row sticks to its bottom (_pinSetupRow, .jpf-footer-stuck),
+   which a row inside a second scroll box could not do against the screen. */
+.jpf-onboarding.jpf-step-tall { max-height: none; overflow: visible; }
 .jpf-onboarding-actions > * + * { margin-left: var(--jpf-gap); }
 /* The PIN screen's column already spaces its rows. */
 .jpf-pin-actions.jpf-onboarding-actions { margin-top: 0 !important; justify-content: center; }
@@ -2594,11 +2608,16 @@ body.profiles-no-scroll [id*="spinner"] {
     }
     /* The pinned button row follows the gate's padding down (see .jpf-footer-stuck). */
     @supports (position: sticky) {
-        #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+        #profiles-gate-overlay .profiles-footer.jpf-footer-stuck,
+        #profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck {
             bottom: -0.75rem;
             bottom: calc(-0.75rem - env(safe-area-inset-bottom));
             margin-bottom: -0.75rem;
             margin-bottom: calc(-0.75rem - env(safe-area-inset-bottom));
+        }
+        #profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck {
+            margin-bottom: calc(-0.75rem - var(--jpf-form-pad));
+            margin-bottom: calc(-0.75rem - env(safe-area-inset-bottom) - var(--jpf-form-pad));
         }
     }
     .jpf-create-profile-container,
@@ -2753,6 +2772,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv .jpf-create-profile-container.is-two-col {
     max-height: calc(100vh - 14rem);
 }
+/* The setup step that is not capped (.jpf-step-tall, above) is also not capped here. */
+.jpf-tv .jpf-onboarding.jpf-step-tall { max-height: none; }
 /* A ring on focus, for a keyboard on a desktop or a phone. Most of these controls said
    "outline: none" and showed focus as a change of fill, which for the primary button is
    #ffb347 to #ffc773: the same as hovering, and not a mark anyone can find. After every
