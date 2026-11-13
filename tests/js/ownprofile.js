@@ -35,8 +35,9 @@ const profiles = [MAIN, KID, LINKED];
 
 let library = { allowCustomUploads: true, avatars: [{ id: 'a1', displayName: 'Fox', url: '/a1', thumbUrl: '/a1' }] };
 env.setRespond((url) => {
-    if (/plugins\/profiles\/avatars$/.test(url)) {
-        return { status: 200, body: { allowCustomUploads: library.allowCustomUploads, avatars: library.avatars } };
+    // The avatar library is the avatars part of GET /form-options since 2.0 (/avatars is gone).
+    if (/plugins\/profiles\/form-options/.test(url)) {
+        return { status: 200, body: { avatars: { allowCustomUploads: library.allowCustomUploads, avatars: library.avatars } } };
     }
     if (/plugins\/profiles\/list$/.test(url)) return { status: 200, body: [] };
     return { status: 200, body: {} };
