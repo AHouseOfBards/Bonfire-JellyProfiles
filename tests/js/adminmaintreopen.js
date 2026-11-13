@@ -65,7 +65,7 @@ console.log('\n── Showing what is saved ────────────
 let w = world();
 w.api.renderMaintenance(w.page, { enabled: true, untilUtc: '2026-11-12T03:00:00Z', reopenAutomatically: true, startedUtc: '2026-11-11T20:00:00Z', message: 'x' });
 ok('a closure set to reopen shows the tick', w.els['#mntReopen'].checked === true);
-ok('and says it reopens by itself, not "back by"', /by itself/i.test(w.els['#mntStatus'].textContent) && !/Back by/.test(w.els['#mntStatus'].textContent),
+ok('and says it reopens automatically, not "back by"', /reopens automatically/i.test(w.els['#mntStatus'].textContent) && !/Back by/.test(w.els['#mntStatus'].textContent),
    w.els['#mntStatus'].textContent);
 w = world();
 w.api.renderMaintenance(w.page, { enabled: true, untilUtc: '2026-11-12T03:00:00Z', reopenAutomatically: false, startedUtc: '2026-11-11T20:00:00Z', message: 'x' });

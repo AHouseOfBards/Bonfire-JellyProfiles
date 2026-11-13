@@ -1092,7 +1092,7 @@
   "admin.avatars.removeFailed": "Impossible de retirer cet avatar.",
   "admin.avatars.removeConfirm": "Retirer cet avatar ? Les profils qui l'utilisent déjà le gardent.",
   "admin.avatars.removeTitle": "Retirer l'avatar",
-  "admin.avatars.heic": "Les photos HEIC ne sont pas prises en charge. Exportez d'abord la photo en JPEG.",
+  "admin.avatars.heic": "Les images HEIC ne sont pas prises en charge. Enregistrez d'abord l'image en JPEG.",
   "admin.avatars.svg": "Le SVG n'est pas pris en charge. Utilisez JPEG, PNG, WebP ou GIF.",
   "admin.avatars.tooBig": "Cette image dépasse 25 Mo. Utilisez-en une plus petite.",
   "admin.avatars.unreadable": "Ce fichier n'a pas pu être lu.",

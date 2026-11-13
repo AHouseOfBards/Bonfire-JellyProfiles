@@ -72,11 +72,11 @@ ok('editing the message of a closed server does not ask', editPlain.asked.length
 
 // An automatic reopen is part of what the administrator is agreeing to.
 const closeAuto = run({ reopen: true, until: '2026-11-12T03:00' });
-ok('closing to reopen by itself says when, in the question',
-   closeAuto.asked.length === 1 && /WHEN\(2026-11-12T03:00Z\)/.test(closeAuto.asked[0]) && /by itself/i.test(closeAuto.asked[0]), closeAuto.asked[0]);
-ok('and a plain close does not', !/by itself/i.test(closePlain.asked[0] || ''));
+ok('closing to reopen automatically says when, in the question',
+   closeAuto.asked.length === 1 && /WHEN\(2026-11-12T03:00Z\)/.test(closeAuto.asked[0]) && /reopens automatically/i.test(closeAuto.asked[0]), closeAuto.asked[0]);
+ok('and a plain close does not', !/reopens automatically/i.test(closePlain.asked[0] || ''));
 const tickNoTime = run({ reopen: true, until: '' });
-ok('a tick with no time says nothing about reopening in the question', !/by itself/i.test(tickNoTime.asked[0] || ''));
+ok('a tick with no time says nothing about reopening in the question', !/reopens automatically/i.test(tickNoTime.asked[0] || ''));
 
 // The whole literal: an escaped quote (today\'s) is part of it, not its end. The old pattern
 // ([^']|\\')* stopped at the first one, so a sentence after it was never read.

@@ -1092,7 +1092,7 @@
   "admin.avatars.removeFailed": "No s'ha pogut treure aquest avatar.",
   "admin.avatars.removeConfirm": "Vols treure aquest avatar? Els perfils que ja el fan servir el conserven.",
   "admin.avatars.removeTitle": "Treure l'avatar",
-  "admin.avatars.heic": "Les fotos HEIC no són compatibles. Exporta primer la foto com a JPEG.",
+  "admin.avatars.heic": "Les imatges HEIC no són compatibles. Desa primer la imatge com a JPEG.",
   "admin.avatars.svg": "SVG no és compatible. Fes servir JPEG, PNG, WebP o GIF.",
   "admin.avatars.tooBig": "Aquesta imatge supera els 25 MB. Fes-ne servir una de més petita.",
   "admin.avatars.unreadable": "No s'ha pogut llegir aquest fitxer.",
