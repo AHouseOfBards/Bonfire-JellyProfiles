@@ -1470,6 +1470,19 @@ body.profiles-no-scroll [id*="spinner"] {
     .jpf-create-profile-container.is-two-col > *:not(.jpf-form-col) {
         grid-column: 1 / -1;
     }
+    /* The two columns are rarely the same height (Profile and Security against Libraries),
+       and a short one left a hole beside the card below it. Each column takes the height of
+       its row and shares what its cards do not need between them, so no card has bare form
+       beside it. The same inside More. Viewing limits is outside both columns and spans
+       them. tests/js/viewwide.js. */
+    .jpf-create-profile-container.is-two-col > .jpf-form-col,
+    .jpf-more-body > .jpf-form-col {
+        align-self: stretch;
+    }
+    .jpf-create-profile-container.is-two-col > .jpf-form-col > .jpf-profile-section,
+    .jpf-more-body > .jpf-form-col > .jpf-profile-section {
+        flex: 1 0 auto;
+    }
 }
 
 .jpf-create-profile-container {
@@ -2061,6 +2074,29 @@ body.profiles-no-scroll [id*="spinner"] {
         grid-template-columns: 1fr 1fr;
         align-items: start;
     }
+}
+/* Viewing limits in two halves: the limits and their note, then the times. One column
+   (halves stacked, the phone order) until the form has two; there they sit side by side, in the
+   same grid-with-a-flex-fallback shape as .jpf-more-body. */
+.jpf-viewing-split, .jpf-viewing-side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    min-width: 0;
+}
+.jpf-no-flex-gap .jpf-viewing-split > * + *,
+.jpf-no-flex-gap .jpf-viewing-side > * + * { margin-top: 1.1rem; }
+@media (min-width: 900px) {
+    .jpf-viewing-split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 1.5rem;
+        align-items: start;
+    }
+    .jpf-no-flex-gap .jpf-viewing-split > * + * { margin-top: 0; }
+}
+@supports not (display: grid) {
+    .jpf-no-flex-gap .jpf-viewing-split > * + * { margin-top: 1.1rem; }
 }
 /* A fold on a one-column screen (Your account) stays one column at any width. The class is
    on the <details>, so this outranks the two-column rule above it. */
