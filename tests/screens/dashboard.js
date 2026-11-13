@@ -42,6 +42,8 @@
         Onboarding: { Enabled: true, RequireMainPin: false, WelcomeText: '' },
         UserProfileLimitOverrides: [], CustomThemes: [], HiddenThemes: [], CustomFonts: []
     };
+    // ?off=1 draws the page with Bonfire switched off in Status.
+    if (q.get('off')) config.BonfireOn = false;
     var mappings = [
         profile(ALEX, true, 'Alex', ALEX), profile('22222222222222222222222222222222', false, 'Sam', ALEX),
         profile('33333333333333333333333333333333', false, 'Rosalind', ALEX), profile('44444444444444444444444444444444', false, 'Zoë', ALEX),

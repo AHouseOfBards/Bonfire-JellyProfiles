@@ -1198,6 +1198,17 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1.05rem !important;
 }
 
+/* On a television, in the legacy header. Its neighbours scale with the root, which
+   jellyfin-web raises for the TV layout (27px at 1080p, 20px at 720p): a header icon is
+   1.67em (emby-button.scss, .paper-icon-button-light > .material-icons) and the user's
+   own picture is a div scaled 1.8. A fixed 28px avatar sat at about 60% of their size on
+   a 1080p set. In rem it follows the same root. */
+.jpf-tv #profiles-floating-bubble:not(.jpf-modern-toolbar-btn) .profiles-header-avatar {
+    width: 1.7rem !important;
+    height: 1.7rem !important;
+    font-size: 0.8rem !important;
+}
+
 /* The section added to Jellyfin's own profile page (#/userprofile).
    It sits in the .padded-left .padded-right container, as a sibling of the avatar
    block and the password form. That container is close to full width — .padded-left
