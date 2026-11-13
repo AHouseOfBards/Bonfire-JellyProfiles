@@ -1,0 +1,30 @@
+name: Translation
+description: A wrong or missing translation, or a new language
+labels: []
+body:
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      placeholder: "Spanish (es)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong or missing
+      description: Say where you saw it, and what it should say.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: This is
+      options:
+        - A wrong translation
+        - A missing translation
+        - A new language
+    validations:
+      required: true

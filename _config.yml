@@ -65,6 +65,8 @@ exclude:
   - dist/
   - Jellyfin.Profiles.csproj
   - CLAUDE.md
+  - CONTRIBUTING.md
+  - SECURITY.md
 
 defaults:
   - scope:

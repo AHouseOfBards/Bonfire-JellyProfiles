@@ -75,6 +75,8 @@ Also at [ahouseofbards.github.io/Bonfire-JellyProfiles](https://ahouseofbards.gi
 - [Changelog](CHANGELOG.md)
 - [Developer API](docs/developer-api.md)
 
+Bonfire is written with assistance from artificial intelligence models, but is still primarily built, tested and maintained by me, Bards.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
