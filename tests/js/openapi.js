@@ -145,6 +145,30 @@ if (spec) {
     const dead = [...new Set(refs.filter(r => pointer(r) === undefined))];
     ok('there are references to resolve (' + refs.length + ')', refs.length > 0);
     ok('none points at nothing', dead.length === 0, list(dead));
+
+    console.log();
+    console.log('── no shape is left as a bare object ──────────────────────────');
+    // A schema that says `type: object` and nothing else tells a client nothing, and it is
+    // what a shape looks like before anyone reads the code that builds it. A shape that is
+    // too internal to promise says so with x-bonfire-not-api and a description that ends in
+    // "Not part of the API.", which is a decision written down and not a gap.
+    // UNTYPED lists schema paths that may stay bare, and is empty: a new one is a gap.
+    const UNTYPED = [];
+    const bare = [], badNotApi = [];
+    (function walk(n, p) {
+        if (Array.isArray(n)) { n.forEach((x, i) => walk(x, p + '/' + i)); return; }
+        if (!n || typeof n !== 'object') return;
+        const types = [].concat(n.type === undefined ? [] : n.type);
+        if (types.includes('object') && !n.properties && !n.$ref && !n.allOf && !n.oneOf && !n.anyOf
+            && !(n.additionalProperties && typeof n.additionalProperties === 'object')) {
+            if (n['x-bonfire-not-api'] === true) {
+                if (!/Not part of the API\.\s*$/.test(String(n.description || ''))) badNotApi.push(p);
+            } else if (!UNTYPED.includes(p)) bare.push(p);
+        }
+        for (const [k, v] of Object.entries(n)) if (k !== 'example' && k !== 'examples') walk(v, p + '/' + k);
+    })(spec, '');
+    ok('every object schema has properties, or a reference, or says it is not part of the API', bare.length === 0, list(bare));
+    ok('and each one that says so ends its description with "Not part of the API."', badNotApi.length === 0, list(badNotApi));
 }
 
 console.log();

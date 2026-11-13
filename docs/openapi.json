@@ -698,11 +698,8 @@
                       "format": "uuid"
                     },
                     "theme": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "description": "What that profile now sees."
+                      "type": "string",
+                      "description": "The theme that profile now sees: its own choice, or the server default. `\"\"` when the profile has no record."
                     },
                     "stored": {
                       "type": [
@@ -712,7 +709,12 @@
                       "description": "Its own choice, or null."
                     }
                   },
-                  "description": "Sent when a `theme` was part of the request. Otherwise the answer is 200 with no fields documented."
+                  "description": "Always sent, whether or not a `theme` was in the request.",
+                  "required": [
+                    "profileId",
+                    "theme",
+                    "stored"
+                  ]
                 }
               }
             }
@@ -1732,16 +1734,7 @@
                     "ownedMembers": {
                       "type": "array",
                       "items": {
-                        "type": "object",
-                        "properties": {
-                          "userId": {
-                            "type": "string",
-                            "format": "uuid"
-                          },
-                          "username": {
-                            "type": "string"
-                          }
-                        }
+                        "$ref": "#/components/schemas/BonfireMember"
                       }
                     },
                     "isMember": {
@@ -1898,7 +1891,7 @@
                     "members": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "$ref": "#/components/schemas/BonfireMember"
                       }
                     }
                   }
@@ -3031,8 +3024,7 @@
                             "type": "string"
                           },
                           "theme": {
-                            "type": "object",
-                            "description": "A theme file, schema 1. See docs/themes.md."
+                            "$ref": "#/components/schemas/ThemeFile"
                           },
                           "problems": {
                             "type": "array",
@@ -3114,8 +3106,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "description": "A theme file, schema 1. See docs/themes.md."
+                "$ref": "#/components/schemas/ThemeFile"
               }
             }
           }
@@ -3183,8 +3174,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "description": "A theme file, schema 1. See docs/themes.md."
+                "$ref": "#/components/schemas/ThemeFile"
               }
             }
           }
@@ -4670,107 +4660,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "profileId": {
-                      "type": "string"
-                    },
-                    "limited": {
-                      "type": "boolean",
-                      "description": "Hours or a limit are on. When false, the rest is empty."
-                    },
-                    "allowed": {
-                      "type": "boolean",
-                      "description": "It can watch now."
-                    },
-                    "reason": {
-                      "type": "string",
-                      "description": "Why not: `hours` or `limit`."
-                    },
-                    "binding": {
-                      "type": "string",
-                      "description": "What ends it first: `hours`, `limit` or `extra`. Empty when nothing does today."
-                    },
-                    "minutesLeft": {
-                      "type": "integer"
-                    },
-                    "untilUtc": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "format": "date-time"
-                    },
-                    "nextStartUtc": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "format": "date-time"
-                    },
-                    "usedMinutes": {
-                      "type": "integer"
-                    },
-                    "limitMinutes": {
-                      "type": "integer"
-                    },
-                    "extraUntilUtc": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "format": "date-time"
-                    },
-                    "askedUtc": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "format": "date-time"
-                    },
-                    "timeZone": {
-                      "type": "string"
-                    },
-                    "rules": {
-                      "type": "object",
-                      "properties": {
-                        "hoursEnabled": {
-                          "type": "boolean"
-                        },
-                        "windows": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "days": {
-                                "type": "integer",
-                                "description": "Days as bits: Sunday is 1, Monday 2, through Saturday 64."
-                              },
-                              "start": {
-                                "type": "string",
-                                "description": "`HH:mm` in the household's zone."
-                              },
-                              "end": {
-                                "type": "string",
-                                "description": "`HH:mm`. An end at or before the start runs past midnight; `24:00` is midnight."
-                              }
-                            }
-                          }
-                        },
-                        "dailyMinutes": {
-                          "type": "integer",
-                          "description": "0 is no limit."
-                        },
-                        "weekendMinutes": {
-                          "type": [
-                            "integer",
-                            "null"
-                          ],
-                          "description": "Saturday and Sunday. Null is the same as other days."
-                        }
-                      }
-                    }
-                  }
+                  "$ref": "#/components/schemas/Viewing"
                 },
                 "example": {
                   "profileId": "4f1c…",
@@ -6525,14 +6415,42 @@
                         "deadGroups": {
                           "type": "array",
                           "items": {
-                            "type": "object"
-                          }
+                            "type": "object",
+                            "properties": {
+                              "groupId": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string",
+                                "description": "The Bonfire code."
+                              }
+                            },
+                            "required": [
+                              "groupId",
+                              "code"
+                            ]
+                          },
+                          "description": "Bonfires whose owner was deleted. `apply=true` removes them with their members."
                         },
                         "deadMembers": {
                           "type": "array",
                           "items": {
-                            "type": "object"
-                          }
+                            "type": "object",
+                            "properties": {
+                              "groupId": {
+                                "type": "string"
+                              },
+                              "userId": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            },
+                            "required": [
+                              "groupId",
+                              "userId"
+                            ]
+                          },
+                          "description": "Deleted users still listed in a Bonfire whose owner is alive."
                         },
                         "unusedImages": {
                           "type": "integer"
@@ -6769,8 +6687,7 @@
                       "type": "string"
                     },
                     "configuration": {
-                      "type": "object",
-                      "description": "The plugin configuration. Field names are the configuration's own and may change in any release."
+                      "$ref": "#/components/schemas/Configuration"
                     }
                   }
                 },
@@ -6817,8 +6734,12 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "description": "The `configuration` object from an export."
+                "description": "A `Configuration`, or the whole export with it under `configuration`. At least one of `Mappings`, `KnownDevices`, `BonfireGroups` and `AvatarLibrary` must be present, or 400.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Configuration"
+                  }
+                ]
               }
             }
           }
@@ -7744,11 +7665,15 @@
             "description": "The main account it belongs to."
           },
           "viewing": {
-            "type": [
-              "object",
-              "null"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Viewing"
+              }
             ],
-            "description": "Profiles in the caller's household with viewing hours on: the `GET /limits/{profileId}` shape without `rules`."
+            "description": "Profiles in the caller's household with viewing hours or a limit on: the `GET /limits/{profileId}` answer, with `rules` null. Otherwise null."
           }
         }
       },
@@ -7813,8 +7738,7 @@
           "themes": {
             "type": "array",
             "items": {
-              "type": "object",
-              "description": "A theme file, schema 1. See docs/themes.md."
+              "$ref": "#/components/schemas/ThemeFile"
             }
           },
           "fonts": {
@@ -8465,6 +8389,1509 @@
             }
           }
         }
+      },
+      "ThemeFile": {
+        "type": "object",
+        "description": "A theme file, schema 1. The same file in `GET /themes`, the editor and an export. Every field and its use is in docs/themes.md. A key not listed here is refused as `unknown`.",
+        "properties": {
+          "schema": {
+            "type": "integer",
+            "const": 1
+          },
+          "id": {
+            "type": "string",
+            "description": "Lowercase letters, digits and hyphens, at most 40.",
+            "pattern": "^[a-z0-9-]{1,40}$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "Goes up whenever the file changes. `POST /admin/themes/validate` requires it; `PUT /admin/themes/custom/{id}` takes the next one when it is left out."
+          },
+          "scheme": {
+            "type": "string",
+            "enum": [
+              "dark",
+              "light"
+            ],
+            "description": "Whether the text is light on dark, or dark on light."
+          },
+          "name": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "`theme.<id>`, for a built-in, translated through Bonfire's strings."
+              },
+              "text": {
+                "type": "string",
+                "description": "An administrator's own name: 1 to 40 characters on one line."
+              }
+            },
+            "description": "Exactly one of `key` and `text`."
+          },
+          "aliases": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string"
+            },
+            "description": "Old ids that now mean this theme. A custom theme has none."
+          },
+          "colors": {
+            "type": "object",
+            "properties": {
+              "accent": {
+                "type": "string",
+                "description": "Opaque: `#rrggbb`.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "accentFocus": {
+                "type": "string",
+                "description": "Opaque: `#rrggbb`.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "onAccent": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "text1": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "text2": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "text3": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "surface1": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "surface2": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "surface3": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "border1": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "border2": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "border3": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "panel": {
+                "type": "string",
+                "description": "An opaque fill: `#rrggbb`.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "ring": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "name": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "nameFocus": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "shadow": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "danger": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "warning": {
+                "type": "string",
+                "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              }
+            },
+            "required": [
+              "accent",
+              "accentFocus",
+              "onAccent",
+              "text1",
+              "text2",
+              "text3",
+              "surface1",
+              "surface2",
+              "surface3",
+              "border1",
+              "border2",
+              "border3",
+              "panel",
+              "ring",
+              "name",
+              "nameFocus",
+              "shadow",
+              "danger",
+              "warning"
+            ],
+            "description": "Every field is required."
+          },
+          "background": {
+            "type": "object",
+            "properties": {
+              "fill": {
+                "type": "string",
+                "description": "Opaque: `#rrggbb`. The one color to use when you cannot draw gradients.",
+                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+              },
+              "layers": {
+                "type": "array",
+                "maxItems": 6,
+                "description": "Drawn in order, first on top.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "linear",
+                        "radial"
+                      ]
+                    },
+                    "angle": {
+                      "type": "number",
+                      "description": "`linear`: degrees, 0 pointing up, clockwise.",
+                      "minimum": 0,
+                      "maximum": 360
+                    },
+                    "shape": {
+                      "type": "string",
+                      "enum": [
+                        "circle",
+                        "ellipse"
+                      ],
+                      "description": "`radial`."
+                    },
+                    "x": {
+                      "type": "number",
+                      "description": "`radial`: the center, in percent of the screen.",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "y": {
+                      "type": "number",
+                      "description": "`radial`: the center, in percent of the screen.",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "stops": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 8,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "color": {
+                            "type": "string",
+                            "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                            "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                          },
+                          "at": {
+                            "type": "number",
+                            "description": "Percent along the gradient.",
+                            "minimum": 0,
+                            "maximum": 100
+                          }
+                        },
+                        "required": [
+                          "color",
+                          "at"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "stops"
+                  ]
+                }
+              },
+              "image": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "description": "An image the administrator uploaded, at `/plugins/profiles/themes/backgrounds/<file>`."
+                  },
+                  "dim": {
+                    "type": "number",
+                    "description": "How much of `fill` to draw over the image.",
+                    "minimum": 0,
+                    "maximum": 0.95
+                  }
+                },
+                "required": [
+                  "file",
+                  "dim"
+                ],
+                "description": "Custom themes only."
+              }
+            },
+            "required": [
+              "fill"
+            ]
+          },
+          "shape": {
+            "type": "object",
+            "properties": {
+              "radius": {
+                "type": "object",
+                "properties": {
+                  "small": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 64
+                  },
+                  "medium": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 64
+                  },
+                  "large": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 64
+                  }
+                },
+                "required": [
+                  "small",
+                  "medium",
+                  "large"
+                ]
+              },
+              "avatar": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "circle",
+                      "square",
+                      "rounded",
+                      "leaf"
+                    ]
+                  },
+                  "radius": {
+                    "type": "number",
+                    "description": "`rounded`: percent of the width, 0 to 50. `square` and `leaf`: pixels, 0 to 200. Required for `rounded` and `leaf`."
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "ringWidth": {
+                "type": "number",
+                "description": "Pixels.",
+                "minimum": 0,
+                "maximum": 12
+              },
+              "button": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "pill",
+                      "rounded",
+                      "square"
+                    ]
+                  },
+                  "radius": {
+                    "type": "number",
+                    "description": "Required for `rounded`.",
+                    "minimum": 0,
+                    "maximum": 64
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "radius": {
+                    "type": "number",
+                    "description": "Pixels.",
+                    "minimum": 0,
+                    "maximum": 64
+                  }
+                },
+                "required": [
+                  "radius"
+                ]
+              }
+            },
+            "required": [
+              "radius",
+              "avatar",
+              "ringWidth",
+              "button",
+              "input"
+            ]
+          },
+          "type": {
+            "type": "object",
+            "properties": {
+              "font": {
+                "type": "object",
+                "properties": {
+                  "family": {
+                    "type": "string",
+                    "description": "One of the fonts in `GET /themes`."
+                  },
+                  "fallback": {
+                    "type": "string",
+                    "enum": [
+                      "sans-serif",
+                      "serif",
+                      "rounded"
+                    ]
+                  }
+                },
+                "required": [
+                  "family",
+                  "fallback"
+                ]
+              },
+              "title": {
+                "type": "object",
+                "properties": {
+                  "weight": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "multipleOf": 100
+                  },
+                  "spacing": {
+                    "type": "number",
+                    "description": "Letter spacing in em.",
+                    "minimum": -0.2,
+                    "maximum": 0.5
+                  },
+                  "scale": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 2
+                  }
+                }
+              },
+              "name": {
+                "type": "object",
+                "properties": {
+                  "weight": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "multipleOf": 100
+                  },
+                  "scale": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 2
+                  },
+                  "opacity": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 1
+                  }
+                }
+              },
+              "button": {
+                "type": "object",
+                "properties": {
+                  "case": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "upper"
+                    ]
+                  },
+                  "spacing": {
+                    "type": "number",
+                    "description": "Letter spacing in em.",
+                    "minimum": -0.2,
+                    "maximum": 0.5
+                  },
+                  "weight": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 900,
+                    "multipleOf": 100
+                  }
+                }
+              }
+            },
+            "description": "Optional."
+          },
+          "depth": {
+            "type": "object",
+            "properties": {
+              "avatar": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -100,
+                        "maximum": 100
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -100,
+                        "maximum": 100
+                      },
+                      "blur": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "spread": {
+                        "type": "number",
+                        "minimum": -50,
+                        "maximum": 50
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "Ignored when `color` is given.",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Its own color, with its own alpha.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      }
+                    }
+                  }
+                ],
+                "description": "Under a profile image. `null` is none."
+              },
+              "title": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -100,
+                        "maximum": 100
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -100,
+                        "maximum": 100
+                      },
+                      "blur": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "spread": {
+                        "type": "number",
+                        "minimum": -50,
+                        "maximum": 50
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "Ignored when `color` is given.",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Its own color, with its own alpha.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      }
+                    }
+                  }
+                ],
+                "description": "Behind the title. A text shadow. `null` is none."
+              },
+              "sheet": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -100,
+                        "maximum": 100
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -100,
+                        "maximum": 100
+                      },
+                      "blur": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "spread": {
+                        "type": "number",
+                        "minimum": -50,
+                        "maximum": 50
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "Ignored when `color` is given.",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Its own color, with its own alpha.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      }
+                    }
+                  }
+                ],
+                "description": "Under a dialog or form. `null` is none."
+              }
+            },
+            "description": "Optional."
+          },
+          "focus": {
+            "type": "object",
+            "properties": {
+              "scale": {
+                "type": "number",
+                "description": "How much a profile grows in focus. 1 is not at all.",
+                "minimum": 1,
+                "maximum": 1.25
+              },
+              "glow": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "minimum": -100,
+                        "maximum": 100
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": -100,
+                        "maximum": 100
+                      },
+                      "blur": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "spread": {
+                        "type": "number",
+                        "minimum": -50,
+                        "maximum": 50
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "description": "Ignored when `color` is given.",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "Its own color, with its own alpha.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      }
+                    }
+                  }
+                ],
+                "description": "The shadow a profile takes in focus. `null` is none."
+              }
+            },
+            "description": "Optional."
+          },
+          "parts": {
+            "type": "object",
+            "properties": {
+              "button2": {
+                "type": "object",
+                "properties": {
+                  "fill": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  },
+                  "border": {
+                    "type": "object",
+                    "properties": {
+                      "width": {
+                        "type": "number",
+                        "description": "Pixels.",
+                        "minimum": 0,
+                        "maximum": 8
+                      },
+                      "style": {
+                        "type": "string",
+                        "enum": [
+                          "solid",
+                          "dashed",
+                          "dotted"
+                        ]
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      }
+                    },
+                    "required": [
+                      "width",
+                      "style",
+                      "color"
+                    ]
+                  },
+                  "focus": {
+                    "type": "object",
+                    "properties": {
+                      "fill": {
+                        "type": "string",
+                        "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      },
+                      "border": {
+                        "type": "object",
+                        "properties": {
+                          "width": {
+                            "type": "number",
+                            "description": "Pixels.",
+                            "minimum": 0,
+                            "maximum": 8
+                          },
+                          "style": {
+                            "type": "string",
+                            "enum": [
+                              "solid",
+                              "dashed",
+                              "dotted"
+                            ]
+                          },
+                          "color": {
+                            "type": "string",
+                            "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                            "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                          }
+                        },
+                        "required": [
+                          "width",
+                          "style",
+                          "color"
+                        ]
+                      },
+                      "glow": {
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "x": {
+                                "type": "number",
+                                "minimum": -100,
+                                "maximum": 100
+                              },
+                              "y": {
+                                "type": "number",
+                                "minimum": -100,
+                                "maximum": 100
+                              },
+                              "blur": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 100
+                              },
+                              "spread": {
+                                "type": "number",
+                                "minimum": -50,
+                                "maximum": 50
+                              },
+                              "opacity": {
+                                "type": "number",
+                                "description": "Ignored when `color` is given.",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "color": {
+                                "type": "string",
+                                "description": "Its own color, with its own alpha.",
+                                "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                              }
+                            }
+                          }
+                        ],
+                        "description": "The glow in focus. `null` is none."
+                      }
+                    },
+                    "required": [
+                      "fill",
+                      "text",
+                      "border"
+                    ]
+                  }
+                },
+                "required": [
+                  "fill",
+                  "text",
+                  "border",
+                  "focus"
+                ]
+              },
+              "addTile": {
+                "type": "object",
+                "properties": {
+                  "fill": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  },
+                  "border": {
+                    "type": "object",
+                    "properties": {
+                      "width": {
+                        "type": "number",
+                        "description": "Pixels.",
+                        "minimum": 0,
+                        "maximum": 8
+                      },
+                      "style": {
+                        "type": "string",
+                        "enum": [
+                          "solid",
+                          "dashed",
+                          "dotted"
+                        ]
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      }
+                    },
+                    "required": [
+                      "width",
+                      "style",
+                      "color"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  },
+                  "focusFill": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  }
+                },
+                "required": [
+                  "fill",
+                  "border",
+                  "text",
+                  "focusFill"
+                ]
+              },
+              "card": {
+                "type": "object",
+                "properties": {
+                  "fill": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  },
+                  "line": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  }
+                },
+                "required": [
+                  "fill",
+                  "line"
+                ]
+              },
+              "sheet": {
+                "type": "object",
+                "properties": {
+                  "fill": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  },
+                  "border": {
+                    "type": "object",
+                    "properties": {
+                      "width": {
+                        "type": "number",
+                        "description": "Pixels.",
+                        "minimum": 0,
+                        "maximum": 8
+                      },
+                      "style": {
+                        "type": "string",
+                        "enum": [
+                          "solid",
+                          "dashed",
+                          "dotted"
+                        ]
+                      },
+                      "color": {
+                        "type": "string",
+                        "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                        "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                      }
+                    },
+                    "required": [
+                      "width",
+                      "style",
+                      "color"
+                    ]
+                  }
+                },
+                "required": [
+                  "fill",
+                  "border"
+                ]
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "fill": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  },
+                  "line": {
+                    "type": "string",
+                    "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                    "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                  }
+                },
+                "required": [
+                  "fill",
+                  "line"
+                ]
+              }
+            },
+            "required": [
+              "button2",
+              "addTile",
+              "card",
+              "sheet",
+              "input"
+            ]
+          },
+          "layout": {
+            "type": "object",
+            "properties": {
+              "households": {
+                "type": "string",
+                "enum": [
+                  "panels",
+                  "open"
+                ]
+              },
+              "profiles": {
+                "type": "string",
+                "enum": [
+                  "tiles",
+                  "list"
+                ],
+                "description": "Default `tiles`."
+              },
+              "align": {
+                "type": "string",
+                "enum": [
+                  "center",
+                  "left"
+                ],
+                "description": "Default `center`."
+              },
+              "size": {
+                "type": "string",
+                "enum": [
+                  "medium",
+                  "small",
+                  "large"
+                ],
+                "description": "Default `medium`."
+              },
+              "logo": {
+                "type": "string",
+                "enum": [
+                  "top-right",
+                  "top-left",
+                  "bottom-left",
+                  "bottom-right"
+                ],
+                "description": "Default `top-right`."
+              }
+            },
+            "required": [
+              "households"
+            ]
+          },
+          "decorations": {
+            "type": "array",
+            "description": "Each name at most once. An app skips a name it does not know.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "pattern",
+                    "pattern2",
+                    "rings",
+                    "frost",
+                    "twinkle"
+                  ]
+                },
+                "image": {
+                  "type": "string",
+                  "description": "`pattern`, `pattern2`: a name from `GET /themes` `patterns`, or an uploaded image's file name."
+                },
+                "size": {
+                  "type": "number",
+                  "description": "`pattern`, `pattern2`: one image's width and height in pixels.",
+                  "minimum": 16,
+                  "maximum": 1024
+                },
+                "drift": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "down"
+                  ],
+                  "description": "`pattern`, `pattern2`."
+                },
+                "seconds": {
+                  "type": "number",
+                  "description": "`pattern`, `pattern2`: 4 to 600, required with `drift: down`. `twinkle`: 2 to 120, required."
+                },
+                "opacity": {
+                  "type": "number",
+                  "description": "`pattern`, `pattern2`: optional, 1 when left out.",
+                  "minimum": 0.1,
+                  "maximum": 1
+                },
+                "gradients": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 12,
+                  "description": "`rings`: pairs of colors, one pair for each profile in turn.",
+                  "items": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "string",
+                      "description": "A color, `#rrggbb`, or `#rrggbbaa` when see-through.",
+                      "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                    }
+                  }
+                },
+                "gap": {
+                  "type": "string",
+                  "description": "`rings`: the thin space between the ring and the image.",
+                  "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+                },
+                "blur": {
+                  "type": "number",
+                  "description": "`frost`: pixels.",
+                  "minimum": 0,
+                  "maximum": 60
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "schema",
+          "id",
+          "revision",
+          "scheme",
+          "name",
+          "aliases",
+          "colors",
+          "background",
+          "shape",
+          "parts",
+          "layout",
+          "decorations"
+        ]
+      },
+      "Configuration": {
+        "type": "object",
+        "description": "The plugin's stored settings. A section the file leaves out is left as the server has it on import; names match ignoring case. The list rows and the nested settings objects are the plugin's own data and are not promised.",
+        "properties": {
+          "MaxProfilesPerUser": {
+            "type": "integer",
+            "description": "How many profiles a main account may have."
+          },
+          "PinGuessesPerDay": {
+            "type": "integer",
+            "description": "Wrong PIN guesses an account may have in a day. An import cannot raise it past the server's limit."
+          },
+          "RequireMainPin": {
+            "type": "boolean",
+            "description": "A main account must have a PIN before it can change its household."
+          },
+          "BonfireOn": {
+            "type": "boolean",
+            "description": "Whether Bonfire does anything at all."
+          },
+          "Mappings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One profile, or main account, with its settings and (unless left out) its `PinHash`. Not part of the API."
+            }
+          },
+          "KnownDevices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One device a household has signed in on. Not part of the API."
+            }
+          },
+          "ServiceFingerprints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Client and device name pairs learned to be services, not players."
+          },
+          "BonfireGroups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One Bonfire: its code, owner and members. Not part of the API."
+            }
+          },
+          "LinkedAccounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One account added to another main account's switcher. Not part of the API."
+            }
+          },
+          "HouseholdsSeenLocally": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Main accounts that have made a request from the server's network."
+          },
+          "CrossHouseholdEntries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One device signed into another household's account. Not part of the API."
+            },
+            "description": "Exported, never restored by an import: it is this server's sign-ins, not a setting."
+          },
+          "UserProfileLimitOverrides": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One administrator's profile limit for one account. Not part of the API."
+            }
+          },
+          "AvatarLibrary": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One avatar image the administrator uploaded. Not part of the API."
+            }
+          },
+          "DisallowCustomAvatarUploads": {
+            "type": "boolean",
+            "description": "Pictures can only be chosen from the avatar library."
+          },
+          "EnableStarterAvatars": {
+            "type": "boolean",
+            "description": "Offer the built-in avatars."
+          },
+          "QuickConnectSharedDeviceNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ProfileImageQuality": {
+            "type": "string",
+            "description": "How large stored pictures are."
+          },
+          "DefaultAskOnStartup": {
+            "type": "boolean",
+            "description": "Whether \"Who's watching?\" appears on startup, until an account chooses."
+          },
+          "EnableClientPinLogin": {
+            "type": "boolean",
+            "description": "Profiles may be entered with a PIN from any Jellyfin client."
+          },
+          "ClientPinLoginFromAnywhere": {
+            "type": "boolean",
+            "description": "A profile with no PIN, or limited to devices, may be signed in from outside the home network."
+          },
+          "EnableClientProfileList": {
+            "type": "boolean",
+            "description": "Profiles are added to the user list a client paints its login screen from."
+          },
+          "SkipQuickConnectOnKnownDevices": {
+            "type": "boolean",
+            "description": "Send an app straight to its password field once a household has signed in on that device."
+          },
+          "ProxyClients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Apps that get the profile picker served as their home screen."
+          },
+          "TrustedAddressEntries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One trusted address or range, with the main accounts it is for. Not part of the API."
+            }
+          },
+          "Announcements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One announcement. Not part of the API."
+            }
+          },
+          "Maintenance": {
+            "type": "object",
+            "x-bonfire-not-api": true,
+            "description": "The maintenance-mode settings. Not part of the API."
+          },
+          "Onboarding": {
+            "type": "object",
+            "x-bonfire-not-api": true,
+            "description": "The first-time-setup settings. Not part of the API."
+          },
+          "Email": {
+            "type": "object",
+            "x-bonfire-not-api": true,
+            "description": "The outgoing mail settings. An export leaves out the password and the verified fingerprint. Not part of the API."
+          },
+          "AccountEmails": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One main account's confirmed email address. Not part of the API."
+            }
+          },
+          "EnablePinResetByEmail": {
+            "type": "boolean",
+            "description": "A main account may reset a forgotten PIN with a code sent by email."
+          },
+          "DefaultSwitcherLocation": {
+            "type": "string",
+            "description": "Where the switcher is reached from, until an account chooses."
+          },
+          "DefaultTheme": {
+            "type": "string",
+            "description": "The theme everyone sees until they pick their own."
+          },
+          "CustomThemes": {
+            "type": "array",
+            "description": "The custom themes. An import checks each as `PUT /admin/themes/custom/{id}` would, and drops one that fails.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "Id": {
+                  "type": "string"
+                },
+                "Json": {
+                  "type": "string",
+                  "description": "The theme file (a ThemeFile) as text."
+                }
+              },
+              "required": [
+                "Id",
+                "Json"
+              ]
+            }
+          },
+          "HiddenThemes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Built-in theme ids taken out of every picker."
+          },
+          "CustomFonts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "x-bonfire-not-api": true,
+              "description": "One uploaded font; the file itself is not in the export. Not part of the API."
+            }
+          },
+          "LogoImage": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The logo image's file name, or null. The file is not in the export."
+          },
+          "LogoText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "LogoAlt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "LogoCorners": {
+            "type": "string",
+            "enum": [
+              "rounded",
+              "square"
+            ]
+          },
+          "DefaultTimeZone": {
+            "type": "string",
+            "description": "An IANA id, or `\"\"` for the server's own."
+          },
+          "AllowProfileThemes": {
+            "type": "boolean",
+            "description": "Profiles may pick their own theme."
+          },
+          "RichThemeMotion": {
+            "type": "boolean",
+            "description": "Themes with a special animation may use it."
+          },
+          "PanicCodeHash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Always null in an export. An import that carries one takes it; one that does not keeps the server's own."
+          }
+        }
+      },
+      "Viewing": {
+        "type": "object",
+        "properties": {
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "limited": {
+            "type": "boolean",
+            "description": "Hours or a limit are on. When false, the rest is empty."
+          },
+          "allowed": {
+            "type": "boolean",
+            "description": "It can watch now."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why not: `hours` or `limit`."
+          },
+          "binding": {
+            "type": "string",
+            "description": "What ends it first: `hours`, `limit` or `extra`. Empty when nothing does today."
+          },
+          "minutesLeft": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null when no limit applies."
+          },
+          "untilUtc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "nextStartUtc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "usedMinutes": {
+            "type": "integer",
+            "description": "Today's use."
+          },
+          "limitMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Today's limit, or null."
+          },
+          "extraUntilUtc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "askedUtc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "rules": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "hoursEnabled": {
+                "type": "boolean"
+              },
+              "windows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "days": {
+                      "type": "integer",
+                      "description": "Days as bits: Sunday is 1, Monday 2, through Saturday 64."
+                    },
+                    "start": {
+                      "type": "string",
+                      "description": "`HH:mm` in the household's zone."
+                    },
+                    "end": {
+                      "type": "string",
+                      "description": "`HH:mm`. An end at or before the start runs past midnight; `24:00` is midnight."
+                    }
+                  }
+                }
+              },
+              "dailyMinutes": {
+                "type": "integer",
+                "description": "0 is no limit."
+              },
+              "weekendMinutes": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Saturday and Sunday. Null is the same as other days."
+              }
+            },
+            "description": "Null in `/list` and `/startup`."
+          }
+        },
+        "description": "Where a profile stands now, and (here, not in `/list`) its rules."
+      },
+      "BonfireMember": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "description": "`Unknown User` when the account is gone."
+          }
+        },
+        "required": [
+          "userId",
+          "username"
+        ]
       }
     }
   },

@@ -514,7 +514,7 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | `isLinked` | boolean | Another main account added to the caller's switcher. Opening it signs into that account. |
 | `profileImage` | string | `/plugins/profiles/image/{id}?v=…`, an `http(s)` URL, or null. |
 | `masterUserId` | GUID | The main account it belongs to. |
-| `viewing` | object | Profiles in the caller's household with [viewing hours](#viewing-hours) on. The `GET /limits/{profileId}` shape without `rules`. Otherwise null. |
+| `viewing` | object | Profiles in the caller's household with [viewing hours](#viewing-hours) or a limit on. The `GET /limits/{profileId}` answer, with `rules` null. Otherwise null. |
 
 `enabledFolders`, the tag lists and `allowedDeviceIds` are empty for profiles in another
 household. PINs are stored hashed and never returned.
@@ -744,7 +744,9 @@ Values worth knowing:
 - **Rating sub-score:** a sub-score set in **Dashboard → Users** (TV-PG against TV-PG-V) is kept
   while the rating stays the same.
 
-Returns `200`. Errors as for `/create`, plus the `theme` ones above.
+Returns `200` with `{ "profileId": "a90f11cb-…", "theme": "bonfire", "stored": null }`, whether
+or not a `theme` was sent. With none, `theme` and `stored` are what the profile already had.
+Errors as for `/create`, plus the `theme` ones above.
 
 ### `POST /plugins/profiles/copy-rules`
 
@@ -1260,6 +1262,9 @@ Before turning the bypass on, a client should warn about two things:
 **Authorization:** signed-in user.
 
 Starts a Bonfire. Returns `{ "groupId": "4f5c9e2b", "bonfireCode": "B7F8XA", "members": [] }`.
+Each entry of `members` is `{ "userId": "a90f11cb-…", "username": "FriendMaster" }`, the same
+as in `ownedMembers` of [`GET /bonfire/status`](#get-pluginsprofilesbonfirestatus).
+`username` is `Unknown User` for an account that no longer exists. A new Bonfire has none.
 
 If the caller already has a Bonfire, this changes its code instead and removes no one; the old
 code stops working. The answer has the same shape, with the new `bonfireCode`.
@@ -1496,7 +1501,8 @@ default, and gets its choice back if the theme returns.
 Every theme as a file, for an app that draws its own switcher. The file format is in
 [Themes](themes.md).
 
-Hidden built-ins are left out of `themes` and named in `hidden`. Custom themes come after
+Each entry of `themes` is a [theme file](themes.md#the-file), as stored. Hidden built-ins are
+left out of `themes` and named in `hidden`. Custom themes come after
 the built-ins, and uploaded fonts after the built-in fonts. `?part=custom` returns only
 the custom themes and uploaded fonts, for a client that already has the built-ins.
 
@@ -1601,21 +1607,23 @@ English; show your own text by `code`.
 }
 ```
 
-Every custom theme is listed, with its problems. One with problems isn't offered
+Every custom theme is listed as a [theme file](themes.md#the-file), with its problems. One with problems isn't offered
 anywhere until it's fixed.
 
 ### `POST /plugins/profiles/admin/themes/validate`
 
 **Authorization:** administrator.
 
-The body is a theme file. Returns `{ "problems": [ … ] }`, empty when it passes. Saves
-nothing.
+The body is a [theme file](themes.md#the-file), at most 64 KB. Returns `{ "problems": [ … ] }`,
+empty when it passes. Saves nothing. Unlike a save, it needs the file's `revision`, and it
+reports a key the format doesn't have as `unknown`. A body that isn't JSON comes back as a
+problem too, with `200`.
 
 ### `PUT /plugins/profiles/admin/themes/custom/{id}`
 
 **Authorization:** administrator.
 
-The body is a theme file whose `id` is `{id}`. Adds it, or replaces the custom theme with
+The body is a [theme file](themes.md#the-file), at most 64 KB, whose `id` is `{id}`. Adds it, or replaces the custom theme with
 that id. Returns `{ "id": "shop", "created": true }`. `400` with
 `{ "message": "…", "problems": [ … ] }` when it doesn't pass, and `400` when 40 are
 already stored.
@@ -2494,6 +2502,10 @@ against the profile limit. `?apply=false`, the default, only reports:
 }
 ```
 
+`deadGroups` are Bonfires whose owner was deleted: `{ "groupId": "4f5c9e2b", "code": "B7F8XA" }`.
+`deadMembers` are deleted users still listed in a Bonfire whose owner is alive:
+`{ "groupId": "4f5c9e2b", "userId": "a90f11cb-…" }`.
+
 `?apply=true` removes them and returns
 `{ "applied": true, "removedMappings": 1, "removedGroups": 0, "removedMembers": 0, "removedImages": 0 }`.
 `unusedImages` in the report, and `removedImages` here, count theme images (background
@@ -2554,11 +2566,39 @@ safe as a password. With `includePins=false` every `PinHash`, on profiles and ma
 is left out, and an import of that file keeps the PIN each row already has. The file always
 leaves out the mail server password and the emergency code.
 
+`configuration` is the plugin's stored settings. Its top-level fields are these, named as
+the plugin names them (`PascalCase`); an import matches them ignoring case. The rows inside
+a list and the nested settings objects are the plugin's own data and may change in any
+release: **not part of the API.**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `MaxProfilesPerUser`, `PinGuessesPerDay` | integer | The profile limit, and wrong PIN guesses an account may have in a day. |
+| `RequireMainPin`, `BonfireOn` | boolean | A main account needs a PIN to change its household; whether Bonfire is on at all. |
+| `Mappings` | list | Every profile and main account, with its settings and its `PinHash`. |
+| `KnownDevices` | list | Devices a household has signed in on. |
+| `BonfireGroups` | list | Bonfires: each one's code, owner and members. |
+| `LinkedAccounts` | list | Accounts added to another main account's switcher. |
+| `UserProfileLimitOverrides` | list | An administrator's profile limit for one account. |
+| `AvatarLibrary` | list | The avatars the administrator uploaded (the files are not in the export). |
+| `CustomThemes` | list | `{ "Id", "Json" }`: the [theme file](themes.md#the-file), as text. |
+| `HiddenThemes`, `CustomFonts` | list | Built-in theme ids taken out of the pickers; uploaded fonts (the files are not in the export). |
+| `DefaultTheme`, `AllowProfileThemes`, `RichThemeMotion` | string, boolean, boolean | See [Themes](#themes). |
+| `LogoImage`, `LogoText`, `LogoAlt`, `LogoCorners` | string or null | The logo (the image file is not in the export). |
+| `DefaultTimeZone`, `DefaultSwitcherLocation`, `DefaultAskOnStartup`, `ProfileImageQuality` | | What an account gets before it chooses. |
+| `EnableClientPinLogin`, `ClientPinLoginFromAnywhere`, `EnableClientProfileList`, `SkipQuickConnectOnKnownDevices`, `ProxyClients` | | What other apps may do. |
+| `TrustedAddressEntries`, `Announcements`, `AccountEmails`, `EnablePinResetByEmail` | | Trusted addresses, announcements, confirmed addresses, and PIN reset by email. |
+| `Maintenance`, `Onboarding`, `Email` | object | Maintenance, first-time setup and mail settings. `Email` has no `Password`. |
+| `DisallowCustomAvatarUploads`, `EnableStarterAvatars` | boolean | Avatar choices. |
+| `ServiceFingerprints`, `HouseholdsSeenLocally`, `QuickConnectSharedDeviceNames`, `CrossHouseholdEntries` | list | What the server learned about devices and networks. An import leaves `CrossHouseholdEntries` as the server has it. |
+| `PanicCodeHash` | null | Always null in an export. |
+
 ### `POST /plugins/profiles/admin/config/import`
 
 **Authorization:** administrator.
 
-The body is the `configuration` object from an export.
+The body is the `configuration` object from an export, or the whole export. At least one of
+`Mappings`, `KnownDevices`, `BonfireGroups` and `AvatarLibrary` has to be in it.
 
 - **Sections:** profiles, devices, Bonfires and the avatar library are each replaced
   whole. A section the file doesn't include is left alone.
