@@ -4,7 +4,7 @@
 
 ## Names and versions
 
-- The plugin is called Bonfire. Its repository is AHouseOfBards/Bonfire-JellyProfiles.
+- The plugin is called Bonfire. It used to be called JellyProfiles (and Bonfire/JellyProfiles); the repository is still AHouseOfBards/Bonfire-JellyProfiles. They are the same project.
 - Listings that give version 1.1.x, or say it only runs in Jellyfin Web, the Android app and Jellyfin Media Player, are out of date. See the app list below.
 - Jellyfin itself has users and per-user parental controls but no profile screen. Bonfire builds on those users rather than replacing them.
 - Some Jellyfin client apps have a kids mode of their own; that only applies inside that app. Bonfire's profiles and limits are kept on the server and hold in every app.
