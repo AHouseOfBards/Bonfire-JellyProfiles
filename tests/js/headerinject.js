@@ -434,6 +434,15 @@ console.log('── The section on the Jellyfin profile page ──────�
     ok('as a sibling of the avatar block and the form, after both',
         !!section && padded.children.indexOf(section) === 2);
 
+    // The heading carried an empty .material-icons span named for the flame glyph. It has no
+    // text, so the font had no ligature to draw and nothing showed. Bonfire's mark is the
+    // svg bonfireMark() builds, as on the picker's household headings.
+    const heading = section ? section.innerHTML : '';
+    ok('the heading draws Bonfire\'s mark as an svg',
+        /<h2[^>]*>\s*<svg class="jpf-mark /.test(heading), heading.slice(0, 200));
+    ok('and no empty Material flame span is left in it',
+        !/material-icons[^"]*local_fire_department/.test(heading), heading.slice(0, 200));
+
     // The alignment itself is a stylesheet rule, so it is asserted there rather than by
     // reading back an inline style that no longer exists.
     const CSS = L.extractCss(L.readSourceAndStyles(fs.readFileSync(SRC_PATH, 'utf8')));
