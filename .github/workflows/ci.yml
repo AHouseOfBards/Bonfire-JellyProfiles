@@ -3,10 +3,20 @@ name: CI
 # Until now the only workflow here ran on tags, so a pull request got no build, no syntax
 # check and no translation check at all. 1.5.2 shipped a client script that threw on
 # startup and nothing noticed, because the file was still valid JavaScript.
+#
+# The whole suite used to run as one job, one harness after another, and took a quarter of
+# an hour. It now runs as parallel jobs: the JavaScript harnesses in SHARDS slices
+# (tests/run.sh js --shard K/N), the C# harnesses against each framework, the check against
+# newer Jellyfin builds, and the quick static checks. Every check that ran in the one job
+# still runs, in exactly one of these. The last job, "CI passed", needs all of them; a branch
+# rule and release.yml depend on that one name and nothing else.
+#
+# release.yml calls this file (workflow_call), so a tag runs the same checks a push does.
 on:
   pull_request:
   push:
     branches: [main, beta]
+  workflow_call:
 
 # Read-only: nothing in this workflow writes to the repository, so its token should not
 # be able to.
@@ -19,18 +29,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Build and verify
+  # SHARDS: the matrix below must list 1..N for the N in every `--shard K/N`. Most of the
+  # time is in the Chrome harnesses, which cannot share a machine, so more shards are what
+  # makes this faster, not more cores. tests/js/workflows.js fails if the two disagree or a
+  # number in 1..N is missing.
+  js:
+    name: JavaScript ${{ matrix.shard }}/6
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      # Both, because the plugin multi-targets. Jellyfin 10.11.x runs on .NET 9 and 12.0
-      # runs on .NET 10, and the C# harnesses run on whichever runtime the build they are
-      # loading was compiled for — a net9 harness cannot load a net10 assembly.
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      # Chrome is already on the runner. This is the JavaScript half of what `tests/run.sh`
+      # runs, one slice of it; the Campground.Shared copy check is one of the slices' members.
+      - name: Run the JavaScript harnesses, shard ${{ matrix.shard }} of 6
+        run: bash tests/run.sh js --shard ${{ matrix.shard }}/6
+
+  # Both frameworks, because the plugin multi-targets. Jellyfin 10.11.x runs on .NET 9 and
+  # 12.0 runs on .NET 10, and the C# harnesses run on whichever runtime the build they are
+  # loading was compiled for — a net9 harness cannot load a net10 assembly. net9.0 is the
+  # build that ships. net10.0 is not shipped, but a build nobody has ever loaded is not a
+  # working build, so its assembly is loaded and reflected on rather than merely compiled.
+  # When Jellyfin drops the .NET 9 runtime, the net10.0 job is the one that will already
+  # have been passing for months.
+  csharp:
+    name: C# on ${{ matrix.tfm }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tfm: net9.0
+            section: cs
+          - tfm: net10.0
+            section: cs10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
       - name: Setup .NET 9 and 10
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
@@ -43,34 +90,98 @@ jobs:
         with:
           node-version: '22'
 
+      # Packages only, keyed on what names them. Nothing built is cached: a stale build
+      # that passes is the failure this suite exists to prevent.
+      - name: Cache NuGet packages
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.proj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Builds the plugin (Release, -warnaserror, both frameworks), then the C# harnesses
+      # against ${{ matrix.tfm }}.
+      - name: Run the C# harnesses against the ${{ matrix.tfm }} build
+        run: bash tests/run.sh ${{ matrix.section }}
+
+  # The plugin compiles against Jellyfin 10.11.5, so a green build says nothing about the
+  # servers it runs on. This resolves every Jellyfin member the built DLL references
+  # against the newest 10.11 and against 12.0. It restores those packages from NuGet
+  # (network), which tests/run.sh must not need.
+  binchk:
+    name: Check against newer Jellyfin
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup .NET 9 and 10
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.proj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # No SKIP_BUILD: this job has not built the plugin, so binchk builds it itself.
+      - name: Check the plugin against newer Jellyfin
+        run: bash tests/binchk.sh
+
+  static:
+    name: Syntax and translations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
       # Necessary but NOT sufficient — this passed against the 1.5.2 defect, which was
-      # valid JavaScript that threw on the first call. tests/run.sh is what catches that.
+      # valid JavaScript that threw on the first call. The harnesses are what catch that.
       - name: Syntax check the client script
         run: node --check Web/profiles.js
-
-      # Builds the plugin (Release, -warnaserror, both frameworks) and runs every
-      # harness, JS and C#. Same command a maintainer runs locally, so CI and the desk
-      # cannot disagree about what "the tests pass" means.
-      # The C# half runs against net9.0, which is the build that ships.
-      - name: Run the test suite
-        run: bash tests/run.sh
-
-      # And again against the other build. net9.0 is what ships — it is the only one of
-      # the two that loads on both a 10.11 and a 12.0 server — but a build nobody has ever
-      # loaded is not a working build, so the net10.0 assembly is loaded and reflected on
-      # rather than merely compiled. When Jellyfin drops the .NET 9 runtime, this is the
-      # step that will already have been passing for months.
-      - name: Run the C# harnesses against the .NET 10 build
-        run: bash tests/run.sh cs10
-
-      # The plugin compiles against Jellyfin 10.11.5, so a green build says nothing about the
-      # servers it runs on. This resolves every Jellyfin member the built DLL references
-      # against the newest 10.11 and against 12.0. Its own step because it restores those
-      # packages from NuGet (network), which tests/run.sh must not need.
-      - name: Check the plugin against newer Jellyfin
-        run: SKIP_BUILD=1 bash tests/binchk.sh
 
       # Contributors are told to run this before opening a PR (Web/i18n/README.md).
       # Nothing enforced it, so the first person to forget shipped a broken catalog.
       - name: Validate translations
         run: node Web/i18n/validate.js
+
+  # The one name to require. `always()` so it runs, and fails, when a job it needs failed
+  # or was cancelled or skipped: a job that never ran must not read as a pass. The result
+  # of every needed job is checked by name, not as a total.
+  passed:
+    name: CI passed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [js, csharp, binchk, static]
+    if: ${{ always() }}
+    steps:
+      - name: Every job succeeded
+        env:
+          JS: ${{ needs.js.result }}
+          CSHARP: ${{ needs.csharp.result }}
+          BINCHK: ${{ needs.binchk.result }}
+          STATIC: ${{ needs.static.result }}
+        run: |
+          bad=0
+          for pair in "js=$JS" "csharp=$CSHARP" "binchk=$BINCHK" "static=$STATIC"; do
+            echo "$pair"
+            [ "${pair#*=}" = "success" ] || bad=1
+          done
+          exit $bad

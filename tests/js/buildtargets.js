@@ -37,8 +37,10 @@ function ok(name, cond, detail) {
 }
 
 const csproj = fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'utf8');
-const release = fs.readFileSync(path.join(L.ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
-const ci = fs.readFileSync(path.join(L.ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+// The two workflows can be given as arguments (release.yml, then ci.yml), so the checks can
+// be pointed at a copy that breaks a promise and shown to go red.
+const release = fs.readFileSync(process.argv[2] || path.join(L.ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+const ci = fs.readFileSync(process.argv[3] || path.join(L.ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
 
 // Comments in all three files talk about net9.0 and net10.0 at length, and a check that
 // searched the raw text would be satisfied by the prose explaining the rule rather than by
@@ -104,15 +106,21 @@ console.log('\n── both SDKs are installed, or one build never happens ──
 // Compiling the net10.0 build proves nothing about whether it runs — that distinction
 // shipped 1.5.2 and 1.5.3-beta dead on arrival. `tests/run.sh cs10` loads the net10.0
 // assembly and reflects on it.
+// CI runs the C# harnesses as one job over a matrix of {framework, run.sh section}. The
+// pair is what matters: net10.0 listed beside the section for net9.0 would compile the
+// other build and never load it, which is the 1.5.2 failure again.
 ok('CI actually runs the harnesses against the net10.0 build',
-   /tests\/run\.sh cs10/.test(ciCode));
+   /- tfm: net10\.0\s*\n\s+section: cs10\s*\n/.test(ciCode));
+ok('and the net9.0 build that ships, with the plain cs section',
+   /- tfm: net9\.0\s*\n\s+section: cs\s*\n/.test(ciCode));
 // Present is not the same as running: the step can be gated off or allowed to fail.
 {
-    const steps = ciCode.split(/\n\s*- (?=name:|uses:|run:)/);
-    const cs10Step = steps.filter(s => /tests\/run\.sh cs10/.test(s));
+    const steps = [].concat.apply([], ciCode.split(/\n(?=  [A-Za-z0-9_-]+:\s*\n)/)
+        .map(j => j.split(/\n\s*- (?=name:|uses:|run:)/).slice(1)));
+    const csStep = steps.filter(s => /tests\/run\.sh \$\{\{ matrix\.section \}\}/.test(s));
     ok('and that step is not gated by an if: or allowed to fail',
-       cs10Step.length >= 1 && cs10Step.every(s => !/^\s*(if|continue-on-error):/m.test(s)),
-       cs10Step.join(' || '));
+       csStep.length >= 1 && csStep.every(s => !/^\s*(if|continue-on-error):/m.test(s)),
+       csStep.join(' || '));
 }
 // And the runners must really map cs10 to net10.0, and pass the choice to every harness.
 {
@@ -208,13 +216,21 @@ console.log('\n── a release runs the whole suite before it builds anything �
 // workflow has no way to know. Every step that produces or publishes something has to come
 // after every step that can say no.
 {
-    const rsteps = releaseCode.split(/\n\s*- (?=name:|uses:|run:)/);
-    const idx = re => rsteps.findIndex(s => re.test(s));
+    // The gates now live in ci.yml, which release.yml calls as its `tests` job. A gate is
+    // a ci.yml step that must exist and must not be optional, and a producer is a
+    // release.yml step whose JOB must need `tests`. Job order replaces step order: a job
+    // that needs another starts only after it has succeeded.
+    // Jobs first, so the last step of one job is not read together with the next job's
+    // own `if:`.
+    const csteps = [].concat.apply([], ciCode.split(/\n(?=  [A-Za-z0-9_-]+:\s*\n)/)
+        .map(j => j.split(/\n\s*- (?=name:|uses:|run:)/).slice(1)));
+    const idx = re => csteps.findIndex(s => re.test(s));
     const gated = s => /^\s*(if|continue-on-error):/m.test(s);
     const gates = [
-        ['tests/run.sh (the same command CI runs)', /^\s*run:\s*bash tests\/run\.sh\s*$/m],
-        ['tests/run.sh cs10', /^\s*run:\s*bash tests\/run\.sh cs10\s*$/m],
-        ['node Web/i18n/validate.js', /^\s*run:\s*node Web\/i18n\/validate\.js\s*$/m]
+        ['the JavaScript shards (run.sh js --shard K/N)', /^\s*run:\s*bash tests\/run\.sh js --shard \$\{\{ matrix\.shard \}\}\/\d+\s*$/m],
+        ['the C# harnesses (run.sh <section>)', /^\s*run:\s*bash tests\/run\.sh \$\{\{ matrix\.section \}\}\s*$/m],
+        ['node Web/i18n/validate.js', /^\s*run:\s*node Web\/i18n\/validate\.js\s*$/m],
+        ['tests/binchk.sh', /^\s*run:\s*bash tests\/binchk\.sh\s*$/m]
     ];
     const producers = [
         ['the build', /dotnet build/],
@@ -222,20 +238,37 @@ console.log('\n── a release runs the whole suite before it builds anything �
         ['the manifest push', /git push origin/],
         ['the GitHub release', /action-gh-release/]
     ];
-    // Pairwise, one gate and one producer at a time: "the tests come first" as a single
-    // aggregate would pass with one gate in the right place and two missing.
     gates.forEach(([gname, gre]) => {
         const gi = idx(gre);
-        ok('release.yml runs ' + gname, gi !== -1);
-        ok('and that step is not gated by an if: or allowed to fail',
-           gi !== -1 && !gated(rsteps[gi]));
-        producers.forEach(([pname, pre]) => {
-            const pi = idx(pre);
-            ok(gname + ' runs before ' + pname, gi !== -1 && pi !== -1 && gi < pi,
-               'gate step ' + gi + ', ' + pname + ' step ' + pi);
-        });
+        ok('ci.yml runs ' + gname, gi !== -1);
+        ok('and that step is not gated by an if: or allowed to fail', gi !== -1 && !gated(csteps[gi]));
     });
-    ok('release.yml installs Node, which validate.js and the JS harnesses need',
+    // The jobs of release.yml, by name: which one holds each producer, and what it needs.
+    const rjobs = {};
+    {
+        let cur = null;
+        releaseCode.slice(releaseCode.search(/^jobs:\s*$/m)).split('\n').slice(1).forEach(l => {
+            const m = /^  ([A-Za-z0-9_-]+):\s*$/.exec(l);
+            if (m) { cur = m[1]; rjobs[cur] = ''; } else if (cur) rjobs[cur] += l + '\n';
+        });
+    }
+    const testsJob = rjobs.tests || '';
+    ok('release.yml calls ci.yml as its tests job', /^    uses:\s*\.\/\.github\/workflows\/ci\.yml\s*$/m.test(testsJob));
+    ok('and that job is not gated by an if: or allowed to fail', testsJob !== '' && !/^    (if|continue-on-error):/m.test(testsJob));
+    // Pairwise, one producer at a time: "the tests come first" as a single aggregate would
+    // pass with one producer in the right place and two outside it.
+    producers.forEach(([pname, pre]) => {
+        const owners = Object.keys(rjobs).filter(n => pre.test(rjobs[n]));
+        ok('release.yml has ' + pname, owners.length > 0);
+        ok('the tests job runs before ' + pname + ' (its job needs tests)',
+           owners.length > 0 && owners.every(n => n !== 'tests' && /^    needs:\s*(\[\s*)?([^\n]*,\s*)?tests\b/m.test(rjobs[n])),
+           'in job: ' + (owners.join(', ') || 'none'));
+        // needs: tests with `if: always()` starts the job after a red suite.
+        ok('and that job is not run regardless of the result (no job-level if:)',
+           owners.length > 0 && owners.every(n => !/^    (if|continue-on-error):/m.test(rjobs[n])),
+           'in job: ' + (owners.join(', ') || 'none'));
+    });
+    ok('release.yml installs Node, which the manifest steps need',
        /setup-node/.test(releaseCode));
 }
 

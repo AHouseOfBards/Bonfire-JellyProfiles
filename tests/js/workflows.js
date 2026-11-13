@@ -102,9 +102,131 @@ console.log('\n── release.yml: verify reads the pushed ref ─────�
        /md5sum published\.zip/.test(v) && /"\$ACTUAL" != "\$EXPECTED"/.test(v));
 }
 
+// ── The jobs of a workflow, by name ────────────────────────────────────────────────────
+// Just enough YAML for these two files: a job is a two-space key under `jobs:`, and its
+// text runs to the next one. `needs` is a name or a flow list.
+function jobsOf(y) {
+    const at = y.search(/^jobs:\s*$/m);
+    const out = {};
+    if (at === -1) return out;
+    const body = y.slice(at).split('\n').slice(1);
+    let cur = null;
+    body.forEach(l => {
+        const m = /^  ([A-Za-z0-9_-]+):\s*$/.exec(l);
+        if (m) { cur = m[1]; out[cur] = { name: cur, text: '' }; }
+        else if (cur) out[cur].text += l + '\n';
+    });
+    Object.keys(out).forEach(k => {
+        const t = out[k].text;
+        const nm = /^    needs:\s*(.*)$/m.exec(t);
+        out[k].needs = nm ? nm[1].replace(/[\[\]]/g, '').split(',').map(s => s.trim()).filter(Boolean) : [];
+        out[k].uses = ((/^    uses:\s*(\S+)/m.exec(t)) || [])[1] || '';
+        out[k].jobIf = /^    if:/m.test(t);
+        out[k].jobContinue = /^    continue-on-error:/m.test(t);
+        out[k].timeout = /^    timeout-minutes:\s*\d+/m.test(t);
+    });
+    return out;
+}
+const relJobs = jobsOf(rel);
+const ciJobs = jobsOf(ci);
+
+console.log('\n── release.yml: nothing is built from a commit whose suite did not pass ─');
+{
+    const t = relJobs.tests;
+    ok('release.yml has a `tests` job', !!t);
+    ok('which calls ci.yml, the same workflow a push runs',
+       !!t && /^\.\/\.github\/workflows\/ci\.yml$/.test(t.uses), t && t.uses);
+    ok('and is not gated or allowed to fail', !!t && !t.jobIf && !t.jobContinue);
+    ok('and asks for no more than read access', !!t && /^    permissions:\s*\n\s+contents:\s*read\s*$/m.test(t.text));
+    // Pairwise: every other job, so a second job added later cannot build or publish
+    // without it. A job that needs `tests` and is also `if: always()` runs after a red
+    // suite, so the condition is what is looked for as well as the name.
+    const others = Object.keys(relJobs).filter(n => n !== 'tests');
+    ok('there is a job that builds and publishes', others.length > 0);
+    others.forEach(n => {
+        const j = relJobs[n];
+        ok('job `' + n + '` needs tests', j.needs.indexOf('tests') !== -1, 'needs: ' + j.needs.join(', '));
+        ok('job `' + n + '` has no job-level if: (always() would run it after a red suite)', !j.jobIf);
+        ok('job `' + n + '` is not allowed to fail', !j.jobContinue);
+    });
+    // The build, the package, the push and the release are all in jobs that need `tests`,
+    // and none of them sits in the `tests` job itself.
+    [['the build', /dotnet build -c Release\s*$/m], ['the packaging step', /zip .*Jellyfin\.Profiles\.zip/],
+     ['the manifest push', /git push origin/], ['the GitHub release', /action-gh-release/]].forEach(([pn, re]) => {
+        const owner = Object.keys(relJobs).filter(n => re.test(relJobs[n].text));
+        ok(pn + ' is in a job that needs tests', owner.length > 0 && owner.every(n => n !== 'tests' && relJobs[n].needs.indexOf('tests') !== -1),
+           'in: ' + (owner.join(', ') || 'no job'));
+    });
+}
+
+console.log('\n── ci.yml: callable, and every check is one of its jobs ────────');
+{
+    ok('ci.yml can be called (workflow_call)', /^  workflow_call:/m.test(ci));
+    ok('ci.yml still runs on pull requests and on pushes to main and beta',
+       /^  pull_request:/m.test(ci) && /^  push:\s*\n\s+branches:\s*\[main, beta\]/m.test(ci));
+    // Every job but the last has a timeout and none can be made optional.
+    Object.keys(ciJobs).forEach(n => {
+        const j = ciJobs[n];
+        ok('ci job `' + n + '` has a timeout', j.timeout);
+        ok('ci job `' + n + '` is not allowed to fail', !j.jobContinue);
+        if (n !== 'passed') ok('ci job `' + n + '` is not gated by an if:', !j.jobIf);
+        const stepGated = j.text.split(/\n\s*- (?=name:|uses:|run:)/).slice(1)
+            .filter(s => /^\s*(if|continue-on-error):/m.test(s));
+        ok('no step of ci job `' + n + '` is gated or allowed to fail', stepGated.length === 0, stepGated.join(' || ').slice(0, 120));
+    });
+    // The last job: needs every other one, runs even when one failed, and says so.
+    const fin = ciJobs.passed;
+    ok('ci.yml has a final job named passed', !!fin);
+    const rest = Object.keys(ciJobs).filter(n => n !== 'passed');
+    rest.forEach(n => {
+        ok('the final job needs `' + n + '`', !!fin && fin.needs.indexOf(n) !== -1, fin && ('needs: ' + fin.needs.join(', ')));
+        ok('and reads needs.' + n + '.result and requires "success"',
+           !!fin && new RegExp('needs\\.' + n + '\\.result').test(fin.text) && /= "success"/.test(fin.text));
+    });
+    ok('the final job runs under always(), or a failed job would skip it and read as green',
+       !!fin && /^    if:\s*\$\{\{\s*always\(\)\s*\}\}\s*$/m.test(fin.text));
+    ok('its name is the one to require: "CI passed"', !!fin && /^    name:\s*CI passed\s*$/m.test(fin.text));
+}
+
+console.log('\n── ci.yml: every shard, both C# builds, binchk and the static checks ─');
+{
+    // Every `--shard K/N` names one N, the matrix lists exactly 1..N, and the job title agrees.
+    const shardCmds = (ci.match(/tests\/run\.sh js --shard [^\n]+/g) || []);
+    ok('ci.yml runs the JavaScript harnesses by shard', shardCmds.length >= 1, 'none');
+    const Ns = shardCmds.map(c => (/\/(\d+)\s*$/.exec(c) || [])[1]);
+    const N = Number(Ns[0]);
+    ok('every --shard command uses the same N (' + Ns.join(',') + ')', Ns.length > 0 && Ns.every(x => x === Ns[0]) && N >= 1);
+    ok('and takes K from the matrix', shardCmds.every(c => /--shard \$\{\{ matrix\.shard \}\}\/\d+\s*$/.test(c)), shardCmds.join(' | '));
+    const mm = /^        shard:\s*\[([^\]]*)\]\s*$/m.exec(ci);
+    const listed = mm ? mm[1].split(',').map(s => Number(s.trim())) : [];
+    for (let k = 1; k <= N; k++) ok('the matrix runs shard ' + k + '/' + N, listed.indexOf(k) !== -1, 'matrix: ' + listed.join(','));
+    ok('and lists nothing outside 1..' + N + ', once each',
+       listed.length === N && listed.every(k => k >= 1 && k <= N) && new Set(listed).size === N, 'matrix: ' + listed.join(','));
+    ok('the shard job runs on the matrix, not once', !!ciJobs.js && /^    strategy:\s*\n\s+fail-fast:\s*false\s*\n\s+matrix:/m.test(ciJobs.js.text));
+    // fail-fast would cancel the other shards on the first red one, hiding what else is red.
+    ok('and a red shard does not cancel the others', !!ciJobs.js && /fail-fast:\s*false/.test(ciJobs.js.text));
+
+    const cs = ciJobs.csharp ? ciJobs.csharp.text : '';
+    ok('ci.yml runs the C# harnesses against net9.0 (run.sh cs)',
+       /- tfm: net9\.0\s*\n\s+section: cs\s*\n/.test(cs));
+    ok('and against net10.0 (run.sh cs10)', /- tfm: net10\.0\s*\n\s+section: cs10\s*\n/.test(cs));
+    ok('with the section passed to run.sh', /run:\s*bash tests\/run\.sh \$\{\{ matrix\.section \}\}\s*$/m.test(cs));
+    ok('and the matrix is only those two', (cs.match(/- tfm:/g) || []).length === 2);
+    ok('ci.yml checks the plugin against newer Jellyfin (binchk)', !!ciJobs.binchk && /run:\s*bash tests\/binchk\.sh\s*$/m.test(ciJobs.binchk.text));
+    ok('with the build binchk reads made by itself, not an unbuilt DLL', !!ciJobs.binchk && !/SKIP_BUILD/.test(ciJobs.binchk.text));
+    ok('ci.yml validates translations', !!ciJobs.static && /run:\s*node Web\/i18n\/validate\.js\s*$/m.test(ciJobs.static.text));
+    ok('ci.yml syntax-checks the client script', !!ciJobs.static && /run:\s*node --check Web\/profiles\.js\s*$/m.test(ciJobs.static.text));
+    // Every job that builds or runs a harness installs what it needs.
+    ['js', 'csharp', 'binchk', 'static'].forEach(n => ok('ci job `' + n + '` installs Node', !!ciJobs[n] && /setup-node/.test(ciJobs[n].text)));
+    ['csharp', 'binchk'].forEach(n => {
+        ok('ci job `' + n + '` installs the .NET 9 SDK', !!ciJobs[n] && /9\.0\.x/.test(ciJobs[n].text));
+        ok('ci job `' + n + '` installs the .NET 10 SDK', !!ciJobs[n] && /10\.0\.x/.test(ciJobs[n].text));
+    });
+}
+
 console.log('\n── ci.yml ──────────────────────────────────────────────────────');
 ok('ci.yml sets top-level permissions: contents: read', /^permissions:\s*\n\s+contents:\s*read\s*$/m.test(ci));
-ok('ci.yml gives the job a timeout', /^\s+timeout-minutes:\s*\d+/m.test(ci));
+ok('ci.yml gives every job a timeout', Object.keys(ciJobs).length > 0 && Object.keys(ciJobs).every(n => ciJobs[n].timeout));
 ok('ci.yml cancels a superseded run on the same ref',
    /^concurrency:\s*\n\s+group:[^\n]*github\.ref[^\n]*\n\s+cancel-in-progress:\s*true/m.test(ci));
 {
