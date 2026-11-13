@@ -6594,8 +6594,9 @@
                 // The picker's button row sticks the same way while the households do not fit,
                 // and scrolls the gate itself. A tile that is on screen but under the row has
                 // to come up above it. Only while it is stuck: otherwise the row is in the
-                // flow and covers nothing.
-                const pickBar = document.querySelector('.profiles-footer.jpf-footer-stuck');
+                // flow and covers nothing. The theme step of first-time setup pins its
+                // Next / Skip row the same way (_pinSetupRow), so the class alone names it.
+                const pickBar = document.querySelector('.jpf-footer-stuck');
                 const gate = el.closest && el.closest('#profiles-gate-overlay');
                 if (pickBar && gate && !pickBar.contains(el)) {
                     const pb = pickBar.getBoundingClientRect();
@@ -6624,7 +6625,7 @@
             // than the tiles still below the fold, so Down from a tile skipped them, and with
             // the row off the end of the page it was never reached. It comes after every
             // tile: Down from the last row reaches it, Up from it returns to that row.
-            const pickBar = (dir === 'up' || dir === 'down') ? root.querySelector('.profiles-footer.jpf-footer-stuck') : null;
+            const pickBar = (dir === 'up' || dir === 'down') ? root.querySelector('.jpf-footer-stuck') : null;
             if (pickBar) {
                 const panic = root.querySelector('#profiles-panic-link');
                 const barItems = items.filter(el => pickBar.contains(el));
@@ -7718,23 +7719,51 @@
             }
         },
 
-        fitGateToScreen: function (overlay) {
-            if (!overlay || !overlay.querySelector) return;
+        /// A television rotating its UI, a desktop window being resized: fit again. Bound
+        /// once, and finds whatever gate is on screen when it fires: the picker, or the
+        /// setup step whose button row is pinned.
+        _bindGateResize: function () {
+            if (this._gateResizeBound || typeof window === 'undefined' || !window.addEventListener) return;
+            this._gateResizeBound = true;
+            let pending = null;
+            window.addEventListener('resize', () => {
+                if (pending) clearTimeout(pending);
+                pending = setTimeout(() => {
+                    pending = null;
+                    const open = document.getElementById('profiles-gate-overlay');
+                    if (!open) return;
+                    if (open.querySelector('.profiles-grid')) this.fitGateToScreen(open);
+                    else if (open.querySelector('.jpf-step-tall')) this._pinSetupRow(open);
+                }, 150);
+            });
+        },
 
-            // A television rotating its UI, a desktop window being resized: fit again. Bound
-            // once, and finds whatever gate is on screen when it fires.
-            if (!this._gateResizeBound && typeof window !== 'undefined' && window.addEventListener) {
-                this._gateResizeBound = true;
-                let pending = null;
-                window.addEventListener('resize', () => {
-                    if (pending) clearTimeout(pending);
-                    pending = setTimeout(() => {
-                        pending = null;
-                        const open = document.getElementById('profiles-gate-overlay');
-                        if (open && open.querySelector('.profiles-grid')) this.fitGateToScreen(open);
-                    }, 150);
+        /// The row of buttons under a setup step that is taller than the screen (the theme
+        /// step: twelve cards) sticks to the bottom of it, drawn as the picker's row is
+        /// (.jpf-footer-stuck). The step's sheet is marked .jpf-step-tall, which lifts the
+        /// sheet's own 75vh cap, so the gate scrolls and not the sheet: a sticky row can only
+        /// stay on screen against the box that scrolls. Measured with the class off, so the
+        /// answer is the layout's and not the row's own padding; a step that fits keeps its
+        /// row in the flow. Run again on a resize and when the fonts are in.
+        _pinSetupRow: function (overlay) {
+            if (!overlay || !overlay.querySelector) return;
+            this._bindGateResize();
+            const sheet = overlay.querySelector('.jpf-step-tall');
+            const row = sheet && sheet.querySelector('.jpf-onboarding-actions');
+            if (!row) return;
+            row.classList.remove('jpf-footer-stuck');
+            row.classList.toggle('jpf-footer-stuck', overlay.scrollHeight > overlay.clientHeight + 1);
+            if (!sheet._jpfFontRefit && document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+                sheet._jpfFontRefit = true;
+                document.fonts.ready.then(() => {
+                    if (document.body && document.body.contains(sheet)) this._pinSetupRow(overlay);
                 });
             }
+        },
+
+        fitGateToScreen: function (overlay) {
+            if (!overlay || !overlay.querySelector) return;
+            this._bindGateResize();
 
             // The class and the size go on the gate's own content, not on the overlay. The
             // PIN, create and settings screens are drawn into the same overlay and share
@@ -11819,13 +11848,29 @@
             const content = this._onboardingFrame(t('onboarding.themeTitle'), `
                 <p class="jpf-onboarding-text">${t('onboarding.themeBody')}</p>
                 <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(t('settings.themeTitle'))}">${offeredThemes().map(option).join('')}</div>
-            `, t('onboarding.next'), skip);
+            `, t('onboarding.next'), skip && (() => {
+                // Skip keeps the theme the account had, which the choosing below has been
+                // showing over.
+                this.applyTheme(settings.theme);
+                skip();
+            }));
             if (!content) return;
 
+            // The cards are taller than the screen: the gate scrolls and Next / Skip stay
+            // pinned to its bottom (see _pinSetupRow).
+            const sheet = content.querySelector('.jpf-onboarding');
+            if (sheet) sheet.classList.add('jpf-step-tall');
+            this._pinSetupRow(document.getElementById('profiles-gate-overlay'));
+
+            // Choosing a card repaints the screen behind it in that theme at once, through
+            // the cross-fade a theme change has everywhere else (applyTheme runs
+            // fadeThemeFrom). Nothing is saved until Next. The card keeps focus: no part of
+            // the step is redrawn.
             const options = content.querySelectorAll('.jpf-theme-option');
             options.forEach(btn => btn.addEventListener('click', () => {
                 chosen = btn.getAttribute('data-id');
                 options.forEach(o => o.setAttribute('aria-checked', String(o === btn)));
+                this.applyTheme(chosen);
             }));
 
             let busy = false;   // as the switcher step: one save, one next()
@@ -11860,6 +11905,9 @@
                         next();
                     })
                     .catch(err => {
+                        // The step is drawn again with the stored choice, so the screen goes
+                        // back to match it.
+                        this.applyTheme(settings.theme);
                         this.showOnboardingStep();
                         const again = document.querySelector('.profiles-modal-content');
                         if (again) this._onboardingError(again, this._failText(err, err.message));

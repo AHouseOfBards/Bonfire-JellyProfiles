@@ -507,6 +507,40 @@ const STICKY_OK = [{
         return css.slice(block, at).split('{').length - css.slice(block, at).split('}').length === 1;
     }
 }, {
+    selector: '#profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck',
+    fallback: 'the setup row is the last child of a sheet that is no longer capped, so unpinned it is the end of the gate, the remote\'s focus move scrolls it into view, and its screen-wide shadow is inside @supports (position: sticky)',
+    holds: () => {
+        if (!/_focusVisibly:\s*function[\s\S]{0,2500}scrollIntoView/.test(SRC_JS)) return false;
+        if (/class="[^"]*jpf-footer-stuck/.test(SRC_JS)) return false;
+        // The selector is in the same @supports block as the screen-wide shadow.
+        const at = css.indexOf('.jpf-onboarding-actions.jpf-footer-stuck');
+        const block = css.lastIndexOf('@supports (position: sticky)', at);
+        if (at === -1 || block === -1) return false;
+        if (css.slice(block, at).split('{').length - css.slice(block, at).split('}').length !== 1) return false;
+        // Taking the cap off the sheet is not inside it: without sticky the gate has to be
+        // what scrolls, or the row stays below a sheet's own fold.
+        const tallRule = /\.jpf-onboarding\.jpf-step-tall\s*\{\s*max-height:\s*none;\s*overflow:\s*visible;?\s*\}/.exec(css);
+        if (!tallRule) return false;
+        // Not inside an @supports block (checked for each one that opens before it).
+        const tall = tallRule.index;
+        for (let s = css.indexOf('@supports'); s !== -1 && s < tall; s = css.indexOf('@supports', s + 1)) {
+            const between = css.slice(s, tall);
+            if (between.split('{').length - between.split('}').length > 0) return false;
+        }
+        // Last child of the sheet, where _onboardingFrame draws it.
+        const open = '<div class="bonfire-dialog-actions jpf-actions jpf-onboarding-actions">';
+        const from = SRC_JS.indexOf(open);
+        if (from === -1) return false;
+        const re = /<div\b[^>]*>|<\/div>/g;
+        re.lastIndex = from + open.length;
+        let depth = 1, m, end = -1;
+        while ((m = re.exec(SRC_JS)) !== null) {
+            depth += m[0] === '</div>' ? -1 : 1;
+            if (depth === 0) { end = re.lastIndex; break; }
+        }
+        return end !== -1 && /^\s*<\/div>\s*`/.test(SRC_JS.slice(end, end + 80));
+    }
+}, {
     selector: '.jpf-create-profile-container > .jpf-profile-dialog-actions',
     fallback: 'the row is the last child of the form, so it is the end of the form unpinned, and the remote\'s focus move scrolls it into view',
     holds: () => {
