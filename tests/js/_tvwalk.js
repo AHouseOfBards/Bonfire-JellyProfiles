@@ -184,6 +184,13 @@ async function start(opts) {
             for (const arrow of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
                 const ok = await c.evaluate('(function(){var e=window.__tw.find(' + JSON.stringify(from) + ');if(!e)return false;e.focus();return document.activeElement===e})()');
                 if (!ok) break;
+                // Up and down on a dropdown change its value and leave focus where it is
+                // (the trap hands them to it). Pressing them here changed the form under
+                // the walk, which moved other controls and made reach depend on the order.
+                if ((arrow === 'ArrowUp' || arrow === 'ArrowDown') && await c.evaluate('document.activeElement.tagName==="SELECT"')) {
+                    edges.push(from + ' --' + arrow + '--> ' + from);
+                    continue;
+                }
                 await press(arrow);
                 const to = (await stateNow()).at;
                 edges.push(from + ' --' + arrow + '--> ' + to);
