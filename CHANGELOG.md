@@ -5,9 +5,186 @@ what Jellyfin shows in the plugin update dialog and what the GitHub release body
 uses. That field is the source of truth; this file is the readable index of it.
 
 Versions ending in a pre-release label were published to the beta channel only.
-See [BETA-CHANNEL.md](BETA-CHANNEL.md).
+See [docs/beta-channel.md](docs/beta-channel.md).
 
 ---
+
+## 1.9.0.4-beta  — 2026-11-12
+
+**Fixed**
+
+- Enter, Escape and the arrow keys now work on older TV browsers.
+- Viewing hours no longer run an hour long on the night the clocks go back.
+- Add Profile and Edit Profile no longer fail silently or save the wrong libraries.
+- A change to a main account now reaches its profiles straight away.
+- An eight-digit PIN no longer scrolls inside its box.
+- Errors that meant the server could not be reached now say so.
+- The admin page is readable under Jellyfin's light themes.
+- Screen readers name more buttons and lists.
+- Security and privacy fixes.
+
+**Changed**
+
+- Profile accounts no longer show in Dashboard → Users. Households links to them.
+- The Apps tab in the admin page is now Clients.
+- Shorter, plainer wording on the profile screen and the admin page.
+- Bonfire uses less server CPU and memory.
+
+**Added**
+
+- Bonfire can be turned off and on in the Status tab. New installs start off so you can finish setup first.
+- Custom themes can have a background picture, with a dim slider.
+- Custom themes can show profiles as a list, align left, and choose a tile size and logo corner.
+- The theme editor has its own colour picker and can expand its preview to the full profile screen.
+- The server logo can have rounded or square corners.
+- The switch log is kept for 90 days, and an administrator can delete it.
+
+## 1.9.0.3-beta  — 2026-11-10
+
+**Fixed**
+
+- On a phone, viewing-hours rows broke across lines and Delete Profile wrapped.
+- Buttons and form rows touched on older TVs.
+- Long names ran into the next profile on a crowded TV.
+- The library artwork picker was too small on a TV.
+- Escape now goes back on Settings and the profile forms.
+- Back did nothing on your own profile's screen, and some TV screens opened with nothing focused.
+- Opening Name and picture raised the phone keyboard.
+- Errors now say what to do, and an empty list says what to add.
+
+**Changed**
+
+- New installs require a main PIN. Existing servers keep their setting.
+- A profile can change its own name and picture from the switcher.
+- The picker has a bigger focus ring and a lock badge on TV, balanced rows, and no crown on the main account.
+- With richer animation on, Bloom and Harvest drift and Starlight twinkles.
+- Buttons in a theme all use the same letter case, and an empty PIN box shows four dots.
+- A custom logo is larger, and gets a backing on themes where it would disappear.
+- The admin theme list shows a preview of each theme.
+- On a phone, no text is smaller than 12px and every control is easy to tap.
+
+## 1.9.0.2-beta  — 2026-11-09
+
+**Fixed**
+
+- If the settings page failed to load, Save could overwrite your settings with the defaults.
+- Viewing limits set while adding a child's profile were lost if no main PIN was set yet.
+- A TV on the Moonfin picker could open the main account after a server restart.
+- Changing audio or subtitles near the daily limit ended playback early.
+- Short clips were not counted toward viewing limits.
+- A profile kept the main account's strictest rating after it was relaxed.
+- Dialogs were too narrow on a 1080p TV, and focus drew a box round round avatars.
+- A failed profile list now says so instead of showing nothing.
+- Security and privacy fixes. Updating is recommended.
+
+**Changed**
+
+- The admin page is split into clearer tabs, with rare settings under Advanced.
+- Profile and account screens keep rarely used options under More.
+- First-time setup offers every step; each can be skipped.
+- Four avatar quality levels; new installs use High.
+- Optional richer theme animation, off by default. Reduced motion and old TVs stay still.
+- A TV layout switch in Settings, and a flat look on older TVs.
+- Works on short screens, notched phones and the admin page on phones.
+- Better support for screen readers and keyboards.
+- The picker heading says "Your household".
+- The Moonfin picker is labelled beta. It logs a few yes/no lines, never tokens or account names, to help check a fix.
+
+**Removed**
+
+- The "patch index.html" injection modes, the email From name and the first-time setup step boxes.
+
+## 1.9.0.1-beta  — 2026-11-09
+
+**Fixed**
+
+- The TV Back key did nothing on the time-up, select and prompt dialogs.
+- The maintenance screen stayed up after maintenance ended. It now clears itself and has a Check again button.
+- Cancel and Submit stacked off-centre on PIN screens on a 1080p TV.
+- "Upload a picture" ran past its panel on phones.
+- Profile tiles, More options and the avatar library looked wrong on older TVs.
+- Security and privacy fixes. Updating is recommended.
+
+## 1.7.3.1-beta  — 2026-11-08
+
+**Fixed**
+
+- Wholphin and Android TV couldn't load the profile list. (#43)
+- OK did nothing on settings-page confirmations such as Reset PIN and closing for maintenance. (#44)
+- A narrower schedule set on a profile in Dashboard → Users was replaced at its next sign-in.
+
+**Changed**
+
+- On Swiftfin, Roku and other apps, the refusal when viewing time runs out or the server is closed now says what to do.
+
+## 1.7.2.1-beta  — 2026-11-07
+
+**Fixed**
+
+- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)
+- A refused switch now says why: too many sessions, or not allowed on this device.
+- Typing a long PIN used up its tries before it was finished.
+- A PIN typed after "Clear PIN" was dropped.
+- A rejected profile picture deleted the one the profile had.
+- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with "Require HTTPS" on.
+- A library removed from a profile in Dashboard -> Users came back at its next sign-in.
+- Restoring a backup dropped email, maintenance and several other settings.
+- Security and privacy fixes. Updating is recommended.
+
+**Changed**
+
+- PIN tries now have a daily limit per account. An administrator can lower it.
+- On other apps, PIN sign-in is limited to devices your household uses, and profiles with no PIN to your home network. An administrator can allow it from anywhere.
+- Making an account into a profile now asks whether deleting the profile later keeps the account.
+- A profile can't be named after a real account.
+- Versions 1.6.1.2 and 1.6.1.3 are no longer offered: they could break sign-in for the whole server.
+
+## 1.7.1.2-beta  — 2026-11-04
+
+**Added**
+
+- Moonfin: sign in with the main account and pick a profile on the home screen. Turn it on under TVs & Apps.
+- For app developers: `GET /plugins/profiles/info`, and an error code on every error.
+
+**Changed**
+
+- A signed-in user refused an action now gets 403, not 401.
+
+**Fixed**
+
+- A Roku opened a profile without asking for its PIN. (#40)
+
+## 1.7.1  — 2026-11-02
+
+**Added**
+
+- Catalan and Spanish.
+
+**Changed**
+
+- Bonfire now uses the language set in Jellyfin (Settings → Display), not the browser's.
+
+## 1.7.0  — 2026-11-01
+
+**Added**
+
+- Themes for Bonfire's screens: nine looks, three of them seasonal. The server owner picks the default and whether each profile can choose its own.
+- Settings → Theme, where the main account sets each profile's theme.
+- Parental rating choices use your server's country instead of US ratings only.
+
+**Changed**
+
+- A theme change shows straight away, without reloading.
+- The way out of every screen is in the same place, bottom left.
+
+**Fixed**
+
+- Jellyfin's home screen flashed briefly before the profile picker, and after picking a profile.
+- A profile could go missing from a TV's sign-in screen.
+- Saving a profile could remove its rating limit or its allowed devices.
+- Switching into a disabled profile turned it back on.
+- Some translations failed to load on clients that ask for them in lowercase, such as pt-br.
+- "Settings saved." on the admin page showed its title off-centre.
 
 ## 1.6.6.3-beta  — 2026-11-01
 
