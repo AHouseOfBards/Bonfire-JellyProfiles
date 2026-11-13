@@ -1280,8 +1280,20 @@ body.profiles-no-scroll [id*="spinner"] {
    the row is the last thing in the gate, and the remote's focus move scrolls to it. */
 @supports (position: sticky) {
     #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
-        position: sticky; bottom: 0; z-index: 2;
+        /* Above the lock and the Bonfires badge on a tile (z-index 10), which are drawn over
+           the tile and would otherwise show on top of the row. */
+        position: sticky; z-index: 12;
         box-sizing: border-box;
+        /* The gate pads its own bottom (2rem and the safe area), and a sticky box stops at the
+           scroll box's padding, not at its edge: the row sat that far above the screen's
+           bottom with the next tiles showing through. Offset by the same amount, and pull the
+           margin box up by it so the row may also reach the edge at the end of the page,
+           where it cannot leave its parent. The max-height block below does the same for the
+           short screen's smaller padding. */
+        bottom: -2rem;
+        bottom: calc(-2rem - env(safe-area-inset-bottom));
+        margin-bottom: -2rem;
+        margin-bottom: calc(-2rem - env(safe-area-inset-bottom));
         margin-top: 1rem;
         padding: 1rem 0;
         padding-bottom: calc(1rem + env(safe-area-inset-bottom));
@@ -2554,6 +2566,15 @@ body.profiles-no-scroll [id*="spinner"] {
         font-size: 1.75rem;
         font-size: calc(1.75rem * var(--jpf-title-scale));
         margin-bottom: 0.75rem;
+    }
+    /* The pinned button row follows the gate's padding down (see .jpf-footer-stuck). */
+    @supports (position: sticky) {
+        #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+            bottom: -0.75rem;
+            bottom: calc(-0.75rem - env(safe-area-inset-bottom));
+            margin-bottom: -0.75rem;
+            margin-bottom: calc(-0.75rem - env(safe-area-inset-bottom));
+        }
     }
     .jpf-create-profile-container,
     .jpf-create-profile-container.is-two-col {

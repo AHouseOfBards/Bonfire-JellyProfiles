@@ -90,6 +90,41 @@ const MEASURE = `(function () {
     if (r.top < -0.5 || r.bottom > vh + 0.5) out.offscreen.push(name);
     if (hits(r, b)) out.covered.push(name);
   });
+  // Pinned: the row's own box must reach the bottom edge of the screen, and no tile may
+  // be visible in whatever is left under it. Read at the top, the middle and the end of the
+  // page, because a sticky box can fall short at one scroll position and not another.
+  out.pinned = [];
+  var maxScroll = root.scrollHeight - root.clientHeight;
+  [0, Math.round(maxScroll / 2), maxScroll].forEach(function (y) {
+    root.scrollTop = y;
+    var br = rect(bar), below = [];
+    tiles.forEach(function (t, i) {
+      var r = rect(t);
+      // Only what is on screen counts: a tile running on past the bottom edge is not seen.
+      if (Math.min(r.bottom, vh) > br.bottom + 0.5 && r.top < vh && r.bottom > 0) below.push('#' + i);
+    });
+    // And nothing of a tile may be drawn over the row: its badges and lock sit above the
+    // tile in z order, so each part of a tile that overlaps the row is asked what is on top
+    // at the middle of the overlap.
+    var over = [];
+    tiles.forEach(function (t, i) {
+      [].slice.call(t.querySelectorAll('*')).forEach(function (n) {
+        var r = rect(n);
+        var l = Math.max(r.left, br.left), rr = Math.min(r.right, br.right);
+        var tp = Math.max(r.top, br.top), bt = Math.min(r.bottom, br.bottom, vh);
+        if (rr - l < 1 || bt - tp < 1) return;
+        // Badges and the lock are pointer-events: none, which hit testing skips; let this
+        // one be hit for the moment, or the one thing drawn over the row is the one thing missed.
+        var was = n.style.pointerEvents;
+        n.style.pointerEvents = 'auto';
+        var top = document.elementFromPoint((l + rr) / 2, (tp + bt) / 2);
+        n.style.pointerEvents = was;
+        if (top && !bar.contains(top) && t.contains(top)) over.push('#' + i + ' ' + String(n.className && n.className.baseVal === undefined ? n.className : n.tagName).split(' ')[0]);
+      });
+    });
+    out.pinned.push({ y: y, gap: vh - br.bottom, below: below, over: over });
+  });
+  root.scrollTop = 0;
   // Walk Down from the first tile.
   root.scrollTop = 0;
   tiles[0].focus();
@@ -147,6 +182,9 @@ async function main() {
                         const w = where + ' (overflows)';
                         ok(w + ': the row is inside the viewport',
                             m.bar.top >= -0.5 && m.bar.bottom <= m.vh + 0.5, 'row ' + Math.round(m.bar.top) + '..' + Math.round(m.bar.bottom) + ' in ' + m.vh);
+                        ok(w + ': the pinned row reaches the bottom edge, with no tile under it',
+                            m.pinned.every(p => p.gap <= 2 && p.gap >= -2 && p.below.length === 0 && p.over.length === 0),
+                            m.pinned.map(p => 'scroll ' + p.y + ': ' + Math.round(p.gap) + 'px short, tiles under it: ' + (p.below.join(',') || 'none') + ', drawn over it: ' + (p.over.slice(0, 3).join(',') || 'none')).join('; '));
                         ok(w + ': the row is sticky and its panel is opaque', m.position === 'sticky' && m.alpha === 1, m.position + ', alpha ' + m.alpha);
                         ok(w + ': every tile comes into view clear of the row', m.covered.length === 0 && m.offscreen.length === 0,
                             'under the row: ' + m.covered.join(', ') + '; off screen: ' + m.offscreen.join(', '));
