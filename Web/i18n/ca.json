@@ -833,7 +833,6 @@
   "admin.gs.dismiss": "Descarta",
   "admin.gs.pins": "Demana un PIN principal a cada compte principal.",
   "admin.gs.zone": "Tria un fus horari per defecte. Aquest servidor és en UTC.",
-  "admin.gs.bonfireOn": "Activa Bonfire.",
   "admin.status.bonfireOff": "Bonfire està desactivat.",
   "admin.bonfireOn": "Activa Bonfire",
   "admin.avatars.title": "Biblioteca d'avatars",

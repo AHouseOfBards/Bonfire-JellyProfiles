@@ -833,7 +833,6 @@
   "admin.gs.dismiss": "Kapat",
   "admin.gs.pins": "Her ana hesapta ana PIN zorunlu olsun.",
   "admin.gs.zone": "Varsayılan bir saat dilimi seçin. Bu sunucu UTC'de.",
-  "admin.gs.bonfireOn": "Bonfire'ı açın.",
   "admin.status.bonfireOff": "Bonfire kapalı.",
   "admin.bonfireOn": "Bonfire'ı aç",
   "admin.avatars.title": "Avatar kitaplığı",

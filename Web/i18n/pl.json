@@ -833,7 +833,6 @@
   "admin.gs.dismiss": "Ukryj",
   "admin.gs.pins": "Wymagaj głównego PIN-u na każdym koncie głównym.",
   "admin.gs.zone": "Wybierz domyślną strefę czasową. Ten serwer działa w UTC.",
-  "admin.gs.bonfireOn": "Włącz Bonfire.",
   "admin.status.bonfireOff": "Bonfire jest wyłączony.",
   "admin.bonfireOn": "Włącz Bonfire",
   "admin.avatars.title": "Biblioteka awatarów",

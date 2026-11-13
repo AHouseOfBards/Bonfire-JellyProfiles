@@ -147,22 +147,23 @@ ok('no emergency code, though none is set (it bypasses the picker; Security says
 ok('no avatars item, which was done on every install', !row('avatars'));
 ok('no first-time setup item: it is asked once instead', !row('onboarding'));
 ok('no apps item: a choice, not a chore', !row('apps'));
-// 2.0 added "Turn on Bonfire." as the last item; tests/js/adminonoff.js covers it.
+// No "Turn on Bonfire." item: Status says "Bonfire is off." first (tests/js/adminonoff.js).
 const keys = () => rows().map(r => r.getAttribute('data-gs')).join();
-ok('exactly the PIN and turning Bonfire on', keys() === 'pins,bonfireOn', keys());
+ok('no "Turn on Bonfire." item', !row('bonfireOn'));
+ok('exactly the PIN', keys() === 'pins', keys());
 
 // The time zone item: only a server on UTC with no default chosen is asked.
 ['Europe/London', 'America/New_York', '', undefined].forEach(function (zone) {
     page._serverZone = zone;
     api.renderGettingStarted(page);
-    ok('a server on ' + JSON.stringify(zone) + ' is not asked for a zone', !row('zone') && keys() === 'pins,bonfireOn', keys());
+    ok('a server on ' + JSON.stringify(zone) + ' is not asked for a zone', !row('zone') && keys() === 'pins', keys());
 });
 ['UTC', 'Etc/UTC'].forEach(function (zone) {
     page._serverZone = zone;
     page._config.DefaultTimeZone = '';
     api.renderGettingStarted(page);
     ok(zone + ' with no default: a to-do that opens the viewing hours',
-       row('zone') && row('zone').getAttribute('data-level') === 'info' && keys() === 'pins,zone,bonfireOn', keys());
+       row('zone') && row('zone').getAttribute('data-level') === 'info' && keys() === 'pins,zone', keys());
     buttons(row('zone'))[0] && buttons(row('zone'))[0].listeners.click();
     ok('and goes to Security at the zone', gone.pop() === 'security#jpfViewing');
     page._config.DefaultTimeZone = 'Europe/Paris';
@@ -186,7 +187,7 @@ ok('exactly the PIN and turning Bonfire on', keys() === 'pins,bonfireOn', keys()
     page._config.RequireMainPin = false;
     page._config.BonfireOn = false;
     api.renderGettingStarted(page);
-    ['pins', 'zone', 'bonfireOn'].forEach(function (k) {
+    ['pins', 'zone'].forEach(function (k) {
         const b = buttons(row(k))[0];
         if (b) b.listeners.click();
         const went = (gone.pop() || '').split('#');
@@ -206,10 +207,14 @@ console.log('\n── Dismiss ────────────────�
     p._config = { RequireMainPin: false, BonfireOn: false, Onboarding: { Dismissed: ['pins'] } };
     api.renderGettingStarted(p);
     const keysOf = () => p.ids.gettingStarted.children.map(r => r.getAttribute('data-gs')).join();
-    ok('a dismissed item is not drawn', keysOf() === 'bonfireOn', keysOf());
+    ok('a dismissed item is not drawn', keysOf() === '', keysOf());
     p._config.Onboarding = { dismissed: ['pins', 'bonfireOn'] };
     api.renderGettingStarted(p);
-    ok('every item dismissed: the list goes away', keysOf() === '' && p.ids.gettingStartedBlock.classList.contains('jpf-hidden'), keysOf());
+    ok('an old saved list that names bonfireOn still loads, and the list goes away',
+       keysOf() === '' && p.ids.gettingStartedBlock.classList.contains('jpf-hidden'), keysOf());
+    p._config = { RequireMainPin: false, BonfireOn: false, Onboarding: { Dismissed: ['bonfireOn'] } };
+    api.renderGettingStarted(p);
+    ok('and the PIN item is still there beside it', keysOf() === 'pins', keysOf());
     p._config = { RequireMainPin: true, BonfireOn: false, Onboarding: {} };
     api.renderGettingStarted(p);
     const done = p.ids.gettingStarted.children.filter(r => r.getAttribute('data-gs') === 'pins')[0];
@@ -222,14 +227,14 @@ const dismissDone = (async function () {
     api.renderGettingStarted(p);
     posted.length = 0;
     const rowOf = k => p.ids.gettingStarted.children.filter(r => r.getAttribute('data-gs') === k)[0];
-    const btn = buttons(rowOf('bonfireOn'))[1];
-    ok('"Turn on Bonfire." has Dismiss too', !!btn && btn.textContent === 'Dismiss');
+    const btn = buttons(rowOf('pins'))[1];
+    ok('the PIN item has Dismiss', !!btn && btn.textContent === 'Dismiss');
     btn && btn.listeners.click();
     ok('Dismiss sends that one key and nothing else',
-       posted.length === 1 && JSON.stringify(posted[0]) === '{"gettingStartedDismiss":"bonfireOn"}', JSON.stringify(posted));
+       posted.length === 1 && JSON.stringify(posted[0]) === '{"gettingStartedDismiss":"pins"}', JSON.stringify(posted));
     posted.length = 0;   // before the first await: the question's checks below count it
     await settleD(); await settleD();
-    ok('and the row goes once it is saved', !rowOf('bonfireOn') && !!rowOf('pins'));
+    ok('and the row goes once it is saved', !rowOf('pins'));
 })();
 
 page._config.RequireMainPin = true;

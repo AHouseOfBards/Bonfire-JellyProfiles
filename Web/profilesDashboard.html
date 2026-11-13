@@ -2025,7 +2025,6 @@
                 'admin.gs.dismiss': 'Dismiss',
                 'admin.gs.pins': 'Require a main PIN on every main account.',
                 'admin.gs.zone': 'Choose a default time zone. This server is on UTC.',
-                'admin.gs.bonfireOn': 'Turn on Bonfire.',
                 'admin.status.bonfireOff': 'Bonfire is off.',
                 'admin.saveFailed': 'Couldn\'t save it.',
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
@@ -8564,6 +8563,12 @@
                     (page._status[part] || []).forEach(function (it) { items.push(it); });
                 });
                 items.sort(function (a, b) { return LEVEL_RANK[a.level] - LEVEL_RANK[b.level]; });
+                // "Bonfire is off." comes first whatever its level: nothing below matters
+                // until it is on. It stays info, so it is not counted as needing attention.
+                (page._status.off || []).slice().reverse().forEach(function (it) {
+                    items.splice(items.indexOf(it), 1);
+                    items.unshift(it);
+                });
 
                 const needing = items.filter(function (it) { return it.level === 'bad' || it.level === 'warn'; }).length;
                 summary.textContent = needing === 0
@@ -8637,9 +8642,8 @@
                 if (isUtcZone(page._serverZone)) {
                     items.push({ key: 'zone', text: t('admin.gs.zone'), done: !!c.DefaultTimeZone, tab: 'security', anchor: 'jpfViewing' });
                 }
-                // Last: everything above is worth doing before anyone sees the profile screen.
-                // Absent on a configuration from before 2.0, which is on.
-                items.push({ key: 'bonfireOn', text: t('admin.gs.bonfireOn'), done: c.BonfireOn !== false, tab: 'status', anchor: 'bonfireOn' });
+                // No "Turn on Bonfire" item: the switch is at the top of this tab, and Status
+                // says "Bonfire is off." first. A saved dismissed list that names it is ignored.
                 // Dismissed is for good, for every administrator: it is kept on the server
                 // (Onboarding.Dismissed). Status still flags anything that is actually wrong.
                 const dismissed = field(c.Onboarding || {}, 'dismissed') || [];

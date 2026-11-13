@@ -37,7 +37,7 @@ namespace Jellyfin.Profiles.Configuration
         public List<string> Dismissed { get; set; } = new();
 
         /// <summary>The keys the dashboard's Getting started list uses.</summary>
-        public static readonly string[] GettingStartedItems = { "pins", "zone", "bonfireOn" };
+        public static readonly string[] GettingStartedItems = { "pins", "zone" };
 
         // There used to be a RequiredSteps list here, "can't skip" per step. It was only ever
         // a client screen with no Skip on it, and nothing on the server held anyone to it

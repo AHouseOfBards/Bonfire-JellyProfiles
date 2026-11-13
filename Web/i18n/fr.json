@@ -833,7 +833,6 @@
   "admin.gs.dismiss": "Ignorer",
   "admin.gs.pins": "Exigez un code PIN principal sur chaque compte principal.",
   "admin.gs.zone": "Choisissez un fuseau horaire par défaut. Ce serveur est en UTC.",
-  "admin.gs.bonfireOn": "Activez Bonfire.",
   "admin.status.bonfireOff": "Bonfire est désactivé.",
   "admin.bonfireOn": "Activer Bonfire",
   "admin.avatars.title": "Bibliothèque d'avatars",

@@ -3,9 +3,9 @@
  *
  *   - The toggle is at the top of the Status tab, labelled "Turn on Bonfire", with no
  *     hint line under it (decided: an explanation was rejected).
- *   - While off, the Status list carries "Bonfire is off."; on, it carries nothing.
- *   - Getting started ends with "Turn on Bonfire.", done when on. A configuration from
- *     before 2.0 has no BonfireOn and is on.
+ *   - While off, the Status list starts with "Bonfire is off.", above every level; on, it
+ *     carries nothing. A configuration from before 2.0 has no BonfireOn and is on.
+ *   - Getting started has no item for turning it on: the switch is right there.
  *   - Changing the toggle saves just { bonfireOn } through admin/settings at once, and a
  *     failed save puts the toggle back to what the server has. It is not one of the
  *     fields the page's Save sends, so it never marks the page unsaved.
@@ -93,18 +93,41 @@ A.renderBonfireOn(page);
 ok('a configuration from before 2.0 reads on', page.toggle.checked === true && (status.off || []).length === 0);
 
 console.log('\n── Getting started ─────────────────────────────────────────────');
+// The switch is at the top of the tab and Status says so first, so there is no item for it.
 const items = c => A.gettingStartedItems({ _config: c, _mappings: { subProfiles: [] } });
-let list = items({ BonfireOn: false });
-const last = list[list.length - 1];
-ok('"Turn on Bonfire." is the last item', !!last && last.key === 'bonfireOn' && last.text === 'Turn on Bonfire.',
-   list.map(i => i.key).join());
-ok('to do while off', last && last.done === false);
-list = items({ BonfireOn: true });
-ok('done when on', list[list.length - 1].done === true);
-list = items({});
-ok('done on a configuration from before 2.0', list[list.length - 1].done === true);
-list = items({ BonfireOn: false, DefaultTimeZone: '' });
-ok('still last when the zone item is there too', list[list.length - 1].key === 'bonfireOn');
+[{ BonfireOn: false }, { BonfireOn: true }, {}, { BonfireOn: false, DefaultTimeZone: '' }].forEach(function (c) {
+    const list = items(c);
+    ok('no "Turn on Bonfire." item for ' + JSON.stringify(c), !list.some(i => i.key === 'bonfireOn' || /Turn on Bonfire/.test(i.text)),
+       list.map(i => i.key).join());
+});
+ok('and no key for it in the strings', A.t('admin.gs.bonfireOn') === 'admin.gs.bonfireOn');
+
+console.log('\n── Status order ────────────────────────────────────────────────');
+{
+    const order = /const STATUS_ORDER = [^;]+;/.exec(script)[0];
+    const rank = /const LEVEL_RANK = [^;]+;/.exec(script)[0];
+    const src = L.dashboardI18n(script) + order + '\n' + rank + '\n'
+        + ['levelLabel', 'renderStatus'].map(n => L.extractFunction(script, n)).join('\n');
+    const kit = new Function('document', 'goTo', src + '; return { renderStatus };');
+    const node = () => ({ children: [], attrs: {}, text: '',
+        appendChild(c) { this.children.push(c); }, setAttribute(k, v) { this.attrs[k] = v; },
+        addEventListener() {}, set textContent(v) { this.text = v; if (v === '') this.children = []; }, get textContent() { return this.text; } });
+    const draw = function (parts) {
+        const list = node(), summary = node();
+        const pg = { _status: parts, querySelector: s => (s === '#statusChecks' ? list : s === '#statusSummary' ? summary : null) };
+        kit({ createElement: node }, () => {}).renderStatus(pg);
+        return { texts: list.children.map(r => r.children[1].textContent), summary: summary.textContent };
+    };
+    const off = [{ level: 'info', text: 'Bonfire is off.' }];
+    let out = draw({ off, pins: [{ level: 'warn', text: 'WARN' }], script: [{ level: 'bad', text: 'BAD' }] });
+    ok('off, with a bad and a warn item: "Bonfire is off." is the first row', out.texts[0] === 'Bonfire is off.', out.texts.join(' | '));
+    ok('the others keep their order below it', out.texts.slice(1).join() === 'BAD,WARN', out.texts.join(' | '));
+    ok('and it is not counted as needing attention', /^2 things|2/.test(out.summary) && !/3/.test(out.summary), out.summary);
+    out = draw({ off, avatars: [{ level: 'ok', text: 'OK' }] });
+    ok('off with only an ok item: still first', out.texts[0] === 'Bonfire is off.', out.texts.join(' | '));
+    out = draw({ off: [], pins: [{ level: 'warn', text: 'WARN' }], script: [{ level: 'bad', text: 'BAD' }] });
+    ok('on: no "Bonfire is off." row, and the order is by level', out.texts.join() === 'BAD,WARN', out.texts.join(' | '));
+}
 
 // A backup from before 2.0 has no BonfireOn, so restoring one onto a new install (which
 // starts off) left Bonfire off, and the result said only what it imported.
