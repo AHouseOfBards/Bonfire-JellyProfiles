@@ -5,10 +5,14 @@
 #nullable enable
 
 using System;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Campground.Shared.Network;
 using Campground.Shared.Registry;
+using Microsoft.AspNetCore.Http;
 
 namespace Campground.Shared.Contracts
 {
@@ -33,6 +37,17 @@ namespace Campground.Shared.Contracts
 
     /// <summary>Result of <c>provision</c>.</summary>
     internal sealed record HttpsProvisionResult(bool Started, string Message, string? FollowUpUrl);
+
+    /// <summary>
+    /// Trailhead's own listener (<c>Edge</c>). <paramref name="ForwardingAddress"/> is the address <c>Edge</c> connects to
+    /// Jellyfin from. <paramref name="Marker"/> is a random value made at each start that <c>Edge</c> puts in
+    /// <see cref="HttpsClient.EdgeMarkerHeader"/> on every request it forwards, after removing any copy a client sent.
+    /// It goes to Jellyfin only, never back to a client, and stays in this process: don't show or log it.
+    /// </summary>
+    internal sealed record EdgeStatus(bool Active, bool Buffered, string? ForwardingAddress, string? Marker);
+
+    /// <summary>Result of <c>status</c> (minor 1). <paramref name="Edge"/> is null when Trailhead runs no listener ("Keep my proxy").</summary>
+    internal sealed record HttpsStatus(bool Configured, string? PublicUrl, EdgeStatus? Edge);
 
     /// <summary>
     /// <c>campground.https.v1</c> — one shared HTTPS check, plus a fix offered by Trailhead.
@@ -74,5 +89,84 @@ namespace Campground.Shared.Contracts
         /// <summary>For the provider (Trailhead).</summary>
         internal static void Provide(string pluginId, int minor, Func<HttpsProvisionRequest, CancellationToken, Task<HttpsProvisionResult>> provision)
             => Capabilities.Provide(CapabilityNames.Https, pluginId, minor, new CapabilityHost().On(ProvisionOp, provision).Build());
+
+        /// <summary>The operation that reports <see cref="HttpsStatus"/>.</summary>
+        internal const string StatusOp = "status";
+
+        /// <summary>The request header that carries <see cref="EdgeStatus.Marker"/> from <c>Edge</c> to Jellyfin.</summary>
+        internal const string EdgeMarkerHeader = "X-Campground-Edge";
+
+        /// <summary>The capability minor that added <see cref="StatusOp"/> (0.22.0, issue #53).</summary>
+        internal const int StatusMinor = 1;
+
+        /// <summary>
+        /// Trailhead's status, or null when Trailhead is missing, too old to have the operation, disabled or slow.
+        /// Null means "don't know". It's per server; ask <see cref="ThroughUnbufferedEdge"/> about a request.
+        /// </summary>
+        internal static Task<HttpsStatus?> StatusAsync(CancellationToken ct = default)
+            => Capabilities.TryInvokeAsync<HttpsStatus>(CapabilityNames.Https, StatusOp, null, StatusMinor, ct: ct);
+
+        /// <summary>
+        /// True only when the request came through an active, unbuffered <c>Edge</c>, so its byte timing is the
+        /// client's (CleanStream, #31). Both must hold:
+        /// <list type="bullet">
+        /// <item>It carries <c>Edge</c>'s marker (<see cref="EdgeMarkerHeader"/>), exactly once. <c>Edge</c> removes a
+        /// client's copy, and a client talking to Jellyfin directly can't know it (CleanStream, #57).</item>
+        /// <item>It reached Jellyfin from the forwarding address. Once Jellyfin trusts <c>Edge</c>, its forwarded-headers
+        /// middleware has already put the viewer's address in <c>Connection.RemoteIpAddress</c> and <c>Edge</c>'s in
+        /// <c>X-Original-For</c> (ASP.NET Core <c>ForwardedHeadersMiddleware.cs:303-323</c>, v10.0.0), so this reads
+        /// <c>X-Original-For</c> when it holds an address, and the connection otherwise.</item>
+        /// </list>
+        /// A LAN app straight to Jellyfin, another proxy, or any missing piece gives false, and the caller keeps the
+        /// path it used without Trailhead.
+        /// </summary>
+        internal static bool ThroughUnbufferedEdge(HttpsStatus? status, HttpContext context)
+        {
+            var edge = status?.Edge;
+            if (edge is not { Active: true, Buffered: false } || !CarriesMarker(context, edge.Marker))
+            {
+                return false;
+            }
+
+            var before = context.Connection.RemoteIpAddress;
+            var original = context.Request.Headers["X-Original-For"];
+            if (original.Count == 1 && IPEndPoint.TryParse(original[0] ?? string.Empty, out var endPoint))
+            {
+                before = endPoint.Address;
+            }
+
+            return before != null
+                && IPAddress.TryParse(edge.ForwardingAddress, out var forwarding)
+                && Plain(forwarding).Equals(Plain(before));
+        }
+
+        private static bool CarriesMarker(HttpContext context, string? marker)
+        {
+            var sent = context.Request.Headers[EdgeMarkerHeader];
+            if (string.IsNullOrEmpty(marker) || sent.Count != 1 || sent[0] == null)
+            {
+                return false;
+            }
+
+            return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(sent[0]!), Encoding.UTF8.GetBytes(marker));
+        }
+
+        /// <summary>For the provider (Trailhead): offers the capability with <see cref="StatusOp"/> too, at minor 1 or later.</summary>
+        internal static void Provide(
+            string pluginId,
+            int minor,
+            Func<HttpsProvisionRequest, CancellationToken, Task<HttpsProvisionResult>> provision,
+            Func<CancellationToken, Task<HttpsStatus?>> status)
+            => Capabilities.Provide(
+                CapabilityNames.Https,
+                pluginId,
+                minor,
+                new CapabilityHost()
+                    .On(ProvisionOp, provision)
+                    .On<object?, HttpsStatus?>(StatusOp, (_, ct) => status(ct))
+                    .Build());
+
+        // Kestrel on a dual-stack socket reports an IPv4 client as ::ffff:a.b.c.d.
+        private static IPAddress Plain(IPAddress address) => address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
     }
 }
