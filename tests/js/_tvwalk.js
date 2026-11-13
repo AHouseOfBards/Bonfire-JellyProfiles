@@ -119,6 +119,27 @@ const PAGE = `(function () {
   window.__tw = { describe: describe, state: state, controls: controls, find: find };
 })()`;
 
+// Waits for the page to settle after a key, in the page. Every 30 ms it reads the focused
+// element, its box, the element count (a dialog opening or closing) and whether anything is
+// still animating; it is settled when three polls in a row match. Floor 120 ms: the script
+// moves focus into a new dialog from a 100 ms timer, and a quiet page before that would
+// read as settled. Ceiling 450 ms, the fixed wait this replaced.
+const SETTLE = `new Promise(function (resolve) {
+  var t0 = Date.now(), last = null, same = 0;
+  function snap() {
+    var el = document.activeElement, r = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+    var moving = document.getAnimations ? document.getAnimations().some(function (a) { return a.playState === 'running'; }) : false;
+    return [el && el.__twid, el && el.id, r ? [r.left, r.top, r.width, r.height].join(',') : '', document.getElementsByTagName('*').length, moving].join('|');
+  }
+  (function tick() {
+    var s = snap(), age = Date.now() - t0;
+    same = s === last ? same + 1 : 0;
+    last = s;
+    if (age >= 450 || (age >= 120 && same >= 2)) return resolve(age);
+    setTimeout(tick, 30);
+  })();
+})`;
+
 async function start(opts) {
     const o = opts || {};
     if (!fs.existsSync(ICONS)) throw new Error('Material Icons font missing; run node tests/screens/shoot.js once, or see pinscreens.js');
@@ -143,7 +164,7 @@ async function start(opts) {
         const base = { key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk };
         await c.page('Input.dispatchKeyEvent', Object.assign({ type: k.text ? 'keyDown' : 'rawKeyDown' }, base, k.text ? { text: k.text } : {}));
         await c.page('Input.dispatchKeyEvent', Object.assign({ type: 'keyUp' }, base));
-        await c.evaluate('new Promise(function(r){setTimeout(r,450)})');
+        await c.evaluate(SETTLE);
     }
 
     const stateNow = () => c.evaluate('window.__tw.state()');
