@@ -61,6 +61,7 @@ BadRequest|invalid_request|No configuration in the request body.
 BadRequest|invalid_request|No folder there. Check the path as the server sees it.
 BadRequest|invalid_request|No settings were sent.
 BadRequest|invalid_request|No such session.
+BadRequest|invalid_request|Nothing to change.
 BadRequest|invalid_request|PIN tries a day must be 1 to {PinBudget.DailyLimit}.
 BadRequest|invalid_request|Pick two different profiles.
 BadRequest|invalid_request|Picture quality must be '{ImageQualities.Standard}', '{ImageQualities.High}', '{ImageQualities.Maximum}' or '{ImageQualities.Ultra}'.

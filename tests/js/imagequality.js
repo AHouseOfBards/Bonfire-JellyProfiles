@@ -36,9 +36,10 @@ const sandbox = {
     sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     navigator: { userAgent: 'Mozilla/5.0', language: 'en' },
     setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {},
+    // The avatar library reaches the client as the `avatars` part of GET /form-options (2.0).
     fetch: () => Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ allowCustomUploads: true, avatars: [], image: serverImage })
+        json: () => Promise.resolve({ avatars: { allowCustomUploads: true, avatars: [], image: serverImage } })
     }),
     document: {
         addEventListener() {}, removeEventListener() {},
