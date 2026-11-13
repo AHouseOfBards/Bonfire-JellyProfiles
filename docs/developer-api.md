@@ -267,7 +267,9 @@ see [Maintenance](#maintenance). Sent with
 - **End the old session.** Send `"endPreviousSession": true` with `/switch`, and the token
   that made the request is signed out once the new one exists. Only that token: the
   account's other sessions stay. Without it, send Jellyfin's `POST /Sessions/Logout` with
-  the old token yourself. Then use the new token for everything.
+  the old token yourself. Then use the new token for everything. If your app can fail to
+  save the new token, leave the field off and sign out the old one after saving, so a
+  failed save leaves the user signed in.
 - **Keep one token.** A profile's token can call `/list` and `/switch` too: Bonfire works
   out its main account. Switching back to the main account is another `/switch`.
 - **Manage profiles as the main account.** `/create`, `/update` and `/delete` refuse a
