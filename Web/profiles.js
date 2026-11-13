@@ -6591,6 +6591,17 @@
                     const r2 = el.getBoundingClientRect();
                     if (b.height > 0 && b.top > r2.top && r2.bottom > b.top) form.scrollTop += r2.bottom - b.top + 16;
                 }
+                // The picker's button row sticks the same way while the households do not fit,
+                // and scrolls the gate itself. A tile that is on screen but under the row has
+                // to come up above it. Only while it is stuck: otherwise the row is in the
+                // flow and covers nothing.
+                const pickBar = document.querySelector('.profiles-footer.jpf-footer-stuck');
+                const gate = el.closest && el.closest('#profiles-gate-overlay');
+                if (pickBar && gate && !pickBar.contains(el)) {
+                    const pb = pickBar.getBoundingClientRect();
+                    const r3 = el.getBoundingClientRect();
+                    if (pb.height > 0 && r3.bottom > pb.top && r3.top < pb.bottom) gate.scrollTop += r3.bottom - pb.top + 16;
+                }
             } catch (e) { /* no layout information — focus alone will do */ }
         },
 
@@ -6608,6 +6619,41 @@
             const fx = from.left + from.width / 2;
             const fy = from.top + from.height / 2;
             const horizontal = (dir === 'left' || dir === 'right');
+
+            // The picker's button row, while it is stuck to the bottom of the screen, is nearer
+            // than the tiles still below the fold, so Down from a tile skipped them, and with
+            // the row off the end of the page it was never reached. It comes after every
+            // tile: Down from the last row reaches it, Up from it returns to that row.
+            const pickBar = (dir === 'up' || dir === 'down') ? root.querySelector('.profiles-footer.jpf-footer-stuck') : null;
+            if (pickBar) {
+                const panic = root.querySelector('#profiles-panic-link');
+                const barItems = items.filter(el => pickBar.contains(el));
+                const tiles = items.filter(el => !pickBar.contains(el) && el !== panic);
+                const centreY = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+                const nearestX = (list) => {
+                    let pick = null, gap = Infinity;
+                    list.forEach(el => {
+                        const r = el.getBoundingClientRect();
+                        const d = Math.abs(r.left + r.width / 2 - fx);
+                        if (d < gap) { gap = d; pick = el; }
+                    });
+                    return pick;
+                };
+                if (barItems.length && tiles.length) {
+                    if (barItems.indexOf(current) !== -1) {
+                        if (dir === 'up') {
+                            let lowestY = -Infinity;
+                            tiles.forEach(el => { lowestY = Math.max(lowestY, centreY(el)); });
+                            this._focusVisibly(nearestX(tiles.filter(el => lowestY - centreY(el) < 8)));
+                            return;
+                        }
+                    } else if (current !== panic) {
+                        const below = tiles.some(el => el !== current && centreY(el) - fy >= 1);
+                        if (dir === 'down' && !below) { this._focusVisibly(nearestX(barItems)); return; }
+                        items = tiles;
+                    }
+                }
+            }
 
             // The sticky Save bar sits nearer than the last field above it, so Down skipped
             // that field. The bar comes after every control in the form's own content: Down
@@ -7719,13 +7765,19 @@
             content.style.removeProperty('--jpf-tile');
             content.style.removeProperty('--jpf-name-fit');
             content.style.removeProperty('--jpf-line-fit');
+            // The button row sticks to the bottom of the screen only while the households
+            // do not fit; measured with the class off, so the answer is the layout's and not
+            // the bar's own padding. When everything fits the row is where it always was.
+            const footer = overlay.querySelector('.profiles-footer');
+            if (footer) footer.classList.remove('jpf-footer-stuck');
+            const stick = () => { if (footer) footer.classList.toggle('jpf-footer-stuck', !fits()); };
             balance();
             if (fits()) return;
 
             const sample = grid.querySelector('.jpf-profile-avatar-container');
-            if (!sample) return;
+            if (!sample) { stick(); return; }
             const natural = Math.round(sample.getBoundingClientRect().width);
-            if (!natural) return;
+            if (!natural) { stick(); return; }
 
             const isTv = document.documentElement.classList.contains('jpf-tv');
             // The smallest the name may get, as a share of its natural size: the size of the
@@ -7762,12 +7814,13 @@
             content.classList.add('jpf-fitted');
             let lo = floor;
             let hi = natural;
-            if (!tryTile(lo)) return;             // already at the floor; leave it scrolling
+            if (!tryTile(lo)) { stick(); return; }             // already at the floor; leave it scrolling
             for (let i = 0; i < 8 && hi - lo > 2; i++) {
                 const mid = Math.floor((lo + hi) / 2);
                 if (tryTile(mid)) lo = mid; else hi = mid;
             }
             tryTile(lo);
+            stick();
         },
 
         attachOverlayInteractions: function (overlay, profiles) {
@@ -12964,7 +13017,7 @@
             section.className = 'verticalSection jpf-userprofile-section';
             section.innerHTML = `
                 <h2 class="sectionTitle jpf-row-gap-em" style="display:flex; align-items:center; gap:0.4em;">
-                    <span class="material-icons local_fire_department" aria-hidden="true" style="color:var(--jpf-warn);"></span>
+                    ${bonfireMark('jpf-userprofile-mark', 'color:var(--jpf-warn);')}
                     ${t('profilePage.title')}
                 </h2>
                 <p style="opacity:0.7; margin:0 0 1em 0; line-height:1.5;">

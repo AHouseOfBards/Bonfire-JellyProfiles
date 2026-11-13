@@ -1269,6 +1269,43 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-footer .profiles-btn {
     min-width: 11rem;
 }
+/* When the households do not fit the screen, the row stays at the bottom of it, drawn like
+   the Save bar on the profile forms: an opaque --jpf-panel with a line on top, so tiles
+   scrolling behind it do not show through. fitGateToScreen sets the class, and only when
+   it measured an overflow; a screen where everything fits keeps the row in the flow.
+   The panel and the line are box-shadows, so they reach the screen's edges without
+   widening the page (a wide child would give the gate a sideways scrollbar), and the
+   clip-path cuts the shadow off above and below the row. All of it is inside @supports:
+   without sticky (Chromium 53, webOS 4.x) the shadow would be a screen-wide block. There
+   the row is the last thing in the gate, and the remote's focus move scrolls to it. */
+@supports (position: sticky) {
+    #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+        /* Above the lock and the Bonfires badge on a tile (z-index 10), which are drawn over
+           the tile and would otherwise show on top of the row. */
+        position: sticky; z-index: 12;
+        box-sizing: border-box;
+        /* The gate pads its own bottom (2rem and the safe area), and a sticky box stops at the
+           scroll box's padding, not at its edge: the row sat that far above the screen's
+           bottom with the next tiles showing through. Offset by the same amount, and pull the
+           margin box up by it so the row may also reach the edge at the end of the page,
+           where it cannot leave its parent. The max-height block below does the same for the
+           short screen's smaller padding. */
+        bottom: -2rem;
+        bottom: calc(-2rem - env(safe-area-inset-bottom));
+        margin-bottom: -2rem;
+        margin-bottom: calc(-2rem - env(safe-area-inset-bottom));
+        margin-top: 1rem;
+        padding: 1rem 0;
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+        background: var(--jpf-panel);
+        box-shadow: 0 0 0 100vmax var(--jpf-panel), 0 -1px 0 100vmax var(--jpf-border-1);
+        clip-path: inset(-1px -100vmax 0 -100vmax);
+    }
+    /* A television crops its edges: keep the buttons inside the 5% the logo keeps to. */
+    .jpf-tv #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+        padding-bottom: calc(1rem + 5vh);
+    }
+}
 
 /* PIN Entry Form styles */
 .jpf-pin-entry-container {
@@ -2529,6 +2566,15 @@ body.profiles-no-scroll [id*="spinner"] {
         font-size: 1.75rem;
         font-size: calc(1.75rem * var(--jpf-title-scale));
         margin-bottom: 0.75rem;
+    }
+    /* The pinned button row follows the gate's padding down (see .jpf-footer-stuck). */
+    @supports (position: sticky) {
+        #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+            bottom: -0.75rem;
+            bottom: calc(-0.75rem - env(safe-area-inset-bottom));
+            margin-bottom: -0.75rem;
+            margin-bottom: calc(-0.75rem - env(safe-area-inset-bottom));
+        }
     }
     .jpf-create-profile-container,
     .jpf-create-profile-container.is-two-col {

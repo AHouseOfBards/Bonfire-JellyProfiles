@@ -494,6 +494,19 @@ ok('every display: grid has a fallback for a browser without grid', grids.length
 
 const SRC_JS = L.readProfiles();
 const STICKY_OK = [{
+    selector: '#profiles-gate-overlay .profiles-footer.jpf-footer-stuck',
+    fallback: 'the row is in the flow after the last household, so unpinned it is the end of the gate, the remote\'s focus move scrolls it into view, and its screen-wide shadow is inside @supports (position: sticky)',
+    holds: () => {
+        if (!/_focusVisibly:\s*function[\s\S]{0,2500}scrollIntoView/.test(SRC_JS)) return false;
+        // Only the stuck class turns the row into a bar, and nothing in the markup carries it.
+        if (/class="[^"]*jpf-footer-stuck/.test(SRC_JS)) return false;
+        // The shadow that reaches the screen's edges must not apply where sticky does not.
+        const at = css.indexOf('.jpf-footer-stuck');
+        const block = css.lastIndexOf('@supports (position: sticky)', at);
+        if (at === -1 || block === -1) return false;
+        return css.slice(block, at).split('{').length - css.slice(block, at).split('}').length === 1;
+    }
+}, {
     selector: '.jpf-create-profile-container > .jpf-profile-dialog-actions',
     fallback: 'the row is the last child of the form, so it is the end of the form unpinned, and the remote\'s focus move scrolls it into view',
     holds: () => {
