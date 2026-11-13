@@ -848,7 +848,7 @@ async function part8() {
             const fresh = importOnce(file, null);
             ok('an exported theme with a picture, imported new, is sent without one', !!fresh.sent && !(fresh.sent.background && fresh.sent.background.image),
                 JSON.stringify(fresh.sent && fresh.sent.background));
-            ok('and the administrator is told to upload it', /upload it/.test(fresh.said), fresh.said);
+            ok('and the administrator is told to upload it', /Upload it in the editor/.test(fresh.said), fresh.said);
 
             const plain = importOnce(asFile(custom), null);
             ok('a theme that never had a picture says only that it was imported', !!plain.said && !/upload/.test(plain.said), plain.said);
@@ -869,7 +869,7 @@ async function part8() {
             named.background.image = { file: 'c'.repeat(32) + '.jpg', dim: 0.9 };
             const hand = importOnce(named, null);
             ok('a file naming a picture by hand has it dropped', !!hand.sent && !hand.sent.background.image, JSON.stringify(hand.sent && hand.sent.background));
-            ok('and says so', /upload it/.test(hand.said), hand.said);
+            ok('and says so', /Upload it in the editor/.test(hand.said), hand.said);
         } else ok('export and import are on the page', false);
         const pt = lift(['themeProblemText']);
         ok('a picture the server does not have is said plainly', !!pt && pt.themeProblemText({ path: 'background.image.file', code: 'image', detail: '' }) === 'This image isn\'t on the server. Upload it again.');
