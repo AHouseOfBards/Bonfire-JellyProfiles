@@ -126,6 +126,7 @@
     font-size: calc(1rem * var(--jpf-title-scale));
     font-weight: var(--jpf-title-weight);
     letter-spacing: var(--jpf-title-spacing);
+    text-shadow: var(--jpf-title-shadow);
 }
 .jpf-theme-preview-tiles {
     display: flex; gap: 12px; justify-content: center;

@@ -7826,7 +7826,7 @@
                         x: mfNum(tg.offsetX, -100, 100, 0),
                         y: mfNum(tg.offsetY, -100, 100, 0),
                         blur: mfNum(tg.blurRadius, 0, 100, 0),
-                        opacity: Math.round(color(tg.color).a * 100) / 100
+                        color: mfBonfireColor(color(tg.color))
                     });
                 } else {
                     mfSet(d, 'depth.title', null);

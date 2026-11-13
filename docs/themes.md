@@ -191,7 +191,9 @@ A custom theme can have one picture behind the switcher. Built-in themes don't.
 ## Depth and focus
 
 A shadow is `{ "x": 0, "y": 10, "blur": 24, "spread": 0, "opacity": 0.45 }`, in
-`colors.shadow` unless it has its own `color`. `null` means none.
+`colors.shadow` unless it has its own `color`. `null` means none. A shadow with a `color`
+uses that colour's own alpha and ignores `opacity`. On `depth.title` that is a glow:
+`"color": "#10a0f080"` is a blue glow behind the title.
 
 ```json
 "depth": { "avatar": { }, "title": { }, "sheet": null },
@@ -432,7 +434,7 @@ last (`#RRGGBBAA`). Both directions convert.
 | `shape.avatar` | `borders.cardRadius`: a circle is 999, otherwise its radius |
 | `shape.button` | `borders.chipRadius`: a pill is 999, a square 0, otherwise its radius |
 | `focus.glow` | `borders.focusGlow[0]` |
-| `depth.title` | `textGlow[0]`, in `colors.shadow` at the shadow's opacity |
+| `depth.title` | `textGlow[0]`: its own `color` if it has one, otherwise `colors.shadow` at the shadow's opacity. On the way in, the glow's colour comes with its alpha |
 | `type.font.family` | `fontFamily` |
 | a `frost` decoration | `isGlass` |
 

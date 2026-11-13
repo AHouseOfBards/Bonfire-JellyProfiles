@@ -433,6 +433,17 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                t => t["parts"]!["addTile"]!["text"] = "#202020", "parts.addTile.text", "contrast");
         Caught("an error colour that is blue", t => t["colors"]!["danger"] = "#3366ff", "colors.danger", "hue");
         Caught("a warning colour that is green", t => t["colors"]!["warning"] = "#33cc33", "colors.warning", "hue");
+        // The title shadow's own colour (the text glow): optional, and a bad one is named.
+        var withGlow = Harvest();
+        withGlow["depth"]!["title"] = new System.Text.Json.Nodes.JsonObject
+            { ["x"] = 0, ["y"] = 2, ["blur"] = 12, ["color"] = "#10a0f080" };
+        Ok("a title shadow with a colour of its own and no opacity is accepted", ThemeCatalog.Validate(withGlow).Count == 0,
+           string.Join("; ", ThemeCatalog.Validate(withGlow).Select(p => p.Path + " " + p.Code)));
+        var noGlowColour = Harvest();
+        noGlowColour["depth"]!["title"] = new System.Text.Json.Nodes.JsonObject { ["x"] = 0, ["y"] = 2, ["blur"] = 12, ["opacity"] = 0.5 };
+        Ok("a title shadow with no colour is accepted", ThemeCatalog.Validate(noGlowColour).Count == 0);
+        Caught("a title shadow colour that is not one",
+               t => t["depth"]!["title"] = new System.Text.Json.Nodes.JsonObject { ["x"] = 0, ["y"] = 2, ["blur"] = 12, ["color"] = "glowing" }, "depth.title.color", "type");
         Caught("a font Bonfire does not serve", t => t["type"]!["font"]!["family"] = "Comic Sans MS", "type.font.family", "font");
         Caught("a pattern Bonfire does not hold", t => t["decorations"]![0]!["image"] = "skulls", "decorations[0].image", "pattern");
         Caught("a decoration schema 1 does not know",

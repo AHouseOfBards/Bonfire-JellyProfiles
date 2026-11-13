@@ -240,7 +240,7 @@ ok('the chip border and the input map', same('parts.button2.border.color', '#aab
 ok('the focus border is the ring', same('colors.ring', '#9be8cf') && same('shape.ringWidth', 4));
 ok('error is danger; the card border is the card line', same('colors.danger', '#ff7b7b') && same('parts.card.line', '#ffffff2e'));
 ok('radius 18 is a square avatar of 18 and 999 is a pill', same('shape.avatar', { kind: 'square', radius: 18 }) && at(d, 'shape.button.kind') === 'pill', JSON.stringify(at(d, 'shape')));
-ok('the focus glow and the text glow map', same('focus.glow', { x: 0, y: 8, blur: 24, color: '#4fd1a566', spread: 2 }) && same('depth.title', { x: 0, y: 2, blur: 12, opacity: 0.5 }),
+ok('the focus glow and the text glow map', same('focus.glow', { x: 0, y: 8, blur: 24, color: '#4fd1a566', spread: 2 }) && same('depth.title', { x: 0, y: 2, blur: 12, color: '#00000080' }),
     JSON.stringify([at(d, 'focus.glow'), at(d, 'depth.title')]));
 ok('a font Bonfire has is taken, and nothing is said', same('type.font.family', 'Quicksand') && imp.font === null);
 const odd = copy(handFile);
@@ -262,7 +262,7 @@ const bd = back && back.draft;
     ok('round trip keeps ' + p[0] + ' ' + p[1], !!bd && at(bd, p[0]) === p[1], bd && at(bd, p[0]));
 });
 ok('round trip keeps the font, the ring width and the title shadow', !!bd && at(bd, 'type.font.family') === 'Lora' && at(bd, 'shape.ringWidth') === 4 &&
-    at(bd, 'depth.title.blur') === 9 && at(bd, 'depth.title.opacity') === 0.5);
+    at(bd, 'depth.title.blur') === 9 && at(bd, 'depth.title.color') === '#050a1080' && at(bd, 'depth.title.opacity') === undefined);
 
 // A bad colour refuses the whole file.
 [['colors.accent', '#12345'], ['colors.onAccent', '#GG0000'], ['colors.scrim', '#FFB347FF00'], ['colors.background', 'red'], ['colors.surface', 16777215],
