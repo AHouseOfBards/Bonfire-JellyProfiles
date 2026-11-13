@@ -1269,6 +1269,31 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-footer .profiles-btn {
     min-width: 11rem;
 }
+/* When the households do not fit the screen, the row stays at the bottom of it, drawn like
+   the Save bar on the profile forms: an opaque --jpf-panel with a line on top, so tiles
+   scrolling behind it do not show through. fitGateToScreen sets the class, and only when
+   it measured an overflow; a screen where everything fits keeps the row in the flow.
+   The panel and the line are box-shadows, so they reach the screen's edges without
+   widening the page (a wide child would give the gate a sideways scrollbar), and the
+   clip-path cuts the shadow off above and below the row. All of it is inside @supports:
+   without sticky (Chromium 53, webOS 4.x) the shadow would be a screen-wide block. There
+   the row is the last thing in the gate, and the remote's focus move scrolls to it. */
+@supports (position: sticky) {
+    #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+        position: sticky; bottom: 0; z-index: 2;
+        box-sizing: border-box;
+        margin-top: 1rem;
+        padding: 1rem 0;
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+        background: var(--jpf-panel);
+        box-shadow: 0 0 0 100vmax var(--jpf-panel), 0 -1px 0 100vmax var(--jpf-border-1);
+        clip-path: inset(-1px -100vmax 0 -100vmax);
+    }
+    /* A television crops its edges: keep the buttons inside the 5% the logo keeps to. */
+    .jpf-tv #profiles-gate-overlay .profiles-footer.jpf-footer-stuck {
+        padding-bottom: calc(1rem + 5vh);
+    }
+}
 
 /* PIN Entry Form styles */
 .jpf-pin-entry-container {
