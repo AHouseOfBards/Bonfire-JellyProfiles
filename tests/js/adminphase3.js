@@ -70,7 +70,9 @@ const WANT = {
     'admin.banner.failLive': "index.html isn't the cause. Restart Jellyfin if it still fails after a re-check.",
     'admin.saveBlocked': 'The settings didn\'t load, so nothing was saved. Press "Try again".',
     'admin.themes.none': 'No themes of your own yet. Choose "New theme" to make one.',
-    'admin.help.librariesA': 'Change a profile\'s libraries in "Edit profile", not in Dashboard → Users, where removing one doesn\'t stick.',
+    // Removing a library in Dashboard → Users sticks since the beta 9 fix (b8e9c735); what is
+    // left that looks like reverting is a profile set to every library (docs/troubleshooting.md).
+    'admin.help.librariesA': 'A profile set to every library gets all of its main account\'s. To limit it, tick the ones it should have in "Edit profile".',
     'admin.email.needsEmail':'Needs working email. Set it up under Setup.',
     'admin.status.openPinsOne': '1 main account has no main PIN, so anyone using its profiles can switch to it. Require main PINs to make them set one.',
     'admin.status.openPinsMany': '{count} main accounts have no main PIN, so anyone using their profiles can switch to them. Require main PINs to make them set one.'

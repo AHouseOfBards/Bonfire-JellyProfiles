@@ -906,7 +906,6 @@
   "admin.help.appsQ": "Funciona en un navegador però no en una aplicació",
   "admin.help.appsA": "Només els clients que carreguen la pàgina web de Jellyfin des del teu servidor mostren el selector. Per a la resta de clients, activa l'inici de sessió amb PIN a Clients. El control parental s'aplica a tots els clients igualment.",
   "admin.help.librariesQ": "L'accés d'un perfil a les biblioteques torna enrere",
-  "admin.help.librariesA": "Canvia les biblioteques d'un perfil a «Edita el perfil», no a Tauler → Usuaris, on treure'n una no es manté.",
   "admin.help.librariesOwned": "Les biblioteques que gestionen altres connectors, com les de FieldGuide, no es mostren ni es canvien.",
   "admin.help.pinQ": "Algú ha oblidat el seu PIN",
   "admin.help.pinA": "Esborra'l a Llars. Després el compte en pot posar un de nou.",

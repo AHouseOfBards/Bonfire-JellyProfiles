@@ -17,8 +17,8 @@ These hold in every app and can't be turned off from a browser.
     from all addresses together.
   - Other apps' sign-in screens allow 5 per 15 minutes and 20 a day, per account.
 - **Other households.** In a shared Bonfire, opening someone else's account or profile
-  needs its PIN. The exception is when its owner has turned on *Let my Bonfire switch
-  into my account on this network* and you're on their network. Hidden profiles can't be
+  needs its PIN. The exception is when its owner has turned on *Let Bonfire members
+  open my account on the server's network* and you're on their network. Hidden profiles can't be
   opened at all.
 - **Going back to the main account** from a profile asks for the main account's PIN,
   like any other switch, unless its owner turned off *Ask for the PIN to open this

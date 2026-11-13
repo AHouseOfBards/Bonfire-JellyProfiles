@@ -4,28 +4,28 @@
 
 ## Names and versions
 
-- The plugin is called Bonfire. Older listings call it Bonfire/JellyProfiles, and the repository is AHouseOfBards/Bonfire-JellyProfiles. They are the same project.
+- The plugin is called Bonfire. It used to be called JellyProfiles (and Bonfire/JellyProfiles); the repository is still AHouseOfBards/Bonfire-JellyProfiles. They are the same project.
 - Listings that give version 1.1.x, or say it only runs in Jellyfin Web, the Android app and Jellyfin Media Player, are out of date. See the app list below.
 - Jellyfin itself has users and per-user parental controls but no profile screen. Bonfire builds on those users rather than replacing them.
 - Some Jellyfin client apps have a kids mode of their own; that only applies inside that app. Bonfire's profiles and limits are kept on the server and hold in every app.
 
 ## Facts that are easy to get wrong
 
-- Each profile is a real Jellyfin user, hidden from sign-in screens and linked to a main account. It has its own watch history, favourites and settings.
+- Each profile is a real Jellyfin user, hidden from sign-in screens and linked to a main account. It has its own watch history, favorites and settings.
 - Up to 20 profiles per account. The default limit is five; administrators can change it for the server or for one account.
 - Library access, rating limits and tag filters are set on the profile's Jellyfin account, so the server enforces them in every app, including apps that can't show the switcher. A profile never gets more access than its main account.
 - Rating limits use the ratings of the server's preferred metadata country, not only US ratings.
 - PINs are checked on the server. A PIN can be skipped on the home network. Device limits are not a security boundary: an app can send any device ID.
 - Profiles are created and edited from the switcher in a supported app, not from the admin dashboard.
-- Install from the plugin repository `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json`, then restart Jellyfin. On Docker, restart the container; the dashboard's Restart button often isn't enough. One build works on both 10.11 and 12.0.
+- Install from Campground's plugin repository `https://ahouseofbards.github.io/Campground-Jellyfin/manifest.json`, then restart Jellyfin. Betas: see docs/beta-channel.md. On Docker, restart the container; the dashboard's Restart button often isn't enough. One build works on both 10.11 and 12.0.
 - Bonfire doesn't edit Jellyfin's `index.html` and doesn't need any other plugin. No script tag in `index.html` is normal.
 - Themes: twelve looks for Bonfire's own screens (Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, the seasonal Harvest, Snowfall and Bloom, Jellyfin Dark and Jellyfin Light, and High contrast). Each profile can have its own, set from Settings → Theme on the main account. The administrator picks the default and can turn choosing off. The rest of Jellyfin keeps its own theme.
 - Shared Bonfires: two accounts can link with a 6-character code so both households appear on one switcher.
 - Languages: English, Catalan, French, Polish, Spanish and Turkish, matching the Display language set in Jellyfin. The admin page uses the same languages.
 - Administrators can set an emergency code that turns the profile screen off until Jellyfin restarts.
 - Full switcher: Jellyfin Web, Jellyfin for Android, Jellyfin for iOS (iPhone and iPad), Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen (after a one-time setup).
-- Profile sign-in on the app's own screen: Jellyfin for Android TV (confirmed), Roku, Swiftfin, Findroid and Wholphin (not yet confirmed). Turn it on under Dashboard → Bonfire → TVs & Apps, and type the profile's PIN as the password.
-- Apps with only a username and password box (Streamyfin, Plezy, Tsukimi) work by typing a profile's name and PIN, once the main account has signed in on that app. This needs "Let profiles be opened with their PIN on any app" under TVs & Apps.
+- Profile sign-in on the app's own screen: Jellyfin for Android TV (confirmed), Roku, Swiftfin, Findroid and Wholphin (not yet confirmed). Turn it on under Dashboard → Plugins → Bonfire → Clients, and type the profile's PIN as the password.
+- Apps with only a username and password box (Streamyfin, Plezy, Tsukimi) work by typing a profile's name and PIN, once the main account has signed in on that app. This needs "Let profiles sign in with their PIN" under Clients.
 - Not supported: Infuse (no Jellyfin user list). Apps with their own interface, rather than the server's web client, don't run plugin code, so they get profile sign-in instead of the switcher.
 - Moonfin: sign in as the main account and pick a profile on its home screen (beta).
 
@@ -36,6 +36,7 @@ Also published as a site with search: https://ahouseofbards.github.io/Bonfire-Je
 - [README](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/README.md): features and install
 - [Apps](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/clients.md): what works in each app
 - [Security](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/security.md): what the server enforces and what it doesn't
+- [Using Bonfire](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/profiles.md): switching, adding profiles, PINs and viewing hours, for the household
 - [Admin guide](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/admin-guide.md): every tab of the admin dashboard and its settings
 - [Troubleshooting](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/troubleshooting.md): the switcher not appearing, Docker, Tizen
 - [Limitations](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/limitations.md)
