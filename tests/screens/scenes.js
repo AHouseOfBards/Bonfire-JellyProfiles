@@ -59,7 +59,8 @@
             isMaster: !!p.master, isBonfire: false, isLinked: false,
             requiresPin: !!p.pin, avatarColor: p.colour, avatarInitial: p.name.charAt(0),
             profileImage: null, transparentAvatar: false, maxSubProfiles: Math.max(5, COUNT - 1),
-            viewing: p.viewing || null
+            viewing: (SCENE === 'timerequest' && p.id === people[2].id)
+                ? Object.assign({}, p.viewing, { askedUtc: '2026-11-12T19:30:00Z' }) : (p.viewing || null)
         };
     });
 
@@ -89,6 +90,9 @@
             return FULL ? { country: 'US', ratings: [
                 { score: 0, labels: ['G', 'TV-G', 'TV-Y'] }, { score: 7, labels: ['TV-Y7'] }, { score: 10, labels: ['PG', 'TV-PG'] },
                 { score: 13, labels: ['PG-13'] }, { score: 14, labels: ['TV-14'] }, { score: 17, labels: ['R', 'TV-MA'] }] } : [];
+        },
+        'time-requests': function () {
+            return { requests: [{ profileId: people[2].id, profileName: 'Rosalind', askedUtc: '2026-11-12T19:30:00Z', timeZone: 'America/Chicago', grantMinutesLeft: 120 }] };
         },
         'announcements': function () {
             return SCENE === 'announcement'
@@ -209,7 +213,10 @@
     function gate(P) {
         P.isManageMode = false;
         P.showProfileOverlay(PROFILES);
-        return Promise.resolve();
+        // A screen drawn over the gate comes after the gate's own first focus (a 100 ms
+        // timer on a television). Without the wait that timer takes focus back from the
+        // dialog, which no real household sees: the dialog opens long after the gate.
+        return new Promise(function (resolve) { setTimeout(resolve, 250); });
     }
 
     var SCENES = {
@@ -331,6 +338,28 @@
             return gate(P).then(function () { P.showMaintenance({ message: 'Updating the server. Back soon.', untilUtc: '2026-11-06T03:00:00Z' }, true, false); });
         },
         'panic': function (P) { return gate(P).then(function () { P.showPanicPrompt(); }); },
+        // The picker with a request for more time above the tiles (the main account's own
+        // household, signed in as the main account).
+        'timerequest': function (P) { return gate(P).then(function () { return when('.profiles-time-request'); }); },
+        // Jellyfin's header with the Switch Profile button in it, and the corner pill that
+        // stands in when no header is found. No picker: the button is what is on screen.
+        'header': function (P) {
+            document.body.insertAdjacentHTML('afterbegin', '<header class="skinHeader"><div class="headerRight">' +
+                '<button class="headerButton headerButton-btn paper-icon-button-light focusable"><span class="material-icons">search</span></button>' +
+                '<button class="headerButton headerUserButton paper-icon-button-light focusable"><span class="material-icons">account_circle</span></button>' +
+                '</div></header>');
+            var right = document.querySelector('.headerRight');
+            var bubble = P._buildHeaderBubble();
+            P._insertBeforeUserBtn(right, bubble);
+            bubble.focus();
+            return Promise.resolve();
+        },
+        'headerpill': function (P) {
+            var pill = P._buildFallbackBubble();
+            document.documentElement.appendChild(pill);
+            pill.focus();
+            return Promise.resolve();
+        },
         'ob-welcome': onboarding(0),
         'ob-mainpin': onboarding(1),
         'ob-email': onboarding(2),

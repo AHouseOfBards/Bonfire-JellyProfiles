@@ -141,7 +141,7 @@ async function start(opts) {
         const base = { key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk };
         await c.page('Input.dispatchKeyEvent', Object.assign({ type: k.text ? 'keyDown' : 'rawKeyDown' }, base, k.text ? { text: k.text } : {}));
         await c.page('Input.dispatchKeyEvent', Object.assign({ type: 'keyUp' }, base));
-        await c.evaluate('new Promise(function(r){setTimeout(r,120)})');
+        await c.evaluate('new Promise(function(r){setTimeout(r,450)})');
     }
 
     const stateNow = () => c.evaluate('window.__tw.state()');
