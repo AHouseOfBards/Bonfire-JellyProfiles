@@ -141,3 +141,9 @@ defaults:
       layout: default
       title: Translations
       nav_order: 12
+  - scope:
+      path: docs/admin-guide.md
+    values:
+      layout: default
+      title: Admin guide
+      nav_order: 13
