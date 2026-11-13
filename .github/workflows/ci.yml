@@ -71,6 +71,6 @@ jobs:
         run: SKIP_BUILD=1 bash tests/binchk.sh
 
       # Contributors are told to run this before opening a PR (Web/i18n/README.md).
-      # Nothing enforced it, so the first person to forget shipped a broken catalogue.
+      # Nothing enforced it, so the first person to forget shipped a broken catalog.
       - name: Validate translations
         run: node Web/i18n/validate.js

@@ -131,7 +131,7 @@ own on the same page:
 - **Copy from folder** copies from a path on the server, such as `/config/avatars` on
   Docker. Easier for a large set.
 
-JPEG, PNG, WebP and GIF all work. Pictures are cropped and resized when added. Turn on
+JPEG, PNG, WebP and GIF all work. Images are cropped and resized when added. Turn on
 **Only allow avatars from this library** to make profiles choose from your set instead
 of uploading their own.
 

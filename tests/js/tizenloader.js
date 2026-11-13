@@ -55,7 +55,7 @@ ok('the loader asks for /' + prefix + '/profiles.js (' + asked + ')',
    served && !!prefix && asked === '/' + prefix + '/profiles.js');
 const docs = fs.readFileSync(path.join(L.ROOT, 'docs', 'developer-api.md'), 'utf8');
 ok('and that route is one the API reference lists as anonymous — the television is not signed in yet',
-   /### `GET \/plugins\/profiles\/profiles\.js`\s+\*\*Authorisation:\*\* anonymous\./.test(docs));
+   /### `GET \/plugins\/profiles\/profiles\.js`\s+\*\*Authorization:\*\* anonymous\./.test(docs));
 
 // ── a stand-in page with a clock this file turns ────────────────────────────
 function page() {

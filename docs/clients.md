@@ -99,7 +99,7 @@ clears it under **Dashboard → Bonfire → Households**.
 The list appears on every app that asks the server for its user list, not only the apps named here.
 
 **Signed in before installing Bonfire?** Sign out and back in once so the server
-recognises the device. Approving a Quick Connect code counts.
+recognizes the device. Approving a Quick Connect code counts.
 
 These still apply: PINs, device limits, library access, parental ratings and tag filters.
 The profile shows under its own name.

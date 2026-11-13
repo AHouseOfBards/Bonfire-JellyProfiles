@@ -37,7 +37,7 @@ jobs:
       # The same three commands ci.yml runs, ahead of anything that builds, packages or
       # publishes. A tag can be cut from a commit CI never saw, or from one whose CI run
       # was red and ignored; before this, nothing here would have noticed. Any failure
-      # stops the release before an artefact exists. tests/js/buildtargets.js fails if
+      # stops the release before an artifact exists. tests/js/buildtargets.js fails if
       # these steps go missing, lose their place, or are made optional.
       - name: Run the test suite
         run: bash tests/run.sh
@@ -68,7 +68,7 @@ jobs:
       # assembly, confirmed on live hardware from 1.6.0.1 onward). A net10.0 assembly
       # would install on 12.0 and fail to load on 10.11, and `targetAbi` cannot express
       # the difference, because it filters on the Jellyfin version rather than the runtime.
-      # One artefact, one manifest entry, both servers.
+      # One artifact, one manifest entry, both servers.
       #
       # Change this to net10.0 only when 10.11.x support is being dropped, and add the
       # matching targetAbi bump in the same commit.
@@ -204,7 +204,7 @@ jobs:
           fi
 
           # A checksum that already belongs to another version means this release is
-          # byte-identical to one that already shipped — the artefact was rebuilt from an
+          # byte-identical to one that already shipped — the artifact was rebuilt from an
           # unchanged tree, or the wrong zip was uploaded. Either way the release notes
           # describe changes that are not in the file.
           #
@@ -213,7 +213,7 @@ jobs:
           # and nothing could have: every other check here asks whether the checksum was
           # written, never whether it is new.
           #
-          # Both manifests are searched. The same artefact appearing under a beta version
+          # Both manifests are searched. The same artifact appearing under a beta version
           # and a stable one is the normal, correct outcome of promoting a beta, so a match
           # is only fatal within the channel being released to.
           CLASH=$(jq -r --arg c "$C" --arg v "$V" \
@@ -222,7 +222,7 @@ jobs:
           if [ -n "$CLASH" ]; then
             echo "::error::${V} has the same checksum as ${CLASH} in the '${BRANCH}' manifest."
             echo "::error::The build is byte-identical to a release that already shipped, so"
-            echo "::error::whatever the release notes describe is not in this artefact."
+            echo "::error::whatever the release notes describe is not in this artifact."
             echo "::error::Checksum: ${C}"
             exit 1
           fi

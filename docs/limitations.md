@@ -12,6 +12,21 @@ Create and edit profiles from the switcher, not the admin dashboard.
 **Dashboard → Plugins → Bonfire** holds the server-wide settings, the avatar library,
 PIN resets, TV and app sign-in, and the emergency disable code.
 
+## Back on the PIN keypad
+
+**Back** on the PIN keypad steps back one level at a time, not straight to the profile
+list. This is by design.
+
+## Wrong PINs are counted per profile
+
+The limit on wrong PINs is per profile, across every address it is tried from. Ten wrong
+PINs in 15 minutes lock the profile for everyone, wherever they are.
+
+## Accounts with no password
+
+An account with no password can't be added to a household by its members. An administrator
+adds it.
+
 ## What other apps can't do
 
 Each "no" in the [app table](clients.md#what-each-app-can-do), and why.

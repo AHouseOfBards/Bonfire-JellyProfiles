@@ -18,8 +18,8 @@ Works with Jellyfin 10.11 and 12.0.
 - **Device limits.** Keep a profile to the devices you choose.
 - **Shared Bonfires.** Link two accounts with a 6-character code so both households
   appear on one switcher.
-- **Avatars.** Thirty built in, plus any pictures you upload for the whole server.
-- **Per-profile library artwork.** A Kids profile can show its own picture for a library
+- **Avatars.** Thirty built in, plus any images you upload for the whole server.
+- **Per-profile library artwork.** A Kids profile can show its own image for a library
   instead of a poster from a film it can't open.
 - **Themes.** Twelve looks for Bonfire's screens, including high contrast and two that match
   Jellyfin's own light and dark themes. Each profile can
@@ -88,5 +88,5 @@ Microsoft, under the MIT License
 The theme fonts are Atkinson Hyperlegible Next, Baloo 2, Bebas Neue, Cinzel, Comfortaa, DM Sans,
 Figtree, Fraunces, Inter, JetBrains Mono, Lexend, Lora, Manrope, Merriweather, Montserrat,
 Noto Sans, Nunito, Oswald, Outfit, Playfair Display, Plus Jakarta Sans, Press Start 2P,
-Quicksand and Righteous, under the SIL Open Font License. Each licence text is in
+Quicksand and Righteous, under the SIL Open Font License. Each license text is in
 [Web/themes/fonts](Web/themes/fonts).

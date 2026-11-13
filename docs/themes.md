@@ -14,7 +14,7 @@ Schema version 1. This document is the reference for it.
 
 - [What an app must follow](#what-an-app-must-follow)
 - [The file](#the-file)
-- [Colours](#colours)
+- [Colors](#colors)
 - [Background](#background)
 - [Shape](#shape)
 - [Type](#type)
@@ -35,7 +35,7 @@ Schema version 1. This document is the reference for it.
 | --- | --- | --- |
 | `colors`, `background` | Yes | |
 | `shape` | Yes | |
-| `parts` | Yes, its colours and shapes | Its type and depth values are optional. |
+| `parts` | Yes, its colors and shapes | Its type and depth values are optional. |
 | `layout` | Yes | |
 | `type` | No | Use it when you can load the font. Otherwise use `type.font.fallback`. |
 | `depth`, `focus` | No | Platforms draw shadows and focus differently. Get close. |
@@ -74,10 +74,10 @@ An app that follows only the required parts still looks like the theme.
 | `name` | object | `{ "key": "theme.harvest" }` for a built-in, translated through Bonfire's strings. `{ "text": "Our Theme" }` for an administrator's. |
 | `aliases` | string[] | Old ids that now mean this theme. A profile set to one of them gets this one. |
 
-**Colours** are `#rrggbb`, or `#rrggbbaa` when see-through. **Lengths** are pixels at the
+**Colors** are `#rrggbb`, or `#rrggbbaa` when see-through. **Lengths** are pixels at the
 size a desktop browser draws them; a TV app scales them the way it scales everything else.
 
-## Colours
+## Colors
 
 | Field | Use |
 | --- | --- |
@@ -88,13 +88,13 @@ size a desktop browser draws them; a TV app scales them the way it scales everyt
 | `surface1`, `surface2`, `surface3` | Fills in three steps, usually see-through. |
 | `border1`, `border2`, `border3` | Lines in three weights. |
 | `panel` | An opaque fill, for things that must hide what scrolls under them. |
-| `ring` | The ring around a profile picture in focus. |
-| `name`, `nameFocus` | A profile's name under its picture, and in focus. |
-| `shadow` | The colour of every shadow. |
+| `ring` | The ring around a profile image in focus. |
+| `name`, `nameFocus` | A profile's name under its image, and in focus. |
+| `shadow` | The color of every shadow. |
 | `danger` | Errors and things that delete. |
 | `warning` | Warnings. |
 
-Every field is required. In a custom theme, `danger` and `warning` can be any colour. The
+Every field is required. In a custom theme, `danger` and `warning` can be any color. The
 built-in themes keep them red and amber.
 
 Tints of the accent (8% to 60%) aren't in the file. Mix `accent` with transparency
@@ -114,16 +114,16 @@ The ground behind the switcher.
 }
 ```
 
-- `fill` is required. It's the one colour to use when you can't draw gradients.
+- `fill` is required. It's the one color to use when you can't draw gradients.
 - `layers` is optional. Layers are drawn in order, first on top, like CSS backgrounds.
 - `linear`: `angle` in degrees, 0 pointing up, clockwise.
-- `radial`: `shape` is `circle` or `ellipse`, and `x`, `y` are the centre in percent of
+- `radial`: `shape` is `circle` or `ellipse`, and `x`, `y` are the center in percent of
   the screen.
 - `stops[].at` is a percent along the gradient.
 
 ### Background image
 
-A custom theme can have one picture behind the switcher. Built-in themes don't.
+A custom theme can have one image behind the switcher. Built-in themes don't.
 
 ```json
 "background": {
@@ -132,16 +132,16 @@ A custom theme can have one picture behind the switcher. Built-in themes don't.
 }
 ```
 
-- `file` is a picture the administrator uploaded to this server, at
+- `file` is an image the administrator uploaded to this server, at
   `/plugins/profiles/themes/backgrounds/<file>`. PNG, JPEG or WebP.
-- `dim` is 0 to 0.95. Draw the picture over the fill and layers so it covers the screen,
+- `dim` is 0 to 0.95. Draw the image over the fill and layers so it covers the screen,
   then `fill` over it at this opacity.
-- Until the picture has loaded, or if it fails, draw the theme as if it had none.
-- Any `dim` in range can be saved. A new picture starts at a dim that keeps the theme's
+- Until the image has loaded, or if it fails, draw the theme as if it had none.
+- Any `dim` in range can be saved. A new image starts at a dim that keeps the theme's
   text readable on it; after that it's the administrator's choice.
-- An exported theme file leaves the picture out, because the file is on this server, not
+- An exported theme file leaves the image out, because the file is on this server, not
   in the theme; it keeps `"image": { "dim": … }` so an import can say to upload one.
-  Importing never brings a picture; replacing a theme keeps the one it had. A
+  Importing never brings an image; replacing a theme keeps the one it had. A
   configuration backup restored on another server drops it too.
 
 ## Shape
@@ -192,7 +192,7 @@ A custom theme can have one picture behind the switcher. Built-in themes don't.
 
 A shadow is `{ "x": 0, "y": 10, "blur": 24, "spread": 0, "opacity": 0.45 }`, in
 `colors.shadow` unless it has its own `color`. `null` means none. A shadow with a `color`
-uses that colour's own alpha and ignores `opacity`. On `depth.title` that is a glow:
+uses that color's own alpha and ignores `opacity`. On `depth.title` that is a glow:
 `"color": "#10a0f080"` is a blue glow behind the title.
 
 ```json
@@ -202,7 +202,7 @@ uses that colour's own alpha and ignores `opacity`. On `depth.title` that is a g
 
 | Field | Use |
 | --- | --- |
-| `depth.avatar` | Under a profile picture. |
+| `depth.avatar` | Under a profile image. |
 | `depth.title` | Behind the "Who's watching?" title. A text shadow. |
 | `depth.sheet` | Under a dialog or form. |
 | `focus.scale` | How much a profile grows in focus. `1` is not at all. |
@@ -212,9 +212,9 @@ On a TV, focus is what the pointer's hover is on a desktop, so use these for foc
 
 ## Parts
 
-Colours and shapes for the parts every screen is built from. A border is
+Colors and shapes for the parts every screen is built from. A border is
 `{ "width": 1, "style": "solid", "color": "#…" }`, with `style` one of `solid`, `dashed`
-or `dotted`. A `line` is just a colour, for a 1-pixel solid edge.
+or `dotted`. A `line` is just a color, for a 1-pixel solid edge.
 
 | Part | Fields |
 | --- | --- |
@@ -238,9 +238,9 @@ The other four are optional. Leave one out and it takes the default, the first v
 
 | Field | Values | |
 | --- | --- | --- |
-| `profiles` | `tiles`, `list` | Tiles in rows, or one profile per line with the picture and the name beside it. |
-| `align` | `center`, `left` | The title, the profiles and the buttons centred, or lined up 5% in from the left. |
-| `size` | `medium`, `small`, `large` | The picture: 80% or 125% of medium. A list draws smaller pictures than tiles at every size. |
+| `profiles` | `tiles`, `list` | Tiles in rows, or one profile per line with the image and the name beside it. |
+| `align` | `center`, `left` | The title, the profiles and the buttons centered, or lined up 5% in from the left. |
+| `size` | `medium`, `small`, `large` | The image: 80% or 125% of medium. A list draws smaller images than tiles at every size. |
 | `logo` | `top-right`, `top-left`, `bottom-left`, `bottom-right` | The corner the server's logo goes in. At the bottom it comes after the buttons, so on a screen that scrolls it is below them. |
 
 There is no free positioning. Whatever is chosen, the logo never covers the title, a
@@ -248,30 +248,30 @@ profile or a button.
 
 ## Decorations
 
-Things a theme does that can't be described as colours and shapes. Each has a name from
+Things a theme does that can't be described as colors and shapes. Each has a name from
 this list and a few values. Bonfire may add names in later versions, so skip one you
 don't know.
 
 | Name | Values | What it draws |
 | --- | --- | --- |
-| `pattern` | `image`, `size`, `drift`, `opacity` | A picture repeated behind the switcher, faint. `image` is a file from `GET /themes`. `size` is one picture's width and height in pixels. `drift` is `none`, or `down` with `seconds` (4 to 600) for one picture's height. `opacity` is optional, 0.1 to 1, and 1 when left out. |
-| `pattern2` | the same as `pattern` | A second pattern, drawn above the first, with its own picture, size, drift and opacity. Needs a `pattern`, and a theme has at most one. Without a `pattern2` a theme is exactly as it was. |
-| `rings` | `gradients`, `gap` | Each profile gets a gradient ring of its own: profile 1 takes the first, profile 2 the second, and so on, starting over at the end. Not the Add tile. `gap` is the colour of the thin space between the ring and the picture. |
+| `pattern` | `image`, `size`, `drift`, `opacity` | An image repeated behind the switcher, faint. `image` is a file from `GET /themes`. `size` is one image's width and height in pixels. `drift` is `none`, or `down` with `seconds` (4 to 600) for one image's height. `opacity` is optional, 0.1 to 1, and 1 when left out. |
+| `pattern2` | the same as `pattern` | A second pattern, drawn above the first, with its own image, size, drift and opacity. Needs a `pattern`, and a theme has at most one. Without a `pattern2` a theme is exactly as it was. |
+| `rings` | `gradients`, `gap` | Each profile gets a gradient ring of its own: profile 1 takes the first, profile 2 the second, and so on, starting over at the end. Not the Add tile. `gap` is the color of the thin space between the ring and the image. |
 | `frost` | `blur` | Dialogs blur what's behind them by `blur` pixels, and the second kind of button by two thirds of that. |
 | `twinkle` | `seconds` | The pattern fades slowly down and back up, one cycle in `seconds` (2 to 120), with a second copy of it shifted so the stars don't all dim at once. Needs a `pattern`. It fades the first pattern from its own `opacity`. With a `pattern2` the shifted copy is not drawn and only the first pattern fades. |
 
-### Pattern pictures
+### Pattern images
 
 Bonfire ships ten: `blossoms`, `bubbles`, `confetti`, `embers`, `hearts`, `leaves`,
 `moons`, `snow`, `stars` and `waves`. An administrator can also upload their own for a
 custom theme: PNG or WebP, up to 2 MB, 16 to 1024 pixels a side, not animated. SVG is not
-accepted, because it can carry script. An uploaded picture is named by a hash and
+accepted, because it can carry script. An uploaded image is named by a hash and
 `.png` or `.webp`, and that name goes in `image` where a built-in name would, for `pattern`
 and `pattern2` alike. An app draws it from `/plugins/profiles/themes/pattern-files/<image>`.
 It's removed when no theme uses it.
 
-In the editor, each pattern card has an Upload button beside its picture list. The picture
-is then listed as "Your picture" and selected, and the preview draws it.
+In the editor, each pattern card has an Upload button beside its image list. The image
+is then listed as "Your image" and selected, and the preview draws it.
 
 Every decoration also has to:
 
@@ -279,7 +279,7 @@ Every decoration also has to:
   stops where it is.
 - **Have a low-power version.** `drift` and `twinkle` only move when the administrator
   has turned on richer theme animation, and never on a TV too slow to blur. When blur
-  can't be drawn, `frost` is just the fill colour. Every theme must still look right that way, so
+  can't be drawn, `frost` is just the fill color. Every theme must still look right that way, so
   the screenshots include it.
 
 Each decoration has a short video recorded from the web client. Build from the
@@ -304,7 +304,7 @@ values matches the web client.
 | Profiles | `layout.profiles`, `layout.size`, `layout.align` |
 | Household heading | `layout.households`; `text3` with `open`, `text1` in a panel |
 | Household panel | `surface1`, `border1`, `shape.radius.large`, `depth.sheet` |
-| Profile picture | `shape.avatar`, `depth.avatar` |
+| Profile image | `shape.avatar`, `depth.avatar` |
 | Profile in focus | `ring` at `shape.ringWidth`, `focus.scale`, `focus.glow`, `nameFocus` |
 | Profile name | `name`, `type.name` |
 | Add profile tile | `parts.addTile`, `shape.avatar` |
@@ -318,9 +318,9 @@ values matches the web client.
 | Announcement banners | `surface2`, `text1`, `shape.radius.medium`; a stripe on the leading edge in `accent`, `warning` or `danger` by severity |
 | Viewing time under a name | `name`, faint; `warning` when the profile can't watch now |
 
-A picker drawn by the server, such as the Moonfin one, draws its own tile pictures:
+A picker drawn by the server, such as the Moonfin one, draws its own tile images:
 `background.fill` and `background.layers` behind a shape in `accent`. A profile with no
-picture gets a person in its own theme. The `Profiles` and `Switch profile` folders use the
+image gets a person in its own theme. The `Profiles` and `Switch profile` folders use the
 main account's theme. The app draws the names and the tile corners itself.
 
 ## Screenshots
@@ -333,7 +333,7 @@ screens against the web client's. The file is `<theme>/<screen>-<size>.webp`.
   `announcement`, and the logo as an image (`logo`) and as text (`logotext`).
 - **Sizes:** `phone` (390×844), `tablet` (820×1180), `tv` (1920×1080, as a TV: nothing
   moves). A theme with `frost` also has `tv-lowpower`, with no blur.
-- Everyone in them is made up and the same in every picture.
+- Everyone in them is made up and the same in every image.
 
 To take them again, run `node tests/screens/shoot.js`. To see which ones a change
 moved, run `node tests/screens/diff.js`. Both need Chrome.
@@ -348,7 +348,7 @@ fails isn't saved, and the settings page names the value at fault.
 - **Built-in themes only: text can be read.** A custom theme has no contrast rules and
   gets no contrast warning. "The background" means `background.fill` and every stop of
   every layer, each one checked on its own: a gradient that is fine at one end and
-  unreadable at the other fails. See-through colours are mixed onto what is behind them
+  unreadable at the other fails. See-through colors are mixed onto what is behind them
   first. Each pair is checked separately:
 
   | Pair | Minimum |
@@ -369,7 +369,7 @@ fails isn't saved, and the settings page names the value at fault.
 - **The font is one Bonfire serves**, and it covers every language Bonfire is translated
   into.
 - **Every decoration is on the list above.**
-- **Nothing reaches outside.** No addresses: fonts and pictures are files Bonfire holds.
+- **Nothing reaches outside.** No addresses: fonts and images are files Bonfire holds.
 
 ## Getting themes
 
@@ -391,7 +391,7 @@ as `If-None-Match` and you get `304` until something changes.
 }
 ```
 
-- **A pattern's picture** is the entry in `patterns` whose `name` is the decoration's
+- **A pattern's image** is the entry in `patterns` whose `name` is the decoration's
   `image`. It's SVG.
 - **A font's `files`** are variable fonts covering `weight`, one per `subset`: use the
   one whose `unicodeRange` holds the character. Every one is under the SIL Open Font
@@ -403,7 +403,7 @@ as `If-None-Match` and you get `304` until something changes.
   rules. Built-ins the administrator hid are left out and listed in `hidden`.
 
 - **Which theme a profile uses** is in `/list`, as each profile's `theme`. When it's
-  `null`, use `default`. An id you don't recognise is an alias or a deleted theme: look
+  `null`, use `default`. An id you don't recognize is an alias or a deleted theme: look
   for it in `aliases`, and otherwise use `default`.
 - **The logo** is shown in the corner the theme's `layout.logo` names, top right by default. It's an `image`, or
   when there's none a line of `text` in `text2`, or nothing. Give the image `alt` for
@@ -415,7 +415,7 @@ as `If-None-Match` and you get `304` until something changes.
 
 The editor's File menu has **Download for Moonfin**, which writes `<id>.theme.json` for
 Moonfin's theme editor. **Load theme file**, and Import on the theme list, also read a
-Moonfin file. Moonfin writes colours alpha first (`#AARRGGBB`); Bonfire writes them alpha
+Moonfin file. Moonfin writes colors alpha first (`#AARRGGBB`); Bonfire writes them alpha
 last (`#RRGGBBAA`). Both directions convert.
 
 | Bonfire | Moonfin |
@@ -434,26 +434,26 @@ last (`#RRGGBBAA`). Both directions convert.
 | `shape.avatar` | `borders.cardRadius`: a circle is 999, otherwise its radius |
 | `shape.button` | `borders.chipRadius`: a pill is 999, a square 0, otherwise its radius |
 | `focus.glow` | `borders.focusGlow[0]` |
-| `depth.title` | `textGlow[0]`: its own `color` if it has one, otherwise `colors.shadow` at the shadow's opacity. On the way in, the glow's colour comes with its alpha |
+| `depth.title` | `textGlow[0]`: its own `color` if it has one, otherwise `colors.shadow` at the shadow's opacity. On the way in, the glow's color comes with its alpha |
 | `type.font.family` | `fontFamily` |
 | a `frost` decoration | `isGlass` |
 
-Worked out from the theme's own colours on the way out: `colors.surfaceVariant`,
+Worked out from the theme's own colors on the way out: `colors.surfaceVariant`,
 `colors.card`, `colors.inputFocused`, `colors.buttonDisabled`, `colors.onButtonDisabled`,
 `colors.scrim`, `colors.rangeTrack`, `colors.seekbarBuffered`, and the rest of `book`.
 Fixed neutral values, because Bonfire draws none of them: the badge, recording and request
-status colours, and the book's placeholder palette (the accent, danger, warning and the
+status colors, and the book's placeholder palette (the accent, danger, warning and the
 raised surface).
 
 On the way in, the file starts from Bonfire (dark background), the light Jellyfin theme
 (light background) or Glass (`isGlass`), and the table above is applied to it. The
-background becomes the one colour, with no gradient. `text2`, `text3`, the name colours and
+background becomes the one color, with no gradient. `text2`, `text3`, the name colors and
 `accentFocus` are worked out from `text1` and the accent. A font Bonfire does not serve
-keeps the starting theme's font, and the editor says so. A file with a colour that is not
+keeps the starting theme's font, and the editor says so. A file with a color that is not
 `#RRGGBB` or `#AARRGGBB`, or with a `schemaVersion` above 1, is refused whole.
 
 What Moonfin has that Bonfire has no setting for, and is dropped on the way in: the book
-and its palette, badge, recording and request-status colours, `navBorder`,
+and its palette, badge, recording and request-status colors, `navBorder`,
 `navColorCycle`, `transparentNavbarSurface`, `isPixel`, the per-corner radii (the top left
 is used) and a second or later glow. What Bonfire has that Moonfin does not: background
 gradients, images and patterns, the layout, type weights and scale, and the second glow

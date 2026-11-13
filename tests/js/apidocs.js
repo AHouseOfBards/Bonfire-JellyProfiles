@@ -213,7 +213,7 @@ console.log('── authorisation, as documented and as enforced ─────
 /* The level line sits in a fixed slot directly under the heading. A fixed slot is the
  * point: 17 of 42 stated their level somewhere in prose, so for the other 25 a reader
  * had to infer it from a sentence. */
-const LEVEL_RE = /^\*\*Authorisation:\*\*\s+(administrator|signed-in user|anonymous)\b/im;
+const LEVEL_RE = /^\*\*Authorization:\*\*\s+(administrator|signed-in user|anonymous)\b/im;
 
 let stated = 0;
 const unstated = [];

@@ -54,7 +54,7 @@ All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/create` | user | Create a profile. |
 | `POST /plugins/profiles/update` | user | Change a profile. |
 | `POST /plugins/profiles/copy-rules` | user | Copy one profile's rules onto another. |
-| `POST /plugins/profiles/me` | user | A profile changes its own name and picture. |
+| `POST /plugins/profiles/me` | user | A profile changes its own name and image. |
 | `POST /plugins/profiles/delete` | user | Delete a profile and its account. |
 | `POST /plugins/profiles/switch` | user | Switch to a profile and get its token. |
 | `POST /plugins/profiles/verify-pin` | user | Check a PIN without switching. |
@@ -75,11 +75,11 @@ All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/timezones` | user | Time zones, and the one the household uses. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
-| `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
+| `GET /plugins/profiles/image/{profileId}` | anon | A profile image. |
 | `GET /plugins/profiles/library-artwork` | user | The caller's library artwork. |
 | `GET /plugins/profiles/library-artwork/{profileId}` | user | One profile's library artwork. |
 | `POST /plugins/profiles/library-artwork` | user | Set library artwork. |
-| `GET /plugins/profiles/library-art/{profileId}/{libraryId}` | anon | One library tile picture. |
+| `GET /plugins/profiles/library-art/{profileId}/{libraryId}` | anon | One library tile image. |
 | `GET /plugins/profiles/devices` | user | The household's devices. |
 | `POST /plugins/profiles/devices/delete` | user | Forget a device. |
 | `POST /plugins/profiles/devices/merge` | user | Merge two records for one device. |
@@ -100,9 +100,9 @@ All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/preferences` | user | Change them. |
 | `POST /plugins/profiles/theme` | user | Set one profile's theme. |
 | `GET /plugins/profiles/themes` | anon | Every theme, for other apps. |
-| `GET /plugins/profiles/themes/patterns/{name}` | anon | One pattern picture. |
-| `GET /plugins/profiles/themes/pattern-files/{file}` | anon | A custom theme's uploaded pattern picture. |
-| `GET /plugins/profiles/themes/fonts/{file}` | anon | One font file, or its licence. |
+| `GET /plugins/profiles/themes/patterns/{name}` | anon | One pattern image. |
+| `GET /plugins/profiles/themes/pattern-files/{file}` | anon | A custom theme's uploaded pattern image. |
+| `GET /plugins/profiles/themes/fonts/{file}` | anon | One font file, or its license. |
 | `GET /plugins/profiles/themes/logo/{file}` | anon | The server's logo image. |
 | `GET /plugins/profiles/themes/backgrounds/{file}` | anon | A custom theme's background image. |
 | `GET /plugins/profiles/onboarding` | user | First-time setup for this account. |
@@ -111,7 +111,7 @@ All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/avatars/{id}` | anon | One avatar image. |
 | `POST /plugins/profiles/admin/avatars` | admin | Add an avatar. |
 | `DELETE /plugins/profiles/admin/avatars/{id}` | admin | Remove an avatar. |
-| `GET /plugins/profiles/admin/avatars/scan` | admin | List pictures in a server folder. |
+| `GET /plugins/profiles/admin/avatars/scan` | admin | List images in a server folder. |
 | `GET /plugins/profiles/admin/avatars/scan/file` | admin | Read one of them. |
 | `GET /plugins/profiles/announcements` | user | Announcements showing now. |
 | `GET /plugins/profiles/admin/announcements` | admin | Every announcement. |
@@ -137,7 +137,7 @@ All 111 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/admin/themes/logo/image` | admin | Upload the logo image. |
 | `DELETE /plugins/profiles/admin/themes/logo/image` | admin | Remove it. |
 | `POST /plugins/profiles/admin/themes/backgrounds` | admin | Upload a background image for a custom theme. |
-| `POST /plugins/profiles/admin/themes/patterns` | admin | Upload a pattern picture for a custom theme. |
+| `POST /plugins/profiles/admin/themes/patterns` | admin | Upload a pattern image for a custom theme. |
 | `GET /plugins/profiles/admin/email` | admin | Outgoing mail settings and confirmed addresses. |
 | `POST /plugins/profiles/admin/email` | admin | Save the outgoing mail settings. |
 | `POST /plugins/profiles/admin/email/test` | admin | Send a test message, which makes email available. |
@@ -178,18 +178,18 @@ Fourteen routes are reachable without a token, because they're needed before any
 | --- | --- |
 | `GET /profiles.js` | Loaded by the sign-in page. |
 | `GET /i18n/{locale}` | Fetched by that script before sign-in. |
-| `GET /image/{profileId}` | Pictures on the profile screen, which is shown before sign-in. |
+| `GET /image/{profileId}` | Images on the profile screen, which is shown before sign-in. |
 | `GET /avatars/{id}` | Same. |
 | `GET /library-art/{profileId}/{libraryId}` | Same. |
 | `POST /panic` | Has to work when Bonfire is what's blocking the interface. Rate limited. |
 | `GET /info` | Read before sign-in to decide what to show. Server-wide settings only. |
 | `GET /panic-state` | Says only whether Bonfire is disabled. |
 | `GET /themes` | An app draws its switcher before sign-in. Only the default theme, whether profiles may choose, and which themes are hidden. |
-| `GET /themes/patterns/{name}` | Pictures those themes use. Built-in files only. |
-| `GET /themes/pattern-files/{file}` | Pattern pictures custom themes use. Only images the administrator uploaded. |
-| `GET /themes/fonts/{file}` | Fonts those themes use, and their licences. Built-in files, and fonts the administrator uploaded. |
+| `GET /themes/patterns/{name}` | Images those themes use. Built-in files only. |
+| `GET /themes/pattern-files/{file}` | Pattern images custom themes use. Only images the administrator uploaded. |
+| `GET /themes/fonts/{file}` | Fonts those themes use, and their licenses. Built-in files, and fonts the administrator uploaded. |
 | `GET /themes/logo/{file}` | The logo on the switcher, shown before sign-in. Only the current one. |
-| `GET /themes/backgrounds/{file}` | Background pictures custom themes use. Only images the administrator uploaded. |
+| `GET /themes/backgrounds/{file}` | Background images custom themes use. Only images the administrator uploaded. |
 
 The image routes can be reached by anyone who knows the id. Ids are GUIDs, so they can't
 be guessed.
@@ -221,7 +221,7 @@ account with no PIN gets `main_pin_required` from these routes until it sets one
 
 ### `GET /plugins/profiles/info`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 Call this first, with no token. A `404` means Bonfire isn't installed. `disabled: true`
 means an administrator has switched it off: show no Bonfire screens.
@@ -365,7 +365,7 @@ Invalid PIN code.
 | `not_convertible` | That account can't be made a profile. The body says why. |
 | `bonfire_not_owner`, `bonfire_not_member`, `bonfire_own_group`, `bonfire_member_not_found` | Bonfire group actions that don't apply to the caller. |
 | `profile_not_found`, `user_not_found`, `library_not_found`, `image_not_found`, `not_found` | The thing named doesn't exist. |
-| `image_invalid` | The picture is missing, unreadable, too large, not an image, or not allowed on this server. |
+| `image_invalid` | The upload is missing, unreadable, too large, not an image, or not allowed on this server. |
 | `rate_limited` | Too many attempts. Sent with `429`. |
 | `not_configured` | Bonfire's configuration couldn't be read. |
 | `invalid_request` | Refused, for a reason with no code of its own. |
@@ -405,7 +405,7 @@ you.
 ## Stability
 
 - Fields documented here keep their type and meaning within a major version.
-- Ignore fields you don't recognise. New ones arrive in minor releases.
+- Ignore fields you don't recognize. New ones arrive in minor releases.
 - Don't rely on field order.
 - Routes aren't removed within a major version.
 - **Retiring something:** it's marked **Deprecated** here, with what to use instead, for
@@ -425,7 +425,7 @@ you.
 
 ### `GET /plugins/profiles/list`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Every profile the caller can switch to: their own household, then any linked Bonfire.
 
@@ -457,9 +457,9 @@ Every profile the caller can switch to: their own household, then any linked Bon
 | --- | --- | --- |
 | `profileUserId` | GUID | The profile's Jellyfin user id. |
 | `profileName` | string | Display name. |
-| `avatarInitial` | string | One letter for a picture-less avatar. |
-| `avatarColor` | string | Hex colour behind the avatar. |
-| `transparentAvatar` | boolean | Don't paint `avatarColor` behind the picture. |
+| `avatarInitial` | string | One letter for an avatar with no image. |
+| `avatarColor` | string | Hex color behind the avatar. |
+| `transparentAvatar` | boolean | Don't paint `avatarColor` behind the image. |
 | `theme` | string | The account owner only. The profile's own [theme](#themes), or `null` if it follows the server default. |
 | `requiresPin` | boolean | Ask for a PIN before switching **now**. False on the home network when the bypass is on, and for a main account whose owner turned off `askPinToOpen`. |
 | `hasPin` | boolean | A PIN is set. Use this, not `requiresPin`, to show PIN state in a form. |
@@ -495,7 +495,7 @@ Errors: `401`, and `404` if the caller's main account no longer exists.
 
 ### `GET /plugins/profiles/me`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Who the caller is. Cheaper than `/list` when that's all you need.
 
@@ -531,7 +531,7 @@ Errors: `401`.
 
 ### `POST /plugins/profiles/switch`
 
-**Authorisation:** signed-in user. The target must be in the caller's household or Bonfire.
+**Authorization:** signed-in user. The target must be in the caller's household or Bonfire.
 
 ```json
 { "profileId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b", "pin": "1234" }
@@ -580,7 +580,7 @@ Errors:
 
 ### `POST /plugins/profiles/verify-pin`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Checks a profile's PIN without switching.
 
@@ -597,7 +597,7 @@ household, use `/account/verify-pin`.
 
 ### `POST /plugins/profiles/account/verify-pin`
 
-**Authorisation:** signed-in user. A main account, not one of its profiles.
+**Authorization:** signed-in user. A main account, not one of its profiles.
 
 Checks the main account's PIN, always: the home network and `askPinToOpen` don't skip it.
 
@@ -610,7 +610,7 @@ Returns `200` when it's correct, or when the account has no PIN. Errors: `400` w
 
 ### `POST /plugins/profiles/account`
 
-**Authorisation:** signed-in user. A main account, not one of its profiles.
+**Authorization:** signed-in user. A main account, not one of its profiles.
 
 The main account's own settings.
 
@@ -637,7 +637,7 @@ Errors: `400` for a bad PIN, `pin_wrong`, `pin_missing` or `main_pin_required`; 
 
 ### `POST /plugins/profiles/create`
 
-**Authorisation:** signed-in user. A main account, not one of its profiles.
+**Authorization:** signed-in user. A main account, not one of its profiles.
 
 ```json
 {
@@ -660,8 +660,8 @@ Errors: `400` for a bad PIN, `pin_wrong`, `pin_missing` or `main_pin_required`; 
 | --- | --- | --- | --- |
 | `profileName` | string | Yes | Display name. |
 | `pin` | string | No | 4 to 8 digits. Omit for no PIN. |
-| `avatarColor` | string | No | Hex colour. Left out, it's the first colour from Bonfire's palette that nobody in the household has. |
-| `transparentAvatar` | boolean | No | Don't paint the colour behind the picture. |
+| `avatarColor` | string | No | Hex color. Left out, it's the first color from Bonfire's palette that nobody in the household has. |
+| `transparentAvatar` | boolean | No | Don't paint the color behind the image. |
 | `theme` | string | No | A [theme](#themes) id. Omit or `""` to follow the server default. Ignored while the server doesn't let profiles choose. |
 | `maxParentalRating` | string | No | A rating score, such as `"6"`, `"10"`, `"14"` or `"17"`. Never above the main account's. `""` or omitted is no limit of its own. Anything else is `400`. |
 | `enabledFolders` | GUID[] | No | The libraries it may see. `[]` is none. |
@@ -673,9 +673,9 @@ Errors: `400` for a bad PIN, `pin_wrong`, `pin_missing` or `main_pin_required`; 
 | `bypassPinOnLocalNetwork` | boolean | No | Skip the PIN on the home network. |
 | `askPinToOpen` | boolean | No | `/update` on the main account only. See [`POST /account`](#post-pluginsprofilesaccount). |
 | `allowedDeviceIds` | string[] | No | Devices it may be opened on. Empty means any. |
-| `profileImage` | string | No | See [Uploading a picture](#uploading-a-picture). |
-| `profileImageThumb` | string | No | The picture's small version. |
-| `avatarLibraryId` | string | No | A picture from the avatar library. Wins over `profileImage`. |
+| `profileImage` | string | No | See [Uploading an image](#uploading-an-image). |
+| `profileImageThumb` | string | No | The image's small version. |
+| `avatarLibraryId` | string | No | An image from the avatar library. Wins over `profileImage`. |
 
 Response: `{ "profileUserId": "…", "profileName": "Kids" }`.
 
@@ -686,7 +686,7 @@ PINs and the account has none.
 
 ### `POST /plugins/profiles/update`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Takes the same fields as `/create`, plus `profileId`. `profileName` is required. Every
 other field left out or `null` stays as it is.
@@ -709,7 +709,7 @@ Returns `200`. Errors as for `/create`.
 
 ### `POST /plugins/profiles/copy-rules`
 
-**Authorisation:** signed-in user, and only a main account: a profile gets `403`.
+**Authorization:** signed-in user, and only a main account: a profile gets `403`.
 
 Copies one profile's rules onto another in the same household.
 
@@ -721,7 +721,7 @@ What the target gets: the rating limit, the allowed and blocked tags, the librar
 viewing limits (hours, daily and weekend time). It ends as if it had been saved on the
 edit form with those values, so it never gets a higher rating than the main account's or a
 library the main account can't reach, and a library another plugin manages is left as it
-is. Its devices, name, picture and PIN are not changed.
+is. Its devices, name, image and PIN are not changed.
 
 Both profiles have to be the caller's. A profile of another household, the main account, a
 standalone user and one that doesn't exist all get the same `403 not_your_profile`. Two
@@ -731,9 +731,9 @@ Returns `200`. Errors as for `/update`.
 
 ### `POST /plugins/profiles/me`
 
-**Authorisation:** signed-in user, and only a profile: a main account gets `403`.
+**Authorization:** signed-in user, and only a profile: a main account gets `403`.
 
-A profile changes its own name and picture without the main PIN. It takes `profileName`,
+A profile changes its own name and image without the main PIN. It takes `profileName`,
 `avatarColor`, `transparentAvatar`, `profileImage`, `profileImageThumb` and `avatarLibraryId`,
 which mean what they do in `/update`. Every field left out or `null` stays as it is.
 
@@ -745,7 +745,7 @@ Returns `200`. Errors as for `/update`.
 
 ### `POST /plugins/profiles/delete`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Deletes a profile and its Jellyfin account.
 
@@ -762,7 +762,7 @@ be signed in to, and the profile stays listed so you can try again.
 
 ### `GET /plugins/profiles/libraries`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 The libraries the main account can see, which are the ones it can give a profile.
 
@@ -772,7 +772,7 @@ The libraries the main account can see, which are the ones it can give a profile
 
 ### `GET /plugins/profiles/ratings`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 The ratings of the server's **Preferred metadata country**, one entry per age, for a
 profile's rating limit. These are the ratings Jellyfin scored the library with.
@@ -838,10 +838,10 @@ the web client. All are off by default.
 
 The household is found from the `DeviceId` in the request, against the devices Bonfire has
 seen a sign-in on. Profiles are added to Jellyfin's list; nothing is removed. An
-unrecognised device gets Jellyfin's answer unchanged. Device limits apply.
+unrecognized device gets Jellyfin's answer unchanged. Device limits apply.
 
 Android TV and Jellyfin for Android send a device id derived from the signed-in user. Both
-forms are recognised.
+forms are recognized.
 
 With `enableClientPinLogin` on, a request with no token from a Roku a household uses also
 signs out that Roku's saved sign-ins for the household's profiles that have a PIN. The Roku
@@ -896,8 +896,8 @@ sends), signed in as a main account that has profiles:
 - **The app is always shown the main account's id**, in `/Users/Me`, `/Users/{id}` and the
   live connection. The name is the profile's.
 - **Signing a profile in directly is refused** on a listed app.
-- **Folders, and profiles with no picture, get a picture drawn by the server**: a 256×256
-  PNG in the theme's colours. Its image tag changes when the theme does.
+- **Folders, and profiles with no image, get an image drawn by the server**: a 256×256
+  PNG in the theme's colors. Its image tag changes when the theme does.
 
 The picker is held in memory: after a server restart the app is back at the picker. An
 app with its own Bonfire switcher should not be listed.
@@ -916,7 +916,7 @@ An `index.html` with no Bonfire tags is normal. Read `mechanism` from
 
 ### `GET /plugins/profiles/profiles.js`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 The client script, as `application/javascript`.
 
@@ -942,7 +942,7 @@ To add a language, see [the translation guide](../Web/i18n/README.md).
 
 ### `GET /plugins/profiles/i18n/{locale}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 One language's strings, as a flat object. `{locale}` may end in `.json`.
 
@@ -971,12 +971,12 @@ One language's strings, as a flat object. `{locale}` may end in `.json`.
 
 ### `GET /plugins/profiles/image/{profileId}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
-A profile's stored picture. Add `?size=thumb` for the small version. If there's no small
+A profile's stored image. Add `?size=thumb` for the small version. If there's no small
 version, the full one is sent, so `size=thumb` is always safe; use it in grids.
 
-Returns `404` if there's no stored picture, including when the picture is an `http(s)`
+Returns `404` if there's no stored image, including when the image is an `http(s)`
 link. Load that link directly from `profileImage` in `/list`.
 
 All four image routes send:
@@ -987,12 +987,12 @@ All four image routes send:
 | `ETag` | From the file's size and modified time. |
 | `Last-Modified` | The file's modified time. |
 
-Send `If-None-Match`, or every picture is downloaded again on every page load.
+Send `If-None-Match`, or every image is downloaded again on every page load.
 
-### Uploading a picture
+### Uploading an image
 
 `profileImage` and `profileImageThumb` on `/create` and `/update` take a
-`data:image/…;base64,…` value. The size limit is set by the server's picture quality: 2, 4,
+`data:image/…;base64,…` value. The size limit is set by the server's image quality: 2, 4,
 8 or 16 MB. `GET /avatars` reports it, and the size to draw at.
 
 The server doesn't resize or convert anything, so the client draws both sizes itself, at
@@ -1003,13 +1003,13 @@ link.
 
 ## Library artwork
 
-Jellyfin draws one picture per library from whatever is inside it, so a child's profile can
+Jellyfin draws one image per library from whatever is inside it, so a child's profile can
 see a tile showing a film it can't open. These routes let a profile replace or hide that
-picture. The client does the swap, so it only applies where Bonfire's script runs.
+image. The client does the swap, so it only applies where Bonfire's script runs.
 
 ### `GET /plugins/profiles/library-artwork`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 The caller's choices.
 
@@ -1017,18 +1017,18 @@ The caller's choices.
 [{ "libraryId": "f137a2dd21bbc1b99aa5c0f6bf02a805", "mode": "custom", "url": "/plugins/profiles/library-art/<profileId>/<libraryId>?v=638..." }]
 ```
 
-`mode` is `custom` (use `url`) or `none` (no picture). Libraries left on the default aren't
+`mode` is `custom` (use `url`) or `none` (no image). Libraries left on the default aren't
 listed.
 
 ### `GET /plugins/profiles/library-artwork/{profileId}`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 The same list for one of the caller's profiles. `403` if it isn't theirs.
 
 ### `POST /plugins/profiles/library-artwork`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 {
@@ -1047,18 +1047,18 @@ The same list for one of the caller's profiles. `403` if it isn't theirs.
 | `profileId` | GUID | Yes | The profile. |
 | `libraryId` | GUID | Yes | A library the server has. |
 | `mode` | string | Yes | `inherit`, `custom` or `none`. |
-| `image`, `thumb` | string | No | The picture, for `custom`. |
-| `avatarLibraryId` | string | No | Use an avatar-library picture instead. |
+| `image`, `thumb` | string | No | The image, for `custom`. |
+| `avatarLibraryId` | string | No | Use an avatar-library image instead. |
 | `masterPin` | string | When the main account has a PIN | The main account's PIN. |
 
-`custom` with no picture keeps the stored one, or is refused if there isn't one. Errors:
-`400` unknown library, wrong PIN or bad picture; `403` not the caller's profile.
+`custom` with no image keeps the stored one, or is refused if there isn't one. Errors:
+`400` unknown library, wrong PIN or bad image; `403` not the caller's profile.
 
 ### `GET /plugins/profiles/library-art/{profileId}/{libraryId}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
-The stored picture for a `custom` choice. `?size=thumb` for the small one.
+The stored image for a `custom` choice. `?size=thumb` for the small one.
 
 ---
 
@@ -1066,7 +1066,7 @@ The stored picture for a `custom` choice. `?size=thumb` for the small one.
 
 ### `GET /plugins/profiles/devices`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 The devices the caller's household has used, for the allowed-devices picker. A profile
 calling this gets its main account's devices, but only if the main account is open or the
@@ -1086,7 +1086,7 @@ Every device already on one of the household's allowed lists is included, even i
 hasn't been seen for months. One with no record left comes back as "Previously allowed
 device" with a `lastSeen` of `0001-01-01`.
 
-The English placeholders ("Unrecognised device", "Previously allowed device", "Not seen
+The English placeholders ("Unrecognized device", "Previously allowed device", "Not seen
 recently") come with a code beside them so a client can translate: `nameCode`
 (`unrecognised`, `previouslyAllowed`) and `clientCode` (`notSeenRecently`). Both are left
 out for an ordinary device.
@@ -1096,7 +1096,7 @@ out for an ordinary device.
 
 ### `POST /plugins/profiles/devices/delete`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 { "deviceId": "57bfa7e8d35f492b950bf93c9d747a11" }
@@ -1111,7 +1111,7 @@ those profiles.
 
 ### `POST /plugins/profiles/devices/merge`
 
-**Authorisation:** signed-in user. Must be the main account and own both devices.
+**Authorization:** signed-in user. Must be the main account and own both devices.
 
 For one machine with two records, which happens when the same browser reaches the server by
 two addresses.
@@ -1127,7 +1127,7 @@ caller's.
 
 ### `POST /plugins/profiles/devices/merge-duplicates`
 
-**Authorisation:** signed-in user. Must be the main account.
+**Authorization:** signed-in user. Must be the main account.
 
 Finds records that look like one machine: same client, same name, and device ids from the
 same browser version. With `?apply=false`, the default, it only reports.
@@ -1147,7 +1147,7 @@ With `?apply=true` it merges each group into its most recent record and returns
 
 ### `POST /plugins/profiles/devices/rename`
 
-**Authorisation:** signed-in user. Must be the main account and own the device.
+**Authorization:** signed-in user. Must be the main account and own the device.
 
 ```json
 { "deviceId": "57bfa7e8d35f492b950bf93c9d747a11", "deviceName": "Living room TV" }
@@ -1162,7 +1162,7 @@ The name is kept even when the device reports a different one. Trimmed to 64 cha
 
 ### `GET /plugins/profiles/bonfire/status`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 {
@@ -1192,7 +1192,7 @@ The name is kept even when the device reports a different one. Trimmed to 64 cha
 
 ### `POST /plugins/profiles/bonfire/settings`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 { "hideMySubProfilesFromOthers": false, "hideOthersSubProfilesFromMe": false, "allowHouseholdLanBypass": false }
@@ -1208,13 +1208,13 @@ Before turning the bypass on, a client should warn about two things:
 
 ### `POST /plugins/profiles/bonfire/generate`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Starts a Bonfire. Returns `{ "groupId": "4f5c9e2b", "bonfireCode": "B7F8XA", "members": [] }`.
 
 ### `POST /plugins/profiles/bonfire/join`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 { "code": "B7F8XA" }
@@ -1226,7 +1226,7 @@ Bonfire, `403` not a main account, `429` too many tries.
 
 ### `POST /plugins/profiles/bonfire/kick`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 { "memberId": "a90f11cb-42a1-432d-94bb-97cc2d42ef8b" }
@@ -1237,20 +1237,20 @@ Removes the member and changes the code so they can't rejoin. Returns the new co
 
 ### `POST /plugins/profiles/bonfire/regenerate-code`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Changes the code without removing anyone. Returns `{ "bonfireCode": "Q7M2KX" }`. `400` if
 the caller hasn't started a Bonfire.
 
 ### `POST /plugins/profiles/bonfire/leave`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Leaves the Bonfire the caller joined.
 
 ### `POST /plugins/profiles/bonfire/delete-group`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 Ends the caller's Bonfire and removes everyone from it.
 
@@ -1276,7 +1276,7 @@ These routes are for main accounts, and take the main account's PIN (see
 
 ### `GET /plugins/profiles/accounts/links`
 
-**Authorisation:** signed-in user, as a main account.
+**Authorization:** signed-in user, as a main account.
 
 ```json
 {
@@ -1289,7 +1289,7 @@ These routes are for main accounts, and take the main account's PIN (see
 
 ### `POST /plugins/profiles/accounts/links/add`
 
-**Authorisation:** signed-in user, as a main account.
+**Authorization:** signed-in user, as a main account.
 
 ```json
 { "username": "grandma", "password": "…", "masterPin": "1234" }
@@ -1303,7 +1303,7 @@ administrator. Errors: `credentials_wrong`, `not_linkable`,
 
 ### `POST /plugins/profiles/accounts/links/remove`
 
-**Authorisation:** signed-in user, as a main account.
+**Authorization:** signed-in user, as a main account.
 
 ```json
 { "userId": "…", "masterPin": "1234" }
@@ -1321,7 +1321,7 @@ main account can change them.
 
 ### `GET /plugins/profiles/preferences`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 {
@@ -1354,7 +1354,7 @@ as the defaults.
 
 ### `POST /plugins/profiles/preferences`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 { "askOnStartup": true, "switcherLocation": "menu" }
@@ -1371,7 +1371,7 @@ turned on count as having seen it.
 
 ### `GET /plugins/profiles/onboarding`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 {
@@ -1400,14 +1400,14 @@ and [`/theme`](#post-pluginsprofilestheme).
 
 ### `POST /plugins/profiles/onboarding/done`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 No body. Records that this account has seen the current setup, finished or skipped. A
 profile gets `200` and nothing is recorded.
 
 ### `POST /plugins/profiles/admin/onboarding/show-again`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Every main account sees first-time setup again on its next visit. Returns
 `{ "generation": 2 }`.
@@ -1421,11 +1421,11 @@ proper names and aren't translated.
 | Id | Look |
 | --- | --- |
 | `bonfire` | The default. Night blue with a warm glow, amber, round tiles. |
-| `crimson` | A dark theatre. Deep red, gold, a serif. |
+| `crimson` | A dark theater. Deep red, gold, a serif. |
 | `starlight` | Navy with a few stars, round tiles with a white ring. |
-| `harbor` | A harbour at dusk. Blue-grey, bold type, slate buttons. |
+| `harbor` | A harbor at dusk. Blue-gray, bold type, slate buttons. |
 | `nightfall` | Black into purple with a rose glow, gradient rings, pill buttons. |
-| `glass` | Soft coloured blur, small round tiles, frosted buttons. |
+| `glass` | Soft colored blur, small round tiles, frosted buttons. |
 | `harvest` | Autumn. Brown into amber with drifting leaves, leaf-shaped tiles, a serif. |
 | `snowfall` | Winter. Night blue with falling snow, frosted rings, white outlined buttons. |
 | `bloom` | Spring. Fresh green with blossoms, soft rounded tiles, pink highlights. |
@@ -1445,7 +1445,7 @@ default, and gets its choice back if the theme returns.
 
 ### `POST /plugins/profiles/theme`
 
-**Authorisation:** signed-in user. Main account only, with its PIN if it has one.
+**Authorization:** signed-in user. Main account only, with its PIN if it has one.
 
 ```json
 { "profileId": "…", "theme": "nightfall", "masterPin": "1234" }
@@ -1469,7 +1469,7 @@ Errors:
 
 ### `GET /plugins/profiles/themes`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 Every theme as a file, for an app that draws its own switcher. The file format is in
 [Themes](themes.md).
@@ -1509,39 +1509,39 @@ changes, including the server's default theme.
 
 ### `GET /plugins/profiles/themes/patterns/{name}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
-One built-in pattern picture, as SVG. `name` is a decoration's `image`; the `url` in
+One built-in pattern image, as SVG. `name` is a decoration's `image`; the `url` in
 [`/themes`](#get-pluginsprofilesthemes) points here. `404` for a name Bonfire doesn't hold,
-which includes an uploaded picture's name: those are at
+which includes an uploaded image's name: those are at
 [`pattern-files`](#get-pluginsprofilesthemespattern-filesfile).
 
 ### `GET /plugins/profiles/themes/pattern-files/{file}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
-A pattern picture an administrator uploaded, by the name a `pattern` decoration's `image`
+A pattern image an administrator uploaded, by the name a `pattern` decoration's `image`
 gives (a hash and `.png` or `.webp`). Served as that image with an `ETag` (`304` to a
 matching `If-None-Match`) and cached for good. `404` for any name that is not an upload.
 
 ### `POST /plugins/profiles/admin/themes/patterns`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
-The body is the picture: PNG or WebP, up to 2 MB, 16 to 1024 pixels on each side. Not SVG,
+The body is the image: PNG or WebP, up to 2 MB, 16 to 1024 pixels on each side. Not SVG,
 JPEG, GIF, an animated WebP or an APNG. Only stores it: a custom theme names it in a
-`pattern` decoration's `image` when it is saved ([docs/themes.md](themes.md#pattern-pictures)).
+`pattern` decoration's `image` when it is saved ([docs/themes.md](themes.md#pattern-images)).
 Returns `{ "file": "9be1…04.png", "url": "/plugins/profiles/themes/pattern-files/9be1…04.png", "width": 240, "height": 240 }`.
 
-Saving a theme with another picture or none, or deleting it, deletes the old file once no
+Saving a theme with another image or none, or deleting it, deletes the old file once no
 custom theme names it. An upload that is never saved is removed by
 [`cleanup-orphans`](#post-pluginsprofilesadmincleanup-orphans).
 
 ### `GET /plugins/profiles/themes/fonts/{file}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
-One font file (`font/woff2`), or the licence that comes with it (`text/plain`). The `url`
+One font file (`font/woff2`), or the license that comes with it (`text/plain`). The `url`
 and `licence` in [`/themes`](#get-pluginsprofilesthemes) point here. Each font is a
 variable font covering its `weight` range, in one file per `subset`; use the file whose
 `unicodeRange` holds the character. Every built-in font is under the SIL Open Font License.
@@ -1562,7 +1562,7 @@ English; show your own text by `code`.
 
 ### `GET /plugins/profiles/admin/themes`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 {
@@ -1584,14 +1584,14 @@ anywhere until it's fixed.
 
 ### `POST /plugins/profiles/admin/themes/validate`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 The body is a theme file. Returns `{ "problems": [ … ] }`, empty when it passes. Saves
 nothing.
 
 ### `PUT /plugins/profiles/admin/themes/custom/{id}`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 The body is a theme file whose `id` is `{id}`. Adds it, or replaces the custom theme with
 that id. Returns `{ "id": "shop", "created": true }`. `400` with
@@ -1605,13 +1605,13 @@ still accepted and takes the next one.
 
 ### `DELETE /plugins/profiles/admin/themes/custom/{id}`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Deletes a custom theme. `404` if there's none with that id, `400` if it's the default.
 
 ### `PUT /plugins/profiles/admin/themes/hidden`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "hidden": [ "glass", "starlight" ] }
@@ -1622,7 +1622,7 @@ as stored.
 
 ### `POST /plugins/profiles/admin/themes/fonts`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 The body is the font file itself: WOFF2, at most 2 MB, able to draw A–Z, a–z and 0–9.
 
@@ -1638,13 +1638,13 @@ returns the font already there. Returns the font as listed by
 
 ### `DELETE /plugins/profiles/admin/themes/fonts/{file}`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Deletes an uploaded font and its file. `400` while a custom theme uses it.
 
 ### `PUT /plugins/profiles/admin/themes/logo`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "text": "The Hayes House", "alt": "The Hayes House", "corners": "square" }
@@ -1655,27 +1655,27 @@ characters, `alt` up to 100. `corners` is `rounded` or `square`; any other value
 
 ### `POST /plugins/profiles/admin/themes/logo/image`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 The body is the image: PNG, JPEG or WebP, up to 1 MB, 16 to 4096 pixels on each side. Not
 SVG or GIF. Replaces the current image. Returns `{ "image": "…", "width": 400, "height": 120 }`.
 
 ### `DELETE /plugins/profiles/admin/themes/logo/image`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Removes the image. The text shows instead, if there is one.
 
 ### `GET /plugins/profiles/themes/logo/{file}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 The logo image. The address changes whenever the image does, so it can be cached for good.
 `404` for anything but the current logo.
 
 ### `POST /plugins/profiles/admin/themes/backgrounds`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 The body is the image: PNG, JPEG or WebP, up to 2 MB, 320 to 4096 pixels on each side. Not
 SVG, GIF or an animated WebP. Only stores it: a custom theme names it in
@@ -1688,7 +1688,7 @@ custom theme names it. An upload that is never saved is removed by
 
 ### `GET /plugins/profiles/themes/backgrounds/{file}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 A background image, by the name `background.image.file` gives. Named by its contents, so it
 can be cached for good. `404` for any name that is not one an upload stored.
@@ -1708,7 +1708,7 @@ a server restart means sending a new one. Mail is in the language the client pas
 
 ### `GET /plugins/profiles/account/email`
 
-**Authorisation:** signed-in user. The main account only, with its PIN in
+**Authorization:** signed-in user. The main account only, with its PIN in
 `X-Bonfire-Master-Pin` if it has one.
 
 ```json
@@ -1737,7 +1737,7 @@ a server restart means sending a new one. Mail is in the language the client pas
 
 ### `POST /plugins/profiles/account/email`
 
-**Authorisation:** signed-in user. The main account only, with its PIN.
+**Authorization:** signed-in user. The main account only, with its PIN.
 
 ```json
 { "address": "parent@example.com", "language": "en", "masterPin": "1234" }
@@ -1748,7 +1748,7 @@ shape with `pendingAddress` set.
 
 ### `POST /plugins/profiles/account/email/confirm`
 
-**Authorisation:** signed-in user. The main account only, with its PIN.
+**Authorization:** signed-in user. The main account only, with its PIN.
 
 ```json
 { "code": "042917", "language": "en", "masterPin": "1234" }
@@ -1758,7 +1758,7 @@ Stores the address. `language` is kept for notices sent later. Returns the `GET`
 
 ### `POST /plugins/profiles/account/email/notifications`
 
-**Authorisation:** signed-in user. The main account only, with its PIN.
+**Authorization:** signed-in user. The main account only, with its PIN.
 
 ```json
 { "notifyLockout": true, "notifyNewDevice": false, "notifyTimeAsked": true, "notifyLimitReached": false, "masterPin": "1234" }
@@ -1768,13 +1768,13 @@ All optional. `400` without a confirmed address.
 
 ### `POST /plugins/profiles/account/email/remove`
 
-**Authorisation:** signed-in user. The main account only, with its PIN.
+**Authorization:** signed-in user. The main account only, with its PIN.
 
 Removes the address. Body `{ "masterPin": "1234" }`.
 
 ### `POST /plugins/profiles/account/pin-reset/send`
 
-**Authorisation:** signed-in user. The main account only. No PIN: this is for an account
+**Authorization:** signed-in user. The main account only. No PIN: this is for an account
 that has forgotten it.
 
 ```json
@@ -1786,7 +1786,7 @@ unless `/me` says `pinResetByEmail`.
 
 ### `POST /plugins/profiles/account/pin-reset`
 
-**Authorisation:** signed-in user. The main account only.
+**Authorization:** signed-in user. The main account only.
 
 ```json
 { "code": "042917", "newPin": "2468" }
@@ -1797,7 +1797,7 @@ changed. Profiles' PINs are reset by the main account, not by email.
 
 ### `GET /plugins/profiles/admin/email`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 {
@@ -1821,7 +1821,7 @@ The configuration export leaves it out.
 
 ### `POST /plugins/profiles/admin/email`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -1837,7 +1837,7 @@ unverified until the next test, and everything that needs email stops until then
 
 ### `POST /plugins/profiles/admin/email/test`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "to": "you@example.com" }
@@ -1848,7 +1848,7 @@ Sends a test message with the saved settings. If it goes through, email becomes 
 
 ### `POST /plugins/profiles/admin/account-email/remove`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "userId": "…" }
@@ -1895,7 +1895,7 @@ carry an approve link, because mail scanners open links and would approve it for
 
 ### `GET /plugins/profiles/limits/{profileId}`
 
-**Authorisation:** signed-in user in the profile's household, or an administrator.
+**Authorization:** signed-in user in the profile's household, or an administrator.
 
 ```json
 {
@@ -1944,7 +1944,7 @@ is 5 or less. The server stops playback either way.
 
 ### `POST /plugins/profiles/limits/{profileId}`
 
-**Authorisation:** signed-in user. The profile's main account with its PIN, or an
+**Authorization:** signed-in user. The profile's main account with its PIN, or an
 administrator. The main account needs a PIN to turn limits on.
 
 ```json
@@ -1967,7 +1967,7 @@ Errors: `400` with `limits_invalid`, `limits_for_profiles` or `main_pin_required
 
 ### `POST /plugins/profiles/limits/{profileId}/grant`
 
-**Authorisation:** signed-in user in the profile's household, with the main account's PIN,
+**Authorization:** signed-in user in the profile's household, with the main account's PIN,
 or an administrator. From a profile's own device the main account must have a PIN.
 
 ```json
@@ -1984,7 +1984,7 @@ allowed.
 
 ### `GET /plugins/profiles/time-requests`
 
-**Authorisation:** signed-in user. Returns the caller's own household's requests, never
+**Authorization:** signed-in user. Returns the caller's own household's requests, never
 another's. An API key has no household and gets `403`.
 
 ```json
@@ -2001,14 +2001,14 @@ today; at 0 only no is left. Answer with `limits/{profileId}/grant`.
 
 ### `POST /plugins/profiles/limits/{profileId}/ask`
 
-**Authorisation:** signed-in user in the profile's household.
+**Authorization:** signed-in user in the profile's household.
 
 No body. The main account's open apps get a message, and an email if it chose that. Once
 every ten minutes; sooner is `429`. Returns the `GET` shape without `rules`.
 
 ### `GET /plugins/profiles/timezones`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 {
@@ -2024,13 +2024,13 @@ every ten minutes; sooner is `429`. Returns the `GET` shape without `rules`.
 
 ## Avatar library
 
-Pictures an administrator publishes for everyone to choose from, plus thirty built-in
+Images an administrator publishes for everyone to choose from, plus thirty built-in
 starter avatars unless they're turned off. Choosing one copies it to the profile, so
 removing it from the library later doesn't affect profiles that use it.
 
 ### `GET /plugins/profiles/avatars`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 ```json
 {
@@ -2045,42 +2045,42 @@ removing it from the library later doesn't affect profiles that use it.
 
 | Field | Description |
 | --- | --- |
-| `allowCustomUploads` | False when pictures must come from this library. The server then refuses uploads and links. Use `avatarLibraryId`. |
-| `image` | The picture size and quality to send, and the byte limit. `quality` is `standard`, `high` or `maximum`. |
+| `allowCustomUploads` | False when images must come from this library. The server then refuses uploads and links. Use `avatarLibraryId`. |
+| `image` | The image size and quality to send, and the byte limit. `quality` is `standard`, `high` or `maximum`. |
 | `avatars[].displayName` | Free text. Escape it. |
 | `avatars[].thumbUrl` | The small version, for grids. |
 | `avatars[].isStarter` | A built-in avatar. Its id starts with `starter-`. |
 
 ### `GET /plugins/profiles/avatars/{id}`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 One avatar. `?size=thumb` for the small version. `404` if it's unknown, or it's a starter
 avatar while those are off.
 
 ### `POST /plugins/profiles/admin/avatars`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "image": "data:image/jpeg;base64,…", "thumb": "data:image/jpeg;base64,…", "displayName": "Fox" }
 ```
 
-`image` is required and must fit the picture quality's limit. `displayName` is trimmed to
+`image` is required and must fit the image quality's limit. `displayName` is trimmed to
 60 characters and defaults to "Avatar". Returns the new entry. `400` for an unreadable or
 oversized image.
 
 ### `DELETE /plugins/profiles/admin/avatars/{id}`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Removes an avatar. Profiles using it keep their copy.
 
 ### `GET /plugins/profiles/admin/avatars/scan`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
-Lists pictures in a folder on the server, for importing a set. `?path=` is the folder as
+Lists images in a folder on the server, for importing a set. `?path=` is the folder as
 the server sees it.
 
 ```json
@@ -2091,7 +2091,7 @@ At most 200 files; `truncated` says there were more.
 
 ### `GET /plugins/profiles/admin/avatars/scan/file`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 One file from that folder: `?path=` the folder, `?name=` the file name. The client resizes
 it and posts it to `POST /admin/avatars`.
@@ -2104,7 +2104,7 @@ Short messages from the administrator, shown on the profile screen.
 
 ### `GET /plugins/profiles/announcements`
 
-**Authorisation:** signed-in user.
+**Authorization:** signed-in user.
 
 The ones showing now, most important first: `critical`, then `warning`, then `info`,
 newest first within each. Sent with an `ETag`: see [Caching](#caching).
@@ -2121,19 +2121,19 @@ newest first within each. Sent with an `ETag`: see [Caching](#caching).
 ]
 ```
 
-The message is plain text. Never render it as HTML. Style by `severity`, not by a colour
+The message is plain text. Never render it as HTML. Style by `severity`, not by a color
 of your own. Treat an unknown severity as `info`.
 
 ### `GET /plugins/profiles/admin/announcements`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Every stored announcement, newest first, each with `createdUtc` and `showing`. Ones that
 ended more than 30 days ago are dropped on the next save.
 
 ### `POST /plugins/profiles/admin/announcements`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 {
@@ -2152,7 +2152,7 @@ as UTC. Returns the saved announcement. At most 50 are stored.
 
 ### `POST /plugins/profiles/admin/announcements/delete`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 `{ "id": "…" }`. An id that's already gone isn't an error.
 
@@ -2185,13 +2185,13 @@ An app should read `maintenance` from `GET /info` before sign-in and show the me
 
 ### `GET /plugins/profiles/admin/maintenance`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 `{ "enabled": true, "message": "…", "untilUtc": null, "startedUtc": "…", "stopPlayback": false, "reopenAutomatically": false }`
 
 ### `POST /plugins/profiles/admin/maintenance`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 {
@@ -2223,7 +2223,7 @@ in to a main account, the code gives that account.
 
 ### `POST /plugins/profiles/panic`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 ```json
 { "code": "correct-horse-battery-staple" }
@@ -2234,20 +2234,20 @@ the response doesn't reveal which. `429` after 5 tries in an hour.
 
 ### `GET /plugins/profiles/panic-state`
 
-**Authorisation:** anonymous.
+**Authorization:** anonymous.
 
 `{ "disabled": false }`. Sent with `no-store`. Only the emergency code sets it; to know
 whether Bonfire is turned off, read `disabled` from [`/info`](#get-pluginsprofilesinfo).
 
 ### `GET /plugins/profiles/admin/panic-status`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 `{ "isConfigured": true, "isCurrentlyDisabled": false }`. The code itself is never returned.
 
 ### `POST /plugins/profiles/admin/panic-code`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 `{ "code": "…" }`, 10 to 128 characters. An empty code turns the feature off.
 
@@ -2377,7 +2377,7 @@ Local storage:
 | Key | Holds |
 | --- | --- |
 | `jellyfin_profiles_master_state`, `jellyfin_profiles_active_token` | Who the browser is signed in as, and the profile session in use. Cleared on sign-out. |
-| `jellyfin_profiles_active_info` | The active profile's name and picture, for the menu. Kept in session storage and mirrored to local storage. |
+| `jellyfin_profiles_active_info` | The active profile's name and image, for the menu. Kept in session storage and mirrored to local storage. |
 | `jellyfin_profiles_cached_list` | The last profile list, so the screen draws before the server answers. |
 | `jellyfin_profiles_switcher_mode` | The account's switcher choice, so the first page load knows whether to raise the screen. |
 | `jellyfin_profiles_theme`, `jellyfin_profiles_custom_themes` | The last theme this browser was told for the account, for the first paint. |
@@ -2386,7 +2386,7 @@ Local storage:
 | `jellyfin_profiles_disabled` | Set after the emergency disable, so a cached copy of the script stays off. |
 | `jellyfin_profiles_settings_epoch` | A timestamp the admin page writes when settings are saved; other tabs' scripts see the change and reload their preferences. |
 | `jellyfin_profiles_device_gate` | Retired. Removed on load. |
-| `jpf-sw`, `jpf-bg` | Set just before a switch reloads the page, so the next load can hide the flash and match the colour being left. |
+| `jpf-sw`, `jpf-bg` | Set just before a switch reloads the page, so the next load can hide the flash and match the color being left. |
 | `jpf-dismissed-announcements` | Announcements this browser has closed. |
 | `bonfire-admin-tab` | The admin page's last tab. |
 
@@ -2410,7 +2410,7 @@ works but shows no preview.
 
 ### `POST /plugins/profiles/admin/settings`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Changes only the fields you send. Use this instead of Jellyfin's
 `POST /Plugins/{id}/Configuration`, which replaces the whole configuration and loses
@@ -2421,7 +2421,7 @@ anything added since you read it.
 | `maxProfilesPerUser` | integer | Profiles per account, 1 to 20. |
 | `pinGuessesPerDay` | integer | Wrong PIN tries an account may have in a day, across the web, other apps and the picker. 1 to 20, default 20. It can only be lowered. |
 | `requireMainPin` | boolean | Main accounts must set a PIN before changing profiles or settings. |
-| `disallowCustomAvatarUploads` | boolean | Pictures only from the avatar library. |
+| `disallowCustomAvatarUploads` | boolean | Images only from the avatar library. |
 | `enableStarterAvatars` | boolean | Offer the starter avatars. |
 | `bonfireOn` | boolean | Bonfire on or off. Off does what the [emergency code](#emergency-disable) does, without a restart either way. A new install starts off; a server that upgrades stays on. |
 | `defaultAskOnStartup` | boolean | Default for accounts that haven't chosen. |
@@ -2445,7 +2445,7 @@ anything added since you read it.
 
 ### `GET /plugins/profiles/admin/mappings`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Every account and profile, and whether the client script is reaching browsers.
 
@@ -2490,13 +2490,13 @@ Every account and profile, and whether the client script is reaching browsers.
 
 ### `POST /plugins/profiles/admin/reset-pin`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 `{ "profileId": "…" }`. Clears that profile's PIN. `404` if it isn't a profile.
 
 ### `POST /plugins/profiles/admin/cleanup-orphans`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Finds records for Jellyfin users that were deleted outside Bonfire. They still count
 against the profile limit. `?apply=false`, the default, only reports:
@@ -2513,14 +2513,14 @@ against the profile limit. `?apply=false`, the default, only reports:
 
 `?apply=true` removes them and returns
 `{ "applied": true, "removedMappings": 1, "removedGroups": 0, "removedMembers": 0, "removedImages": 0 }`.
-`unusedImages` in the report, and `removedImages` here, count theme pictures (background
-images and uploaded pattern pictures) no custom theme names, uploaded in an editor that
+`unusedImages` in the report, and `removedImages` here, count theme images (background
+images and uploaded pattern images) no custom theme names, uploaded in an editor that
 was closed without saving.
 There's no undo. Devices are never removed by this.
 
 ### `GET /plugins/profiles/admin/sessions`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Every live session, with the household it belongs to, most recent first.
 
@@ -2545,7 +2545,7 @@ Every live session, with the household it belongs to, most recent first.
 
 ### `POST /plugins/profiles/admin/sessions/sign-out`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "userId": "a90f11cb-…", "deviceId": "57bfa7e8d35f492b950bf93c9d747a11" }
@@ -2557,7 +2557,7 @@ there's no such session.
 
 ### `GET /plugins/profiles/admin/config/export`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 The whole configuration, with the version and time.
 
@@ -2573,7 +2573,7 @@ leaves out the mail server password and the emergency code.
 
 ### `POST /plugins/profiles/admin/config/import`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 The body is the `configuration` object from an export.
 
@@ -2595,14 +2595,14 @@ The body is the `configuration` object from an export.
 
 ### `POST /plugins/profiles/admin/retry-injection`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Checks again whether the script is reaching browsers, and removes any tags an older
 version left in `index.html`. Returns the same status fields as `GET /admin/mappings`.
 
 ### `POST /plugins/profiles/admin/set-profile-limit`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "userId": "8e3cdfa5-79a8-4bb9-bd9a-0e96b7dc974a", "maxProfiles": 8 }
@@ -2613,7 +2613,7 @@ range.
 
 ### `POST /plugins/profiles/admin/standalone`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "profileId": "…", "username": "Sam", "password": "…" }
@@ -2628,7 +2628,7 @@ undone.
 
 ### `POST /plugins/profiles/admin/make-profile`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "userId": "…", "householdId": "…", "profileName": "Sam", "deleteWithProfile": false }
@@ -2638,7 +2638,7 @@ undone.
 keeps the account: it leaves the household and signs in on its own. `true` deletes it.
 
 The reverse of `standalone`. The account becomes a profile of `householdId` and keeps its
-user, so watch history stays. It keeps its PIN, libraries, tags and picture. Its password
+user, so watch history stays. It keeps its PIN, libraries, tags and image. Its password
 is replaced with a random one, its sessions are signed out, and it's hidden from the
 sign-in screen. Its email and added accounts are removed. `profileName` is optional;
 blank keeps the username. Returns `{ "profileUserId": "…", "profileName": "Sam" }`.
@@ -2649,7 +2649,7 @@ that's already a profile, or a `householdId` that is a profile. `profile_limit` 
 
 ### `POST /plugins/profiles/admin/links`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "householdId": "…", "userId": "…" }
@@ -2660,13 +2660,13 @@ Adds `userId` to `householdId`'s switcher without its password. Same errors as
 
 ### `POST /plugins/profiles/admin/links/remove`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Same body. Takes it off. `link_not_found` if it isn't there.
 
 ### `POST /plugins/profiles/admin/pin-prompts`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 ```json
 { "householdId": "…", "askPinToOpen": false,
@@ -2683,7 +2683,7 @@ household, or a profile that is not in it. `404` for an unknown user.
 
 ### `GET /plugins/profiles/admin/audit-logs`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Recent switches: the newest 1,000, and none older than 90 days.
 
@@ -2700,6 +2700,6 @@ Recent switches: the newest 1,000, and none older than 90 days.
 
 ### `POST /plugins/profiles/admin/audit-logs/clear`
 
-**Authorisation:** administrator.
+**Authorization:** administrator.
 
 Deletes the whole switch log, in memory and on disk. No body. There is no undo. Returns 500 if the file could not be written; the log is then unchanged.
