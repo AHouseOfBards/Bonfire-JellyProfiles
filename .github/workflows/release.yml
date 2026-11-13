@@ -6,7 +6,21 @@ on:
       - 'v*'
 
 jobs:
+  # The whole suite, as ci.yml runs it for a push: every JavaScript shard, the C# harnesses
+  # on net9.0 and net10.0, the check against newer Jellyfin and the syntax and translation
+  # checks, in parallel, and "CI passed" at the end of it. A tag can be cut from a commit
+  # CI never saw, or from one whose CI run was red and ignored; `release` needs this job,
+  # so nothing is built, packaged or published from a commit whose suite did not pass in
+  # this same run. tests/js/buildtargets.js and tests/js/workflows.js fail if this job goes
+  # missing, stops calling ci.yml, or `release` stops needing it.
+  tests:
+    name: Tests
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   release:
+    needs: tests
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,26 +48,12 @@ jobs:
         with:
           node-version: '22'
 
-      # The same three commands ci.yml runs, ahead of anything that builds, packages or
-      # publishes. A tag can be cut from a commit CI never saw, or from one whose CI run
-      # was red and ignored; before this, nothing here would have noticed. Any failure
-      # stops the release before an artifact exists. tests/js/buildtargets.js fails if
-      # these steps go missing, lose their place, or are made optional.
-      - name: Run the test suite
-        run: bash tests/run.sh
-
-      - name: Run the C# harnesses against the .NET 10 build
-        run: bash tests/run.sh cs10
-
-      - name: Validate translations
-        run: node Web/i18n/validate.js
-
-      # CI's other check. tests/run.sh has already built the plugin, so binchk reads that
-      # DLL (SKIP_BUILD) and resolves its Jellyfin members against 10.11 and 12.x. The
-      # shared-library copy check is also inside run.sh; it is named here as well so that
-      # dropping it from the runner cannot quietly drop it from a release.
+      # The tests job above has run the suite. These two are named here as well, so that
+      # dropping either from ci.yml cannot quietly drop it from a release. binchk builds
+      # the plugin itself (this job has not yet) and resolves its Jellyfin members against
+      # 10.11 and 12.x; the shared-library copy check is also one of the JavaScript shards.
       - name: Check the plugin against newer Jellyfin
-        run: SKIP_BUILD=1 bash tests/binchk.sh
+        run: bash tests/binchk.sh
 
       - name: Check the vendored Campground.Shared copy
         run: sh Campground.Shared/check-shared.sh

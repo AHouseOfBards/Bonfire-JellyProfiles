@@ -23,31 +23,178 @@
 #                      giving up (default 3600). One full run at a time: two of them fight
 #                      over the CPU and over Chrome, and a harness that times out under
 #                      that load is a failure nobody can reproduce.
+#   BONFIRE_CHROME_JOBS  harnesses that start Chrome run this many at a time (default 1:
+#                      one after another, as before). Each launch has its own profile
+#                      directory and port 0 (tests/screens/chrome.js), so a machine with
+#                      cores to spare can raise it; layout measurements depend on the CPU, so
+#                      the default stays 1 and CI does not change it.
 #   SKIP_BUILD         skip building the plugin.
+#
+# Arguments, after the section name (all, js, cs, cs10):
+#   --shard K/N        run only shard K of N (1 <= K <= N) of that section. Greedy, longest
+#                      first, over tests/timings.txt; deterministic; every harness is in
+#                      exactly one shard. A harness missing from the file counts as
+#                      DEFAULT_SECONDS. Serial harnesses stay serial inside their shard.
+#   --list             print the harnesses that would run (after --shard) and stop. Takes no
+#                      lock and builds nothing; tests/js/shards.js uses it.
+#
+# Every result line ends with how long that harness took. At the end the total and the ten
+# slowest are printed, and every timing is written to $TMPDIR/bonfire-timings.txt in the
+# format of tests/timings.txt, ready to be copied over it.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Microseconds since some fixed point. EPOCHREALTIME is bash 5; whole seconds otherwise.
+now() { if [ -n "${EPOCHREALTIME:-}" ]; then echo "${EPOCHREALTIME/[.,]/}"; else echo "$(date +%s)000000"; fi; }
+
 # A parallel worker: run one JS harness, leave its output and exit code where the
 # collector looks. The script runs itself so no second file has to travel with it.
 if [ "${1:-}" = "--worker" ]; then
     tmp="$2"; f="$3"; b="$(basename "$f" .js)"
+    t0=$(now)
     node "$f" >"$tmp/$b.out" 2>&1
-    echo $? >"$tmp/$b.rc.part"
+    rc=$?
+    echo $(( $(now) - t0 )) >"$tmp/$b.us"
+    echo $rc >"$tmp/$b.rc.part"
     mv "$tmp/$b.rc.part" "$tmp/$b.rc"          # appears whole or not at all
     exit 0
 fi
 
-WHICH="${1:-all}"
+WHICH="all"; SHARD=""; LIST=""
+if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then WHICH="$1"; shift; fi
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --shard) SHARD="${2:-}"; shift 2 || { echo "--shard needs K/N" >&2; exit 2; } ;;
+        --shard=*) SHARD="${1#--shard=}"; shift ;;
+        --list) LIST=1; shift ;;
+        *) echo "unknown argument: $1" >&2; exit 2 ;;
+    esac
+done
+case "$WHICH" in all|js|cs|cs10) ;; *) echo "unknown section: $WHICH (all, js, cs, cs10)" >&2; exit 2 ;; esac
+SHARD_K=""; SHARD_N=""
+if [ -n "$SHARD" ]; then
+    case "$SHARD" in
+        [0-9]*/[0-9]*) SHARD_K="${SHARD%/*}"; SHARD_N="${SHARD#*/}" ;;
+    esac
+    case "$SHARD_K$SHARD_N" in ''|*[!0-9]*) echo "--shard wants K/N, got '$SHARD'" >&2; exit 2 ;; esac
+    if [ "$SHARD_K" -lt 1 ] || [ "$SHARD_K" -gt "$SHARD_N" ]; then
+        echo "--shard K/N wants 1 <= K <= N, got '$SHARD'" >&2; exit 2
+    fi
+fi
+
 JOBS="${BONFIRE_JOBS:-4}"
 case "$JOBS" in ''|*[!0-9]*) JOBS=1 ;; esac
 [ "$JOBS" -lt 1 ] && JOBS=1
+CHROME_JOBS="${BONFIRE_CHROME_JOBS:-1}"
+case "$CHROME_JOBS" in ''|*[!0-9]*) CHROME_JOBS=1 ;; esac
+[ "$CHROME_JOBS" -lt 1 ] && CHROME_JOBS=1
 FAILED=()
 RAN=0
 START=$SECONDS
 SCRATCH=""
 XPID=""
+TIMES=()                      # "section/name seconds mode", one per harness that ran
+SECTION="js"
+MODE="parallel"
+
+# ── Discovery, and the shard a harness is in ──────────────────────────────────────────
+# Done before the lock: --list must be able to run beside a full run.
+TIMINGS="${BONFIRE_TIMINGS_FILE:-tests/timings.txt}"
+DEFAULT_SECONDS=10            # for a harness the timings file has not heard of
+PARALLEL_WIDTH=4              # a parallel harness costs seconds/4 of a shard's time; fixed,
+                              # not BONFIRE_JOBS, so the shards do not depend on the machine
+JS_DIR="${BONFIRE_JS_DIR:-tests/js}"   # the override is for tests/js/runner.js
+
+# Harnesses that must not share the machine with each other. Everything else is a plain
+# Node process over files and stubs and runs BONFIRE_JOBS at a time.
+#   Chrome and the fixture server are not listed: any harness whose source requires
+#   ../screens/ or names findChrome is held back by the test in needs_serial, so a new
+#   Chrome harness is serial from its first run rather than from whenever someone
+#   remembers to add it here. Those share one Chrome profile cache, one font download
+#   (ICONS) and the CPU that its layout measurements depend on.
+# Listed by name:
+#   runner      starts this script about a dozen times to test it, each a full process tree
+#   i18ntest    orders replies by real timers of different lengths
+#   adminconfirm adminsweep28 dashboardxss serverinfo
+#               settle on real 5 to 20 ms timers, which a loaded machine can reorder
+SERIAL_JS=" runner i18ntest adminconfirm adminsweep28 dashboardxss serverinfo "
+
+is_listed_serial() { case "$SERIAL_JS" in *" $1 "*) return 0 ;; esac; return 1; }
+# One grep over every file, not one per harness: forking is the slow part on Windows.
+CHROME_FILES="$(grep -lE 'screens/|findChrome|chrome\.launch' "$JS_DIR"/*.js 2>/dev/null)"
+is_chrome() { case "
+$CHROME_FILES
+" in *"
+$1
+"*) return 0 ;; esac; return 1; }
+needs_serial() {          # needs_serial <name> <file>
+    is_listed_serial "$1" && return 0
+    is_chrome "$2"
+}
+
+names=(); files=(); par=(); ser=()
+HAS_JS() { [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; }
+if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
+    # _lib.js and _stubdom.js are shared plumbing (any _*.js is). *.verify.js needs the network and refreshes what the
+    # offline checks compare against — it is a maintenance tool, not a gate.
+    # *.scan.js surveys the source and prints what it finds; it asserts nothing and
+    # always exits 0, so counting it would add a harness that can never go red.
+    for f in "$JS_DIR"/*.js; do
+        base="${f##*/}"
+        [ "${base#_}" != "$base" ] && continue
+        case "$base" in *.verify.js|*.scan.js) continue ;; esac
+        names+=("${base%.js}"); files+=("$f")
+    done
+fi
+cs_names=()
+if [ "$WHICH" = "all" ] || [ "$WHICH" = "cs" ] || [ "$WHICH" = "cs10" ]; then
+    for d in tests/cs/*/; do d="${d%/}"; cs_names+=("${d##*/}"); done
+fi
+
+seconds_of() {            # seconds_of <section/name> -> the file's number, or the default
+    local s
+    s="$(awk -v k="$1" '$1 == k && $2 ~ /^[0-9.]+$/ { print $2; exit }' "$TIMINGS" 2>/dev/null)"
+    echo "${s:-$DEFAULT_SECONDS}"
+}
+
+# shard_members <section> <name:mode>... -> " name name " for the chosen shard. The cost
+# the balance uses is the seconds for a serial harness and seconds/PARALLEL_WIDTH for one
+# that runs beside others.
+shard_members() {
+    local sec="$1"; shift
+    local item
+    for item in "$@"; do echo "${item%%:*} ${item##*:}"; done \
+        | awk -v sec="$sec" -v def="$DEFAULT_SECONDS" -v w="$PARALLEL_WIDTH" '
+            FNR == NR { if ($0 !~ /^#/ && $2 ~ /^[0-9.]+$/) t[$1] = $2; next }
+            { k = sec "/" $1; s = (k in t) ? t[k] : def; if ($2 == "parallel") s = s / w; printf "%s %.3f\n", $1, s }
+          ' "$TIMINGS" - \
+        | awk -v N="$SHARD_N" -f tests/shard.awk | awk -v K="$SHARD_K" '$1 == K { printf " %s", $2 } END { print " " }'
+}
+
+JS_MEMBERS=""; CS_MEMBERS=""
+if [ -n "$SHARD" ]; then
+    items=()
+    for i in "${!names[@]}"; do
+        if needs_serial "${names[$i]}" "${files[$i]}"; then items+=("${names[$i]}:serial"); else items+=("${names[$i]}:parallel"); fi
+    done
+    # sharedcopy is a check like the rest and takes its place in a shard like the rest.
+    HAS_JS && items+=("sharedcopy:serial")
+    if [ ${#items[@]} -gt 0 ]; then JS_MEMBERS="$(shard_members js "${items[@]}")"; fi
+    items=()
+    for n in "${cs_names[@]}"; do items+=("$n:serial"); done
+    if [ ${#items[@]} -gt 0 ]; then CS_MEMBERS="$(shard_members cs "${items[@]}")"; fi
+fi
+js_in_shard() { [ -z "$SHARD" ] || case "$JS_MEMBERS" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+cs_in_shard() { [ -z "$SHARD" ] || case "$CS_MEMBERS" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+if [ -n "$LIST" ]; then
+    for i in "${!names[@]}"; do js_in_shard "${names[$i]}" && echo "js/${names[$i]}"; done
+    if HAS_JS && js_in_shard sharedcopy; then echo "js/sharedcopy"; fi
+    for n in "${cs_names[@]}"; do cs_in_shard "$n" && echo "cs/$n"; done
+    exit 0
+fi
 
 # ── One full run at a time ─────────────────────────────────────────────────────────────
 # A lock directory under the system temp dir (mkdir is atomic), holding the owner's pid.
@@ -105,7 +252,9 @@ acquire_lock
 
 # Print one harness's verdict. judge <label> <exit code> <output>
 judge() {
-    local label="$1" rc="$2" out="$3"
+    local label="$1" rc="$2" out="$3" us="${4:-0}" took
+    took="$(printf '%d.%d' $((us / 1000000)) $(((us % 1000000) / 100000)))"
+    TIMES+=("$SECTION/$label $took $MODE")
     printf '  %-14s ' "$label"
     RAN=$((RAN + 1))
     if [ "$rc" -eq 0 ]; then
@@ -114,7 +263,7 @@ judge() {
         if [ -z "$(printf %s "$out" | tr -d '[:space:]')" ] \
            || printf '%s\n' "$out" | grep -Eiq '(^|[^0-9.])0 (passed|checks|assertions)|pass 0([^0-9]|$)'; then
             FAILED+=("$label")
-            echo "FAILED (asserted nothing)"
+            echo "FAILED (asserted nothing)  (${took}s)"
             return
         fi
         # And one that exits 0 without ending on a totals line stopped early: it printed
@@ -122,23 +271,48 @@ judge() {
         if ! printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | tail -1 \
              | grep -Eq '[0-9]+ passed|pass [0-9]+, fail [0-9]+|^[[:space:]]*SKIPPED'; then
             FAILED+=("$label")
-            echo "FAILED (no totals line)"
+            echo "FAILED (no totals line)  (${took}s)"
             echo "$out" | sed 's/^/        /' | tail -5
             return
         fi
-        echo "$out" | tail -1 | cut -c1-70
+        printf '%s  (%ss)\n' "$(echo "$out" | tail -1 | cut -c1-70)" "$took"
     else
         FAILED+=("$label")
-        echo "FAILED"
+        echo "FAILED  (${took}s)"
         echo "$out" | sed 's/^/        /' | tail -25
     fi
 }
 
 run() {                       # run <label> <command...>
     local label="$1"; shift
-    local out rc
+    local out rc t0
+    t0=$(now)
     out=$("$@" 2>&1); rc=$?
-    judge "$label" "$rc" "$out"
+    judge "$label" "$rc" "$out" $(( $(now) - t0 ))
+}
+
+# Run the harnesses at these indexes, <jobs> at a time, and print their verdicts in the
+# order given however the workers happen to finish. run_pool <jobs> <mode> <index>...
+run_pool() {
+    local jobs="$1" i n; MODE="$2"; shift 2
+    [ $# -eq 0 ] && return 0
+    for i in "$@"; do printf '%s\0' "${files[$i]}"; done >"$SCRATCH/pool.list"
+    xargs -r -0 -n 1 -P "$jobs" bash "${BASH_SOURCE[0]}" --worker "$SCRATCH" <"$SCRATCH/pool.list" &
+    XPID=$!
+    for i in "$@"; do
+        n="${names[$i]}"
+        while [ ! -f "$SCRATCH/$n.rc" ]; do
+            if ! kill -0 "$XPID" 2>/dev/null; then
+                sleep 0.5
+                [ -f "$SCRATCH/$n.rc" ] || { echo 1 >"$SCRATCH/$n.rc"; echo "the worker never finished" >"$SCRATCH/$n.out"; }
+                break
+            fi
+            sleep 0.1
+        done
+        judge "$n" "$(cat "$SCRATCH/$n.rc")" "$(cat "$SCRATCH/$n.out")" "$(cat "$SCRATCH/$n.us" 2>/dev/null || echo 0)"
+    done
+    wait "$XPID" 2>/dev/null
+    XPID=""
 }
 
 # The framework the C# harnesses load the plugin from. They set their own TargetFramework
@@ -161,82 +335,48 @@ fi
 
 if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
     echo "── JavaScript ─────────────────────────────────────────────────"
-    # _lib.js and _stubdom.js are shared plumbing (any _*.js is). *.verify.js needs the network and refreshes what the
-    # offline checks compare against — it is a maintenance tool, not a gate.
-    # *.scan.js surveys the source and prints what it finds; it asserts nothing and
-    # always exits 0, so counting it would add a harness that can never go red.
-    JS_DIR="${BONFIRE_JS_DIR:-tests/js}"   # the override is for tests/js/runner.js
-
-    # Harnesses that must not share the machine with each other. Everything else is a plain
-    # Node process over files and stubs and runs BONFIRE_JOBS at a time.
-    #   Chrome and the fixture server are not listed: any harness whose source requires
-    #   ../screens/ or names findChrome is held back by the test in needs_serial, so a new
-    #   Chrome harness is serial from its first run rather than from whenever someone
-    #   remembers to add it here. Those share one Chrome profile cache, one font download
-    #   (ICONS) and the CPU that its layout measurements depend on.
-    # Listed by name:
-    #   runner      starts this script about a dozen times to test it, each a full process tree
-    #   i18ntest    orders replies by real timers of different lengths
-    #   adminconfirm adminsweep28 dashboardxss serverinfo
-    #               settle on real 5 to 20 ms timers, which a loaded machine can reorder
-    SERIAL_JS=" runner i18ntest adminconfirm adminsweep28 dashboardxss serverinfo "
-
-    needs_serial() {          # needs_serial <name> <file>
-        case "$SERIAL_JS" in *" $1 "*) return 0 ;; esac
-        grep -Eq 'screens/|findChrome|chrome\.launch' "$2"
-    }
-
-    names=(); files=(); par=(); ser=()
-    for f in "$JS_DIR"/*.js; do
-        base="$(basename "$f")"
-        [ "${base#_}" != "$base" ] && continue
-        case "$base" in *.verify.js|*.scan.js) continue ;; esac
-        names+=("${base%.js}"); files+=("$f")
-    done
+    SECTION="js"
+    # Only this shard's harnesses (all of them when there is no --shard).
+    sel=()
+    for i in "${!names[@]}"; do js_in_shard "${names[$i]}" && sel+=("$i"); done
 
     if [ "$JOBS" -le 1 ]; then
-        for i in "${!names[@]}"; do
+        for i in "${sel[@]}"; do
+            if needs_serial "${names[$i]}" "${files[$i]}"; then MODE=serial; else MODE=parallel; fi
             run "${names[$i]}" node "${files[$i]}"
         done
     else
         SCRATCH="$(mktemp -d "${TMPDIR:-${TEMP:-/tmp}}/bonfire-js.XXXXXX")"
-        for i in "${!names[@]}"; do
-            if needs_serial "${names[$i]}" "${files[$i]}"; then
-                ser+=("$i")
-            else
+        chrome=()
+        for i in "${sel[@]}"; do
+            if ! needs_serial "${names[$i]}" "${files[$i]}"; then
                 par+=("$i")
+            elif [ "$CHROME_JOBS" -gt 1 ] && ! is_listed_serial "${names[$i]}"; then
+                chrome+=("$i")           # only these may overlap, and only when asked to
+            else
+                ser+=("$i")
             fi
         done
-        for i in "${par[@]}"; do printf '%s\0' "${files[$i]}"; done >"$SCRATCH/par.list"
-        xargs -r -0 -n 1 -P "$JOBS" bash "${BASH_SOURCE[0]}" --worker "$SCRATCH" <"$SCRATCH/par.list" &
-        XPID=$!
         # Results are printed in name order as each one's turn comes up, so the output reads
         # the same however the workers happen to finish.
-        for i in "${par[@]}"; do
-            n="${names[$i]}"
-            while [ ! -f "$SCRATCH/$n.rc" ]; do
-                if ! kill -0 "$XPID" 2>/dev/null; then
-                    sleep 0.5
-                    [ -f "$SCRATCH/$n.rc" ] || { echo 1 >"$SCRATCH/$n.rc"; echo "the worker never finished" >"$SCRATCH/$n.out"; }
-                    break
-                fi
-                sleep 0.1
-            done
-            judge "$n" "$(cat "$SCRATCH/$n.rc")" "$(cat "$SCRATCH/$n.out")"
-        done
-        wait "$XPID" 2>/dev/null
-        XPID=""
-        # Then the ones that need the machine to themselves, one at a time.
+        run_pool "$JOBS" parallel "${par[@]}"
+        # Then the ones that need the machine to themselves, one at a time...
+        MODE=serial
         for i in "${ser[@]}"; do
             run "${names[$i]}" node "${files[$i]}"
         done
+        # ...except Chrome ones, which run BONFIRE_CHROME_JOBS at a time when that is set.
+        run_pool "$CHROME_JOBS" serial "${chrome[@]}"
     fi
+    MODE=serial
     # The vendored Campground.Shared must be byte for byte what campground-shared.json
     # records. Edited in place, it would ship a library no other Campground plugin has —
     # and the newest copy on a server runs index.html for all of them. Change it in
     # Campground-Coordination and re-vendor instead. Here rather than as its own CI step so
     # the desk and the pipeline cannot disagree.
-    run "sharedcopy" sh -c 'sh Campground.Shared/check-shared.sh && echo "1 passed, 0 failed"'
+    if js_in_shard sharedcopy; then
+        run "sharedcopy" sh -c 'sh Campground.Shared/check-shared.sh && echo "1 passed, 0 failed"'
+    fi
     echo
 fi
 
@@ -257,8 +397,10 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "cs" ] || [ "$WHICH" = "cs10" ]; then
         fi
     done
     rm -f "$BUILDLOG"
+    SECTION="cs"; MODE="serial"
     for d in tests/cs/*/; do
         d="${d%/}"; n="$(basename "$d")"
+        cs_in_shard "$n" || continue
         # The output is named for the project's AssemblyName, which is the directory's name
         # in most of them and "<name>harness" or the .csproj's own name in the rest.
         proj="$(ls "$d"/*.csproj | head -1)"
@@ -276,6 +418,17 @@ fi
 
 echo "──────────────────────────────────────────────────────────────"
 echo "  ($((SECONDS - START))s)"
+if [ ${#TIMES[@]} -gt 0 ]; then
+    OUT_TIMES="${TMPDIR:-${TEMP:-/tmp}}/bonfire-timings.txt"
+    {
+        echo "# Wall seconds per harness: <section/name> <seconds> <serial|parallel>."
+        echo "# Written by tests/run.sh; copy over tests/timings.txt. A trailing 'est' marks a guess."
+        printf '%s\n' "${TIMES[@]}" | sort
+    } >"$OUT_TIMES" 2>/dev/null
+    echo "  the ten slowest:"
+    printf '%s\n' "${TIMES[@]}" | sort -k2,2 -nr | head -10 | awk '{ printf "    %-28s %7.1fs  %s\n", $1, $2, $3 }'
+    echo "  timings written to $OUT_TIMES"
+fi
 if [ ${#FAILED[@]} -eq 0 ]; then
     echo "  $RAN harnesses, all green."
     exit 0
