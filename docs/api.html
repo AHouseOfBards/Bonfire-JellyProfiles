@@ -1,0 +1,24 @@
+---
+layout: default
+title: API reference
+nav_order: 10.5
+---
+
+<p>Every route, with its request and response. The guide parts (authentication, errors, rate limits) are in the <a href="developer-api.html">Developer API</a> page. The file behind this page is <a href="openapi.json">openapi.json</a>.</p>
+
+<div id="redoc"></div>
+<noscript>This page needs JavaScript. The same information is in the <a href="developer-api.html">Developer API</a> page.</noscript>
+
+<script src="https://cdn.jsdelivr.net/npm/redoc@2.5.0/bundles/redoc.standalone.js"></script>
+<script>
+    Redoc.init('openapi.json', {
+        hideDownloadButton: false,
+        expandResponses: '200',
+        pathInMiddlePanel: true,
+        theme: {
+            colors: { primary: { main: '#e0902b' } },
+            sidebar: { backgroundColor: '#1b1f2a', textColor: '#e6e6e6' },
+            rightPanel: { backgroundColor: '#12151c' }
+        }
+    }, document.getElementById('redoc'));
+</script>

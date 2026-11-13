@@ -75,6 +75,7 @@ Also at [ahouseofbards.github.io/Bonfire-JellyProfiles](https://ahouseofbards.gi
 - [Troubleshooting](docs/troubleshooting.md)
 - [Changelog](CHANGELOG.md)
 - [Developer API](docs/developer-api.md)
+- [API reference](docs/api.html)
 
 Bonfire is written with assistance from artificial intelligence models, but is still primarily built, tested and maintained by me, Bards.
 
