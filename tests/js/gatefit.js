@@ -269,11 +269,11 @@ const fitted = all.filter(r => /\.jpf-fitted/.test(r.selector) && !/^\s*--jpf-ti
 const fallback = all.find(r => /\.jpf-fitted$/.test(r.selector) && /--jpf-tile\s*:\s*\d+px/.test(r.body));
 ok('the tile size has a declared default, so no fitted rule can resolve to nothing', !!fallback);
 ok('the fitted rules are in the stylesheet', fitted.length >= 6);
-// The routine sets two properties: --jpf-tile, and --jpf-name-fit for how far a name may
-// shrink on a television. A fitted rule that sizes anything must use one of them. The one
+// The routine sets three properties: --jpf-tile, --jpf-name-fit for how far a name may
+// shrink on a television, and --jpf-line-fit for the lines under it. A fitted rule that sizes anything must use one of them. The one
 // exemption is a rule that sizes nothing: the long-name ellipsis sets only the properties
 // listed here, and anything else in such a rule makes it a sizing rule again.
-const ROUTINE = /var\(--jpf-(tile|name-fit)\b/;
+const ROUTINE = /var\(--jpf-(tile|name-fit|line-fit)\b/;
 const NOT_SIZING = ['white-space', 'overflow', 'text-overflow'];
 const sizesNothing = body => {
     const props = body.split(';').map(d => d.split(':')[0].trim()).filter(Boolean);
