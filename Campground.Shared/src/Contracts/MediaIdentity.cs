@@ -12,7 +12,7 @@ using System.Text;
 namespace Campground.Shared.Contracts
 {
     /// <summary>
-    /// §3.8 — one key per film or episode, so the same film reached through a FieldGuide library or an
+    /// §3.8 — one key per film, episode, album, track or book, so the same film reached through a FieldGuide library or an
     /// alternate version counts as the same film. Provider IDs first (TMDb, TVDb, IMDb), then the path.
     /// </summary>
     internal static class MediaIdentity
@@ -48,6 +48,160 @@ namespace Campground.Shared.Contracts
 
             var key = $"{series}:s{season.Value}e{episode.Value}";
             return endEpisode is { } end && end > episode.Value ? key + "-e" + end : key;
+        }
+
+        // Music and books (issue #31 item 3). Jellyfin's own provider names; first non-empty wins. The release group
+        // comes before the release, so a FLAC and an MP3 edition of one album share a key; the recording comes
+        // before the track, so a song on its album and on a best-of shares one.
+        private static readonly string[] AlbumOrder = { "MusicBrainzReleaseGroup", "MusicBrainzAlbum", "AudioDbAlbum" };
+        private static readonly string[] TrackOrder = { "MusicBrainzRecording", "MusicBrainzTrack" };
+
+        // Jellyfin 12's OPF reader stores "ISBN", "GoogleBooks" and "Amazon" (OpfReader.cs).
+        private static readonly string[] BookOrder = { "GoogleBooks", "Amazon" };
+
+        /// <summary>
+        /// Key for a music album: the MusicBrainz release group, then the release, then AudioDB, then the path
+        /// (kept case where the file system keeps it).
+        /// </summary>
+        internal static string KeyForAlbum(IReadOnlyDictionary<string, string>? providerIds, string? path)
+            => "album:" + (FirstOf(providerIds, AlbumOrder) ?? ExactPathKey(path));
+
+        /// <summary>Key for a music track: the MusicBrainz recording, then the track, then the path.</summary>
+        internal static string KeyForTrack(IReadOnlyDictionary<string, string>? providerIds, string? path)
+            => "track:" + (FirstOf(providerIds, TrackOrder) ?? ExactPathKey(path));
+
+        /// <summary>
+        /// Key for a book, audiobook or comic: the ISBN (an ISBN-10 is turned into its ISBN-13, so both forms of one
+        /// edition match; a malformed one is skipped), then Google Books, then Amazon, then the path.
+        /// </summary>
+        internal static string KeyForBook(IReadOnlyDictionary<string, string>? providerIds, string? path)
+        {
+            var isbn = Isbn13(Value(providerIds, "ISBN"));
+            return "book:" + (isbn != null ? "isbn:" + isbn : FirstOf(providerIds, BookOrder) ?? ExactPathKey(path));
+        }
+
+        /// <summary>
+        /// <see cref="KeyFor"/>, except the path fallback keeps case where the file system does (everywhere but
+        /// Windows), so "Movie.mkv" and "movie.mkv" on Linux are two files (#43). Its path keys start "pathx:", so they
+        /// never match a "path:" key an older copy stored. <see cref="KeyFor"/> itself is unchanged.
+        /// </summary>
+        internal static string KeyForExactPath(IReadOnlyDictionary<string, string>? providerIds, string? path)
+            => FirstProviderId(providerIds) ?? ExactPathKey(path);
+
+        private static string? FirstOf(IReadOnlyDictionary<string, string>? ids, string[] order)
+        {
+            foreach (var name in order)
+            {
+                var v = Value(ids, name);
+                if (v != null)
+                {
+                    return name.ToLowerInvariant() + ":" + v;
+                }
+            }
+
+            return null;
+        }
+
+        private static string? Value(IReadOnlyDictionary<string, string>? ids, string name)
+        {
+            if (ids == null)
+            {
+                return null;
+            }
+
+            foreach (var pair in ids)
+            {
+                if (string.Equals(pair.Key, name, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(pair.Value))
+                {
+                    return pair.Value.Trim();
+                }
+            }
+
+            return null;
+        }
+
+        // The 13-digit form, or null when the value isn't a valid ISBN-10 or ISBN-13 (check digit included).
+        private static string? Isbn13(string? raw)
+        {
+            if (raw == null)
+            {
+                return null;
+            }
+
+            var chars = new StringBuilder();
+            foreach (var c in raw)
+            {
+                if (c >= '0' && c <= '9')
+                {
+                    chars.Append(c);
+                }
+                else if (c == 'X' || c == 'x')
+                {
+                    chars.Append('X');
+                }
+                else if (c != '-' && c != ' ')
+                {
+                    return null;
+                }
+            }
+
+            var s = chars.ToString();
+            if (s.Length == 10)
+            {
+                var sum = 0;
+                for (var i = 0; i < 10; i++)
+                {
+                    var c = s[i];
+                    if (c == 'X' && i != 9)
+                    {
+                        return null;
+                    }
+
+                    sum += (c == 'X' ? 10 : c - '0') * (10 - i);
+                }
+
+                if (sum % 11 != 0)
+                {
+                    return null;
+                }
+
+                var body = "978" + s.Substring(0, 9);
+                return body + Ean13Check(body);
+            }
+
+            if (s.Length == 13 && s.IndexOf('X') < 0)
+            {
+                return Ean13Check(s.Substring(0, 12)) == s[12] - '0' ? s : null;
+            }
+
+            return null;
+        }
+
+        private static int Ean13Check(string twelve)
+        {
+            var sum = 0;
+            for (var i = 0; i < 12; i++)
+            {
+                sum += (twelve[i] - '0') * (i % 2 == 0 ? 1 : 3);
+            }
+
+            return (10 - (sum % 10)) % 10;
+        }
+
+        private static string ExactPathKey(string? path)
+        {
+            var normalized = (path ?? string.Empty).Replace('\\', '/').Trim();
+            if (normalized.Length == 0)
+            {
+                return "unknown";
+            }
+
+            if (OperatingSystem.IsWindows())
+            {
+                normalized = normalized.ToLowerInvariant();
+            }
+
+            return "pathx:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)), 0, 12).ToLowerInvariant();
         }
 
         private static string? FirstProviderId(IReadOnlyDictionary<string, string>? ids)

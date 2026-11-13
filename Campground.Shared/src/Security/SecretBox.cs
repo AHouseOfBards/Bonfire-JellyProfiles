@@ -7,8 +7,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Versioning;
-using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
@@ -166,9 +164,6 @@ namespace Campground.Shared.Security
         private const int ReadAttempts = 20;
         private static readonly TimeSpan ReadWait = TimeSpan.FromMilliseconds(50);
 
-        private const UnixFileMode PrivateFile = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-        private const UnixFileMode PrivateFolder = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
-
         internal static byte[] LoadOrCreateKey(string path)
         {
             try
@@ -191,7 +186,7 @@ namespace Campground.Shared.Security
         private static byte[] LoadOrCreate(string path)
         {
             var folder = Path.GetDirectoryName(path)!;
-            MakeFolderPrivate(folder);
+            PrivateFiles.CreateFolder(folder);
             for (var attempt = 1; ; attempt++)
             {
                 if (File.Exists(path))
@@ -208,7 +203,7 @@ namespace Campground.Shared.Security
 
                     if (existing is { Length: 32 })
                     {
-                        MakeFilePrivate(path);
+                        PrivateFiles.Tighten(path);
                         return existing;
                     }
 
@@ -229,7 +224,7 @@ namespace Campground.Shared.Security
                 var key = RandomNumberGenerator.GetBytes(32);
                 try
                 {
-                    WritePrivate(path, key);
+                    PrivateFiles.WriteNew(path, key);
                     return key;
                 }
                 catch (IOException) when (File.Exists(path))
@@ -237,149 +232,6 @@ namespace Campground.Shared.Security
                     // Another plugin created it first; go round and read it.
                 }
             }
-        }
-
-        private static void WritePrivate(string path, byte[] key)
-        {
-            FileStream fs;
-            if (OperatingSystem.IsWindows())
-            {
-                fs = new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.Write, FileShare.None, 4096, FileOptions.WriteThrough, PrivateFileSecurity());
-            }
-            else
-            {
-                // FileShare.Read, not None. On Unix .NET takes the share as a flock after the file exists, so
-                // with None a loser reading the empty file (a shared lock) made the winner's exclusive lock fail,
-                // and nobody ever wrote the key (seen in shared-ci). Losers read until it is whole instead.
-                fs = new FileStream(path, new FileStreamOptions
-                {
-                    Mode = FileMode.CreateNew,
-                    Access = FileAccess.Write,
-                    Share = FileShare.Read,
-                    Options = FileOptions.WriteThrough,
-                    UnixCreateMode = PrivateFile,
-                });
-            }
-
-            try
-            {
-                using (fs)
-                {
-                    fs.Write(key, 0, key.Length);
-                    fs.Flush(flushToDisk: true);
-                }
-            }
-            catch
-            {
-                // We created it, so it's ours to remove: an empty key left behind would be refused for good.
-                try
-                {
-                    File.Delete(path);
-                }
-                catch (Exception e) when (e is UnauthorizedAccessException or IOException)
-                {
-                }
-
-                throw;
-            }
-        }
-
-        // Best effort: a folder or file another account made may not let us change it. The key still works; it
-        // is just no better protected than before.
-        private static void MakeFolderPrivate(string folder)
-        {
-            try
-            {
-                if (OperatingSystem.IsWindows())
-                {
-                    var info = new DirectoryInfo(folder);
-                    if (!info.Exists)
-                    {
-                        Directory.CreateDirectory(info.Parent!.FullName);
-                        info.Create(PrivateFolderSecurity());
-                    }
-                    else
-                    {
-                        info.SetAccessControl(PrivateFolderSecurity());
-                    }
-                }
-                else if (!Directory.Exists(folder))
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(folder)!);
-                    Directory.CreateDirectory(folder, PrivateFolder);
-                }
-                else
-                {
-                    File.SetUnixFileMode(folder, PrivateFolder);
-                }
-            }
-            catch (Exception e) when (e is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
-            {
-                Directory.CreateDirectory(folder);
-            }
-        }
-
-        private static void MakeFilePrivate(string path)
-        {
-            try
-            {
-                if (OperatingSystem.IsWindows())
-                {
-                    new FileInfo(path).SetAccessControl(PrivateFileSecurity());
-                }
-                else
-                {
-                    File.SetUnixFileMode(path, PrivateFile);
-                }
-            }
-            catch (Exception e) when (e is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
-            {
-            }
-        }
-
-        [SupportedOSPlatform("windows")]
-        private static FileSecurity PrivateFileSecurity()
-        {
-            var security = new FileSecurity();
-            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-            foreach (var sid in Owners())
-            {
-                security.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl, AccessControlType.Allow));
-            }
-
-            return security;
-        }
-
-        [SupportedOSPlatform("windows")]
-        private static DirectorySecurity PrivateFolderSecurity()
-        {
-            var security = new DirectorySecurity();
-            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-            foreach (var sid in Owners())
-            {
-                security.AddAccessRule(new FileSystemAccessRule(
-                    sid,
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-            }
-
-            return security;
-        }
-
-        // SYSTEM and Administrators can read anything anyway; leaving them out would only break backups and
-        // an admin's repairs. Jellyfin's own account is whoever this process runs as.
-        [SupportedOSPlatform("windows")]
-        private static SecurityIdentifier[] Owners()
-        {
-            using var me = WindowsIdentity.GetCurrent();
-            return new[]
-            {
-                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                me.User!,
-            };
         }
 
         private static byte[]? Ad(string? associatedData) => associatedData == null ? null : Encoding.UTF8.GetBytes(associatedData);
