@@ -68,7 +68,7 @@ var mapType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true
 var hasher = asm.GetType("Jellyfin.Profiles.Auth.PinHasher", true);
 var obType = asm.GetType("Jellyfin.Profiles.Configuration.OnboardingSettings");
 
-Ok("this build has first-time setup", obType != null && ctrlType.GetMethod("GetOnboarding") != null
+Ok("this build has first-time setup", obType != null && ctrlType.GetMethod("GetStartup") != null && ctrlType.GetMethod("GetOnboarding") == null
    && ctrlType.GetMethod("OnboardingDone") != null && ctrlType.GetMethod("ShowOnboardingAgain") != null);
 if (obType == null)
 {
@@ -152,13 +152,13 @@ object Get(object o, string prop) => o?.GetType().GetProperty(prop)?.GetValue(o)
 
 bool Pending(Guid who)
 {
-    var r = Call("GetOnboarding", who);
-    return r.status == 200 && (bool)Get(r.value, "Pending");
+    var r = Call("GetStartup", who);
+    return r.status == 200 && (bool)Get(Get(r.value, "onboarding"), "Pending");
 }
 List<(string id, bool done)> Steps(Guid who)
 {
-    var r = Call("GetOnboarding", who);
-    return ((IEnumerable)Get(r.value, "Steps")).Cast<object>()
+    var r = Call("GetStartup", who);
+    return ((IEnumerable)Get(Get(r.value, "onboarding"), "Steps")).Cast<object>()
         .Select(s => ((string)Get(s, "Id"), (bool)Get(s, "Done"))).ToList();
 }
 bool PrefsPending(Guid who)

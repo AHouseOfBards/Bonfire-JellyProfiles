@@ -43,7 +43,7 @@ let prefs = { askOnStartup: true, switcherLocation: 'button', masterUserId: 'mai
 env.setRespond((url, body) => {
     if (url === 'plugins/profiles/preferences' && !body) return { status: 200, body: prefs };
     if (url === 'plugins/profiles/preferences') return { status: 200, body: body };
-    if (url === 'plugins/profiles/onboarding') return { status: 200, body: onboarding };
+    if (url === 'plugins/profiles/startup') return { status: 200, body: { onboarding: onboarding } };
     if (url === 'plugins/profiles/update') return { status: 200, body: { theme: body.theme || 'bonfire', stored: body.theme } };
     if (url === 'plugins/profiles/create' && body.profileName === 'Taken') return { status: 400, body: 'A user with this name already exists.', headers: { 'X-Bonfire-Error': 'name_taken' } };
     return { status: 200, body: {} };
@@ -74,17 +74,17 @@ const html = () => content.innerHTML;
 
     PP.loadSwitcherPrefs();
     await settle();
-    ok('not pending: /onboarding is never asked', sent('plugins/profiles/onboarding').length === 0);
+    ok('not pending: /startup is never asked', sent('plugins/profiles/startup').length === 0);
 
     prefs.onboardingPending = true;
     PP._switcherPrefsLoading = false;
     PP.loadSwitcherPrefs();
     await settle();
-    ok('pending: /onboarding is asked once', sent('plugins/profiles/onboarding').length === 1);
+    ok('pending: /startup is asked once', sent('plugins/profiles/startup').length === 1);
     PP._switcherPrefsLoading = false;
     PP.loadSwitcherPrefs();
     await settle();
-    ok('and not again on the same page', sent('plugins/profiles/onboarding').length === 1);
+    ok('and not again on the same page', sent('plugins/profiles/startup').length === 1);
 
     console.log('\n── Welcome ─────────────────────────────────────────────────────');
     ok('it opens the overlay and replaces the grid before it is seen',
@@ -167,7 +167,7 @@ const html = () => content.innerHTML;
     ok('not asked on startup any more: straight into Jellyfin', calls.removed === 1);
 
     console.log('\n── What is already true is passed over ─────────────────────────');
-    PP._onboardingChecked = false;
+    PP._onboardingChecked = false; PP._startupHeld = null;
     onboarding = { pending: true, welcomeText: '', steps: [
         { id: 'mainPin', required: false, done: true },
         { id: 'firstProfile', required: true, done: false }
@@ -180,7 +180,7 @@ const html = () => content.innerHTML;
     ok('and a single numbered step shows no counter', html().indexOf('Step ') === -1);
     PP._onboarding = null;
 
-    PP._onboardingChecked = false;
+    PP._onboardingChecked = false; PP._startupHeld = null;
     onboarding = { pending: false, steps: STEPS };
     const before = calls.grids;
     PP.maybeStartOnboarding();

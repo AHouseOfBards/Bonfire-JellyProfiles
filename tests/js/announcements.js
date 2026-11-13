@@ -160,7 +160,7 @@ const settle = () => new Promise(r => setImmediate(r));
         { Id: '44444444-4444-4444-4444-444444444444', Message: 'Odd one.', Severity: 'purple' }
     ];
     let served = items;
-    const env = load(() => json(served));
+    const env = load(() => json({ announcements: served }));
     const P = env.P;
     ok('the client draws announcements', !!(P && typeof P.showAnnouncements === 'function'));
     if (!P || typeof P.showAnnouncements !== 'function') return finish();
@@ -172,7 +172,7 @@ const settle = () => new Promise(r => setImmediate(r));
 
     ok('the server is asked once', env.calls.length === 1);
     const call = env.calls[0] || {};
-    ok('at the announcements route', /plugins\/profiles\/announcements$/.test(call.url || ''));
+    ok('at the startup route', /plugins\/profiles\/startup$/.test(call.url || ''));
     ok('with the token', /Token="master-token"/.test(((call.opts || {}).headers || {}).Authorization || ''));
 
     const rows = byClass(o.box, 'profiles-announcement');
@@ -216,7 +216,7 @@ const settle = () => new Promise(r => setImmediate(r));
     ok('and the dismissed one stays gone', byClass(o2.box, 'profiles-announcement').length === 3);
 
     // The administrator rewrites it; a minute passes.
-    P._announcementCache.at -= 61000;
+    P._announcementCache.at -= 61000; P._startupHeld.at -= 61000;
     served = items.map(a => a.id === '33333333-3333-3333-3333-333333333333'
         ? Object.assign({}, a, { message: 'New films added, and a series.' }) : a);
     const o3 = overlay();
@@ -226,7 +226,7 @@ const settle = () => new Promise(r => setImmediate(r));
     ok('and a rewritten announcement shows again', byClass(o3.box, 'profiles-announcement').length === 4);
 
     // Everything dismissed or nothing to show: the box goes away.
-    P._announcementCache.at -= 61000;
+    P._announcementCache.at -= 61000; P._startupHeld.at -= 61000;
     served = [{ id: '33333333-3333-3333-3333-333333333333', message: 'New films added.', severity: 'info' }];
     const o4 = overlay();
     o4.box.style.display = '';

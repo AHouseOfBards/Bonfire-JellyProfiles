@@ -133,6 +133,12 @@
     ROUTES['form-options'] = function () {
         return { libraries: PARTS.libraries(), ratings: PARTS.ratings(), avatars: PARTS.avatars(), timeZones: PARTS.timeZones() };
     };
+    // Who the caller is, the announcements and the first-time setup are parts of /startup since 2.0.
+    var STARTUP = { announcements: ROUTES.announcements, me: ROUTES.me };
+    delete ROUTES.announcements; delete ROUTES.me;
+    ROUTES.startup = function () {
+        return { announcements: STARTUP.announcements(), me: STARTUP.me(), onboarding: { pending: false, generation: 1, steps: [] } };
+    };
     // Routes with an id in them: Rosalind's limits are what the edit scene shows.
     var PATTERNS = [
         [/^limits\/(\w+)$/, function (m) {

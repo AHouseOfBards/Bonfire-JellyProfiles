@@ -7404,15 +7404,12 @@
             const token = (masterState && masterState.token)
                 || (typeof ApiClient.accessToken === 'function' ? ApiClient.accessToken() : '');
             if (!token) return;
-            fetch(ApiClient.getUrl('plugins/profiles/announcements'), {
-                headers: this.getAuthHeaders(token),
-                cache: 'no-store'
-            })
-                .then(res => res.ok ? res.json() : null)
+            this._fetchStartup(token, 60000)
+                .then(body => body && body.announcements)
                 .then(items => {
                     // A refusal or a body that is not a list is not remembered: cached as
                     // [] it hid a critical notice for the next minute.
-                    if (!Array.isArray(items)) return;
+                    if (!Array.isArray(items)) { this._startupHeld = null; return; }
                     const list = items;
                     this._announcementCache = { at: Date.now(), items: list };
                     draw(list);
@@ -8442,8 +8439,30 @@
             });
         },
 
+        /// The one /startup answer for a token, shared by everything that needs a part of it:
+        /// the announcements, the first-time setup and who the caller is. Kept for maxAgeMs,
+        /// so the gate, the setup check and the PIN prompt on one page load are one request
+        /// between them. A refusal or a failure is null and is not kept.
+        _fetchStartup: function (token, maxAgeMs) {
+            const held = this._startupHeld;
+            if (held && held.token === token && Date.now() - held.at < maxAgeMs) return held.promise;
+            const entry = { token: token, at: Date.now(), promise: null };
+            entry.promise = fetch(ApiClient.getUrl('plugins/profiles/startup'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(token)
+            })
+            .then(res => res.ok ? res.json() : null)
+            .catch(() => null)
+            .then(body => {
+                if (!body && this._startupHeld === entry) this._startupHeld = null;
+                return body;
+            });
+            this._startupHeld = entry;
+            return entry.promise;
+        },
+
         /// Shows "Forgot PIN?" on a main-PIN prompt when the server can mail this account a
-        /// code. Asked of /me once, when the prompt opens.
+        /// code. Read from /startup's `me` once, when the prompt opens.
         ///
         /// back() redraws the prompt; done(pin) carries on with the new PIN, so a reset
         /// lands where the person was going instead of asking for the PIN just set.
@@ -8451,11 +8470,8 @@
             const link = content.querySelector('#pin-forgot');
             const masterState = this.readMasterState();
             if (!link || !masterState) return;
-            fetch(ApiClient.getUrl('plugins/profiles/me'), {
-                cache: 'no-store',
-                headers: this.getAuthHeaders(masterState.token)
-            })
-            .then(res => res.ok ? res.json() : null)
+            this._fetchStartup(masterState.token, 60000)
+            .then(body => body && body.me)
             .then(me => {
                 if (this._field(me, 'pinResetByEmail') !== true || !document.body.contains(link)) return;
                 link.hidden = false;
@@ -11393,11 +11409,8 @@
             this._onboardingChecked = true;
             if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
 
-            fetch(ApiClient.getUrl('plugins/profiles/onboarding'), {
-                cache: 'no-store',
-                headers: this.getAuthHeaders(ApiClient.accessToken())
-            })
-            .then(res => res.ok ? res.json() : null)
+            this._fetchStartup(ApiClient.accessToken(), 60000)
+            .then(body => body && body.onboarding)
             .then(data => {
                 if (!data || (data.pending !== undefined ? data.pending : data.Pending) !== true) return;
                 const steps = (data.steps || data.Steps || []).map(s => ({

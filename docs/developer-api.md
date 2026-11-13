@@ -42,14 +42,13 @@ because other people build against it too.
 
 ## All routes
 
-All 108 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 105 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
 | --- | --- | --- |
 | `GET /plugins/profiles/list` | user | Profiles the caller can switch to. |
-| `GET /plugins/profiles/me` | user | Who the caller is: a profile or a main account, and whose. |
-| `GET /plugins/profiles/startup` | user | `info`, `profiles`, `me`, `themes` and `announcements` in one request. |
+| `GET /plugins/profiles/startup` | user | `info`, `profiles`, `me`, `themes`, `announcements` and `onboarding` in one request. |
 | `GET /plugins/profiles/form-options` | user | What the profile form reads: libraries, rating limits, avatars, time zones. |
 | `POST /plugins/profiles/create` | user | Create a profile. |
 | `POST /plugins/profiles/update` | user | Change a profile. |
@@ -103,14 +102,12 @@ All 108 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/themes/fonts/{file}` | anon | One font file, or its license. |
 | `GET /plugins/profiles/themes/logo/{file}` | anon | The server's logo image. |
 | `GET /plugins/profiles/themes/backgrounds/{file}` | anon | A custom theme's background image. |
-| `GET /plugins/profiles/onboarding` | user | First-time setup for this account. |
 | `POST /plugins/profiles/onboarding/done` | user | Record that it was seen. |
 | `GET /plugins/profiles/avatars/{id}` | anon | One avatar image. |
 | `POST /plugins/profiles/admin/avatars` | admin | Add an avatar. |
 | `DELETE /plugins/profiles/admin/avatars/{id}` | admin | Remove an avatar. |
 | `GET /plugins/profiles/admin/avatars/scan` | admin | List images in a server folder. |
 | `GET /plugins/profiles/admin/avatars/scan/file` | admin | Read one of them. |
-| `GET /plugins/profiles/announcements` | user | Announcements showing now. |
 | `GET /plugins/profiles/admin/announcements` | admin | Every announcement. |
 | `POST /plugins/profiles/admin/announcements` | admin | Create or change one. |
 | `POST /plugins/profiles/admin/announcements/delete` | admin | Delete one. |
@@ -261,22 +258,24 @@ see [Maintenance](#maintenance). Sent with
 
 **Authorisation:** signed-in user. No token, or an API key (which has no user), is `401`.
 
-Everything the profile picker needs, in one request. Each key holds exactly what the
-route of the same name returns for the same caller, built by the same code:
+Everything the profile picker needs, in one request. `info`, `profiles` and `themes` are
+what `GET /info`, `GET /list` and `GET /themes` return for the same caller, built by the
+same code. `me`, `announcements` and `onboarding` are only here:
 
 ```json
 {
   "info": { "...": "GET /info" },
   "profiles": [ "...GET /list" ],
-  "me": { "...": "GET /me" },
+  "me": { "...": "see Me, below" },
   "themes": { "...": "GET /themes" },
-  "announcements": [ "...GET /announcements" ]
+  "announcements": [ "...see Announcements" ],
+  "onboarding": { "...": "see First-time setup" }
 }
 ```
 
 If any part would be refused, the whole call is refused the same way (for example `404`
-when the account can't be found), never a partial body. Sent with `no-store`. The separate
-routes are unchanged, and `/info` stays public for the sign-in screen.
+when the account can't be found), never a partial body. Sent with `no-store`. `/list`,
+`/info` and `/themes` stay as routes, and `/info` stays public for the sign-in screen.
 
 ### Switching
 
@@ -415,7 +414,7 @@ out for 15 minutes.
 
 ## Caching
 
-`GET /list`, `GET /announcements`, the client script and translations send an `ETag`.
+`GET /list`, the client script and translations send an `ETag`.
 Send it back as `If-None-Match` and an unchanged answer is a `304` with no body. They're
 also sent `private, no-cache`: keep them, but ask every time. A browser does this for
 you.
@@ -443,6 +442,9 @@ you.
 
 - `GET /libraries`, `GET /ratings`, `GET /avatars` and `GET /timezones`: use
   [`GET /form-options`](#get-pluginsprofilesform-options), which returns all four.
+- `GET /me`, `GET /announcements` and `GET /onboarding`: read the `me`, `announcements` and
+  `onboarding` parts of [`GET /startup`](#get-pluginsprofilesstartup). `POST /me` and
+  `POST /onboarding/done` stay.
 - `POST /theme`: send `theme` to [`POST /update`](#post-pluginsprofilesupdate).
 - `POST /update` now refuses a `theme` with `403` while the server doesn't let profiles
   choose, where it used to ignore it, and answers `{ profileId, theme, stored }`.
@@ -521,11 +523,10 @@ is removed.
 
 Errors: `401`, and `404` if the caller's main account no longer exists.
 
-### `GET /plugins/profiles/me`
+### Me (`me` in `/startup`)
 
-**Authorization:** signed-in user.
-
-Who the caller is. Cheaper than `/list` when that's all you need.
+Who the caller is: a profile or a main account, and whose. It is the `me` part of
+[`GET /startup`](#get-pluginsprofilesstartup), with the same authorisation.
 
 ```json
 {
@@ -1417,9 +1418,10 @@ A few screens a main account sees the first time it opens Bonfire, if the admini
 turns them on. Once per account, not per device. Accounts that existed when it was first
 turned on count as having seen it.
 
-### `GET /plugins/profiles/onboarding`
+### Onboarding (`onboarding` in `/startup`)
 
-**Authorization:** signed-in user.
+The `onboarding` part of [`GET /startup`](#get-pluginsprofilesstartup), with the same
+authorisation.
 
 ```json
 {
@@ -1806,7 +1808,7 @@ that has forgotten it.
 ```
 
 Sends a code to the confirmed address. Returns `{ "sentTo": "p•••@example.com" }`. `400`
-unless `/me` says `pinResetByEmail`.
+unless `/startup`'s `me` says `pinResetByEmail`.
 
 ### `POST /plugins/profiles/account/pin-reset`
 
@@ -2097,12 +2099,11 @@ it and posts it to `POST /admin/avatars`.
 
 Short messages from the administrator, shown on the profile screen.
 
-### `GET /plugins/profiles/announcements`
-
-**Authorization:** signed-in user.
+### Announcements (`announcements` in `/startup`)
 
 The ones showing now, most important first: `critical`, then `warning`, then `info`,
-newest first within each. Sent with an `ETag`: see [Caching](#caching).
+newest first within each. The `announcements` part of
+[`GET /startup`](#get-pluginsprofilesstartup), with the same authorisation.
 
 ```json
 [

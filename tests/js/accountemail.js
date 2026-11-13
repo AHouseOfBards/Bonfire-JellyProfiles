@@ -38,7 +38,7 @@ const server = {
 };
 env.setRespond((url, body) => {
     if (server.refuse[url]) { const r = server.refuse[url]; delete server.refuse[url]; return { status: r[0], body: r[1], headers: r[2] ? { 'X-Bonfire-Error': r[2] } : undefined }; }
-    if (url === 'plugins/profiles/me') return { status: 200, body: server.me };
+    if (url === 'plugins/profiles/startup') return { status: 200, body: { me: server.me } };
     if (url === 'plugins/profiles/account/email' && !body) return { status: 200, body: server.email };
     if (url === 'plugins/profiles/account/email') {
         server.email = Object.assign({}, server.email, { pendingAddress: body.address });
@@ -210,11 +210,11 @@ const last = url => sent(url).pop();
     server.me = { pinResetByEmail: false };
     PP.promptMasterPinEntry('manage', () => carriedOn++);
     await settle();
-    ok('the main PIN prompt asks /me with the main account', last('plugins/profiles/me').init.headers
-       && JSON.stringify(last('plugins/profiles/me').init.headers).indexOf('tok') !== -1);
+    ok('the main PIN prompt asks /startup with the main account', last('plugins/profiles/startup').init.headers
+       && JSON.stringify(last('plugins/profiles/startup').init.headers).indexOf('tok') !== -1);
     ok('no link when the server cannot reset by email', id('#pin-forgot').hidden !== false);
 
-    server.me = { pinResetByEmail: true };
+    server.me = { pinResetByEmail: true }; PP._startupHeld = null;
     PP.promptMasterPinEntry('manage', () => carriedOn++);
     await settle();
     ok('a link when it can', id('#pin-forgot').hidden === false);
@@ -268,10 +268,10 @@ const last = url => sent(url).pop();
     // The picker's PIN prompt: the main account's tile only.
     const switched = [];
     PP.executeProfileSwitch = (pid, pin) => switched.push([pid, pin]);
-    const meAsks = sent('plugins/profiles/me').length;
+    const meAsks = sent('plugins/profiles/startup').length;
     PP.promptPinEntry('kid');
     await settle();
-    ok("a profile's PIN prompt has no link and asks nothing", sent('plugins/profiles/me').length === meAsks
+    ok("a profile's PIN prompt has no link and asks nothing", sent('plugins/profiles/startup').length === meAsks
        && id('#pin-forgot').hidden !== false);
     PP.promptPinEntry('main');
     await settle();

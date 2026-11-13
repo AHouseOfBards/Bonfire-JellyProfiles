@@ -170,7 +170,7 @@ world.Add(KID, "kid-account");
 Map(MAIN, MAIN, "Robin", pin: "2468");
 Map(KID, MAIN, "Kid");
 
-foreach (var route in new[] { "GetAnnouncements", "GetProfiles" })
+foreach (var route in new[] { "GetProfiles" })
 {
     var first = Call(route, UserPrincipal(MAIN));
     var tag = first.http?.Response.Headers["ETag"].ToString();
@@ -234,14 +234,8 @@ foreach (var route in new[] { "GetProfilesJs", "GetThemes" })
     Ok("under the on tag again", back.http?.Response.Headers["ETag"].ToString() == onTag);
 }
 
-var before = Call("GetAnnouncements", UserPrincipal(MAIN)).http?.Response.Headers["ETag"].ToString();
-var ann = Activator.CreateInstance(annType);
-annType.GetProperty("Id").SetValue(ann, Guid.NewGuid());
-annType.GetProperty("Message").SetValue(ann, "Back at six.");
-announcements.Add(ann);
-var after = Call("GetAnnouncements", UserPrincipal(MAIN), headers: new() { ["If-None-Match"] = before ?? "" });
-Ok("a new announcement changes the tag, so it is sent", after.status == 200 && after.http.Response.Headers["ETag"].ToString() != before,
-   after.status + " " + before);
+Ok("GET /announcements is gone: announcements travel in /startup, which is never cached",
+   ctrlType.GetMethod("GetAnnouncements") == null);
 
 var listBefore = Call("GetProfiles", UserPrincipal(MAIN)).http?.Response.Headers["ETag"].ToString();
 var KID2 = Guid.NewGuid();
@@ -257,25 +251,25 @@ Ok("the owner and a profile get different lists, so different tags", kidView != 
 Console.WriteLine();
 Console.WriteLine("── GET /me ─────────────────────────────────────────────────────");
 
-var meMain = Call("GetMe", UserPrincipal(MAIN));
-Ok("the route exists", meMain.status != -404, meMain.value as string);
-if (meMain.status != -404)
+var startMain = Call("GetStartup", UserPrincipal(MAIN));
+Ok("the route exists, and GET /me is gone", startMain.status != -404 && ctrlType.GetMethod("GetMe") == null, startMain.value as string);
+if (startMain.status != -404)
 {
+    var meMain = new { status = startMain.status, value = Prop(startMain.value, "me") };
     Ok("a main account is not a profile, and is its own main account",
        meMain.status == 200 && (bool)Prop(meMain.value, "IsProfile") == false && (Guid)Prop(meMain.value, "MainAccountId") == MAIN,
        meMain.status + "");
     Ok("it has a PIN and two profiles", (bool)Prop(meMain.value, "MainHasPin") && (int)Prop(meMain.value, "ProfileCount") == 2);
 
-    var meKid = Call("GetMe", UserPrincipal(KID));
+    var meKid = Prop(Call("GetStartup", UserPrincipal(KID)).value, "me");
     Ok("a profile is one, named as its household names it, under its main account",
-       meKid.status == 200 && (bool)Prop(meKid.value, "IsProfile") && (string)Prop(meKid.value, "Name") == "Kid"
-       && (Guid)Prop(meKid.value, "MainAccountId") == MAIN && (string)Prop(meKid.value, "MainAccountName") == "Robin");
+       meKid != null && (bool)Prop(meKid, "IsProfile") && (string)Prop(meKid, "Name") == "Kid"
+       && (Guid)Prop(meKid, "MainAccountId") == MAIN && (string)Prop(meKid, "MainAccountName") == "Robin");
 
-    var meNone = Call("GetMe", new ClaimsPrincipal(new ClaimsIdentity()));
+    var meNone = Call("GetStartup", new ClaimsPrincipal(new ClaimsIdentity()));
     Ok("nobody signed in gets 401", meNone.status == 401, meNone.status.ToString());
 
-    Ok("its answer is a declared type, for OpenAPI",
-       ctrlType.GetMethod("GetMe").GetCustomAttributes<ProducesResponseTypeAttribute>().Any(a => a.StatusCode == 200 && a.Type?.Name == "MeResponse"));
+    Ok("its answer is a declared type, for OpenAPI", Prop(startMain.value, "me")?.GetType().Name == "MeResponse");
 }
 Ok("/info's answer is a declared type too",
    ctrlType.GetMethod("GetInfo").GetCustomAttributes<ProducesResponseTypeAttribute>().Any(a => a.StatusCode == 200 && a.Type?.Name == "InfoResponse"));

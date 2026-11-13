@@ -224,7 +224,6 @@ var saveReq = asm.GetType("Jellyfin.Profiles.Models.SaveAnnouncementRequest");
 var delReq = asm.GetType("Jellyfin.Profiles.Models.DeleteAnnouncementRequest");
 foreach (var (name, template, verb, arg) in new (string, string, string, Func<object>)[]
 {
-    ("GetAnnouncements", "announcements", "HttpGetAttribute", null),
     ("GetAllAnnouncements", "admin/announcements", "HttpGetAttribute", null),
     ("SaveAnnouncement", "admin/announcements", "HttpPostAttribute", () => saveReq == null ? null : Activator.CreateInstance(saveReq)),
     ("DeleteAnnouncement", "admin/announcements/delete", "HttpPostAttribute", () => delReq == null ? null : Activator.CreateInstance(delReq)),

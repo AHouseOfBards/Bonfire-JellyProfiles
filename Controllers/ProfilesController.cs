@@ -3582,23 +3582,22 @@ namespace Jellyfin.Profiles.Controllers
         /// The first-time setup this account should see: whether to show it, the welcome,
         /// and the steps. Main accounts only; a profile is always told it is not pending.
         /// </summary>
-        [HttpGet("onboarding")]
-        [ProducesResponseType(typeof(OnboardingResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<OnboardingResponse> GetOnboarding()
+        private ActionResult? BuildOnboarding(out OnboardingResponse? result)
         {
+            result = null;
             var userId = GetCurrentUserId();
             // An API key carries an all-zero id: there is no account to walk through anything.
             if (userId == null || userId == Guid.Empty) return Unauthorized();
             var config = ReadConfigSnapshot() ?? new PluginConfiguration();
             var pending = OnboardingPendingFor(userId.Value, config);
 
-            return Ok(new OnboardingResponse
+            result = new OnboardingResponse
             {
                 Pending = pending,
                 Generation = config.Onboarding?.Generation ?? 1,
                 Steps = pending ? OnboardingStepsFor(userId.Value, config) : new List<OnboardingStepInfo>()
-            });
+            };
+            return null;
         }
 
         /// <summary>
@@ -4784,26 +4783,11 @@ namespace Jellyfin.Profiles.Controllers
         // ── Announcements ───────────────────────────────────────────────────────────
 
         /// <summary>
-        /// The announcements showing now, for the profile screen.
-        /// <para>
-        /// Signed in, not anonymous: a message an administrator writes for the household
-        /// ("down for an upgrade at 2") is not something to publish to anyone who finds the
-        /// server's address.
-        /// </para>
+        /// The announcements showing now, for the profile screen; the <c>announcements</c> part
+        /// of <c>/startup</c>, which is signed in, not anonymous: a message an administrator
+        /// writes for the household ("down for an upgrade at 2") is not something to publish
+        /// to anyone who finds the server's address.
         /// </summary>
-        [HttpGet("announcements")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<object> GetAnnouncements()
-        {
-            if (GetCurrentUserId() == null) return Unauthorized();
-
-            // Revalidated every time, never served stale: one that has just ended, or just
-            // started, changes the body and so the tag.
-            return ETagged(BuildAnnouncements());
-        }
-
-        /// <summary>The announcements showing now; shared with <c>/startup</c>.</summary>
         private object BuildAnnouncements()
         {
             var all = Plugin.Instance?.Configuration?.Announcements;
@@ -5379,24 +5363,9 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Who the caller is, in Bonfire's terms: a profile or a main account, and whose.
-        /// <para>
-        /// A client could work this out from /list, but only by knowing that the main account
-        /// is the row with isMaster and not isBonfire, and /list is the heaviest route there
-        /// is. This is one lookup.</para>
+        /// Who the caller is, in Bonfire's terms: a profile or a main account, and whose; the
+        /// <c>me</c> part of <c>/startup</c>, or the refusal it gives.
         /// </summary>
-        [HttpGet("me")]
-        [ProducesResponseType(typeof(MeResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<MeResponse> GetMe()
-        {
-            if (GetCurrentUserId() == null) return Unauthorized();
-            var failed = BuildMe(out var me);
-            if (failed != null) return failed;
-            return Ok(me!);
-        }
-
-        /// <summary>What <c>/me</c> answers, or the refusal it would give; shared with <c>/startup</c>.</summary>
         private ActionResult? BuildMe(out MeResponse? result)
         {
             result = null;
@@ -5428,7 +5397,8 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// Everything a client needs to draw the profile picker, in one request:
-        /// <c>info</c>, <c>profiles</c>, <c>me</c>, <c>themes</c> and <c>announcements</c>.
+        /// <c>info</c>, <c>profiles</c>, <c>me</c>, <c>themes</c>, <c>announcements</c> and
+        /// <c>onboarding</c>.
         /// <para>
         /// Each part is built by the code its own route runs, never a second copy, so the two
         /// cannot drift. If a part would be refused, the whole call is refused the same way:
@@ -5448,6 +5418,8 @@ namespace Jellyfin.Profiles.Controllers
             if (failed != null) return failed;
             failed = BuildMe(out var me);
             if (failed != null) return failed;
+            failed = BuildOnboarding(out var onboarding);
+            if (failed != null) return failed;
             var themes = BuildThemesPayload(customOnly: false);
             if (themes == null) return NotFound();
 
@@ -5460,6 +5432,7 @@ namespace Jellyfin.Profiles.Controllers
                 me = me!,
                 themes = themesDoc.RootElement.Clone(),
                 announcements = BuildAnnouncements(),
+                onboarding = onboarding!,
             };
             return Ok(body);
         }

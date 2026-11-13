@@ -180,13 +180,24 @@ void CheckCaller(string label, Guid caller)
     if (s.status != 200) return;
     Ok(label + ": info equals /info", Json(Prop(s.value, "info")) == Json(Call("GetInfo", who).value));
     Ok(label + ": profiles equals /list", Json(Prop(s.value, "profiles")) == Json(Call("GetProfiles", who).value));
-    Ok(label + ": me equals /me", Json(Prop(s.value, "me")) == Json(Call("GetMe", who).value));
-    Ok(label + ": announcements equals /announcements", Json(Prop(s.value, "announcements")) == Json(Call("GetAnnouncements", who).value));
+    // /me, /announcements and /onboarding are gone; these are what they answered for this caller.
+    var me = Prop(s.value, "me");
+    var isKid = caller == KID;
+    Ok(label + ": me says who the caller is, as /me did",
+       me != null && (Guid)Prop(me, "UserId") == caller && (bool)Prop(me, "IsProfile") == isKid
+       && (Guid)Prop(me, "MainAccountId") == MAIN && (string)Prop(me, "MainAccountName") == "Robin"
+       && (string)Prop(me, "Name") == (isKid ? "Kid" : "Robin") && (bool)Prop(me, "MainHasPin")
+       && (int)Prop(me, "ProfileCount") == 1, Json(me));
+    Ok(label + ": announcements holds the one showing, as /announcements did",
+       Json(Prop(s.value, "announcements")).Contains("Back at six."), Json(Prop(s.value, "announcements")));
+    var ob = Prop(s.value, "onboarding");
+    Ok(label + ": onboarding says not pending while the setup is off, as /onboarding did",
+       ob != null && !(bool)Prop(ob, "Pending") && ((IList)Prop(ob, "Steps")).Count == 0, Json(ob));
     var themes = ThemesBody(who);
     Ok(label + ": themes equals /themes", themes != null && Json(Prop(s.value, "themes")) == themes);
     Ok(label + ": the body holds those five parts and nothing else",
        string.Join(",", s.value.GetType().GetProperties().Select(p => p.Name).OrderBy(x => x))
-       == "announcements,info,me,profiles,themes");
+       == "announcements,info,me,onboarding,profiles,themes");
     // Strictest part: /info is no-store.
     Ok(label + ": not cached, as /info is not", s.http.Response.Headers["Cache-Control"].ToString() == "no-store",
        s.http.Response.Headers["Cache-Control"].ToString());
@@ -231,10 +242,30 @@ Ok("a signed-in account the server cannot find is refused as /list refuses it, w
     Ok("Bonfire off: still answers, with /info's word and the other routes' bodies",
        s.status == 200 && Json(Prop(s.value, "info")) == Json(Call("GetInfo", who).value)
        && Json(Prop(s.value, "profiles")) == Json(Call("GetProfiles", who).value)
-       && Json(Prop(s.value, "me")) == Json(Call("GetMe", who).value), s.status + "");
+       && Prop(s.value, "me") != null && (Guid)Prop(Prop(s.value, "me"), "UserId") == MAIN, s.status + "");
     Ok("Bonfire off: /info says disabled", s.status == 200 && (bool)Prop(Prop(s.value, "info"), "Disabled"));
     onProp.SetValue(config, true);
 }
+
+// First-time setup on: a main account is told it is pending, with steps; a profile never is.
+{
+    var obType = asm.GetType("Jellyfin.Profiles.Configuration.OnboardingSettings", true);
+    var settings = Activator.CreateInstance(obType);
+    obType.GetProperty("Enabled").SetValue(settings, true);
+    cfgType.GetProperty("Onboarding").SetValue(config, settings);
+    var main = Prop(Call("GetStartup", UserPrincipal(MAIN)).value, "onboarding");
+    var kid = Prop(Call("GetStartup", UserPrincipal(KID)).value, "onboarding");
+    Ok("onboarding on: a main account is pending, with steps", main != null && (bool)Prop(main, "Pending") && ((IList)Prop(main, "Steps")).Count > 0, Json(main));
+    Ok("onboarding on: a profile is told it is not pending", kid != null && !(bool)Prop(kid, "Pending") && ((IList)Prop(kid, "Steps")).Count == 0, Json(kid));
+    Ok("onboarding on: the generation is carried", main != null && (int)Prop(main, "Generation") == 1);
+    cfgType.GetProperty("Onboarding").SetValue(config, null);
+}
+
+// The three reads startup replaced are gone, and the two writes beside them stay.
+foreach (var gone3 in new[] { "GetMe", "GetAnnouncements", "GetOnboarding" })
+    Ok(gone3 + " is removed", ctrlType.GetMethod(gone3) == null);
+Ok("POST /me and POST /onboarding/done stay", ctrlType.GetMethod("OnboardingDone") != null
+   && ctrlType.GetMethods().Any(m => m.GetCustomAttributes(typeof(HttpPostAttribute), false).Cast<HttpPostAttribute>().Any(a => a.Template == "me")));
 
 Console.WriteLine();
 try { Directory.Delete(tempDir, true); } catch { }

@@ -194,7 +194,7 @@ bool Available(string feature) => (bool)featuresType.GetMethod("Available").Invo
 string MissingFor(string feature) => (string)featuresType.GetMethod("MissingFor").Invoke(null, new[] { feature, config });
 bool InfoEmail() => Bool(Get(Call("GetInfo", Guid.Empty).value, "Features"), "Email");
 bool InfoPinReset() => Bool(Get(Call("GetInfo", Guid.Empty).value, "Features"), "PinResetByEmail");
-bool MePinReset(Guid who) => Bool(Call("GetMe", who).value, "PinResetByEmail");
+bool MePinReset(Guid who) => Bool(Get(Call("GetStartup", who).value, "me"), "PinResetByEmail");
 
 void Drain()
 {

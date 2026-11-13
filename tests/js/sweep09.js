@@ -51,9 +51,7 @@ const EXEMPT = [
     ['plugins/profiles/admin/mappings',     'a Dashboard poll that hides profiles; a failure is retried and a reload on it would loop'],
     ["plugins/profiles/preferences'), { cache", 'the startup read; before sign-in a 401 is normal and falls back to a guess'],
     ["plugins/profiles/library-artwork'), { cache", 'the page-load read of the artwork cache; a failure keeps what is cached'],
-    ['plugins/profiles/announcements',      'a notice banner; no banner is the safe reading, and nobody is waiting on it'],
-    ["plugins/profiles/me'), { cache",      'decides whether a Forgot PIN link shows; none is the safe reading'],
-    ["plugins/profiles/onboarding'), {",    'the page-load check for first-run setup; none is the safe reading'],
+    ["plugins/profiles/startup'), {",       'the notice banner, the Forgot PIN link and the first-run setup check read it; none of them is the safe reading to lose'],
     ["fetch(url, { headers: this.getAuthHeaders(masterState.token) })", 'arming the lock timer; a failure falls back to the cached list and retries'],
     ["plugins/profiles/list'), Object.assign", 'the _requestList wrapper; each of its callers is checked below'],
     ['fetch(url, init).then(',              'the _fetchTimed wrapper; each of its callers is checked below']
