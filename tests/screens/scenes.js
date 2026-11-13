@@ -63,6 +63,19 @@
                 ? Object.assign({}, p.viewing, { askedUtc: '2026-11-12T19:30:00Z' }) : (p.viewing || null)
         };
     });
+    // ?bonfire=yes: a second household joined through a Bonfire, as it shows beside your own.
+    if (q.get('bonfire') === 'yes') {
+        var GRAN = '66666666666666666666666666666666';
+        [{ id: GRAN, name: 'Grandma', colour: '#9b5de5', master: true }, { id: '77777777777777777777777777777777', name: 'Grandpa', colour: '#00bbf9' }]
+            .forEach(function (p) {
+                PROFILES.push({
+                    profileUserId: p.id, profileName: p.name, masterUserId: GRAN,
+                    isMaster: !!p.master, isBonfire: true, isLinked: false,
+                    requiresPin: true, avatarColor: p.colour, avatarInitial: p.name.charAt(0),
+                    profileImage: null, transparentAvatar: false, maxSubProfiles: 5, viewing: null
+                });
+            });
+    }
 
     // Plugin routes the screens ask for, by path after /plugins/profiles/. A function gets
     // the URL and the request options.

@@ -1,11 +1,13 @@
 # Bonfire/JellyProfiles
 
+![Bonfire](images/banner.png)
+
 Profiles for Jellyfin. One account holds several people, each with their own watch
 history, library access and parental controls.
 
-Works with Jellyfin 10.11 and 12.0.
+Works with Jellyfin 10.11 and 12.0. Part of [Campground](https://github.com/AHouseOfBards/Campground-Jellyfin), a set of plugins for Jellyfin.
 
-![The profile picker, showing two profiles in a household](images/profile-selector.png)
+![Who's watching, with four profiles in a household](images/screenshots/whos-watching.webp)
 
 ## Features
 
@@ -30,15 +32,13 @@ Works with Jellyfin 10.11 and 12.0.
 - **Six languages.** English, Catalan, French, Polish, Spanish and Turkish, following the
   language set in Jellyfin. [Add yours](Web/i18n/README.md).
 
-![The create-profile form](images/create-profile.png)
-
 ## Install
 
-1. In Jellyfin, open **Dashboard → Plugins → Repositories** and add:
+1. In Jellyfin, open **Dashboard → Plugins → Repositories** and add Campground's repository:
    ```
-   https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json
+   https://ahouseofbards.github.io/Campground-Jellyfin/manifest.json
    ```
-2. Install **Bonfire/JellyProfiles** from **Dashboard → Plugins → Catalog**.
+2. Install **Bonfire** from **Dashboard → Plugins → Catalog**.
 3. Restart Jellyfin.
 
 Nothing else to set up. If the switcher doesn't appear, see
@@ -61,6 +61,16 @@ the others are not yet.
 ([how it works](docs/clients.md#profile-picker-beta)). It's off by default and may change when native support arrives.
 
 Details for every app, and what each can do, are in [Apps](docs/clients.md#what-each-app-can-do).
+
+## Screenshots
+
+![Creating a profile: name, avatar, rating limit, libraries and viewing hours](images/screenshots/create-profile.webp)
+
+![Choosing a theme for a profile](images/screenshots/themes.webp)
+
+![Entering a profile's PIN with a remote](images/screenshots/pin.webp)
+
+![Managing the household's profiles](images/screenshots/manage.webp)
 
 ## Documentation
 

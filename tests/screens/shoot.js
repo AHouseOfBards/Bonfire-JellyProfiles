@@ -81,7 +81,7 @@ async function main() {
             for (const scene of scenes) {
                 for (const device of devices) {
                     const size = device === 'tv-lowpower' ? 'tv' : device;
-                    const url = 'http://127.0.0.1:' + s.port + '/?theme=' + theme.id + '&scene=' + scene + '&device=' + size + (a.count ? '&count=' + a.count : '');
+                    const url = 'http://127.0.0.1:' + s.port + '/?theme=' + theme.id + '&scene=' + scene + '&device=' + size + (a.count ? '&count=' + a.count : '') + (a.bonfire ? '&bonfire=' + a.bonfire : '');
                     const r = await c.open(url, size);
                     if (device === 'tv-lowpower') {
                         await c.evaluate('(function(){var s=document.createElement("style");s.textContent=' + JSON.stringify(NO_BLUR) + ';document.head.appendChild(s);return new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r)})})})()');
