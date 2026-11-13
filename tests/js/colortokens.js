@@ -42,8 +42,8 @@ const ALLOWED = {
     '.profiles-maintenance { background }': 'the fallback if the theme has not set its background yet',
     '.jpf-profile-card.is-switching .jpf-profile-avatar-container::after { border-top-color }':
         'the spinner over a picture darkened to 40%, whatever the theme',
-    '.profiles-home-icon { text-shadow }': "the flame's own orange glow: a brand colour, kept off the warning token on purpose",
-    '.profiles-home-icon.bonfire-icon-color { text-shadow }': "the flame's own orange glow: a brand colour",
+    '.profiles-home-icon { filter }': "the flame's own orange glow: a brand colour, kept off the warning token on purpose",
+    '.profiles-home-icon.bonfire-icon-color { filter }': "the flame's own orange glow: a brand colour",
     '.jpf-profile-avatar.is-transparent img { filter }': 'a black shadow under a cut-out picture, which is dark on any theme',
     '.jpf-profile-card.is-current .jpf-profile-avatar.is-transparent img { filter }': 'the same black shadow, current tile',
     '.jpf-profile-avatar-overlay-svg { filter }': 'a black shadow behind the pencil over a darkened picture',
