@@ -4,7 +4,7 @@ Beta builds let you try new work before it reaches everyone.
 
 | Channel | Repository URL |
 | --- | --- |
-| **Stable** | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` |
+| **Stable** | `https://ahouseofbards.github.io/Campground-Jellyfin/manifest.json` (Campground) |
 | **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` |
 
 > [!WARNING]
