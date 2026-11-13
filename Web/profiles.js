@@ -12964,7 +12964,7 @@
             section.className = 'verticalSection jpf-userprofile-section';
             section.innerHTML = `
                 <h2 class="sectionTitle jpf-row-gap-em" style="display:flex; align-items:center; gap:0.4em;">
-                    <span class="material-icons local_fire_department" aria-hidden="true" style="color:var(--jpf-warn);"></span>
+                    ${bonfireMark('jpf-userprofile-mark', 'color:var(--jpf-warn);')}
                     ${t('profilePage.title')}
                 </h2>
                 <p style="opacity:0.7; margin:0 0 1em 0; line-height:1.5;">
