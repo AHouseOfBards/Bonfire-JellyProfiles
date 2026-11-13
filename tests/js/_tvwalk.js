@@ -107,6 +107,8 @@ const PAGE = `(function () {
   }
   function controls() {
     return [].slice.call(document.querySelectorAll(${JSON.stringify(CONTROLS)})).filter(function (e) { return !e.disabled; })
+      // A checkbox inside a focusable label is not a second stop: the label is the control.
+      .filter(function (e) { return !(e.tabIndex < 0 && e.closest && e.closest('label[tabindex]')); })
       .map(function (e) { return { at: describe(e), visible: visible(e), onTop: visible(e) && onTop(e) }; });
   }
   function find(at) {
@@ -194,7 +196,9 @@ async function start(opts) {
                 await press(arrow);
                 const to = (await stateNow()).at;
                 edges.push(from + ' --' + arrow + '--> ' + to);
-                if (!reached[to]) { reached[to] = true; if (set[to]) queue.push(to); }
+                // A roving radio card has tabindex -1 and is not in `set`, but arrows leave it
+                // like any other control, so it is walked on from too.
+                if (!reached[to]) { reached[to] = true; if (set[to] || to !== 'body') queue.push(to); }
             }
         }
         const unreached = all.filter(x => x.visible && x.onTop && !reached[x.at]).map(x => x.at);
