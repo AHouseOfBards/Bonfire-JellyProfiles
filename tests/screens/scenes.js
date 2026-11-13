@@ -334,6 +334,28 @@
     }
     var REVIEW = {
         'add': function (P) { return manage(P).then(function () { P.showAddProfileModal(); return when('#create-name-input'); }); },
+        // The README's picture: the Create form filled in the way a household would, through
+        // the form's own controls so every handler runs. Not a golden.
+        'readme-add': function (P) {
+            var press = function (el) { if (el) el.click(); };
+            var fire = function (el, type) { el.dispatchEvent(new Event(type, { bubbles: true })); };
+            return manage(P).then(function () { P.showAddProfileModal(); return when('#create-name-input'); })
+                .then(function () { return when('#viewing-hours'); })
+                .then(function () {
+                    var name = document.getElementById('create-name-input');
+                    name.value = 'Kids'; fire(name, 'input');
+                    press(document.querySelectorAll('.jpf-color-dot')[3]);
+                    press(document.getElementById('create-kids-preset'));
+                    var libs = document.querySelectorAll('.library-checkbox');
+                    for (var i = 0; i < 2 && i < libs.length; i++) if (!libs[i].checked) press(libs[i]);
+                    var daily = document.getElementById('viewing-daily');
+                    daily.value = '120'; fire(daily, 'change');
+                    press(document.getElementById('viewing-hours'));
+                    [1, 2, 3, 4, 5].forEach(function (d) { press(document.getElementById('viewing-day-' + d)); });
+                    document.querySelectorAll('details.jpf-more').forEach(function (d) { d.open = true; });
+                    return new Promise(function (resolve) { setTimeout(resolve, 300); });
+                });
+        },
         'add-more': function (P) {
             return manage(P).then(function () { P.showAddProfileModal(); return when('details.jpf-more'); })
                 .then(openMore);

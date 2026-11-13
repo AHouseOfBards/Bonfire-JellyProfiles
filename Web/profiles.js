@@ -3057,7 +3057,7 @@
                             <span>${t('viewing.hoursEnabled')}</span>
                         </label>
                         <div class="jpf-viewing-days" id="viewing-days">${rows}</div>
-                        <div class="jpf-form-hint jpf-viewing-nodays" id="viewing-nodays" role="status" style="display: none; color: var(--jpf-danger);">${t('viewing.noDays')}</div>
+                        <div class="jpf-form-hint jpf-viewing-nodays" id="viewing-nodays" role="status" hidden style="color: var(--jpf-danger);">${t('viewing.noDays')}</div>
                     </div>
                 `);
 
@@ -3142,7 +3142,8 @@
             const hours = slot.querySelector('#viewing-hours');
             if (!warn || !hours) return;
             const any = order.some(d => slot.querySelector('#viewing-day-' + d).checked);
-            warn.style.display = hours.checked && !any ? '' : 'none';
+            // The hidden attribute, not style.display: .jpf-form-hint's display is !important.
+            warn.hidden = !(hours.checked && !any);
         },
 
         /// Puts the form back as it was being edited after a redraw from the server.
@@ -6032,7 +6033,7 @@
             // controls meant nothing to anyone who was only picking libraries.
             const showArtwork = (on) => {
                 if (list) list.classList.toggle("jpf-show-artwork", on);
-                if (artHint) artHint.style.display = on ? "" : "none";
+                if (artHint) artHint.hidden = !on;
             };
             if (artToggle) {
                 artToggle.addEventListener("change", (e) => showArtwork(e.target.checked));
@@ -10396,7 +10397,7 @@
                             <input type="checkbox" id="edit-libart-toggle" />
                             <span>${t('profileForm.artworkToggleLabel')}</span>
                         </label>
-                        <div class="jpf-form-hint jpf-libart-explainer" id="edit-libart-hint" style="display: none;">
+                        <div class="jpf-form-hint jpf-libart-explainer" id="edit-libart-hint" hidden>
                             ${t('profileForm.artworkExplainer')}
                         </div>
                     </div>`);
