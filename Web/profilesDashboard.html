@@ -2505,6 +2505,7 @@
                 'admin.themes.imported': '{name} imported.',
                 'admin.themes.saveFailed': 'Couldn\'t save.',
                 'admin.themes.notJson': 'That file isn\'t a theme.',
+                'admin.themes.moonfinFont': '{font} isn\'t available here.',
                 'admin.themes.replaceTitle': 'Replace theme',
                 'admin.themes.replaceConfirm': 'Replace {name} with the imported file?',
                 'admin.themes.fontWeight': 'Weight {w}',
@@ -7666,7 +7667,202 @@
                 return file;
             }
 
+            /// Moonfin's colour, #RRGGBB or #AARRGGBB, as {r,g,b,a}; null for anything else.
+            function mfFromMoonfin(c) {
+                const m = /^#(?:([0-9a-fA-F]{2}))?([0-9a-fA-F]{6})$/.exec(String(c));
+                if (!m) return null;
+                const rgb = mfParseColor('#' + m[2]);
+                rgb.a = m[1] ? parseInt(m[1], 16) / 255 : 1;
+                return rgb;
+            }
+
+            function mfIsMoonfin(file) {
+                return !!file && typeof file === 'object' && !Array.isArray(file) && file.schema === undefined &&
+                    !!file.colors && typeof file.colors === 'object' && typeof file.colors.onBackground === 'string' &&
+                    !!file.borders && typeof file.borders === 'object';
+            }
+
+            function mfLightness(c) {
+                return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255;
+            }
+
+            /// Which built-in a Moonfin file starts from: the glass one for a glass file,
+            /// otherwise a dark or a light one by the background.
+            function moonfinBaseId(file) {
+                if (file && file.isGlass === true) return 'glass';
+                const bg = mfFromMoonfin(file && file.colors && file.colors.background);
+                return bg && mfLightness(bg) >= 0.5 ? 'jellyfin-light' : 'bonfire';
+            }
+
+            /// Every colour a file carries, or null for one that is not a colour.
+            function mfAllColorsValid(file) {
+                const list = [];
+                ['colors', 'semantic', 'book'].forEach(function (g) {
+                    const o = file[g];
+                    if (o && typeof o === 'object') Object.keys(o).forEach(function (k) {
+                        if (Array.isArray(o[k])) o[k].forEach(function (v) { list.push(v); });
+                        else list.push(o[k]);
+                    });
+                });
+                const b = file.borders || {};
+                ['cardBorder', 'chipBorder', 'focusBorder', 'navBorder'].forEach(function (k) { if (b[k] && typeof b[k] === 'object') list.push(b[k].color); });
+                if (b.chipBackground !== undefined) list.push(b.chipBackground);
+                (Array.isArray(b.focusGlow) ? b.focusGlow : []).concat(Array.isArray(file.textGlow) ? file.textGlow : []).forEach(function (g) { list.push(g && g.color); });
+                (Array.isArray(file.navColorCycle) ? file.navColorCycle : []).forEach(function (v) { list.push(v); });
+                return list.every(function (v) { return !!mfFromMoonfin(v); });
+            }
+
+            function mfSet(obj, path, value) {
+                const keys = path.split('.');
+                let o = obj;
+                for (let i = 0; i < keys.length - 1; i++) {
+                    if (!o[keys[i]] || typeof o[keys[i]] !== 'object') o[keys[i]] = {};
+                    o = o[keys[i]];
+                }
+                o[keys[keys.length - 1]] = value;
+            }
+
+            /// A Moonfin theme file as a Bonfire theme, laid over `base` (a built-in's object).
+            /// `fonts` is [{family, fallback}], what this server can draw. Gives
+            /// { draft, font } where `font` names a font the file asked for that is not there,
+            /// or null when the file is not a Moonfin theme or one of its colours is bad:
+            /// nothing is loaded half-way.
+            function moonfinImport(file, base, fonts) {
+                if (!mfIsMoonfin(file)) return null;
+                if (file.schemaVersion !== undefined && (typeof file.schemaVersion !== 'number' || file.schemaVersion > 1)) return null;
+                if (!mfAllColorsValid(file)) return null;
+                const d = JSON.parse(JSON.stringify(base || {}));
+                const C = file.colors;
+                const B = file.borders;
+                const color = function (v) { return typeof v === 'string' ? mfFromMoonfin(v) : null; };
+                const put = function (path, v, opaque) {
+                    const c = color(v);
+                    if (c) mfSet(d, path, mfBonfireColor(opaque ? mfWithAlpha(c, 1) : c));
+                };
+                const bg = color(C.background);
+                const dark = !bg || mfLightness(bg) < 0.5;
+                d.schema = 1;
+                d.scheme = dark ? 'dark' : 'light';
+                d.aliases = [];
+                d.revision = 1;
+                d.name = { text: String(file.displayName || '').replace(/<script/gi, '').trim().slice(0, 40) };
+                d.id = String(file.id || 'moonfin').toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 40);
+
+                put('background.fill', C.background, true);
+                if (file.isGlass !== true) {
+                    if (!d.background || typeof d.background !== 'object') d.background = {};
+                    d.background.layers = [];
+                    delete d.background.image;
+                }
+                put('colors.panel', C.surface, true);
+                put('colors.text1', C.onBackground);
+                const t1 = color(C.onBackground);
+                if (t1) {
+                    mfSet(d, 'colors.text2', mfBonfireColor(mfWithAlpha(t1, t1.a * 0.75)));
+                    mfSet(d, 'colors.text3', mfBonfireColor(mfWithAlpha(t1, t1.a * 0.6)));
+                    mfSet(d, 'colors.name', mfBonfireColor(mfWithAlpha(t1, 1)));
+                    mfSet(d, 'colors.nameFocus', mfBonfireColor(mfWithAlpha(t1, 1)));
+                }
+                put('colors.accent', C.accent, true);
+                put('colors.onAccent', C.onAccent, true);
+                const acc = color(C.accent);
+                if (acc) {
+                    const lift = dark ? { r: 255, g: 255, b: 255, a: 0.2 } : { r: 0, g: 0, b: 0, a: 0.2 };
+                    mfSet(d, 'colors.accentFocus', mfBonfireColor(mfOver(lift, mfWithAlpha(acc, 1))));
+                }
+                put('colors.danger', C.error !== undefined ? C.error : file.semantic && file.semantic.statusError, true);
+                const focusBorder = B.focusBorder && typeof B.focusBorder === 'object' ? B.focusBorder : null;
+                if (focusBorder) {
+                    put('colors.ring', focusBorder.color, true);
+                    mfSet(d, 'shape.ringWidth', mfNum(focusBorder.width, 0, 12, 3));
+                }
+                put('parts.button2.fill', C.buttonNormal);
+                put('parts.button2.text', C.onButtonNormal);
+                put('parts.button2.focus.fill', C.buttonFocused);
+                put('parts.button2.focus.text', C.onButtonFocused);
+                put('parts.button2.focus.border.color', C.buttonFocused);
+                const chip = B.chipBorder && typeof B.chipBorder === 'object' ? B.chipBorder : null;
+                if (chip) {
+                    put('parts.button2.border.color', chip.color);
+                    mfSet(d, 'parts.button2.border.width', mfNum(chip.width, 0, 8, 1));
+                }
+                put('parts.input.fill', C.inputBackground);
+                put('parts.input.line', C.inputBorder);
+                if (B.cardBorder && typeof B.cardBorder === 'object') put('parts.card.line', B.cardBorder.color);
+
+                const radius = function (v) {
+                    if (v && typeof v === 'object') v = v.topLeft;
+                    return typeof v === 'number' && isFinite(v) ? Math.max(0, v) : null;
+                };
+                const cardR = radius(B.cardRadius);
+                if (cardR !== null) {
+                    const av = d.shape && d.shape.avatar && typeof d.shape.avatar === 'object' ? d.shape.avatar : { radius: 10 };
+                    mfSet(d, 'shape.avatar', cardR >= 100 ? { kind: 'circle', radius: av.radius } : { kind: 'square', radius: Math.min(200, cardR) });
+                }
+                const chipR = radius(B.chipRadius);
+                if (chipR !== null) {
+                    const bt = d.shape && d.shape.button && typeof d.shape.button === 'object' ? d.shape.button : { radius: 10 };
+                    mfSet(d, 'shape.button', chipR >= 100 ? { kind: 'pill', radius: bt.radius }
+                        : chipR === 0 ? { kind: 'square', radius: bt.radius } : { kind: 'rounded', radius: Math.min(64, chipR) });
+                }
+
+                const glow = Array.isArray(B.focusGlow) && B.focusGlow.length ? B.focusGlow[0] : null;
+                if (glow && typeof glow === 'object') {
+                    const g = {
+                        x: mfNum(glow.offsetX, -100, 100, 0),
+                        y: mfNum(glow.offsetY, -100, 100, 0),
+                        blur: mfNum(glow.blurRadius, 0, 100, 0),
+                        color: mfBonfireColor(color(glow.color))
+                    };
+                    const spread = mfNum(glow.spreadRadius, -50, 50, 0);
+                    if (spread) g.spread = spread;
+                    mfSet(d, 'focus.glow', g);
+                } else {
+                    mfSet(d, 'focus.glow', null);
+                }
+                const tg = Array.isArray(file.textGlow) && file.textGlow.length ? file.textGlow[0] : null;
+                if (tg && typeof tg === 'object') {
+                    mfSet(d, 'depth.title', {
+                        x: mfNum(tg.offsetX, -100, 100, 0),
+                        y: mfNum(tg.offsetY, -100, 100, 0),
+                        blur: mfNum(tg.blurRadius, 0, 100, 0),
+                        opacity: Math.round(color(tg.color).a * 100) / 100
+                    });
+                } else {
+                    mfSet(d, 'depth.title', null);
+                }
+
+                let missing = null;
+                if (typeof file.fontFamily === 'string' && file.fontFamily.trim()) {
+                    const want = file.fontFamily.trim();
+                    const have = (Array.isArray(fonts) ? fonts : []).filter(function (f) { return f && f.family === want; })[0];
+                    if (have) {
+                        mfSet(d, 'type.font.family', have.family);
+                        if (have.fallback) mfSet(d, 'type.font.fallback', have.fallback);
+                    } else {
+                        missing = want.slice(0, 60);
+                    }
+                }
+                return { draft: d, font: missing };
+            }
+
             // moonfin:end
+
+            /// A Moonfin file as a draft for the editor, laid over the built-in it suits
+            /// (`fallback` if the list of built-ins is not there), with a note when there is
+            /// something to say; null when the file cannot be read. Its id is a free one.
+            function moonfinDraft(page, parsed, fallback) {
+                const key = 'b:' + moonfinBaseId(parsed);
+                const bases = themeBases(page);
+                const found = bases.filter(function (b) { return b.key === key; })[0]
+                    || bases.filter(function (b) { return b.key === 'b:bonfire'; })[0];
+                const base = found ? found.theme : fallback;
+                if (!base) return null;
+                const r = moonfinImport(parsed, base, themeFonts(page));
+                if (!r) return null;
+                r.draft.id = uniqueThemeId(themeSlug(r.draft.name.text || r.draft.id), takenThemeIds(page));
+                return { draft: r.draft, note: r.font ? t('admin.themes.moonfinFont', { font: r.font }) : '' };
+            }
 
             /// A file that did not save, made ready for the editor: a custom theme's name is
             /// text and it has no aliases, so those two are put right and the rest is left
@@ -7687,6 +7883,14 @@
                     try { parsed = JSON.parse(reader.result); } catch (e) { /* below */ }
                     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
                         showThemeStatus(page, '#themesResult', t('admin.themes.notJson'), false);
+                        return;
+                    }
+                    // A Moonfin file opens in the editor as a new theme, to be saved from there.
+                    if (mfIsMoonfin(parsed)) {
+                        const m = moonfinDraft(page, parsed, null);
+                        if (!m) { showThemeStatus(page, '#themesResult', t('admin.themes.notJson'), false); return; }
+                        openThemeEditor(page, m.draft, 'new');
+                        if (m.note) showThemeStatus(page, '#teFileNote', m.note, true);
                         return;
                     }
                     const data = page._themes.data;
@@ -7776,7 +7980,16 @@
                         themeFileNote(page, t('admin.themes.notJson'));
                         return;
                     }
-                    const draft = importedThemeDraft(parsed);
+                    let draft = null;
+                    let moonfinNote = '';
+                    if (mfIsMoonfin(parsed)) {
+                        const m = moonfinDraft(page, parsed, ed.draft);
+                        if (!m) { themeFileNote(page, t('admin.themes.notJson')); return; }
+                        draft = m.draft;
+                        moonfinNote = m.note;
+                    } else {
+                        draft = importedThemeDraft(parsed);
+                    }
                     if (ed.draft.id === undefined) delete draft.id; else draft.id = ed.draft.id;
                     if (ed.draft.revision === undefined) delete draft.revision; else draft.revision = ed.draft.revision;
                     // Pictures are files on this server, not part of the text. One the server
@@ -7805,6 +8018,7 @@
                         page.querySelector('#teName').value = typeof name === 'string' ? name : '';
                         fillThemeEditor(page);
                         themeDraftChanged(page, true);
+                        if (moonfinNote) showThemeStatus(page, '#teFileNote', moonfinNote, true);
                     });
                 };
                 reader.onerror = function () { themeFileNote(page, t('admin.themes.notJson')); };

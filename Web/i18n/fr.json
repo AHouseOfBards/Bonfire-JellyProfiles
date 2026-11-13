@@ -740,6 +740,7 @@
   "admin.themes.imported": "{name} importé.",
   "admin.themes.saveFailed": "Impossible d'enregistrer.",
   "admin.themes.notJson": "Ce fichier n'est pas un thème.",
+  "admin.themes.moonfinFont": "{font} n'est pas disponible ici.",
   "admin.themes.replaceTitle": "Remplacer le thème",
   "admin.themes.replaceConfirm": "Remplacer {name} par le fichier importé ?",
   "admin.themes.fontWeight": "Graisse {w}",

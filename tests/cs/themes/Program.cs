@@ -515,6 +515,25 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
 }
 
 Console.WriteLine();
+Console.WriteLine("── A Moonfin theme file, once the editor has turned it into a theme ──");
+// tests/js/moonfinthemes.js writes tests/moonfin/*.bonfire.json from Moonfin files made up
+// for the test and fails if they are not what the import gives today. This is the server's
+// own check of the same files: the editor's draft must be one the server would save.
+{
+    var root = AppContext.BaseDirectory;
+    while (root != null && !File.Exists(Path.Combine(root, "Jellyfin.Profiles.csproj"))) root = Path.GetDirectoryName(root);
+    var drafts = root == null ? new string[0] : Directory.GetFiles(Path.Combine(root, "tests", "moonfin"), "*.bonfire.json");
+    Ok("the imported drafts are found (" + drafts.Length + ")", drafts.Length >= 3);
+    foreach (var f in drafts)
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(f));
+        var problems = ThemeCatalog.Validate(node);
+        Ok(Path.GetFileName(f) + " passes the server's theme check", problems.Count == 0,
+           string.Join("; ", problems.Select(p => p.Path + ": " + p.Detail)));
+    }
+}
+
+Console.WriteLine();
 if (fails.Count > 0)
 {
     foreach (var f in fails) Console.WriteLine("   - " + f);

@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "id": "pine-day",
+  "revision": 1,
+  "scheme": "light",
+  "name": {
+    "text": "Pine Day"
+  },
+  "aliases": [],
+  "colors": {
+    "accent": "#0b7a5c",
+    "accentFocus": "#09624a",
+    "onAccent": "#ffffff",
+    "text1": "#14202b",
+    "text2": "#14202bbf",
+    "text3": "#14202b99",
+    "surface1": "#00000008",
+    "surface2": "#0000000d",
+    "surface3": "#00000017",
+    "border1": "#00000014",
+    "border2": "#00000024",
+    "border3": "#0000003d",
+    "panel": "#ffffff",
+    "ring": "#0b7a5c",
+    "name": "#14202b",
+    "nameFocus": "#14202b",
+    "shadow": "#000000",
+    "danger": "#b3261e",
+    "warning": "#c77700"
+  },
+  "background": {
+    "fill": "#f4f6f8",
+    "layers": []
+  },
+  "shape": {
+    "radius": {
+      "small": 3,
+      "medium": 6,
+      "large": 8
+    },
+    "avatar": {
+      "kind": "square",
+      "radius": 18
+    },
+    "ringWidth": 4,
+    "button": {
+      "kind": "pill",
+      "radius": 4
+    },
+    "input": {
+      "radius": 4
+    }
+  },
+  "type": {
+    "font": {
+      "family": "Quicksand",
+      "fallback": "rounded"
+    },
+    "title": {
+      "weight": 500,
+      "spacing": 0,
+      "scale": 1
+    },
+    "name": {
+      "weight": 400,
+      "scale": 1,
+      "opacity": 1
+    },
+    "button": {
+      "case": "none",
+      "spacing": 0,
+      "weight": 500
+    }
+  },
+  "depth": {
+    "avatar": {
+      "x": 0,
+      "y": 2,
+      "blur": 8,
+      "opacity": 0.16
+    },
+    "title": {
+      "x": 0,
+      "y": 2,
+      "blur": 12,
+      "opacity": 0.5
+    },
+    "sheet": null
+  },
+  "focus": {
+    "scale": 1.04,
+    "glow": {
+      "x": 0,
+      "y": 8,
+      "blur": 24,
+      "color": "#4fd1a566",
+      "spread": 2
+    }
+  },
+  "parts": {
+    "button2": {
+      "fill": "#14202b1a",
+      "text": "#14202b",
+      "border": {
+        "width": 2,
+        "style": "solid",
+        "color": "#aabbcc66"
+      },
+      "focus": {
+        "fill": "#0b7a5c",
+        "text": "#ffffff",
+        "border": {
+          "width": 1,
+          "style": "solid",
+          "color": "#0b7a5c"
+        },
+        "glow": null
+      }
+    },
+    "addTile": {
+      "fill": "#0000000a",
+      "border": {
+        "width": 2,
+        "style": "dashed",
+        "color": "#00000047"
+      },
+      "text": "#555555",
+      "focusFill": "#007aa31f"
+    },
+    "card": {
+      "fill": "#ffffff",
+      "line": "#ffffff2e"
+    },
+    "sheet": {
+      "fill": "#00000000",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#00000000"
+      }
+    },
+    "input": {
+      "fill": "#ffffff",
+      "line": "#00000059"
+    }
+  },
+  "layout": {
+    "households": "open",
+    "profiles": "tiles",
+    "align": "center",
+    "size": "medium",
+    "logo": "top-right"
+  },
+  "decorations": []
+}

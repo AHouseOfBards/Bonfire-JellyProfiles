@@ -740,6 +740,7 @@
   "admin.themes.imported": "{name} içe aktarıldı.",
   "admin.themes.saveFailed": "Kaydedilemedi.",
   "admin.themes.notJson": "Bu dosya bir tema değil.",
+  "admin.themes.moonfinFont": "{font} burada kullanılamıyor.",
   "admin.themes.replaceTitle": "Temayı değiştir",
   "admin.themes.replaceConfirm": "{name} içe aktarılan dosyayla değiştirilsin mi?",
   "admin.themes.fontWeight": "Kalınlık {w}",

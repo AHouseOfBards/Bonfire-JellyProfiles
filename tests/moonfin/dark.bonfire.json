@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "id": "pine-night",
+  "revision": 1,
+  "scheme": "dark",
+  "name": {
+    "text": "Pine Night"
+  },
+  "aliases": [],
+  "colors": {
+    "accent": "#4fd1a5",
+    "accentFocus": "#72dab7",
+    "onAccent": "#06201a",
+    "text1": "#f0f7f4",
+    "text2": "#f0f7f4bf",
+    "text3": "#f0f7f499",
+    "surface1": "#ffffff08",
+    "surface2": "#ffffff0f",
+    "surface3": "#ffffff1c",
+    "border1": "#ffffff14",
+    "border2": "#ffffff26",
+    "border3": "#ffffff42",
+    "panel": "#16282a",
+    "ring": "#9be8cf",
+    "name": "#f0f7f4",
+    "nameFocus": "#f0f7f4",
+    "shadow": "#000000",
+    "danger": "#ff7b7b",
+    "warning": "#ff9900"
+  },
+  "background": {
+    "fill": "#0e1a17",
+    "layers": []
+  },
+  "shape": {
+    "radius": {
+      "small": 6,
+      "medium": 12,
+      "large": 20
+    },
+    "avatar": {
+      "kind": "square",
+      "radius": 18
+    },
+    "ringWidth": 4,
+    "button": {
+      "kind": "pill",
+      "radius": 12
+    },
+    "input": {
+      "radius": 10
+    }
+  },
+  "type": {
+    "font": {
+      "family": "Quicksand",
+      "fallback": "rounded"
+    },
+    "title": {
+      "weight": 600,
+      "spacing": 0,
+      "scale": 1.05
+    },
+    "name": {
+      "weight": 500,
+      "scale": 1,
+      "opacity": 1
+    },
+    "button": {
+      "case": "none",
+      "spacing": 0.01,
+      "weight": 600
+    }
+  },
+  "depth": {
+    "avatar": {
+      "x": 0,
+      "y": 10,
+      "blur": 26,
+      "opacity": 0.5
+    },
+    "title": {
+      "x": 0,
+      "y": 2,
+      "blur": 12,
+      "opacity": 0.5
+    },
+    "sheet": null
+  },
+  "focus": {
+    "scale": 1.06,
+    "glow": {
+      "x": 0,
+      "y": 8,
+      "blur": 24,
+      "color": "#4fd1a566",
+      "spread": 2
+    }
+  },
+  "parts": {
+    "button2": {
+      "fill": "#aabbcc33",
+      "text": "#f0f7f4",
+      "border": {
+        "width": 2,
+        "style": "solid",
+        "color": "#aabbcc66"
+      },
+      "focus": {
+        "fill": "#4fd1a5",
+        "text": "#06201a",
+        "border": {
+          "width": 1,
+          "style": "solid",
+          "color": "#4fd1a5"
+        },
+        "glow": null
+      }
+    },
+    "addTile": {
+      "fill": "#ffffff0a",
+      "border": {
+        "width": 2,
+        "style": "dashed",
+        "color": "#ffffff40"
+      },
+      "text": "#ffd9a8",
+      "focusFill": "#ffb34726"
+    },
+    "card": {
+      "fill": "#ffffff08",
+      "line": "#ffffff2e"
+    },
+    "sheet": {
+      "fill": "#00000000",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#00000000"
+      }
+    },
+    "input": {
+      "fill": "#1c2f31",
+      "line": "#ffffff40"
+    }
+  },
+  "layout": {
+    "households": "panels",
+    "profiles": "tiles",
+    "align": "center",
+    "size": "medium",
+    "logo": "top-right"
+  },
+  "decorations": []
+}

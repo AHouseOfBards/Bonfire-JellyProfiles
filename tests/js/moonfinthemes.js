@@ -108,7 +108,7 @@ function load() {
     const ctx = {};
     vm.createContext(ctx);
     vm.runInContext(src.slice(a, b) + '\nthis.api = { ' +
-        ['moonfinExport', 'moonfinImport', 'mfParseColor', 'mfBonfireColor', 'mfMoonfinColor'].map(function (n) {
+        ['moonfinExport', 'moonfinImport', 'moonfinBaseId', 'mfIsMoonfin'].map(function (n) {
             return n + ': typeof ' + n + " === 'function' ? " + n + ' : undefined';
         }).join(', ') + ' };', ctx);
     return ctx.api;
@@ -185,6 +185,101 @@ ok('no focus glow gives an empty list', api.moonfinExport(Object.assign({}, mine
 ok('a one-letter id is made long enough', check(api.moonfinExport(Object.assign({}, mine, { id: 'a' }), 'x')).length === 0);
 ok('a name with a script tag is cleaned', !/<script/i.test(api.moonfinExport(mine, 'a<script>b').displayName));
 ok('the glass theme says so', api.moonfinExport(JSON.parse(fs.readFileSync(path.join(themesDir, 'glass.json'), 'utf8')), 'Glass').isGlass === true);
+
+// ── Import ─────────────────────────────────────────────────────────────────────────
+ok('the dashboard has the Moonfin import', typeof api.moonfinImport === 'function' && typeof api.moonfinBaseId === 'function' && typeof api.mfIsMoonfin === 'function');
+if (typeof api.moonfinImport !== 'function' || typeof api.moonfinBaseId !== 'function' || typeof api.mfIsMoonfin !== 'function') {
+    console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
+    process.exit(1);
+}
+const readJson = function (p) { return JSON.parse(fs.readFileSync(p, 'utf8')); };
+const fixtures = path.join(__dirname, '..', 'moonfin');
+const fonts = readJson(path.join(themesDir, 'fonts.json')).fonts.map(function (f) { return { family: f.family, fallback: f.fallback }; });
+const builtIn = function (id) { return readJson(path.join(themesDir, id + '.json')); };
+const handFile = readJson(path.join(fixtures, 'dark.theme.json'));
+ok('the hand-written Moonfin file passes the format', check(handFile).length === 0, check(handFile).join('; '));
+const copy = function (o) { return JSON.parse(JSON.stringify(o)); };
+const importAs = function (file) { return api.moonfinImport(file, builtIn(api.moonfinBaseId(file)), fonts); };
+
+// The three files the C# harness (tests/cs/themes) hands to the server's validator.
+const light = copy(handFile);
+Object.assign(light.colors, { background: '#F4F6F8', onBackground: '#14202B', surface: '#FFFFFF', onSurface: '#14202B', accent: '#0B7A5C', onAccent: '#FFFFFF',
+    onButtonNormal: '#14202B', buttonNormal: '#1A14202B', buttonFocused: '#0B7A5C', onButtonFocused: '#FFFFFF', error: '#B3261E' });
+Object.assign(light.colors, { inputBackground: '#FFFFFF', inputBorder: '#59000000' });
+light.borders.focusBorder.color = '#0B7A5C';
+light.id = 'pine_day';
+light.displayName = 'Pine Day';
+const glass = copy(handFile);
+glass.isGlass = true;
+glass.id = 'pine_glass';
+glass.displayName = 'Pine Glass';
+const outputs = { dark: handFile, light: light, glass: glass };
+Object.keys(outputs).forEach(function (k) {
+    const r = importAs(outputs[k]);
+    const file = path.join(fixtures, k + '.bonfire.json');
+    if (process.env.MOONFIN_WRITE === '1' && r) fs.writeFileSync(file, JSON.stringify(r.draft, null, 2) + '\n');
+    ok('the ' + k + ' file imports', !!r);
+    ok('and ' + k + '.bonfire.json holds what it imports to (the server checks that file)',
+        !!r && fs.existsSync(file) && JSON.stringify(readJson(file)) === JSON.stringify(r.draft),
+        'run MOONFIN_WRITE=1 node tests/js/moonfinthemes.js to rewrite it');
+});
+
+ok('a dark file starts from Bonfire, a light one from the light Jellyfin, a glass one from glass',
+    api.moonfinBaseId(handFile) === 'bonfire' && api.moonfinBaseId(light) === 'jellyfin-light' && api.moonfinBaseId(glass) === 'glass');
+const imp = importAs(handFile);
+const d = imp && imp.draft;
+const at = function (o, p) { return p.split('.').reduce(function (x, k) { return x == null ? x : x[k]; }, o); };
+const same = function (p, want) { return JSON.stringify(at(d, p)) === JSON.stringify(want); };
+ok('the name and id come from the file', same('name', { text: 'Pine Night' }) && d.id === 'pine-night' && d.schema === 1 && d.scheme === 'dark' && same('aliases', []));
+ok('the background is the colour and the base\'s gradient is gone', same('background.fill', '#0e1a17') && same('background.layers', []));
+ok('surface is the panel; text and accent map', same('colors.panel', '#16282a') && same('colors.text1', '#f0f7f4') && same('colors.accent', '#4fd1a5') && same('colors.onAccent', '#06201a'));
+ok('the second button maps, alpha moved to the end', same('parts.button2.fill', '#aabbcc33') && same('parts.button2.text', '#f0f7f4') &&
+    same('parts.button2.focus.fill', '#4fd1a5') && same('parts.button2.focus.text', '#06201a'), JSON.stringify(at(d, 'parts.button2')));
+ok('the chip border and the input map', same('parts.button2.border.color', '#aabbcc66') && same('parts.button2.border.width', 2) &&
+    same('parts.input.fill', '#1c2f31') && same('parts.input.line', '#ffffff40'));
+ok('the focus border is the ring', same('colors.ring', '#9be8cf') && same('shape.ringWidth', 4));
+ok('error is danger; the card border is the card line', same('colors.danger', '#ff7b7b') && same('parts.card.line', '#ffffff2e'));
+ok('radius 18 is a square avatar of 18 and 999 is a pill', same('shape.avatar', { kind: 'square', radius: 18 }) && at(d, 'shape.button.kind') === 'pill', JSON.stringify(at(d, 'shape')));
+ok('the focus glow and the text glow map', same('focus.glow', { x: 0, y: 8, blur: 24, color: '#4fd1a566', spread: 2 }) && same('depth.title', { x: 0, y: 2, blur: 12, opacity: 0.5 }),
+    JSON.stringify([at(d, 'focus.glow'), at(d, 'depth.title')]));
+ok('a font Bonfire has is taken, and nothing is said', same('type.font.family', 'Quicksand') && imp.font === null);
+const odd = copy(handFile);
+odd.fontFamily = 'Zzyzx Display';
+const oddImp = importAs(odd);
+ok('a font Bonfire does not have keeps the base font, and is named', !!oddImp && oddImp.font === 'Zzyzx Display' &&
+    at(oddImp.draft, 'type.font.family') === 'Outfit');
+const noGlow = copy(handFile);
+noGlow.borders.focusGlow = [];
+delete noGlow.textGlow;
+const ng = importAs(noGlow);
+ok('no glow in the file is none in the draft', !!ng && at(ng.draft, 'focus.glow') === null && at(ng.draft, 'depth.title') === null);
+
+// Bonfire -> Moonfin -> Bonfire keeps a colour whose alpha is not ff.
+const back = api.moonfinImport(api.moonfinExport(mine, 'My test'), builtIn('bonfire'), fonts);
+const bd = back && back.draft;
+[['colors.text1', '#e0e8f0cc'], ['parts.button2.fill', '#aabbcc33'], ['parts.button2.border.color', '#445566aa'], ['focus.glow.color', '#10a0f040'],
+    ['parts.input.line', '#a0b0c080'], ['parts.card.line', '#99aabb55'], ['colors.accent', '#10a0f0'], ['colors.panel', '#202830'], ['colors.ring', '#80d0ff']].forEach(function (p) {
+    ok('round trip keeps ' + p[0] + ' ' + p[1], !!bd && at(bd, p[0]) === p[1], bd && at(bd, p[0]));
+});
+ok('round trip keeps the font, the ring width and the title shadow', !!bd && at(bd, 'type.font.family') === 'Lora' && at(bd, 'shape.ringWidth') === 4 &&
+    at(bd, 'depth.title.blur') === 9 && at(bd, 'depth.title.opacity') === 0.5);
+
+// A bad colour refuses the whole file.
+[['colors.accent', '#12345'], ['colors.onAccent', '#GG0000'], ['colors.scrim', '#FFB347FF00'], ['colors.background', 'red'], ['colors.surface', 16777215],
+    ['semantic.statusPending', '#FFF'], ['book.placeholderPalette', ['#112233', 'nope']], ['borders.cardBorder.color', '#1234567'], ['borders.chipBackground', ''],
+    ['borders.focusGlow.0.color', '#xyz'], ['textGlow.0.color', '80000000']].forEach(function (p) {
+    const f = copy(handFile);
+    const keys = p[0].split('.');
+    let o = f;
+    for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]];
+    o[keys[keys.length - 1]] = p[1];
+    ok('a bad colour at ' + p[0] + ' is refused', api.moonfinImport(f, builtIn('bonfire'), fonts) === null);
+});
+const v2 = copy(handFile);
+v2.schemaVersion = 2;
+ok('a newer schemaVersion is refused', api.moonfinImport(v2, builtIn('bonfire'), fonts) === null);
+ok('a Bonfire theme file is not taken for a Moonfin one', !api.mfIsMoonfin(builtIn('bonfire')) && !api.mfIsMoonfin({ colors: { accent: '#000000' } }));
+ok('a Moonfin file is recognised', api.mfIsMoonfin(handFile) && api.mfIsMoonfin(api.moonfinExport(mine, 'x')));
 
 console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
 process.exit(fails.length ? 1 : 0);

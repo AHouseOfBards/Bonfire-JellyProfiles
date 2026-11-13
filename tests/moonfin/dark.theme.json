@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "exportedByEditorVersion": "test-1",
+  "id": "pine_night",
+  "displayName": "Pine Night",
+  "description": "Made up for the test.",
+  "fontFamily": "Quicksand",
+  "colors": {
+    "background": "#0E1A17",
+    "onBackground": "#F0F7F4",
+    "surface": "#16282A",
+    "onSurface": "#F0F7F4",
+    "surfaceVariant": "#1E3436",
+    "scrim": "#B3000000",
+    "accent": "#4FD1A5",
+    "onAccent": "#06201A",
+    "buttonNormal": "#33AABBCC",
+    "buttonFocused": "#4FD1A5",
+    "buttonDisabled": "#1AFFFFFF",
+    "buttonActive": "#4FD1A5",
+    "onButtonNormal": "#F0F7F4",
+    "onButtonFocused": "#06201A",
+    "onButtonDisabled": "#80FFFFFF",
+    "inputBackground": "#1C2F31",
+    "inputFocused": "#244042",
+    "inputBorder": "#40FFFFFF",
+    "inputBorderFocused": "#9BE8CF",
+    "rangeTrack": "#33FFFFFF",
+    "rangeProgress": "#4FD1A5",
+    "rangeThumb": "#4FD1A5",
+    "seekbarBuffered": "#59FFFFFF",
+    "badgeBackground": "#B3000000",
+    "onBadge": "#FFFFFF",
+    "badgeUnplayed": "#3F8FD2",
+    "badgeWatched": "#3FA34D",
+    "recordingActive": "#E53935",
+    "recordingScheduled": "#FB8C00",
+    "error": "#FF7B7B",
+    "card": "#1A2D2F"
+  },
+  "semantic": {
+    "statusAvailable": "#3FA34D",
+    "statusRequested": "#8E5BC9",
+    "statusPending": "#E0A030",
+    "statusDownloading": "#3F8FD2",
+    "mediaTypeBadgeMovie": "#3F8FD2",
+    "mediaTypeBadgeShow": "#8E5BC9"
+  },
+  "book": {
+    "background": "#0E1A17",
+    "accent": "#4FD1A5",
+    "mutedText": "#A6F0F7F4",
+    "primaryText": "#F0F7F4",
+    "sectionTitle": "#BEF0F7F4",
+    "divider": "#26FFFFFF",
+    "placeholder": "#1E3436",
+    "shadow": "#000000",
+    "gradientTop": "#0E1A17",
+    "gradientBottom": "#16282A",
+    "inactiveChip": "#1A2D2F",
+    "placeholderPalette": ["#4FD1A5", "#FF7B7B", "#E0A030"]
+  },
+  "borders": {
+    "cardBorder": { "color": "#2EFFFFFF", "width": 1 },
+    "chipBorder": { "color": "#66AABBCC", "width": 2 },
+    "focusBorder": { "color": "#9BE8CF", "width": 4 },
+    "cardRadius": 18,
+    "chipRadius": 999,
+    "chipBackground": "#33AABBCC",
+    "focusGlow": [
+      { "color": "#664FD1A5", "blurRadius": 24, "offsetX": 0, "offsetY": 8, "spreadRadius": 2 }
+    ]
+  },
+  "textGlow": [
+    { "color": "#80000000", "blurRadius": 12, "offsetX": 0, "offsetY": 2, "spreadRadius": 0 }
+  ]
+}

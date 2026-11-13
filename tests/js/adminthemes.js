@@ -823,7 +823,7 @@ async function part8() {
 
         // The import, run: what is sent, and what the administrator is told. These replace
         // two assertions that matched the function's source text.
-        const imp = lift(['getThemePath', 'importedThemeDraft', 'importThemeFile'], {
+        const imp = lift(['getThemePath', 'importedThemeDraft', 'mfIsMoonfin', 'importThemeFile'], {
             FileReader: function () { this.readAsText = text => { this.result = text; this.onload(); }; },
             ApiClient: { getUrl: u => '/' + u, ajax: a => { imp.sent.push(JSON.parse(a.data)); return { then: okFn => okFn({}) }; } },
             showThemeStatus: (p, sel, msg) => { imp.said.push(msg); },

@@ -740,6 +740,7 @@
   "admin.themes.imported": "{name} importat.",
   "admin.themes.saveFailed": "No s'ha pogut desar.",
   "admin.themes.notJson": "Aquest fitxer no és un tema.",
+  "admin.themes.moonfinFont": "{font} no està disponible aquí.",
   "admin.themes.replaceTitle": "Substitueix el tema",
   "admin.themes.replaceConfirm": "Vols substituir {name} pel fitxer importat?",
   "admin.themes.fontWeight": "Gruix {w}",

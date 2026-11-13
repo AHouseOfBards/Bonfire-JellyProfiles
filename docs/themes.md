@@ -26,6 +26,7 @@ Schema version 1. This document is the reference for it.
 - [Screenshots](#screenshots)
 - [Rules every theme passes](#rules-every-theme-passes)
 - [Getting themes](#getting-themes)
+- [Moonfin theme files](#moonfin-theme-files)
 - [Changes to this format](#changes-to-this-format)
 
 ## What an app must follow
@@ -407,6 +408,54 @@ as `If-None-Match` and you get `304` until something changes.
   screen readers. `corners` is `rounded` or `square` and covers the image and the backing behind a
   see-through one: draw the same. Keep it inside the TV safe area: 5% in from each edge. Elsewhere it
   sits at least 2rem in from the edge.
+
+## Moonfin theme files
+
+The editor's File menu has **Download for Moonfin**, which writes `<id>.theme.json` for
+Moonfin's theme editor. **Load theme file**, and Import on the theme list, also read a
+Moonfin file. Moonfin writes colours alpha first (`#AARRGGBB`); Bonfire writes them alpha
+last (`#RRGGBBAA`). Both directions convert.
+
+| Bonfire | Moonfin |
+| --- | --- |
+| `background.fill` | `colors.background`, `book.background`, `book.gradientTop` |
+| `colors.panel` | `colors.surface`, `book.gradientBottom` |
+| `colors.text1` | `colors.onBackground`, `colors.onSurface`, `book.primaryText` |
+| `colors.accent`, `colors.onAccent` | `colors.accent`, `colors.onAccent`, `colors.buttonActive`, `colors.rangeProgress`, `colors.rangeThumb` |
+| `parts.button2` `fill`, `text` | `colors.buttonNormal`, `colors.onButtonNormal`, `borders.chipBackground` |
+| `parts.button2.focus` `fill`, `text` | `colors.buttonFocused`, `colors.onButtonFocused` |
+| `parts.button2.border` | `borders.chipBorder` |
+| `colors.ring`, `shape.ringWidth` | `borders.focusBorder`, `colors.inputBorderFocused` |
+| `parts.input` `fill`, `line` | `colors.inputBackground`, `colors.inputBorder` |
+| `colors.danger` | `colors.error`, `semantic.statusError` |
+| `parts.card.line` | `borders.cardBorder` |
+| `shape.avatar` | `borders.cardRadius`: a circle is 999, otherwise its radius |
+| `shape.button` | `borders.chipRadius`: a pill is 999, a square 0, otherwise its radius |
+| `focus.glow` | `borders.focusGlow[0]` |
+| `depth.title` | `textGlow[0]`, in `colors.shadow` at the shadow's opacity |
+| `type.font.family` | `fontFamily` |
+| a `frost` decoration | `isGlass` |
+
+Worked out from the theme's own colours on the way out: `colors.surfaceVariant`,
+`colors.card`, `colors.inputFocused`, `colors.buttonDisabled`, `colors.onButtonDisabled`,
+`colors.scrim`, `colors.rangeTrack`, `colors.seekbarBuffered`, and the rest of `book`.
+Fixed neutral values, because Bonfire draws none of them: the badge, recording and request
+status colours, and the book's placeholder palette (the accent, danger, warning and the
+raised surface).
+
+On the way in, the file starts from Bonfire (dark background), the light Jellyfin theme
+(light background) or Glass (`isGlass`), and the table above is applied to it. The
+background becomes the one colour, with no gradient. `text2`, `text3`, the name colours and
+`accentFocus` are worked out from `text1` and the accent. A font Bonfire does not serve
+keeps the starting theme's font, and the editor says so. A file with a colour that is not
+`#RRGGBB` or `#AARRGGBB`, or with a `schemaVersion` above 1, is refused whole.
+
+What Moonfin has that Bonfire has no setting for, and is dropped on the way in: the book
+and its palette, badge, recording and request-status colours, `navBorder`,
+`navColorCycle`, `transparentNavbarSurface`, `isPixel`, the per-corner radii (the top left
+is used) and a second or later glow. What Bonfire has that Moonfin does not: background
+gradients, images and patterns, the layout, type weights and scale, and the second glow
+of a button.
 
 ## Changes to this format
 

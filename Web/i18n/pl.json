@@ -740,6 +740,7 @@
   "admin.themes.imported": "Zaimportowano: {name}.",
   "admin.themes.saveFailed": "Nie udało się zapisać.",
   "admin.themes.notJson": "Ten plik nie jest motywem.",
+  "admin.themes.moonfinFont": "Czcionka {font} nie jest tutaj dostępna.",
   "admin.themes.replaceTitle": "Zastąp motyw",
   "admin.themes.replaceConfirm": "Zastąpić {name} zaimportowanym plikiem?",
   "admin.themes.fontWeight": "Grubość {w}",
