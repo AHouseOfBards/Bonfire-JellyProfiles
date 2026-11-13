@@ -1646,10 +1646,10 @@
                     <select is="emby-select" id="profileImageQuality">
                         <!-- The values are stored ids and are not the words: "high" is 1024 px and
                              "maximum" 2048 px, as in every saved config. See ImageQualities. -->
-                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Low — 512 px, up to 2 MB</option>
-                        <option value="high" data-i18n="admin.avatars.qualityHigh">Medium — 1024 px, up to 4 MB</option>
-                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High — 2048 px, up to 8 MB</option>
-                        <option value="ultra" data-i18n="admin.avatars.qualityUltra">Maximum — 4096 px, up to 16 MB</option>
+                        <option value="standard" data-i18n="admin.avatars.qualityStandard">Low (512 px, up to 2 MB)</option>
+                        <option value="high" data-i18n="admin.avatars.qualityHigh">Medium (1024 px, up to 4 MB)</option>
+                        <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High (2048 px, up to 8 MB)</option>
+                        <option value="ultra" data-i18n="admin.avatars.qualityUltra">Maximum (4096 px, up to 16 MB)</option>
                     </select>
                     <div class="fieldDescription" data-i18n="admin.avatars.qualityHint">More disk. Applies to new avatars.</div>
                 </div>
@@ -1895,7 +1895,7 @@
                 <div class="jpf-faq">
                     <details>
                         <summary data-i18n="admin.help.noSwitcherQ">The switcher doesn't appear</summary>
-                        <p data-i18n="admin.help.noSwitcherA1">Restart Jellyfin after installing or updating Bonfire: the old version runs until the server process restarts. On Docker, restart the container; the dashboard's Restart button often doesn't.</p>
+                        <p data-i18n="admin.help.noSwitcherA1">Restart Jellyfin after installing or updating Bonfire. On Docker, restart the container, because Jellyfin's Restart button often doesn't.</p>
                         <p data-i18n="admin.help.noSwitcherA2">An index.html with no Bonfire tag in it is normal. Bonfire adds its script as the page is served.</p>
                         <p><button is="emby-button" type="button" class="raised button-mini" id="faqOpenClientScript" data-i18n="admin.help.openClientScript">Check the client script</button></p>
                     </details>
@@ -1905,7 +1905,7 @@
                     </details>
                     <details>
                         <summary data-i18n="admin.help.librariesQ">A profile's library access keeps reverting</summary>
-                        <p data-i18n="admin.help.librariesA">Change a profile's libraries in "Edit profile", not in Dashboard → Users. Adding one there sticks; removing one doesn't, because it looks the same as Jellyfin resetting the account.</p>
+                        <p data-i18n="admin.help.librariesA">Change a profile's libraries in "Edit profile", not in Dashboard → Users, where removing one doesn't stick.</p>
                         <p data-i18n="admin.help.librariesOwned">Libraries other plugins manage, like FieldGuide's, aren't listed or changed.</p>
                     </details>
                     <details>
@@ -1940,7 +1940,7 @@
                     <div class="sectionTitleContainer jpf-section">
                         <h2 class="sectionTitle" data-i18n="admin.backup.title">Backup</h2>
                     </div>
-                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export saves everything except the mail password and emergency code. Import replaces everything except those two. The file holds scrambled PINs, so keep it private.</div>
+                    <div class="fieldDescription jpf-lede" data-i18n="admin.backup.lede">Export and import skip the mail password and emergency code. Keep the file private, since it can hold PINs.</div>
                     <div class="jpf-backup-row">
                         <button is="emby-button" type="button" id="exportConfigBtn" class="raised">
                             <span data-i18n="admin.backup.export">Export</span>
@@ -2038,14 +2038,14 @@
                 'admin.version.preTitle': 'Pre-release build. Please report problems on GitHub.',
 
                 'admin.script.notAttached': 'Bonfire\'s script couldn\'t attach to Jellyfin. Restart Jellyfin.',
-                'admin.script.notYet': 'The script is loaded, but no page has reached it yet. Reload this page to check.',
+                'admin.script.notYet': 'No page has loaded the script yet. Reload this page to check.',
                 'admin.script.servedOne': 'The script is working: 1 page served.',
                 'admin.script.servedMany': 'The script is working: {count} pages served.',
-                'admin.script.idle': 'The script is loaded and index.html already has it, so nothing is needed.',
+                'admin.script.idle': 'The script is loaded and index.html already has it.',
                 'admin.script.lastProblem': 'Last problem: {error}',
 
                 'admin.banner.restartVersions': 'Running {running}. Version {newest} is installed and starts when the server process restarts.',
-                'admin.banner.failLive': 'index.html isn\'t the cause, so there\'s nothing to change on disk. Restart Jellyfin if it still fails after a re-check.',
+                'admin.banner.failLive': 'index.html isn\'t the cause. Restart Jellyfin if it still fails after a re-check.',
                 'admin.banner.rechecking': 'Re-checking…',
                 'admin.banner.stillBroken': 'Still not fixed. See the reason above.',
                 'admin.banner.fixedTitle': 'Fixed',
@@ -2162,10 +2162,10 @@
                 'admin.orphans.cleanupFailed': 'Cleanup failed.',
                 'admin.orphans.scanFailed': 'Scan failed.',
 
-                'admin.audit.showing': 'Showing {shown} of {total} events.',
-                'admin.audit.countOne': '1 event.',
-                'admin.audit.countMany': '{count} events.',
-                'admin.audit.empty': 'No profile switches yet. They show up here as people switch.',
+                'admin.audit.showing': 'Showing {shown} of {total} switches.',
+                'admin.audit.countOne': '1 switch.',
+                'admin.audit.countMany': '{count} switches.',
+                'admin.audit.empty': 'No profile switches yet.',
                 'admin.audit.noMatch': 'No events match this filter. Clear it to see all.',
                 'admin.audit.loadFailed': 'Couldn\'t load the switch log.',
                 'admin.audit.deleteTitle': 'Delete the log',
@@ -2190,7 +2190,7 @@
                 'admin.devices.loadFailed': 'Couldn\'t load sessions.',
 
                 'admin.backup.imported': 'Imported. Profiles: {profiles}. Devices: {devices}. Bonfires: {bonfires}.',
-                'admin.backup.skipped': 'Skipped {count} profiles naming Jellyfin users this server doesn\'t have: {names}.',
+                'admin.backup.skipped': 'Skipped profiles for Jellyfin users this server doesn\'t have ({count}): {names}.',
                 'admin.backup.panicKept': 'Backups leave out the emergency code, so this server kept its own.',
                 'admin.backup.panicMissing': 'Backups leave out the emergency code. Set it again if you use one.',
                 'admin.backup.bonfireOff': 'Bonfire is off. Turn it on in Status.',

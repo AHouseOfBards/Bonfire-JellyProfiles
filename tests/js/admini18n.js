@@ -195,7 +195,7 @@ function el(attrs, text, children) {
     api.set({ 'admin.ann.none': 'Aucune.' });
     ok('t() uses the translation', api.t('admin.ann.none') === 'Aucune.');
     ok('and falls back to English per key', api.t('admin.ann.edit') === 'Edit');
-    ok('and fills placeholders', api.t('admin.audit.showing', { shown: 2, total: 9 }) === 'Showing 2 of 9 events.');
+    ok('and fills placeholders', api.t('admin.audit.showing', { shown: 2, total: 9 }) === 'Showing 2 of 9 switches.');
 }
 
 // ── 4. Fetching it ────────────────────────────────────────────────────────────
