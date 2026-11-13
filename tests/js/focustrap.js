@@ -114,7 +114,8 @@ const grid = {
     d: el('d', 0, 120), e: el('e', 120, 120), f: el('f', 240, 120)
 };
 const items = Object.values(grid);
-const root = { contains: node => items.indexOf(node) >= 0 };
+// A real overlay answers querySelector; this grid has no sticky Save bar, so it finds none.
+const root = { contains: node => items.indexOf(node) >= 0, querySelector: () => null };
 
 const nav = Object.create(PP);
 nav._overlayFocusables = () => items;
@@ -152,7 +153,7 @@ const mixed = [
     el('vis2', 360, 0)
 ];
 const mixedRoot = {
-    contains: n => mixed.indexOf(n) >= 0,
+    querySelector: () => null, contains: n => mixed.indexOf(n) >= 0,
     querySelectorAll: () => mixed
 };
 sandbox.document.activeElement = mixed[0];
@@ -198,7 +199,7 @@ const TV = (() => {
 
 const tvSurface = {
     id: 'profiles-gate-overlay', isConnected: true,
-    contains: n => TV.items.indexOf(n) >= 0,
+    querySelector: () => null, contains: n => TV.items.indexOf(n) >= 0,
     querySelectorAll: () => TV.items,
     getAttribute: () => null
 };
@@ -320,7 +321,7 @@ const pinField = other('INPUT');
 const gateSurface = {
     id: 'profiles-gate-overlay',
     isConnected: true,
-    contains: n => items.indexOf(n) >= 0 || n === pinField,
+    querySelector: () => null, contains: n => items.indexOf(n) >= 0 || n === pinField,
     querySelector: () => null,
     querySelectorAll: () => items,
     getAttribute: () => null
@@ -372,7 +373,7 @@ check('gate: Tab wraps forwards', r.focused, 'a');
 // Tab used to be routed through the geometric search, which found nothing at all in a
 // stacked form because every candidate sits above or below rather than beside.
 const stacked = [el('s1', 0, 0), el('s2', 0, 120), el('s3', 0, 240)];
-const stackedRoot = { contains: n => stacked.indexOf(n) >= 0, querySelectorAll: () => stacked, isConnected: true, id: 'profiles-gate-overlay' };
+const stackedRoot = { querySelector: () => null, contains: n => stacked.indexOf(n) >= 0, querySelectorAll: () => stacked, isConnected: true, id: 'profiles-gate-overlay' };
 withSurfaces([stackedRoot]);
 sandbox.document.activeElement = stacked[0];
 r = press('Tab', stacked[0]);
@@ -399,7 +400,7 @@ check('gate: keyCode-only arrow still navigates', r.focused, 'b');
 const cropSurface = {
     id: 'profiles-crop-dialog',
     isConnected: true,
-    contains: () => true,
+    querySelector: () => null, contains: () => true,
     querySelectorAll: () => items,
     getAttribute: n => (n === 'data-profiles-own-keys' ? '1' : null)
 };
@@ -456,7 +457,7 @@ console.log('--------------------------');
         const trapSurface = {
             id: 'profiles-gate-overlay',
             isConnected: true,
-            contains: n => items.indexOf(n) >= 0,
+            querySelector: () => null, contains: n => items.indexOf(n) >= 0,
             querySelectorAll: () => items,
             getAttribute: () => null
         };
@@ -602,7 +603,7 @@ const backBtn = { id: 'pin-cancel-btn', click() { clicked = 'pin-cancel-btn'; } 
 const pinScreen = {
     id: 'profiles-gate-overlay',
     isConnected: true,
-    contains: () => true,
+    querySelector: () => null, contains: () => true,
     querySelectorAll: () => items,
     querySelector: sel => (sel.indexOf('#pin-cancel-btn') >= 0 ? backBtn : null),
     getAttribute: () => null
