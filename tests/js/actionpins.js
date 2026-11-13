@@ -37,8 +37,17 @@ files.forEach(f => {
         if (!m) return;
         total++;
         const where = f + ':' + (i + 1) + ' ' + m[1];
-        // Local actions (./path) and docker:// images are not this check's business, but
-        // there are none today and a silent pass on one would be a hole, so they fail too.
+        // A reusable workflow in this repository (release.yml calling ci.yml) is read from
+        // the same commit as the caller, so there is nothing to pin and no tag to carry.
+        // It passes only when it names a workflow scanned here, which this loop then checks
+        // too; any other local path or a docker:// image still fails, because a silent pass
+        // on one would be a hole.
+        const local = /^\.\/\.github\/workflows\/([\w.-]+\.ya?ml)$/.exec(m[1]);
+        if (local) {
+            ok(where + ' is a workflow in this repository that is itself checked', files.indexOf(local[1]) >= 0);
+            ok(where + ' has nothing after it', m[2].trim() === '', JSON.stringify(m[2]));
+            return;
+        }
         const pinned = /^[\w.-]+\/[\w.\/-]+@[0-9a-f]{40}$/.test(m[1]);
         ok(where + ' is pinned to a 40-hex commit', pinned);
         // The tag is what a human reads and what a bot bumps. A bare SHA says nothing.
