@@ -1249,6 +1249,7 @@
                         <div id="trustedList"></div>
                         <button is="emby-button" type="button" id="trustedAdd" class="raised jpf-narrow" data-i18n="admin.trust.add">Add address</button>
                         <div class="fieldDescription" data-i18n="admin.trust.hint">Chosen accounts skip the PIN from these addresses.</div>
+                        <div class="fieldDescription" data-i18n="admin.trust.example">For example 192.168.1.20, or 192.168.1.0/24 for a whole network.</div>
                     </div>
                 </details>
                 <div class="buttonContainer jpf-block-end">
@@ -2032,6 +2033,7 @@
                 'admin.saveSettingsFailed': 'Couldn\'t save the settings.',
                 'admin.trust.bad': 'An address is invalid, too wide, or has no account.',
                 'admin.trust.address': 'Address or range',
+                'admin.trust.placeholder': 'e.g. 192.168.1.0/24',
                 'admin.trust.remove': 'Remove',
                 'admin.trust.noAccounts': 'No main accounts yet.',
                 'admin.saveBlocked': 'The settings didn\'t load, so nothing was saved. Press "Try again".',
@@ -3212,7 +3214,8 @@
                     addr.setAttribute('autocomplete', 'off');
                     addr.setAttribute('spellcheck', 'false');
                     addr.setAttribute('aria-label', t('admin.trust.address'));
-                    addr.placeholder = t('admin.trust.address');
+                    // The label stays "Address or range" for screen readers; the placeholder shows the shape.
+                    addr.placeholder = t('admin.trust.placeholder');
                     addr.style.width = '100%';
                     row.appendChild(addr);
                     const wanted = (entry.userIds || []).map(normId);
