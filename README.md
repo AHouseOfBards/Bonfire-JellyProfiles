@@ -76,6 +76,7 @@ Details for every app, and what each can do, are in [Apps](docs/clients.md#what-
 
 Also at [ahouseofbards.github.io/Bonfire-JellyProfiles](https://ahouseofbards.github.io/Bonfire-JellyProfiles/), with search.
 
+- [Using Bonfire](docs/profiles.md)
 - [Admin guide](docs/admin-guide.md)
 - [Sharing a Bonfire](docs/sharing.md)
 - [Library artwork](docs/library-artwork.md)

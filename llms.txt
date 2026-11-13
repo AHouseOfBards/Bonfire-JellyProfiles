@@ -36,6 +36,7 @@ Also published as a site with search: https://ahouseofbards.github.io/Bonfire-Je
 - [README](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/README.md): features and install
 - [Apps](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/clients.md): what works in each app
 - [Security](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/security.md): what the server enforces and what it doesn't
+- [Using Bonfire](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/profiles.md): switching, adding profiles, PINs and viewing hours, for the household
 - [Admin guide](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/admin-guide.md): every tab of the admin dashboard and its settings
 - [Troubleshooting](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/troubleshooting.md): the switcher not appearing, Docker, Tizen
 - [Limitations](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/limitations.md)
