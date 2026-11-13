@@ -71,7 +71,7 @@ All 101 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `GET /plugins/profiles/time-requests` | user | The household's profiles waiting for more time. |
 | `GET /plugins/profiles/profiles.js` | anon | The client script. |
 | `GET /plugins/profiles/i18n/{locale}` | anon | One translation. |
-| `GET /plugins/profiles/image/{profileId}` | anon | A profile picture. |
+| `GET /plugins/profiles/image/{profileId}` | anon | A profile image. |
 | `GET /plugins/profiles/library-artwork` | user | The caller's library artwork, or one of their profiles' with `profileId`. |
 | `POST /plugins/profiles/library-artwork` | user | Set library artwork. |
 | `GET /plugins/profiles/library-art/{profileId}/{libraryId}` | anon | One library tile image. |
@@ -252,7 +252,7 @@ see [Maintenance](#maintenance). Sent with
 
 ### `GET /plugins/profiles/startup`
 
-**Authorisation:** signed-in user. No token, or an API key (which has no user), is `401`.
+**Authorization:** signed-in user. No token, or an API key (which has no user), is `401`.
 
 Everything the profile picker needs, in one request. `info`, `profiles` and `themes` are
 what `GET /info`, `GET /list` and `GET /themes` return for the same caller, built by the
@@ -529,7 +529,7 @@ Errors: `401`, and `404` if the caller's main account no longer exists.
 ### Me (`me` in `/startup`)
 
 Who the caller is: a profile or a main account, and whose. It is the `me` part of
-[`GET /startup`](#get-pluginsprofilesstartup), with the same authorisation.
+[`GET /startup`](#get-pluginsprofilesstartup), with the same authorization.
 
 ```json
 {
@@ -1415,7 +1415,7 @@ turned on count as having seen it.
 ### Onboarding (`onboarding` in `/startup`)
 
 The `onboarding` part of [`GET /startup`](#get-pluginsprofilesstartup), with the same
-authorisation.
+authorization.
 
 ```json
 {
@@ -2088,7 +2088,7 @@ Short messages from the administrator, shown on the profile screen.
 
 The ones showing now, most important first: `critical`, then `warning`, then `info`,
 newest first within each. The `announcements` part of
-[`GET /startup`](#get-pluginsprofilesstartup), with the same authorisation.
+[`GET /startup`](#get-pluginsprofilesstartup), with the same authorization.
 
 ```json
 [
