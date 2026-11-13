@@ -104,10 +104,10 @@ function thenable(run) {
     const tzEls = { '#defaultTimeZone': select, '#defaultTimeZoneHint': el() };
     const tzPage = { querySelector: s => tzEls[s] || el() };
     let threw = null;
-    const runTz = new Function('page', 'ApiClient', 'renderGettingStarted', 'document',
+    const runTz = new Function('page', 'ApiClient', 'renderGettingStarted', 'document', 'field',
         source + '; return { loadTimeZones };');
     const tz = runTz(tzPage, { getUrl: u => '/' + u, ajax: () => Promise.resolve(null) }, () => {},
-        { createElement: () => ({}) });
+        { createElement: () => ({}) }, (o, n) => o[n] !== undefined ? o[n] : o[n.charAt(0).toUpperCase() + n.slice(1)]);
     try { tz.loadTimeZones(tzPage, ''); } catch (e) { threw = e; }
     // The rejection, if any, is inside the promise chain: wait for it.
     let unhandled = null;

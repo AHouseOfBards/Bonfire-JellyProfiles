@@ -193,7 +193,7 @@ console.log('\n── The avatar library ─────────────
         page.querySelector = s => s === '#avatarLibraryGrid' ? grid : fakeEl();
         let threw = null;
         try {
-            make()({ avatars: [{ id: EVIL_ATTR, displayName: EVIL, thumbUrl: EVIL_ATTR, isStarter: false }] },
+            make()({ avatars: { avatars: [{ id: EVIL_ATTR, displayName: EVIL, thumbUrl: EVIL_ATTR, isStarter: false }] } },
                    page);
         } catch (e) { threw = e; }
         ok('it renders without throwing' + (threw ? ' — ' + threw.message : ''), threw === null);

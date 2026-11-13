@@ -58,8 +58,8 @@ function optional(name) {
     const ApiClient = {
         getUrl: (p, q) => PREFIX + p + (q ? '?' + Object.keys(q).map(k => k + '=' + q[k]).join('&') : ''),
         ajax: opts => Promise.resolve(
-            /\/avatars$/.test(opts.url)
-                ? { avatars: thumbs.map((u, i) => ({ id: 'id' + i, displayName: 'A' + i, thumbUrl: u, isStarter: false })) }
+            /\/form-options$/.test(opts.url)
+                ? { avatars: { avatars: thumbs.map((u, i) => ({ id: 'id' + i, displayName: 'A' + i, thumbUrl: u, isStarter: false })) } }
                 : {
                     masterUsers: [{ profileName: 'Mum', profileImage: stored }],
                     subProfiles: [{ profileName: 'Kid', profileImage: remote }],
