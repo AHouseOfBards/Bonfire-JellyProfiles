@@ -2212,7 +2212,7 @@ body.profiles-no-scroll [id*="spinner"] {
     display: block !important;
 }
 /* The block above keeps a theme's absolute or flex rules from pulling a hint over its
-   neighbours (1.0.35), and because it is !important it also beat an inline display:none,
+   neighbors (1.0.35), and because it is !important it also beat an inline display:none,
    so hints the form hid (no days ticked, the artwork explainer) showed all the time.
    A hint is hidden with the hidden attribute now, and this outranks the block. */
 .jpf-form-hint[hidden] {
