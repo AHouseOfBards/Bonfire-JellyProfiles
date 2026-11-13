@@ -32,7 +32,13 @@ console.log('\n── White literals ──────────────�
 const white = /#fff\b|#ffffff\b|rgba?\(\s*255\s*,\s*255\s*,\s*255/i;
 const allowed = /^\s*--jpf-|jpf-badge-bad|background:#d23f3f|themeContrast|themeMix|const on = dark/;
 const stray = [];
-lines.forEach((l, i) => { if (white.test(l) && !allowed.test(l)) stray.push((i + 1) + ': ' + l.trim().slice(0, 80)); });
+// The Moonfin block (moonfin:begin to moonfin:end) writes a theme file's colours, which a
+// Moonfin client paints, never this page. Like themeContrast above, it is data, not paint.
+// Only lines strictly inside both markers are skipped; a missing marker skips nothing.
+const mfBegin = lines.findIndex(l => /\/\/ moonfin:begin/.test(l));
+const mfEnd = lines.findIndex(l => /\/\/ moonfin:end/.test(l));
+const inMoonfin = i => mfBegin >= 0 && mfEnd > mfBegin && i > mfBegin && i < mfEnd;
+lines.forEach((l, i) => { if (white.test(l) && !allowed.test(l) && !inMoonfin(i)) stray.push((i + 1) + ': ' + l.trim().slice(0, 80)); });
 ok('no white text or hairline is written as a literal', stray.length === 0, stray.length + ' — ' + stray.slice(0, 4).join(' | '));
 
 console.log('\n── Tokens ──────────────────────────────────────────────────────');

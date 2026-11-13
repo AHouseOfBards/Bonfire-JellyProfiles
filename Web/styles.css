@@ -2881,6 +2881,7 @@ html.jpf-fading { transition: opacity 0.18s ease; }
     box-shadow: 0 0 0 var(--jpf-ring-w) var(--jpf-ring);
 }
 .jpf-flat .profiles-title,
+.jpf-flat .jpf-theme-preview-name,
 .jpf-flat .profiles-home-icon,
 .jpf-flat .profiles-home-icon.bonfire-icon-color {
     text-shadow: none;

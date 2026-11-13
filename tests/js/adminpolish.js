@@ -48,7 +48,11 @@ const tokenBlock = decl('good') === 2 && decl('bad') === 2 && decl('warn') === 2
 ok('the three colours are named once, as tokens', tokenBlock);
 const strip = css.replace(/--jpf-(good|bad|warn):\s*#[0-9a-f]{6};/g, '');
 const litRe = new RegExp(STATUS.join('|'), 'gi');
-const literals = (strip.match(litRe) || []).length + (body.match(litRe) || []).length;
+// The Moonfin block writes a theme file's colours for a Moonfin client, not this page's
+// (see dashlight.js); its fallbacks may repeat a status colour as data.
+const mfB = body.indexOf('// moonfin:begin'), mfE = body.indexOf('// moonfin:end');
+const pageBody = mfB >= 0 && mfE > mfB ? body.slice(0, mfB) + body.slice(mfE) : body;
+const literals = (strip.match(litRe) || []).length + (pageBody.match(litRe) || []).length;
 ok('and written nowhere else, in the stylesheet, the markup or the script', literals === 0, literals + ' left');
 if (has('paintOutcome')) {
     const paint = new Function(L.extractFunction(script, 'paintOutcome') + '; return paintOutcome;')();

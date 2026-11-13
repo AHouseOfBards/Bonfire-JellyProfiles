@@ -84,7 +84,7 @@ Microsoft, under the MIT License
 ([notice](Web/starter-avatars/LICENSE.txt)).
 
 The theme fonts are Atkinson Hyperlegible Next, Baloo 2, Bebas Neue, Cinzel, Comfortaa, DM Sans,
-Figtree, Fraunces, Inter, JetBrains Mono, Lexend, Lora, Manrope, Merriweather, Montserrat, Noto
-Sans, Nunito, Oswald, Outfit, Playfair Display, Plus Jakarta Sans, Press Start 2P, Quicksand
-and Righteous, under the SIL Open Font License. Each licence
-text is in [Web/themes/fonts](Web/themes/fonts).
+Figtree, Fraunces, Inter, JetBrains Mono, Lexend, Lora, Manrope, Merriweather, Montserrat,
+Noto Sans, Nunito, Oswald, Outfit, Playfair Display, Plus Jakarta Sans, Press Start 2P,
+Quicksand and Righteous, under the SIL Open Font License. Each licence text is in
+[Web/themes/fonts](Web/themes/fonts).
