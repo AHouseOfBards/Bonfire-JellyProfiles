@@ -21,7 +21,7 @@ Lists each main account with its profiles.
 
 ## Sessions
 
-Lists the profile sessions on this server. **Refresh** reloads the list.
+Everyone signed in right now, with their device, when it was last seen and what is playing. A profile shows which main account it belongs to. **Sign out** ends that one session. **Refresh** reloads the list.
 
 ## Security
 
