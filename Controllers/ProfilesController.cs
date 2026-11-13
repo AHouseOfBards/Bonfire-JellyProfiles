@@ -1075,6 +1075,28 @@ namespace Jellyfin.Profiles.Controllers
                 authRequest.DeviceId,
                 currentUserId);
 
+            // The caller asked for the sign-in it made this request with to end, so it need not
+            // call /Sessions/Logout afterwards. This is what that route does: ISessionManager.
+            // Logout(token), for this one token. Never a user-wide revoke: the main account's
+            // other devices must stay signed in. After the new session exists, so a refused or
+            // failed switch ends nothing; and a failure here does not undo the switch.
+            // Skipped if Jellyfin handed back the same token (same user, same device).
+            if (request.EndPreviousSession)
+            {
+                var oldToken = Auth.ProxySwitcher.ReadToken(Request);
+                if (!string.IsNullOrEmpty(oldToken) && !string.Equals(oldToken, session.AccessToken, StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        await _sessionManager.Logout(oldToken).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "ProfilesPlugin: switched to {User}, but could not end the previous session.", targetUser.Username);
+                    }
+                }
+            }
+
             var total = sw.ElapsedMilliseconds;
             // Warn on switches slow enough for a user to notice; otherwise keep it at Debug.
             if (total >= 1000)

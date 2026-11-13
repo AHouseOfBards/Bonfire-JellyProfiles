@@ -264,8 +264,10 @@ see [Maintenance](#maintenance). Sent with
 
 `POST /switch` returns a new token and leaves the old session signed in.
 
-- **End the old session.** Send Jellyfin's `POST /Sessions/Logout` with the old token,
-  then use the new one for everything.
+- **End the old session.** Send `"endPreviousSession": true` with `/switch`, and the token
+  that made the request is signed out once the new one exists. Only that token: the
+  account's other sessions stay. Without it, send Jellyfin's `POST /Sessions/Logout` with
+  the old token yourself. Then use the new token for everything.
 - **Keep one token.** A profile's token can call `/list` and `/switch` too: Bonfire works
   out its main account. Switching back to the main account is another `/switch`.
 - **Manage profiles as the main account.** `/create`, `/update` and `/delete` refuse a
@@ -537,6 +539,7 @@ Errors: `401`.
 | --- | --- | --- | --- |
 | `profileId` | GUID | Yes | The profile to switch to. |
 | `pin` | string | When `requiresPin` | The profile's PIN. |
+| `endPreviousSession` | bool | No | Sign out the token that made this request once the new one exists. Default `false`. If the switch fails, nothing is signed out. |
 
 Response:
 
