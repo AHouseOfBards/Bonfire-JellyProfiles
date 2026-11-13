@@ -11,6 +11,7 @@ using System.Linq;
 using Campground.Shared.Contracts;
 using Campground.Shared.Injection;
 using Campground.Shared.Network;
+using Campground.Shared.Security;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Configuration;
 using Microsoft.AspNetCore.Http;
@@ -81,6 +82,7 @@ namespace Campground.Shared.Setup
 
             var health = InjectionCoordinator.Health();
             results.Add(Injection(health));
+            results.Add(KeyFiles(SecretBox.UnreadableKeys()));
 
             // Only when the dashboard sent the page's policy (an empty value means the page has none).
             if (context.Request.Headers.TryGetValue(PagePolicyHeader, out var csp))
@@ -90,6 +92,19 @@ namespace Campground.Shared.Setup
 
             return results;
         }
+
+        /// <summary>Key files Jellyfin's account can't read (0.16.0, GameTent's review on #45).</summary>
+        internal static SetupCheck KeyFiles(IReadOnlyList<string> unreadable)
+            => unreadable.Count == 0
+                ? new SetupCheck("key-files", CheckLevel.Ok, "Key files are readable", "Jellyfin's account can read every Campground key file.")
+                : new SetupCheck(
+                    "key-files",
+                    CheckLevel.Problem,
+                    "Jellyfin can't read its key files",
+                    $"Jellyfin now runs as {SecretBox.Account()}, which can't read {string.Join(", ", unreadable)}. That usually means the account "
+                    + "changed (the tray app to the service on Windows, or a new PUID on Docker). Saved passwords and tokens can't be opened "
+                    + "until it's fixed. Give that account read and write on the keys folder (on Linux, chown it). Don't delete the keys: "
+                    + "new ones can't open anything saved with the old ones.");
 
         internal static SetupCheck KnownProxies(bool untrustedProxy, string? connection)
             => untrustedProxy

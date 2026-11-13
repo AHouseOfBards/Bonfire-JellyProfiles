@@ -14,26 +14,46 @@ namespace Campground.Shared.Security
     /// <summary>
     /// Sliding-window limiter keyed by any string (user id, hashed IP, device). Ported from Bonfire's
     /// PIN limiter. Thread-safe; prunes itself.
+    /// <para>
+    /// Keys are capped (0.16.0, issue #43). Keys often come from whoever is on the other end of the internet (an
+    /// address plus a user name they typed), so without a cap anyone could grow the table without bound inside
+    /// one window. At the cap, the least recently used key that is still under its limit goes. A key at its
+    /// limit is never pushed out, or a flood of new keys would free it early (Bonfire's review, #45). When every
+    /// key is at its limit, a new key is refused until one frees up. That is a flood in progress, so put a
+    /// coarse limiter (per address, say) in front of a fine-grained one.
+    /// </para>
     /// </summary>
     internal sealed class RateLimiter
     {
+        /// <summary>The default key cap: plenty for one server, a few MB at most.</summary>
+        internal const int DefaultMaxKeys = 10_000;
+
         private readonly object _gate = new();
-        private readonly Dictionary<string, Queue<DateTime>> _hits = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Entry> _hits = new(StringComparer.Ordinal);
+        private readonly LinkedList<string> _byUse = new(); // least recently used first
         private readonly Func<DateTime> _clock;
+        private readonly int _maxKeys;
         private DateTime _lastPrune;
 
         /// <param name="limit">Attempts allowed per window.</param>
         /// <param name="window">Window length.</param>
         /// <param name="clock">Clock (tests); defaults to UtcNow.</param>
-        internal RateLimiter(int limit, TimeSpan window, Func<DateTime>? clock = null)
+        /// <param name="maxKeys">Most keys kept at once (at least 1).</param>
+        internal RateLimiter(int limit, TimeSpan window, Func<DateTime>? clock = null, int maxKeys = DefaultMaxKeys)
         {
             if (limit < 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(limit));
             }
 
+            if (maxKeys < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxKeys));
+            }
+
             Limit = limit;
             Window = window;
+            _maxKeys = maxKeys;
             _clock = clock ?? (() => DateTime.UtcNow);
             _lastPrune = _clock();
         }
@@ -42,6 +62,18 @@ namespace Campground.Shared.Security
 
         internal TimeSpan Window { get; }
 
+        /// <summary>How many keys are held now (tests and status pages).</summary>
+        internal int KeyCount
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _hits.Count;
+                }
+            }
+        }
+
         /// <summary>Records an attempt if allowed. Returns false (and records nothing) when over the limit.</summary>
         internal bool TryBegin(string key)
         {
@@ -49,13 +81,29 @@ namespace Campground.Shared.Security
             {
                 var now = _clock();
                 PruneIfDue(now);
-                var q = QueueFor(key, now);
-                if (q.Count >= Limit)
+                var entry = Existing(key, now);
+                if (entry != null && entry.Hits.Count >= Limit)
                 {
                     return false;
                 }
 
-                q.Enqueue(now);
+                if (entry == null)
+                {
+                    if (_hits.Count >= _maxKeys && !MakeRoom(now))
+                    {
+                        return false;
+                    }
+
+                    entry = new Entry(_byUse.AddLast(key));
+                    _hits[key] = entry;
+                }
+                else
+                {
+                    _byUse.Remove(entry.Node);
+                    _byUse.AddLast(entry.Node);
+                }
+
+                entry.Hits.Enqueue(now);
                 return true;
             }
         }
@@ -65,23 +113,23 @@ namespace Campground.Shared.Security
         {
             lock (_gate)
             {
-                _hits.Remove(key);
+                Remove(key);
             }
         }
 
-        /// <summary>How long until the next attempt is allowed (zero when allowed now).</summary>
+        /// <summary>How long until the next attempt is allowed (zero when allowed now). Never adds a key.</summary>
         internal TimeSpan RetryAfter(string key)
         {
             lock (_gate)
             {
                 var now = _clock();
-                var q = QueueFor(key, now);
-                if (q.Count < Limit)
+                var entry = Existing(key, now);
+                if (entry == null || entry.Hits.Count < Limit)
                 {
                     return TimeSpan.Zero;
                 }
 
-                var wait = q.Peek() + Window - now;
+                var wait = entry.Hits.Peek() + Window - now;
                 return wait > TimeSpan.Zero ? wait : TimeSpan.Zero;
             }
         }
@@ -108,20 +156,60 @@ namespace Campground.Shared.Security
             return m == 1 ? "about a minute" : $"about {m} minutes";
         }
 
-        private Queue<DateTime> QueueFor(string key, DateTime now)
+        // The key's entry with expired hits dropped, or null when it has none left (an empty one is removed).
+        private Entry? Existing(string key, DateTime now)
         {
-            if (!_hits.TryGetValue(key, out var q))
+            if (!_hits.TryGetValue(key, out var entry))
             {
-                q = new Queue<DateTime>();
-                _hits[key] = q;
+                return null;
             }
 
-            while (q.Count > 0 && q.Peek() + Window <= now)
+            while (entry.Hits.Count > 0 && entry.Hits.Peek() + Window <= now)
             {
-                q.Dequeue();
+                entry.Hits.Dequeue();
             }
 
-            return q;
+            if (entry.Hits.Count == 0)
+            {
+                Remove(key);
+                return null;
+            }
+
+            return entry;
+        }
+
+        // Frees one slot: an expired key, or else the least recently used key still under its limit. False when
+        // every key is at its limit. Only runs at the cap, so the walk is the price of a flood, not of normal use.
+        private bool MakeRoom(DateTime now)
+        {
+            var node = _byUse.First;
+            while (node != null)
+            {
+                var next = node.Next;
+                var entry = Existing(node.Value, now); // removes it if all its hits have expired
+                if (entry == null)
+                {
+                    return true;
+                }
+
+                if (entry.Hits.Count < Limit)
+                {
+                    Remove(node.Value);
+                    return true;
+                }
+
+                node = next;
+            }
+
+            return false;
+        }
+
+        private void Remove(string key)
+        {
+            if (_hits.Remove(key, out var entry))
+            {
+                _byUse.Remove(entry.Node);
+            }
         }
 
         private void PruneIfDue(DateTime now)
@@ -134,11 +222,17 @@ namespace Campground.Shared.Security
             _lastPrune = now;
             foreach (var key in _hits.Keys.ToList())
             {
-                if (QueueFor(key, now).Count == 0)
-                {
-                    _hits.Remove(key);
-                }
+                Existing(key, now);
             }
+        }
+
+        private sealed class Entry
+        {
+            internal Entry(LinkedListNode<string> node) => Node = node;
+
+            internal Queue<DateTime> Hits { get; } = new();
+
+            internal LinkedListNode<string> Node { get; }
         }
     }
 }

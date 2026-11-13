@@ -5,19 +5,26 @@
 #nullable enable
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
+using System.Threading;
 using Campground.Shared.Storage;
 
 namespace Campground.Shared.Security
 {
     /// <summary>
     /// Encrypts secrets at rest (launcher tokens, API keys, certificates' passwords) with AES-256-GCM. The key
-    /// lives in <c>&lt;jellyfin data&gt;/campground/keys/&lt;purpose&gt;.key</c>, created on first use with
-    /// owner-only permissions. Values look like <c>cg1:&lt;base64 nonce|tag|cipher&gt;</c>.
-    /// This protects against leaked config backups and support bundles; it does not protect against someone
-    /// who can read the Jellyfin data folder.
+    /// lives in <c>&lt;jellyfin data&gt;/campground/keys/&lt;purpose&gt;.key</c>, created on first use. Only
+    /// Jellyfin's own account can read it: mode 0600 in a 0700 folder on Linux, and on Windows an ACL of SYSTEM,
+    /// Administrators and Jellyfin's account with inheritance off, because <c>C:\ProgramData</c> otherwise gives
+    /// every local user read (0.16.0, issue #15). Values look like <c>cg1:&lt;base64 nonce|tag|cipher&gt;</c>.
+    /// This protects against leaked config backups, support bundles and other local accounts; it does not
+    /// protect against someone who can act as Jellyfin's account or an administrator.
     /// </summary>
     internal sealed class SecretBox
     {
@@ -38,7 +45,60 @@ namespace Campground.Shared.Security
         }
 
         /// <summary>Opens (creating if needed) the shared key for a purpose, e.g. "accounts".</summary>
-        internal static SecretBox ForPurpose(string purpose) => new(LoadOrCreateKey(Path.Combine(CampgroundPaths.Root, "keys", purpose + ".key")));
+        internal static SecretBox ForPurpose(string purpose) => new(LoadOrCreateKey(Path.Combine(KeysFolder, purpose + ".key")));
+
+        private static string KeysFolder => Path.Combine(CampgroundPaths.Root, "keys");
+
+        /// <summary>
+        /// Key files Jellyfin's account can't read, for a setup check (<c>SetupChecks.KeyFiles</c>). Usually the
+        /// account changed: the tray app to the service on Windows, or a new PUID on Docker.
+        /// </summary>
+        internal static IReadOnlyList<string> UnreadableKeys()
+        {
+            var result = new List<string>();
+            try
+            {
+                if (!Directory.Exists(KeysFolder))
+                {
+                    return result;
+                }
+
+                foreach (var file in Directory.GetFiles(KeysFolder, "*.key"))
+                {
+                    try
+                    {
+                        using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        result.Add(file);
+                    }
+                    catch (IOException)
+                    {
+                        // Locked for a moment by a starter writing it; not an access problem.
+                    }
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                result.Add(KeysFolder);
+            }
+
+            result.Sort(StringComparer.Ordinal);
+            return result;
+        }
+
+        /// <summary>Who Jellyfin runs as, for messages.</summary>
+        internal static string Account()
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                using var me = WindowsIdentity.GetCurrent();
+                return me.Name;
+            }
+
+            return Environment.UserName;
+        }
 
         /// <summary>True when a value is already sealed.</summary>
         internal static bool IsSealed(string? value) => value != null && value.StartsWith(Prefix, StringComparison.Ordinal);
@@ -101,39 +161,225 @@ namespace Campground.Shared.Security
             }
         }
 
+        // The starter that creates the key writes it in place, so another plugin can see it empty or locked for
+        // a moment. A key that stays short for this long is damage, and is refused rather than replaced.
+        private const int ReadAttempts = 20;
+        private static readonly TimeSpan ReadWait = TimeSpan.FromMilliseconds(50);
+
+        private const UnixFileMode PrivateFile = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        private const UnixFileMode PrivateFolder = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+
         internal static byte[] LoadOrCreateKey(string path)
         {
-            if (File.Exists(path))
-            {
-                var existing = File.ReadAllBytes(path);
-                if (existing.Length == 32)
-                {
-                    return existing;
-                }
-
-                throw new CryptographicException($"{path} is not a 32-byte key; refusing to replace it.");
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var key = RandomNumberGenerator.GetBytes(32);
             try
             {
-                using var fs = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                fs.Write(key, 0, key.Length);
-                fs.Flush(flushToDisk: true);
+                return LoadOrCreate(path);
             }
-            catch (IOException) when (File.Exists(path))
+            catch (UnauthorizedAccessException e)
             {
-                // Another plugin created it first.
-                return LoadOrCreateKey(path);
+                // Since 0.16.0 the key is private to Jellyfin's account, so when that account changes the old key
+                // can't be read. Never make a new one: it couldn't open anything sealed with the old one.
+                throw new CryptographicException(
+                    $"{path} exists or can't be made, but Jellyfin's account ({Account()}) can't read it. This usually means Jellyfin now "
+                    + "runs as a different account (the tray app to the service on Windows, or a new PUID on Docker). Give that account "
+                    + $"read and write on {Path.GetDirectoryName(path)} (on Linux, chown it). Don't delete the key: a new one can't open "
+                    + "anything saved with the old one.",
+                    e);
+            }
+        }
+
+        private static byte[] LoadOrCreate(string path)
+        {
+            var folder = Path.GetDirectoryName(path)!;
+            MakeFolderPrivate(folder);
+            for (var attempt = 1; ; attempt++)
+            {
+                if (File.Exists(path))
+                {
+                    byte[]? existing = null;
+                    try
+                    {
+                        existing = File.ReadAllBytes(path);
+                    }
+                    catch (IOException) when (attempt < ReadAttempts)
+                    {
+                        // The starter that made it still has it open for writing.
+                    }
+
+                    if (existing is { Length: 32 })
+                    {
+                        MakeFilePrivate(path);
+                        return existing;
+                    }
+
+                    if (attempt >= ReadAttempts)
+                    {
+                        throw new CryptographicException($"{path} is not a 32-byte key; refusing to replace it.");
+                    }
+
+                    Thread.Sleep(ReadWait);
+                    continue;
+                }
+
+                // Create-exclusive, private from the first byte (0600 / the ACL), so exactly one starter wins and
+                // the losers read its key, waiting above while it's still empty. 0.11.0 created it at the umask's
+                // mode and chmodded afterwards, and threw at a loser that read it empty. A temp file moved into
+                // place was tried first and isn't exclusive on Linux: with File.Move(overwrite: false), two
+                // starters in shared-ci both "won" and went on with different keys.
+                var key = RandomNumberGenerator.GetBytes(32);
+                try
+                {
+                    WritePrivate(path, key);
+                    return key;
+                }
+                catch (IOException) when (File.Exists(path))
+                {
+                    // Another plugin created it first; go round and read it.
+                }
+            }
+        }
+
+        private static void WritePrivate(string path, byte[] key)
+        {
+            FileStream fs;
+            if (OperatingSystem.IsWindows())
+            {
+                fs = new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.Write, FileShare.None, 4096, FileOptions.WriteThrough, PrivateFileSecurity());
+            }
+            else
+            {
+                // FileShare.Read, not None. On Unix .NET takes the share as a flock after the file exists, so
+                // with None a loser reading the empty file (a shared lock) made the winner's exclusive lock fail,
+                // and nobody ever wrote the key (seen in shared-ci). Losers read until it is whole instead.
+                fs = new FileStream(path, new FileStreamOptions
+                {
+                    Mode = FileMode.CreateNew,
+                    Access = FileAccess.Write,
+                    Share = FileShare.Read,
+                    Options = FileOptions.WriteThrough,
+                    UnixCreateMode = PrivateFile,
+                });
             }
 
-            if (!OperatingSystem.IsWindows())
+            try
             {
-                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                using (fs)
+                {
+                    fs.Write(key, 0, key.Length);
+                    fs.Flush(flushToDisk: true);
+                }
+            }
+            catch
+            {
+                // We created it, so it's ours to remove: an empty key left behind would be refused for good.
+                try
+                {
+                    File.Delete(path);
+                }
+                catch (Exception e) when (e is UnauthorizedAccessException or IOException)
+                {
+                }
+
+                throw;
+            }
+        }
+
+        // Best effort: a folder or file another account made may not let us change it. The key still works; it
+        // is just no better protected than before.
+        private static void MakeFolderPrivate(string folder)
+        {
+            try
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    var info = new DirectoryInfo(folder);
+                    if (!info.Exists)
+                    {
+                        Directory.CreateDirectory(info.Parent!.FullName);
+                        info.Create(PrivateFolderSecurity());
+                    }
+                    else
+                    {
+                        info.SetAccessControl(PrivateFolderSecurity());
+                    }
+                }
+                else if (!Directory.Exists(folder))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(folder)!);
+                    Directory.CreateDirectory(folder, PrivateFolder);
+                }
+                else
+                {
+                    File.SetUnixFileMode(folder, PrivateFolder);
+                }
+            }
+            catch (Exception e) when (e is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+            {
+                Directory.CreateDirectory(folder);
+            }
+        }
+
+        private static void MakeFilePrivate(string path)
+        {
+            try
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    new FileInfo(path).SetAccessControl(PrivateFileSecurity());
+                }
+                else
+                {
+                    File.SetUnixFileMode(path, PrivateFile);
+                }
+            }
+            catch (Exception e) when (e is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+            {
+            }
+        }
+
+        [SupportedOSPlatform("windows")]
+        private static FileSecurity PrivateFileSecurity()
+        {
+            var security = new FileSecurity();
+            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            foreach (var sid in Owners())
+            {
+                security.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl, AccessControlType.Allow));
             }
 
-            return key;
+            return security;
+        }
+
+        [SupportedOSPlatform("windows")]
+        private static DirectorySecurity PrivateFolderSecurity()
+        {
+            var security = new DirectorySecurity();
+            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            foreach (var sid in Owners())
+            {
+                security.AddAccessRule(new FileSystemAccessRule(
+                    sid,
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+            }
+
+            return security;
+        }
+
+        // SYSTEM and Administrators can read anything anyway; leaving them out would only break backups and
+        // an admin's repairs. Jellyfin's own account is whoever this process runs as.
+        [SupportedOSPlatform("windows")]
+        private static SecurityIdentifier[] Owners()
+        {
+            using var me = WindowsIdentity.GetCurrent();
+            return new[]
+            {
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                me.User!,
+            };
         }
 
         private static byte[]? Ad(string? associatedData) => associatedData == null ? null : Encoding.UTF8.GetBytes(associatedData);

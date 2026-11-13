@@ -10,7 +10,10 @@ using System.Linq;
 using Campground.Shared.Registry;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Configuration;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
 
 namespace Campground.Shared.Network
 {
@@ -58,6 +61,62 @@ namespace Campground.Shared.Network
                 context.Request.Headers["X-Forwarded-For"].ToString(),
                 context.Request.Headers["X-Forwarded-Proto"].ToString(),
                 Read(serverConfig));
+
+        /// <summary>
+        /// As <see cref="Read(IServerConfigurationManager)"/>, but with the proxies Jellyfin trusts <b>now</b> in
+        /// place of the saved Known proxies. Jellyfin builds its forwarded-headers options once at start
+        /// (<c>Startup.cs:73</c>, <c>ApiServiceCollectionExtensions.cs:116</c>, v12.4), so after an admin edits Known
+        /// proxies the saved list and the live one differ until a restart, and a plugin reading the saved list
+        /// would disagree with Jellyfin about who is home. Pass the <c>IOptions&lt;ForwardedHeadersOptions&gt;</c>
+        /// from DI. If it's missing or can't be read, this returns the saved list, as the one-argument overload does.
+        /// </summary>
+        internal static NetworkSettings Read(IServerConfigurationManager serverConfig, IOptions<ForwardedHeadersOptions>? live)
+        {
+            var saved = Read(serverConfig);
+            var trusted = LiveProxies(live);
+            return trusted == null ? saved : saved with { KnownProxies = trusted };
+        }
+
+        /// <summary>Classifies an HTTP request against the proxies Jellyfin trusts now (see the two-argument <c>Read</c>).</summary>
+        internal static Classification Classify(HttpContext context, IServerConfigurationManager serverConfig, IOptions<ForwardedHeadersOptions>? live)
+            => NetworkClassifier.Classify(
+                context.Connection.RemoteIpAddress,
+                context.Request.Headers["X-Forwarded-For"].ToString(),
+                context.Request.Headers["X-Forwarded-Proto"].ToString(),
+                Read(serverConfig, live));
+
+        // The live trust list as Known-proxies strings, or null when it can't be read. Jellyfin turns forwarding off
+        // and clears both lists when Known proxies is empty (ApiServiceCollectionExtensions.cs:171-176), which reads
+        // here as an empty list, the same as an empty saved list. Otherwise the lists hold ASP.NET's loopback
+        // defaults plus the entries; the classifier adds the same defaults again, which changes nothing.
+        private static IReadOnlyList<string>? LiveProxies(IOptions<ForwardedHeadersOptions>? live)
+        {
+            try
+            {
+                var o = live?.Value;
+                if (o == null)
+                {
+                    return null;
+                }
+
+                if (o.ForwardedHeaders == ForwardedHeaders.None)
+                {
+                    return Array.Empty<string>();
+                }
+
+                var list = o.KnownProxies.Select(a => a.ToString()).ToList();
+#if NET10_0_OR_GREATER
+                list.AddRange(o.KnownIPNetworks.Select(n => n.BaseAddress + "/" + n.PrefixLength));
+#else
+                list.AddRange(o.KnownNetworks.Select(n => n.Prefix + "/" + n.PrefixLength));
+#endif
+                return list;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
 
         /// <summary>Base URL as Jellyfin normalises it: leading slash, no trailing one, empty when unset.</summary>
         internal static string NormalizeBaseUrl(string? baseUrl)

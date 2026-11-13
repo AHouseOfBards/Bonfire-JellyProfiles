@@ -1,6 +1,6 @@
 {
-  "version": "0.15.0",
-  "source": "AHouseOfBards/Campground-Coordination/shared@190dd99",
+  "version": "0.17.0",
+  "source": "AHouseOfBards/Campground-Coordination/shared@2a2da4a",
   "files": {
     ".gitattributes": "1ea2fafadea69b70c1902348304671bd72de834d7a3c661488a3f819fa1f92ea",
     "Campground.Shared.props": "d1c91ac69491a2b3433d52a06dee7af1d838c89e10238e3032abf706fc823e73",
@@ -19,7 +19,7 @@
     "src/Injection/IndexHtml.cs": "4f8feee9832dd5839549c7cf67199e34292a918a6d22ceb402cbd28e30645564",
     "src/Injection/IndexMiddleware.cs": "2bfc7113d8861ac9be7ded371fd42acd6c063c4b6dcc7f1e4aaab47c001a6597",
     "src/Injection/InjectionCoordinator.cs": "9f9ffa0249e9e464629f701cff470511374a5df9fddc7a965c8840d5c62738ee",
-    "src/Network/JellyfinNetworkSettings.cs": "03a8c43a7e0c4d0bcc71dc64a7434cfb0e6a9194fea5b9d9a3f9bde6bda19a20",
+    "src/Network/JellyfinNetworkSettings.cs": "d766994549d6472e801a6bd34746b61dd78085026a5304e49809822dc3fe26f6",
     "src/Network/NetworkClassifier.cs": "0869102e1d933e8e168d684adb031f4c6fc57358a0f05028e60dc99027379f61",
     "src/Privacy/Privacy.cs": "0cdf2f39bc8b7deb2732c436383e489886ac2750f5c7cd450ba471637bbb0f73",
     "src/Registry/CampgroundEvents.cs": "3d3ef82ae8bba8c3b9cc03b670f8214b3d92df3eecc066ddded2f5de89ac32bc",
@@ -27,16 +27,16 @@
     "src/Registry/CampgroundRegistry.cs": "e263bebb8f031532600250c70d55b09f7ec46e4f2c08e74b59683feb91ce07ed",
     "src/Registry/Capabilities.cs": "d67045f1ca62f49f7ff853bad2bc5bad2a8337a33324e375f9dcc66c206f1fb0",
     "src/Registry/Ownership.cs": "0612f0b9a29112b294956171eedff8d1609b16252b90993ce6dfff7702c88723",
-    "src/Registry/PluginRegistry.cs": "c1575d894d7fefc7b9eacb67e840b7433c12e3666214b1e84f98dd5a68b2319e",
+    "src/Registry/PluginRegistry.cs": "ad5783623bfd4b87d339974724f9d8fa7cb2405a5bced4bfb94fdec89421185a",
     "src/Security/AccessChecks.cs": "c199e7de8e3366d603e9dac14111d91c9f8692035e8fb3240fd0ea2745b72fa9",
     "src/Security/AuthorizationHeader.cs": "8d770969e037227af349a1fdb5ec3ca63162230d668ed391d3e096cb8d6669d5",
-    "src/Security/RateLimiter.cs": "f5509feda4ddf3970428001dbcfb10931f2e1d5fd12d8fb3d8505c69f2e54976",
-    "src/Security/SecretBox.cs": "e26efe4e70fca5b9059f308f343b5629ec6961b67111a044888bd561823b0cb7",
+    "src/Security/RateLimiter.cs": "627f8883a5d72face472a98ac5581926a4041237c512176266f22b2257a596d1",
+    "src/Security/SecretBox.cs": "5be9a14d6d9317f57f740d81ef6a17116a3fcf71637f476a5ccf5d1c0dd7379e",
     "src/Settings/SettingsTools.cs": "889c3f32d668ae27be3b9a1fcdd34548b432e37dd0a256db85c42fb5aba69235",
-    "src/Setup/SetupChecks.cs": "c7cdc3c4ac8dfa5190cd49c1b4591ab23b79db2fb83ec1b3755c9c150c2668b8",
+    "src/Setup/SetupChecks.cs": "0b789c33a9bcda176f0cf317f77bcafc3d523fe084180ce7fc659c84d7c515a1",
     "src/Storage/AtomicJsonFile.cs": "0a9e34c632684e10ed40782e226505fc74d4f78aedaa82e9b18f2ff5ef89c684",
     "src/Storage/CampgroundPaths.cs": "7d6e5b6e7d1f8073a0535fc1aa1f38ffe086c4076f3a08c3e5200d0789d9a9f6",
     "src/Storage/UserDataCleanup.cs": "4dce215c4c44ab47ac568a2ac24a31e99437f879749e55e42b66b64a25eb2558",
-    "web/campground.js": "8fe94f5c4e57002f9227207b81fe52dc33047925813d4d431023d87f9275311a"
+    "web/campground.js": "04754817a6aecd364395884d88fc61b7d6064f96ff8473f830c99083a58f5548"
   }
 }
