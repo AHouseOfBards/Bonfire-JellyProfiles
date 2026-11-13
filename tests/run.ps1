@@ -5,6 +5,8 @@
         tests\run.ps1 js        # just the JavaScript harnesses
         tests\run.ps1 cs        # just the C# ones, against the net9.0 build that ships
         tests\run.ps1 cs10      # the same set, against the net10.0 build
+        tests\run.ps1 js --shard 2/6   # one slice, as CI runs it; anything after the
+                                       # section is passed to run.sh as it is
 
     This hands over to tests/run.sh through Git Bash. It used to be a second copy of the
     runner, and a second copy is how the desk and the pipeline come to disagree about what
@@ -16,7 +18,10 @@
     Needs Git for Windows (bash). The WSL bash that ships in System32 is not used: it would
     run the tests inside Linux against a Windows checkout.
 #>
-param([string]$Which = 'all')
+param(
+    [string]$Which = 'all',
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
+)
 
 $bash = $null
 $candidates = @(
@@ -36,5 +41,5 @@ if (-not $bash) {
 }
 
 $script = Join-Path $PSScriptRoot 'run.sh'
-& $bash $script $Which
+& $bash $script $Which @Rest
 exit $LASTEXITCODE
