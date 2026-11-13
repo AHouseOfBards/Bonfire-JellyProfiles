@@ -266,7 +266,10 @@ function tagOf(id) {
         ok('the tiles are drawn', cards.length === 2, 'drew ' + cards.length);
         ok('each tile is a button to a screen reader', cards.length > 0 && cards.every(c => /role="button"/.test(c)), cards[0]);
         const kit = html.slice(html.indexOf('data-id="bbbb"'));
-        ok('a PIN-protected tile says so in words', /class="jpf-sr">PIN protected</.test(kit.slice(0, kit.indexOf('jpf-profile-card') > 0 ? kit.length : 2000)));
+        // Kit's own tile: up to the next tile, or the end. It was the first 2000 characters,
+        // which Bonfire's badge mark (an inline svg) pushed the screen-reader text past.
+        const kitEnd = kit.indexOf('<div class="jpf-profile-card');
+        ok('a PIN-protected tile says so in words', /class="jpf-sr">PIN protected</.test(kit.slice(0, kitEnd > 0 ? kitEnd : kit.length)));
         // 17. Opening a profile is announced, not only drawn as a spinner.
         env3.sandbox.document.getElementById = id => overlay.querySelector('#' + id);
         const live = overlay.querySelector('#jpf-switch-live');

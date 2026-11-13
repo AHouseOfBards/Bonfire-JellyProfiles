@@ -58,7 +58,8 @@ const ALLOWED = {
         'class="jpf-profile-avatar-overlay-svg"': 'the edit pencil over a darkened picture',
         'stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: #fff;"':
             "the tick on a profile's own colour",
-        'style="font-size: 1.15rem; color: #fff;">${p.isLinked': "the link badge on a profile's own colour",
+        'aria-hidden="true" style="font-size: 1.15rem; color: #fff;">link</span>': "the link badge on a profile's own colour",
+        "bonfireMark('jpf-badge-mark', 'font-size: 1.15rem; color: #fff;')": "the Bonfire badge on a profile's own colour",
         'class="bonfire-kick-btn"': 'white on the red fill of a remove button',
         // The initial's own colour is computed now (onAvatarColor); what is left white here
         // is the hairline ring round the header avatar.
