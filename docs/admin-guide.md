@@ -15,7 +15,7 @@ Shows whether Bonfire is working and walks through first setup.
 Lists each main account with its profiles.
 
 - **Profiles per main account.** 1 to 20, default 5. A main account's own limit wins.
-- **Leftover records.** **Scan** finds records left when a profile is deleted in Dashboard → Users. They still count against the main account's limit.
+- **Leftover records.** **Scan** finds records left when a profile is deleted in **Dashboard → Users**. They still count against the main account's limit.
 - **Accounts with no password.** An account with no password, such as an SSO account, can't be added to a household by the household. An administrator adds it here.
 - **Forgotten PIN.** Clear it here. The account can then set a new one.
 
@@ -31,9 +31,12 @@ Everyone signed in right now, with their device, when it was last seen and what 
 
 Under **Advanced**:
 
-- **Emergency disable code.** At least 10 characters. Anyone with the code can turn Bonfire off until Jellyfin restarts, so signed-in devices skip the profile screen. Blank turns it off. It can't be shown again, so write it down. **Save code** saves it on its own, not with **Save**.
+- **Emergency disable code.** At least 10 characters. Anyone with the code can turn Bonfire off until Jellyfin restarts, so signed-in devices skip the profile screen. Blank turns it off. **Save code** saves it on its own, not with **Save**.
 - **PIN tries a day.** 1 to 20, default 20. Per account, all apps together.
 - **Addresses that skip PINs.** Add an address, then choose which accounts skip the PIN from it.
+
+{: .warning }
+The emergency disable code can't be shown again, so write it down.
 
 More in [Security](security.md).
 
@@ -78,12 +81,20 @@ For apps without a switcher, such as Android TV, Roku and Swiftfin. Set each app
 
 ## Switches
 
-The last 1,000 profile switches, kept for 90 days. Filter by **Main account or profile** and by **From** and **To** dates. **Download JSON** includes IP addresses. **Delete the log** clears it. Other events are in Dashboard → Activity.
+The last 1,000 profile switches, kept for 90 days. Filter by **Main account or profile** and by **From** and **To** dates. **Download JSON** includes IP addresses. **Delete the log** clears it. Other events are in **Dashboard → Activity**.
+
+{: .warning }
+**Delete the log** can't be undone, and the JSON download includes IP addresses.
+
 
 ## Troubleshoot
 
 - **Common problems.** Short answers for a missing switcher, apps that don't show it, library access that reverts, a forgotten PIN, and being locked out.
 - **Report a problem.** **Copy report** copies versions, settings and counts to paste into a GitHub issue. It has no names, ids, addresses or PINs.
-- **Client script** and **Backup** (Advanced). The script check shows whether the client script loads. **Export** and **Import** back up the settings, without the mail password and emergency code. **Include PINs** is on by default, so keep the file private.
+- **Client script** and **Backup** (Advanced). The script check shows whether the client script loads. **Export** and **Import** back up the settings, without the mail password and emergency code. **Include PINs** is on by default.
+
+{: .warning }
+The backup file holds every PIN. Keep it private.
+
 
 Longer answers are in [Troubleshooting](troubleshooting.md). Scripts that call the server are in the [Developer API](developer-api.md).

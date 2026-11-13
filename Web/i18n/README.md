@@ -49,8 +49,8 @@ It needs only Node, and reports missing keys, unknown keys, empty values, and br
 placeholders or HTML. It also checks two things in the code rather than your file, so a
 failure isn't always yours.
 
-**4. Try it.** Build the plugin, pick the language in Jellyfin under Settings → Display →
-Display language, and open the profile screen.
+**4. Try it.** Build the plugin, pick the language in Jellyfin under **Settings → Display →
+Display language**, and open the profile screen.
 
 **5. List it** in the table above and in the README's Features list.
 `tests/js/languagelist.js` fails until both name it.
@@ -91,8 +91,8 @@ they are in every language.
 
 Most likely first:
 
-- **Jellyfin isn't set to it.** Bonfire uses Jellyfin's Display language (Settings →
-  Display), which is per user and per device. On Auto, that's the device's language.
+- **Jellyfin isn't set to it.** Bonfire uses Jellyfin's Display language (**Settings →
+  Display**), which is per user and per device. On Auto, that's the device's language.
 - **The plugin wasn't rebuilt.** Files are built into the plugin.
 - **Jellyfin wasn't restarted.**
 - **The file isn't valid JSON.** The validator will say so. A trailing comma is the usual

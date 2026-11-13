@@ -64,7 +64,7 @@ The switcher, profile management, avatars, library artwork and shared Bonfires.
 Your profiles appear on the app's own sign-in screen and open with their PIN. Creating
 and editing profiles still needs one of the apps above.
 
-Turn it on under **Dashboard → Bonfire → Apps**.
+Turn it on under **Dashboard → Plugins → Bonfire → Clients**.
 
 | App | Status |
 | --- | --- |
@@ -74,17 +74,18 @@ Turn it on under **Dashboard → Bonfire → Apps**.
 | Findroid (phone and TV) | Not yet confirmed on hardware. |
 | Wholphin | Not yet confirmed on hardware. |
 
+{: .warning }
 **Make the app ask every time.** These apps save a sign-in, and a saved profile opens
 without its PIN unless the app is set to ask:
 
-- **Android TV:** Settings → Login → *Always ask for credentials*.
-- **Roku:** Settings → Global → turn off *Remember Me?*. Bonfire then makes the app ask
+- **Android TV:** **Settings → Login → Always ask for credentials**.
+- **Roku:** **Settings → Global**, then turn off **Remember Me?**. Bonfire then makes the app ask
   for the PIN each time the user list opens.
-- **Wholphin:** on each profile with a PIN, Settings → *Profile protection* →
-  *Require login for profile*.
+- **Wholphin:** on each profile with a PIN, **Settings → Profile protection →
+  Require login for profile**.
 - **Swiftfin** and **Findroid** can't be set to ask. A profile signed in on them opens
-  without its PIN. Swiftfin can lock a profile with its own PIN under Settings → the
-  profile → *Security*.
+  without its PIN. Swiftfin can lock a profile with its own PIN under **Settings →
+  the profile → Security**.
 
 **Type the PIN where the app asks for a password.** A main account with no PIN still uses
 its real password. A profile with no PIN opens with the box left empty.
@@ -94,7 +95,7 @@ password, and a saved sign-in opens it with neither. Anyone who can pick it on t
 screen gets it, so set the app to ask every time.
 
 **Forgotten PIN.** Reset by email works only in the web app. Otherwise an administrator
-clears it under **Dashboard → Bonfire → Households**.
+clears it under **Dashboard → Plugins → Bonfire → Households**.
 
 The list appears on every app that asks the server for its user list, not only the apps named here.
 
@@ -114,13 +115,13 @@ Streamyfin, Plezy and Tsukimi only offer a username and password box. They still
 1. Sign in once as the main account, with its real name and password.
 2. From then on, type a **profile's name** and its PIN.
 
-This needs **Let profiles sign in with their PIN** under **Apps**. It
+This needs **Let profiles sign in with their PIN** under **Dashboard → Plugins → Bonfire → Clients**. It
 works the same way for any app not listed here.
 
 ## Profile picker (beta)
 
 Only Moonfin for now. It's beta, off by default, and may change when native support
-arrives. Tick it under **Apps → Profile picker**, then sign in on it
+arrives. Tick it under **Dashboard → Plugins → Bonfire → Clients → Profile picker**, then sign in on it
 with the main account. The home screen shows a **Profiles** library:
 
 1. Open a profile's folder to use that profile. A profile with a PIN opens a keypad. So

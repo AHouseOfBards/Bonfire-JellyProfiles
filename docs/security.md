@@ -56,11 +56,12 @@ These hold in every app and can't be turned off from a browser.
 
 ## For administrators
 
-- **Configuration export.** It contains every PIN, hashed. A four-digit PIN can be
-  recovered from its hash in seconds, so keep the file safe like a password. It leaves
-  out the mail server password and the emergency code, and an import keeps the current
-  ones.
+- **Configuration export.** It contains every PIN, hashed. It leaves out the mail server
+  password and the emergency code, and an import keeps the current ones.
 - **Emergency disable code.** It skips the profile screen on any browser signed in to a
   main account. Make it long.
+
+{: .warning }
+A four-digit PIN can be recovered from its hash in seconds. Keep an exported configuration file safe like a password.
 - **Device and app names** on the Bonfire settings page can be set by any account.
   The page shows them as plain text. If you build tools on the API, do the same.

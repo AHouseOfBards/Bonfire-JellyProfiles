@@ -3,6 +3,7 @@
 Link two accounts with a 6-character code so both households appear on one switcher.
 Find it under **Settings → Your Bonfire** on the switcher.
 
+{: .warning }
 **Treat the code like a password.** Anyone with it can join. You can be in one Bonfire at
 a time, so joining another one takes you out of your current one. Removing a member
 changes your code so they can't rejoin. **New code** changes it without removing anyone.

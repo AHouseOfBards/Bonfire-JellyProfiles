@@ -34,11 +34,11 @@ Works with Jellyfin 10.11 and 12.0.
 
 ## Install
 
-1. In the Jellyfin dashboard, open **Plugins → Repositories** and add:
+1. In Jellyfin, open **Dashboard → Plugins → Repositories** and add:
    ```
    https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json
    ```
-2. Install **Bonfire/JellyProfiles** from **Plugins → Catalog**.
+2. Install **Bonfire/JellyProfiles** from **Dashboard → Plugins → Catalog**.
 3. Restart Jellyfin.
 
 Nothing else to set up. If the switcher doesn't appear, see
@@ -53,7 +53,7 @@ Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen
 
 **Profile sign-in:** Jellyfin for Android TV, Roku, Swiftfin, Findroid and Wholphin can
 list your profiles on their own sign-in screen. Turn it on under
-**Dashboard → Bonfire → Apps**, and [set the app to ask every time](docs/clients.md#profile-sign-in). Type
+**Dashboard → Plugins → Bonfire → Clients**, and [set the app to ask every time](docs/clients.md#profile-sign-in). Type
 the profile's PIN where the app asks for a password. Android TV is confirmed on hardware;
 the others are not yet.
 

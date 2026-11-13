@@ -4,8 +4,8 @@
 
 ### Turn Bonfire on
 
-A new install starts with Bonfire off. Turn it on at the top of the Status tab in
-Bonfire's settings.
+A new install starts with Bonfire off. Turn it on at the top of
+**Dashboard → Plugins → Bonfire → Status**.
 
 ### Restart the server
 
@@ -96,6 +96,10 @@ file over `PluginConfiguration.xml`, and start the newer version.
 
 Bonfire keeps a copy of its settings beside the file, as `PluginConfiguration.xml.lastgood`. If `PluginConfiguration.xml` is deleted, Bonfire restores it from that copy, so to start over with default settings, stop Jellyfin and delete both.
 
+{: .warning }
+Deleting both files erases every Bonfire setting.
+
+
 ## Quick Connect still shows on my Android TV
 
 If anyone outside a household has signed in on a TV with the same name, Bonfire stops hiding
@@ -122,7 +126,7 @@ If "PIN sign-in on other apps" was on, Bonfire set some accounts to its own sign
 
 Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them
 off with **Include the starter avatars** under
-**Dashboard → Plugins → Bonfire → Look → Avatar library**. Profiles already using one keep it.
+**Dashboard → Plugins → Bonfire → Setup → Avatar library**. Profiles already using one keep it.
 
 Film and TV characters aren't included, because they belong to their studios. Add your
 own on the same page:
@@ -143,5 +147,5 @@ include:
 - the Bonfire version, and whether it's from the stable or beta channel
 - your Jellyfin version, and how it's installed (Docker, package, Windows)
 - the browser, app or TV model
-- the text from **Troubleshoot → Copy report**
+- the text from **Dashboard → Plugins → Bonfire → Troubleshoot → Copy report**
 - whether the server has been restarted since installing or updating

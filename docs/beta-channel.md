@@ -7,11 +7,11 @@ Beta builds let you try new work before it reaches everyone.
 | **Stable** | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` |
 | **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` |
 
-> [!WARNING]
-> **Beta builds are unfinished and features in them may be broken.** Settings added in a
-> beta can change before release, and going back to stable may reset them. If the
-> switcher breaks, the [emergency disable code](limitations.md#emergency-disable-code)
-> can switch Bonfire off. Don't run a beta on a server your household needs that evening.
+{: .warning }
+**Beta builds are unfinished and features in them may be broken.** Settings added in a
+beta can change before release, and going back to stable may reset them. If the
+switcher breaks, the [emergency disable code](limitations.md#emergency-disable-code)
+can switch Bonfire off. Don't run a beta on a server your household needs that evening.
 
 Please report what you find on
 [GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues).
@@ -19,7 +19,7 @@ Please report what you find on
 ## Using it
 
 In Jellyfin, open **Dashboard → Plugins → Repositories → ＋**, add the beta URL and save.
-The beta builds then appear under **Plugins → Catalog**.
+The beta builds then appear under **Dashboard → Plugins → Catalog**.
 
 **Add it alongside the stable repository, not instead of it.** Each version is listed in
 only one of the two, so the beta repository on its own never offers stable releases.

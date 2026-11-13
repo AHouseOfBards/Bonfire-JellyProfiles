@@ -571,7 +571,7 @@ has turned on `allowHouseholdLanBypass`. `requiresPin` in `/list` already reflec
 Errors:
 
 - `400`: wrong PIN, not allowed on this device, an unprotected account in another
-  household, an account turned off in Dashboard → Users, or no session could be made
+  household, an account turned off in **Dashboard → Users**, or no session could be made
   (device not allowed, or too many sessions).
 - `401`: the caller's own token is invalid. Sign the caller in again.
 - `403`: the target isn't theirs to open.
@@ -702,7 +702,7 @@ Values worth knowing:
 - **`theme`:** `""` goes back to the server default, `null` keeps it.
 - **`blockedTags`, `allowedTags`:** `[]` clears them, `null` keeps them. Ignored for the
   main account.
-- **Rating sub-score:** a sub-score set in Dashboard → Users (TV-PG against TV-PG-V) is kept
+- **Rating sub-score:** a sub-score set in **Dashboard → Users** (TV-PG against TV-PG-V) is kept
   while the rating stays the same.
 
 Returns `200`. Errors as for `/create`.
@@ -799,19 +799,19 @@ Unlike `/Localization/ParentalRatings`, this doesn't add Jellyfin's generic ages
 
 A profile is a hidden Jellyfin account. Every time it's opened, through the switcher or by
 signing in on another app, Bonfire writes its policy from the main account's. A change made
-to the main account in Dashboard → Users reaches a profile the next time it's opened; a
+to the main account in **Dashboard → Users** reaches a profile the next time it's opened; a
 session already running keeps what it had until then.
 
 - **Copied:** libraries, rating, tags, remote access, playback, downloads, Live TV,
   channels, allowed devices and schedules.
 - **The stricter of the two:** bitrate, session count, forced transcoding, SyncPlay and
-  blocked unrated items. A limit set on the profile's own account in Dashboard → Users
+  blocked unrated items. A limit set on the profile's own account in **Dashboard → Users**
   counts as the profile's. Everything else follows the main account, both tighter and
   looser.
 - **Never more than the main account:** management permissions. A profile is never an
   administrator.
 
-A library granted to or removed from a profile in Dashboard → Users is kept: Bonfire
+A library granted to or removed from a profile in **Dashboard → Users** is kept: Bonfire
 records the list it last wrote (`LastAppliedFolders`), and a list that differs from it was
 changed by someone. A reset to "all libraries" is still repaired. A profile set to every
 library always follows its main account.
@@ -830,7 +830,7 @@ the web client. All are off by default.
 | --- | --- |
 | `enableClientPinLogin` | Profiles, and main accounts with a PIN, can be signed in to with the PIN where an app asks for a password. Only on a device the household has signed in on with a password; elsewhere a main account needs its password. |
 | `enableClientProfileList` | `GET /Users/Public` includes the household of the device asking, and profiles show under their own name. |
-| `clientPinLoginFromAnywhere` | A profile with no PIN, or with a device list, can be signed in to from outside the home network. Off: those two open only for a caller Jellyfin places on the local network, after its known-proxy rules. A profile with a PIN and no device list is not affected. Under Advanced on the Apps tab. |
+| `clientPinLoginFromAnywhere` | A profile with no PIN, or with a device list, can be signed in to from outside the home network. Off: those two open only for a caller Jellyfin places on the local network, after its known-proxy rules. A profile with a PIN and no device list is not affected. Under Advanced in **Dashboard → Plugins → Bonfire → Clients**. |
 | `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused on a TV a household has used, so the app shows its password box. |
 | `proxyClients` | The apps that get the profile picker. See below. |
 
@@ -1204,7 +1204,7 @@ Before turning the bypass on, a client should warn about two things:
 
 - **An administrator account** gives anyone who opens it control of the server.
 - **"Home network"** is whatever Jellyfin counts as local. Behind a reverse proxy missing
-  from **Networking → Known Proxies**, that's everyone.
+  from **Dashboard → Networking → Known Proxies**, that's everyone.
 
 ### `POST /plugins/profiles/bonfire/generate`
 
