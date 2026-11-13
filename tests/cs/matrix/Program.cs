@@ -508,7 +508,9 @@ var kickStart = controllerSrc.IndexOf("KickBonfireMember([FromBody]", StringComp
 var kickEnd = kickStart < 0 ? -1 : controllerSrc.IndexOf("[Http", kickStart, StringComparison.Ordinal);
 var kickBody = kickStart < 0 || kickEnd < 0 ? "" : controllerSrc.Substring(kickStart, kickEnd - kickStart);
 Check("kicking a member replaces the code", kickBody.Contains("group.BonfireCode = GenerateSecureCode();"), true);
-Check("and the owner can replace it on demand", SrcHas(controllerSrc, "[HttpPost(\"bonfire/regenerate-code\")]"), true);
+// The owner replaces it on demand through POST bonfire/generate (regenerate-code is gone).
+Check("and the owner can replace it on demand", SrcHas(controllerSrc, "[HttpPost(\"bonfire/generate\")]")
+    && !SrcHas(controllerSrc, "bonfire/regenerate-code"), true);
 
 
 Console.WriteLine();

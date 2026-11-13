@@ -3170,10 +3170,13 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 else
                 {
+                    // Already has a Bonfire: this changes its code. Members stay in and the old
+                    // code stops working, for a code that has been shared further than intended.
+                    // Until 2.0 this was a route of its own.
                     if (string.IsNullOrEmpty(group.GroupId))
                         group.GroupId = Guid.NewGuid().ToString("N").Substring(0, 8);
-                    if (string.IsNullOrEmpty(group.BonfireCode))
-                        group.BonfireCode = GenerateSecureCode();
+                    group.BonfireCode = GenerateSecureCode();
+                    _logger.LogInformation("ProfilesPlugin: Bonfire code for {Owner} replaced by its owner.", masterUserId);
                 }
 
                 Plugin.Instance?.SaveConfiguration();
@@ -3308,42 +3311,6 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return NotFound("Member not found in your Bonfire group.");
-        }
-
-        /// <summary>
-        /// Replaces the owner's Bonfire code. Members already in stay in; the old code stops
-        /// working. For a code that has been shared further than intended.
-        /// </summary>
-        [HttpPost("bonfire/regenerate-code")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult RegenerateBonfireCode()
-        {
-            var config = Plugin.Instance?.Configuration;
-            if (config == null) return BadRequest("Plugin configuration missing.");
-
-            var currentUserIdVal = GetCurrentUserId();
-            if (currentUserIdVal == null) return Unauthorized();
-            Guid masterId = currentUserIdVal.Value;
-
-            var callerMapping = FindMapping(masterId);
-            if (callerMapping != null && callerMapping.MasterUserId != masterId)
-                return Unauthorized("Only the master profile can manage Bonfire groups.");
-
-            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
-
-            lock (ConfigLock)
-            {
-                var group = config.BonfireGroups.FirstOrDefault(g => g.OwnerUserId == masterId);
-                if (group == null) return BadRequest("You do not own a Bonfire group.");
-
-                group.BonfireCode = GenerateSecureCode();
-                Plugin.Instance?.SaveConfiguration();
-
-                _logger.LogInformation("ProfilesPlugin: Bonfire code for {Owner} replaced by its owner.", masterId);
-                return Ok(new { BonfireCode = group.BonfireCode });
-            }
         }
 
         [HttpPost("bonfire/leave")]

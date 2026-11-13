@@ -12426,7 +12426,7 @@
             if (newCodeBtn) {
                 newCodeBtn.addEventListener('click', () => {
                     this.showConfirmDialog(t('bonfire.newCodeConfirmTitle'), t('bonfire.newCodeConfirmBody'), () => {
-                        fetch(apiClient.getUrl('plugins/profiles/bonfire/regenerate-code'), {
+                        fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
                             method: 'POST',
                             headers: this.manageHeaders(masterToken)
                         })

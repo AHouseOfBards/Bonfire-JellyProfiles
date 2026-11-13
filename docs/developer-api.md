@@ -42,7 +42,7 @@ because other people build against it too.
 
 ## All routes
 
-All 102 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 101 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -82,10 +82,9 @@ All 102 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/devices/rename` | user | Rename a device. |
 | `GET /plugins/profiles/bonfire/status` | user | The caller's Bonfire. |
 | `POST /plugins/profiles/bonfire/settings` | user | Change Bonfire sharing options. |
-| `POST /plugins/profiles/bonfire/generate` | user | Start a Bonfire and get its code. |
+| `POST /plugins/profiles/bonfire/generate` | user | Start a Bonfire, or change the code of the one you have. |
 | `POST /plugins/profiles/bonfire/join` | user | Join a Bonfire with a code. |
 | `POST /plugins/profiles/bonfire/kick` | user | Remove a member and change the code. |
-| `POST /plugins/profiles/bonfire/regenerate-code` | user | Change the code. |
 | `POST /plugins/profiles/bonfire/leave` | user | Leave a Bonfire. |
 | `POST /plugins/profiles/bonfire/delete-group` | user | End your Bonfire. |
 | `GET /plugins/profiles/accounts/links` | user | Other accounts on the caller's switcher, and the switchers it's on. |
@@ -446,6 +445,9 @@ you.
   `"address": ""`, to [`POST /account/email`](#post-pluginsprofilesaccountemail).
 - `GET /library-artwork/{profileId}`: send `profileId` as a query to
   [`GET /library-artwork`](#get-pluginsprofileslibrary-artwork).
+- `POST /bonfire/regenerate-code`: call
+  [`POST /bonfire/generate`](#post-pluginsprofilesbonfiregenerate), which changes the code when
+  the caller already has a Bonfire. The answer carries `bonfireCode`, as before.
 - `POST /theme`: send `theme` to [`POST /update`](#post-pluginsprofilesupdate).
 - `POST /update` now refuses a `theme` with `403` while the server doesn't let profiles
   choose, where it used to ignore it, and answers `{ profileId, theme, stored }`.
@@ -1257,6 +1259,9 @@ Before turning the bypass on, a client should warn about two things:
 
 Starts a Bonfire. Returns `{ "groupId": "4f5c9e2b", "bonfireCode": "B7F8XA", "members": [] }`.
 
+If the caller already has a Bonfire, this changes its code instead and removes no one; the old
+code stops working. The answer has the same shape, with the new `bonfireCode`.
+
 ### `POST /plugins/profiles/bonfire/join`
 
 **Authorization:** signed-in user.
@@ -1279,13 +1284,6 @@ Bonfire, `403` not a main account, `429` too many tries.
 
 Removes the member and changes the code so they can't rejoin. Returns the new code:
 `{ "bonfireCode": "Q7M2KX" }`.
-
-### `POST /plugins/profiles/bonfire/regenerate-code`
-
-**Authorization:** signed-in user.
-
-Changes the code without removing anyone. Returns `{ "bonfireCode": "Q7M2KX" }`. `400` if
-the caller hasn't started a Bonfire.
 
 ### `POST /plugins/profiles/bonfire/leave`
 

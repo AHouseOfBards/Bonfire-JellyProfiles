@@ -154,7 +154,7 @@ const info = (required) => () => json({ features: { requireMainPin: required } }
     // off each request.
     const guarded = [
         "plugins/profiles/devices/' + path", "plugins/profiles/devices/merge-duplicates",
-        "plugins/profiles/bonfire/kick", "plugins/profiles/bonfire/regenerate-code", "plugins/profiles/bonfire/delete-group",
+        "plugins/profiles/bonfire/kick", "plugins/profiles/bonfire/delete-group",
         "plugins/profiles/bonfire/leave", "plugins/profiles/bonfire/generate", "plugins/profiles/bonfire/join",
         "plugins/profiles/bonfire/settings",
     ];
@@ -175,6 +175,13 @@ const info = (required) => () => json({ features: { requireMainPin: required } }
            at !== -1 && call !== -1 && /headers: [^\n]*this\.manageHeaders\(/.test(opts.split('\n').slice(0, 4).join('\n')),
            at === -1 ? 'not found' : opts.split('\n').filter(l => /headers:/.test(l)).join(' ').trim());
     });
+    // "New code" is POST bonfire/generate since 2.0 (bonfire/regenerate-code is gone), and
+    // it must still send the PIN: the first fetch of that URL is the new-code button's.
+    ok('no call to bonfire/regenerate-code is left', raw.indexOf('bonfire/regenerate-code') === -1);
+    const newCodeAt = raw.indexOf("addEventListener('click'", raw.indexOf("querySelector('#bonfire-newcode-btn')"));
+    const newCodeCall = newCodeAt === -1 ? '' : raw.slice(newCodeAt, newCodeAt + 600);
+    ok('the new-code button posts to bonfire/generate and sends the PIN',
+       /plugins\/profiles\/bonfire\/generate/.test(newCodeCall) && /headers: this\.manageHeaders\(masterToken/.test(newCodeCall));
     const prefsAt = raw.indexOf("return fetch(apiClient.getUrl('plugins/profiles/preferences'), {");
     ok('saving switcher settings sends the PIN',
        prefsAt !== -1 && /headers: this\.manageHeaders\(/.test(raw.slice(prefsAt, prefsAt + 200)));

@@ -165,7 +165,6 @@ var household = new (string method, Dictionary<string, object> body, object[] ra
     ("GenerateBonfireCode", null, null),
     ("JoinBonfire", new() { ["BonfireCode"] = "ZZZZZZ" }, null),
     ("KickBonfireMember", new() { ["MemberId"] = Guid.NewGuid() }, null),
-    ("RegenerateBonfireCode", null, null),
     ("LeaveBonfire", null, null),
     ("DeleteBonfireGroup", null, null),
     ("UpdatePreferences", new() { ["AskOnStartup"] = (bool?)false }, null),
