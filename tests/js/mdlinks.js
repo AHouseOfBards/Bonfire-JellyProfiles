@@ -102,6 +102,8 @@ console.log('mdlinks: ' + files.length + ' Markdown files, ' + checked + ' relat
 if (bad.length) {
     bad.forEach(b => console.log('  BROKEN ' + b));
     console.log('FAIL: ' + bad.length + ' broken');
+    console.log((checked - bad.length) + ' passed, ' + bad.length + ' failed');
     process.exit(1);
 }
-console.log('OK');
+// tests/run.sh fails a harness whose last line is not a totals line.
+console.log(checked + ' passed, 0 failed');

@@ -123,5 +123,7 @@ LEAVE.forEach(function (s) {
     if (!problems(s, TABS).length) pass++; else { fail++; console.log('FAIL detector flagged: ' + s); }
 });
 
-console.log(fail ? fail + ' failed' : 'ok: ' + files.length + ' docs read, tabs: ' + TABS.join(', '));
+if (!fail) console.log('ok: ' + files.length + ' docs read, tabs: ' + TABS.join(', '));
+// tests/run.sh fails a harness whose last line is not a totals line.
+console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
