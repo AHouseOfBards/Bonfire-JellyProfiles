@@ -506,6 +506,15 @@
         #profilesConfigurationPage .jpf-te-bar-name { min-width: 4em; }
         #profilesConfigurationPage .jpf-te-count { min-width: 0; max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; }
     }
+    /* At phone width one row cannot hold the name and the controls: Save was cut to "Sav" and
+       the bar ran 9 px past the card. The name and the problem count share the first row, and
+       the controls keep their size on the second. */
+    @media (max-width: 480px) {
+        #profilesConfigurationPage .jpf-te-bar { flex-wrap: wrap; row-gap: 4px; }
+        #profilesConfigurationPage .jpf-te-bar > * { flex-shrink: 0; -webkit-box-ordinal-group: 3; order: 2; }
+        #profilesConfigurationPage .jpf-te-bar > .jpf-te-bar-name { flex: 1 1 calc(100% - 9em); -webkit-box-ordinal-group: 1; order: 0; }
+        #profilesConfigurationPage .jpf-te-bar > .jpf-te-count { flex-shrink: 1; max-width: 8.5em; -webkit-box-ordinal-group: 2; order: 1; }
+    }
     #profilesConfigurationPage .jpf-te-modes {
         display: flex; gap: 2px; margin: 0 0 1.25em;
         border-bottom: 1px solid var(--jpf-w14);
@@ -636,6 +645,10 @@
         gap: 10px 16px; margin-bottom: 1.5em;
     }
     #profilesConfigurationPage .jpf-te-color { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; }
+    /* A long name wraps beside its swatch. Without this, "Background, top" dropped below the
+       swatch at phone width while "Accent" stayed beside it. */
+    #profilesConfigurationPage .jpf-te-color > .jpf-te-sw { flex-shrink: 0; }
+    #profilesConfigurationPage .jpf-te-color > span { flex: 1 1 0; min-width: 0; }
     /* "More" on a Simple control opens Advanced at its group; the follow hint is the same
        link in words. Advanced is not there below 900 px, so neither are they. */
     #profilesConfigurationPage .jpf-te-link { margin-top: 4px; padding: 2px 8px; font-size: 0.8rem; opacity: 0.85; }

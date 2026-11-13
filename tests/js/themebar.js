@@ -335,10 +335,14 @@ async function main() {
         await ev(frame);
         const narrow = await ev(`(function () { var b = document.getElementById('teBar'); if (!b) return { missing: true }; var r = b.getBoundingClientRect();
             var kids = [].slice.call(b.querySelectorAll('button, #teBarName')).filter(function (e) { return e.getBoundingClientRect().width > 0; });
-            var out = kids.filter(function (e) { var q = e.getBoundingClientRect(); return q.right > window.innerWidth + 0.5 || q.left < -0.5; }).map(function (e) { return e.id || e.className; });
-            return { top: Math.round(r.top), h: Math.round(r.height), scrollW: document.documentElement.scrollWidth, w: window.innerWidth, out: out,
+            var out = kids.filter(function (e) { var q = e.getBoundingClientRect(); return q.right > window.innerWidth + 0.5 || q.left < -0.5 || q.right > r.right + 0.5; }).map(function (e) { return e.id || e.className; });
+            var cut = kids.filter(function (e) { return e.id !== 'teBarName' && e.id !== 'teCount' && e.scrollWidth > e.clientWidth + 1; }).map(function (e) { return (e.id || e.className) + ':' + e.scrollWidth + '>' + e.clientWidth; });
+            return { top: Math.round(r.top), h: Math.round(r.height), scrollW: document.documentElement.scrollWidth, w: window.innerWidth, out: out, cut: cut,
                 cancel: getComputedStyle(document.getElementById('teCancel')).display, more: getComputedStyle(document.getElementById('teMore').parentNode).display }; })()`);
-        ok('at 480 px every control in the bar is inside the window and the bar is one line', !narrow.missing && narrow.out.length === 0 && narrow.h < 70 && narrow.top >= 0 && narrow.top < 120, JSON.stringify(narrow));
+        // Two lines, not one: one line held every box inside the window while Save's own text
+        // was cut to "Sav", which only the cut list catches. The name and the count may end in
+        // an ellipsis; a button may not.
+        ok('at 480 px every control in the bar is inside the bar and the window, none is cut, and the bar is at most two lines', !narrow.missing && narrow.out.length === 0 && narrow.cut.length === 0 && narrow.h < 100 && narrow.top >= 0 && narrow.top < 120, JSON.stringify(narrow));
         ok('and Cancel has moved into the menu', narrow.cancel === 'none' && narrow.more !== 'none', JSON.stringify(narrow));
         ok('the bar has no Expand of its own (the preview\'s is the only one)', (await ev("!document.getElementById('teBarExpand') && !document.querySelector('#teBar [data-more=teBarExpand]') && !!document.getElementById('teExpand')")) === true);
         // The theme name keeps room, and a long one is cut with an ellipsis, not squeezed out.
