@@ -115,6 +115,21 @@ async function main() {
                 }
             }
         }
+        // The picker opened on purpose (the header button): Back and Escape close it and
+        // put focus back on the button. A profile change must not happen on the way out.
+        for (const key of ['Back', 'Escape']) {
+            await tv.load('pickeropen');
+            const open = await tv.evaluate("!!document.getElementById('profiles-gate-overlay')");
+            ok('opened from the header button: the picker is up', open === true);
+            await tv.evaluate('window.__switched=0;var P=window.__bonfire;var o=P.switchToProfile;if(o)P.switchToProfile=function(){window.__switched++;return o.apply(P,arguments)};true');
+            await tv.press(key);
+            const gone = await tv.evaluate("!document.getElementById('profiles-gate-overlay')");
+            const at = await tv.evaluate("document.activeElement&&document.activeElement.id");
+            const switched = await tv.evaluate('window.__switched');
+            ok('opened from the header button: ' + key + ' closes the picker', gone === true);
+            ok('opened from the header button: after ' + key + ' focus is on the header button', at === 'profiles-floating-bubble', 'focus on ' + at);
+            ok('opened from the header button: ' + key + ' switches nothing', switched === 0);
+        }
     } finally { await tv.close(); }
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     if (fails.length) process.exitCode = 1;

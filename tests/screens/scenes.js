@@ -86,6 +86,8 @@
             { deviceId: 'dddd0000000000000000000000000002', deviceName: "Sam's iPad", client: 'Jellyfin iOS', lastSeen: '2026-11-03T08:12:00Z', masterUserId: MAIN }
         ]),
         'avatars': empty,
+        // What the picker asks for when it is opened from a button.
+        'list': function () { return PROFILES; },
         'ratings': function () {
             return FULL ? { country: 'US', ratings: [
                 { score: 0, labels: ['G', 'TV-G', 'TV-Y'] }, { score: 7, labels: ['TV-Y7'] }, { score: 10, labels: ['PG', 'TV-PG'] },
@@ -391,6 +393,21 @@
             P._insertBeforeUserBtn(right, bubble);
             bubble.focus();
             return Promise.resolve();
+        },
+        // The picker opened on purpose: the header button pressed by its own click
+        // handler, so what Back must return to is the button.
+        'pickeropen': function (P) {
+            document.body.insertAdjacentHTML('afterbegin', '<header class="skinHeader"><div class="headerRight">' +
+                '<button class="headerButton headerUserButton paper-icon-button-light focusable"><span class="material-icons">account_circle</span></button>' +
+                '</div></header>');
+            var bubble = P._buildHeaderBubble();
+            P._insertBeforeUserBtn(document.querySelector('.headerRight'), bubble);
+            P.attachBubbleClickHandler(bubble);
+            // Someone already in a profile, which is who presses the button.
+            P._sessionSet(P.config.activeSessionKey, 'fixture-profile-token');
+            bubble.focus();
+            bubble.click();
+            return new Promise(function (resolve) { setTimeout(resolve, 700); });
         },
         'headerpill': function (P) {
             var pill = P._buildFallbackBubble();

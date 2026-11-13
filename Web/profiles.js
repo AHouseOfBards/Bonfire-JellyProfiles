@@ -6496,8 +6496,10 @@
         /// to go. Every sub-screen carries a Back or Cancel control already, so this clicks
         /// the one it finds rather than duplicating each screen's teardown.
         ///
-        /// Doing nothing is the right answer on the picker itself: it is a required choice,
-        /// and on a TV the alternative is closing the whole app mid-selection.
+        /// Doing nothing is the right answer on the picker when it is the gate: a required
+        /// choice, and on a TV the alternative is closing the whole app mid-selection. A
+        /// picker opened on purpose has a Cancel button (#profiles-resume-btn), so it is
+        /// found above and Back closes it.
         _dismissSurface: function (surface) {
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
@@ -13568,7 +13570,7 @@
         /// user-menu item and the profile page — so they cannot drift apart. There is no
         /// page reload: the overlay is drawn on top of the current view, which is what
         /// removed the white flash the old reload-based button caused.
-        handleBubbleClick: function () {
+        handleBubbleClick: function (opener) {
             // Every entry point into the switcher funnels through here, so this is where the
             // emergency disable has to hold. An entry that survived the teardown — a menu row
             // a theme rebuilt, say — must not be able to raise the gate again.
@@ -13597,6 +13599,10 @@
                 // nobody passed through the gate. Closing is still a valid answer, and
                 // without it there is no way off the picker at all.
                 : { closeOnly: true };
+            // Opened on purpose is what makes Back close the picker, and the control that
+            // opened it is where focus goes back to. A menu row is gone by then, so the
+            // header button stands in (see resumePreviousProfile).
+            this._resumeState.opener = opener || null;
 
             this.clearProfileSession();
             this.interceptHomeAndShowProfiles();
@@ -13626,6 +13632,14 @@
             this.masterPin = null;
             this.removeProfileOverlay();
             this.checkRoute();
+
+            // Back to the control that opened the picker. A remote has no pointer, so
+            // without this focus is on nothing and the next arrow starts from the top.
+            // The user-menu row is already gone, so the header button is the next best.
+            // document.contains is not used: Node.isConnected is Chromium 54.
+            let back = prior.opener;
+            if (!back || !document.body.contains(back)) back = document.getElementById('profiles-floating-bubble');
+            if (back && typeof back.focus === 'function') back.focus();
         },
 
         attachBubbleClickHandler: function (bubble) {
@@ -13637,7 +13651,7 @@
                 bubble.style.opacity = '0.45';
                 bubble.style.cursor = 'wait';
 
-                this.handleBubbleClick();
+                this.handleBubbleClick(bubble);
 
                 // Re-enable after the overlay has appeared so the button is ready again if
                 // the user dismisses it.
