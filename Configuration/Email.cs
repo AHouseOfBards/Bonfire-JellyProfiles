@@ -7,19 +7,18 @@ using System.Text;
 namespace Jellyfin.Profiles.Configuration
 {
     /// <summary>
-    /// The server's outgoing mail, set on the dashboard. Bonfire sends three kinds of mail
-    /// through it: the code that confirms a main account's address, the code that resets a
-    /// forgotten main PIN, and notices a main account has asked for.
+    /// The server's outgoing mail, set on the dashboard. Bonfire sends three kinds through it: the
+    /// code that confirms a main account's address, the code that resets a forgotten main PIN, and
+    /// notices a main account has asked for.
     ///
-    /// <para><b>Verified is derived, not stored as a flag.</b> A test that succeeds records
-    /// <see cref="VerifiedFingerprint"/>, a hash of every field the connection uses. Change
-    /// any of them and the stored hash no longer matches, so the setup reads as unverified
-    /// until it is tested again — nothing has to remember to clear a flag on each edit.</para>
+    /// <para><b>Verified is derived, not a stored flag.</b> A test that succeeds records
+    /// <see cref="VerifiedFingerprint"/>, a hash of every field the connection uses. Change any of
+    /// them and the hash no longer matches, so the setup reads as unverified until tested again.
+    /// Nothing has to clear a flag on each edit.</para>
     ///
-    /// <para><b>The password is stored as typed.</b> It has to be: the server sends it to
-    /// the mail server. It sits in the plugin's configuration file with the rest, is never
-    /// sent back to the dashboard (only whether one is set), and the dashboard says to use
-    /// an app password rather than an account's own.</para>
+    /// <para><b>The password is stored as typed.</b> The server has to send it to the mail server.
+    /// It sits in the plugin's configuration file, is never sent back to the dashboard (only
+    /// whether one is set), and the dashboard says to use an app password.</para>
     /// </summary>
     public class EmailSettings
     {
@@ -31,16 +30,14 @@ namespace Jellyfin.Profiles.Configuration
 
         public string Username { get; set; } = string.Empty;
         // Null only on the copy a configuration export is made from, so the file carries no
-        // password (R-1149); the live value is never null and is saved as before. Written out
-        // whenever it has a value, so the dashboard and the settings file are unchanged.
+        // password (R-1149). The live value is never null and is saved as before.
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string Password { get; set; } = string.Empty;
         public string FromAddress { get; set; } = string.Empty;
 
-        // The name mail is sent under used to be a setting. It is "Bonfire" now, always
-        // (Mailer.FromDisplayName). A file that still has the element loads; the next save
-        // leaves it out. Nothing in the connection depended on it, so the fingerprint below
-        // is unchanged and a verified setup stays verified.
+        // The sender name used to be a setting; it is always "Bonfire" now
+        // (Mailer.FromDisplayName). A file that still has the element loads and the next save
+        // leaves it out. The fingerprint did not depend on it, so a verified setup stays verified.
 
         /// <summary>The <see cref="Fingerprint"/> at the last test that went through.</summary>
         public string VerifiedFingerprint { get; set; } = string.Empty;
@@ -112,10 +109,9 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// Which features need which others (Logan's dependency rule): a feature can't be turned
-    /// on — by the administrator, in Settings, or in first-time setup — until what it needs
-    /// works. One table, read by the routes that enforce it, by /info for clients, and by
-    /// the dashboard.
+    /// Which features need which others (Logan's dependency rule): a feature cannot be turned on,
+    /// by the administrator, in Settings or in first-time setup, until what it needs works. One
+    /// table, read by the routes that enforce it, by /info for clients and by the dashboard.
     /// </summary>
     public static class Features
     {

@@ -7,20 +7,19 @@ using System.Text.Json.Nodes;
 namespace Jellyfin.Profiles.Configuration
 {
     /// <summary>
-    /// A picture an administrator uploads to tile behind a custom theme's switcher, in place
-    /// of one of the ten Bonfire ships. docs/themes.md, "Pattern pictures".
+    /// A picture an administrator uploads to tile behind a custom theme's switcher, in place of
+    /// one of the ten Bonfire ships. docs/themes.md, "Pattern pictures".
     /// <para>
-    /// Checked as the background image is (<see cref="ThemeLogo.Sniff"/>), with two things
-    /// narrower: PNG or WebP only, never JPEG (a tile with no transparency hides the theme
-    /// under it), and never SVG or anything animated. SVG is a document and can carry
-    /// script; the built-in ones are ours and are served with a policy that stops it, an
-    /// upload is not. Stored under half its SHA-256, so a name can never carry a path and
-    /// the same picture uploaded twice is one file.
+    /// Checked as the background image is (<see cref="ThemeLogo.Sniff"/>), with two things narrower:
+    /// PNG or WebP only, never JPEG (a tile with no transparency hides the theme under it), and
+    /// never SVG or anything animated. SVG can carry script; the built-in ones are ours and are
+    /// served with a policy that stops it, an upload is not. Stored under half its SHA-256, so a
+    /// name cannot carry a path and the same picture uploaded twice is one file.
     /// </para>
     /// <para>
-    /// Lifetime is the background image's: an upload only stores the file, the theme names
-    /// it when it is saved, and a file no theme names any more is removed by the save that
-    /// stopped naming it, by deleting the theme, or by the orphan cleanup.
+    /// Lifetime is the background image's: an upload only stores the file, the theme names it when
+    /// saved, and a file no theme names any more is removed by the save that stopped naming it, by
+    /// deleting the theme, or by the orphan cleanup.
     /// </para>
     /// </summary>
     public static class ThemePattern
@@ -101,8 +100,8 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>
         /// Every uploaded picture a theme file names, from its pattern and its second pattern.
-        /// FileOf alone looked at the first, so a picture uploaded for the second counted as
-        /// unused and was deleted by the next save or cleanup.
+        /// FileOf alone looked at the first, so a picture uploaded for the second counted as unused
+        /// and was deleted by the next save or cleanup.
         /// </summary>
         public static List<string> FilesOf(JsonNode? theme)
         {

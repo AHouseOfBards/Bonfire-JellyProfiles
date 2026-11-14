@@ -13,19 +13,17 @@ namespace Jellyfin.Profiles.Configuration
     /// server does.
     ///
     /// <para><b>Why.</b> Jellyfin restarts inside the same process (<c>Program.cs</c> loops
-    /// <c>StartServer</c> while <c>_restartOnShutdown</c>; Campground-Coordination #33). The
-    /// new host loads a new copy of Bonfire, and the old copy's background work carried on
-    /// beside it: the picker's sweep twenty seconds after start, the session listener's second
-    /// policy pass five seconds after a sign-in. Their delays waited on nothing a stop cancels,
-    /// so they woke up after the restart and ran against services the old host had already
-    /// disposed. The audit log and emails were written by both copies, each with its own
-    /// static lock, which is no lock at all between the two.</para>
+    /// <c>StartServer</c> while <c>_restartOnShutdown</c>; Campground-Coordination #33). The new host
+    /// loads a new copy of Bonfire, and the old copy's background work carried on beside it: the
+    /// picker's sweep twenty seconds after start, the session listener's second policy pass five
+    /// seconds after a sign-in. Their delays waited on nothing a stop cancels, so they woke after the
+    /// restart and ran against services the old host had disposed. The audit log and emails were
+    /// written by both copies, each with its own static lock, which is no lock between the two.</para>
     ///
-    /// <para><b>How.</b> <see cref="Run"/> hands the work the token a stop cancels and keeps
-    /// the task until it ends. <see cref="Stopper"/> is the first hosted service registered,
-    /// so the host stops it last, after the others have unhooked their events; it cancels the
-    /// token and waits for what is still running, up to <see cref="StopWait"/>. Work asked for
-    /// after that is not started: a later copy is about to take over.</para>
+    /// <para><b>How.</b> <see cref="Run"/> gives the work the token a stop cancels and keeps the task
+    /// until it ends. <see cref="Stopper"/> is the first hosted service registered, so the host stops
+    /// it last, after the others have unhooked their events. It cancels the token and waits for what
+    /// is still running, up to <see cref="StopWait"/>. Work asked for after that is not started.</para>
     ///
     /// <para>tests/cs/shutdown fails on any <c>Task.Run</c> in the plugin outside this file.</para>
     /// </summary>

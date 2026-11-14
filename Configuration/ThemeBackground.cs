@@ -7,27 +7,27 @@ using System.Text.Json.Nodes;
 namespace Jellyfin.Profiles.Configuration
 {
     /// <summary>
-    /// A custom theme's background image (2.0): one picture drawn behind the switcher's
-    /// screens, under a layer of the theme's own fill whose strength is the theme's
+    /// A custom theme's background image (2.0): one picture drawn behind the switcher's screens,
+    /// under a layer of the theme's own fill whose strength is the theme's
     /// <c>background.image.dim</c>. docs/themes.md, "Background image".
     /// <para>
-    /// Checked as the logo is (<see cref="ThemeLogo.Sniff"/>): PNG, JPEG or WebP by its bytes,
-    /// never SVG or anything animated. Stored under half its SHA-256, so a name can never
-    /// carry a path and the same picture uploaded twice is one file.
+    /// Checked as the logo is (<see cref="ThemeLogo.Sniff"/>): PNG, JPEG or WebP by its bytes, never
+    /// SVG or anything animated. Stored under half its SHA-256, so a name cannot carry a path and the
+    /// same picture uploaded twice is one file.
     /// </para>
     /// <para>
-    /// An upload only stores the file. A theme names it when it is saved, so the editor can
-    /// show a picture before anything is committed; saving a theme without it, saving it with
-    /// another, or deleting the theme removes a file no theme names any more. An upload that
-    /// was never saved is left for the orphan cleanup.
+    /// An upload only stores the file. A theme names it when it is saved, so the editor can show a
+    /// picture before anything is committed. Saving a theme without it, saving it with another, or
+    /// deleting the theme removes a file no theme names any more. An upload never saved is left for
+    /// the orphan cleanup.
     /// </para>
     /// </summary>
     public static class ThemeBackground
     {
         /// <summary>
-        /// An upload larger than this is refused unread. Twice the logo's: a photograph fills
-        /// the screen, and a 1080p JPEG is well under it. A television downloads it before the
-        /// picker shows it, so not more.
+        /// An upload larger than this is refused unread. Twice the logo's: a photograph fills the
+        /// screen, and a 1080p JPEG is well under it. A television downloads it before the picker
+        /// shows it, so no more.
         /// </summary>
         public const int MaxBytes = 2 * 1024 * 1024;
 
@@ -98,14 +98,12 @@ namespace Jellyfin.Profiles.Configuration
             ThemeLogo.IsFileName(file) && File.Exists(Path.Combine(Folder, file!));
 
         /// <summary>
-        /// How long an upload no theme names is left alone by the orphan cleanup. An upload is
-        /// stored when the picture is chosen and named only when the theme is saved, so an
-        /// editor that is still open holds a file nothing names yet; the cleanup deleting it
-        /// took the picture out from under the editor, and its Save then named a missing file.
-        /// An hour covers a long editing session with room to spare, and waiting costs only
-        /// disk (a file is at most <see cref="MaxBytes"/>): the cleanup is run by hand and
-        /// finds the file next time. Every upload rewrites its file, so choosing the same
-        /// picture again restarts the hour.
+        /// How long an upload no theme names is left alone by the orphan cleanup. An upload is stored
+        /// when the picture is chosen and named only when the theme is saved, so an open editor holds a
+        /// file nothing names yet. The cleanup deleting it took the picture out from under the editor,
+        /// and its Save then named a missing file. An hour covers a long session, and waiting costs only
+        /// disk (a file is at most <see cref="MaxBytes"/>). Every upload rewrites its file, so choosing
+        /// the same picture again restarts the hour.
         /// </summary>
         public static readonly TimeSpan UnusedGrace = TimeSpan.FromHours(1);
 

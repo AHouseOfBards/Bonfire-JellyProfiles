@@ -19,17 +19,15 @@ namespace Jellyfin.Profiles
     /// that go with the household one. Design: Campground-Coordination design/bonfire/campground.md.
     /// <para>
     /// Every answer is built from a snapshot of the configuration taken under
-    /// <see cref="ProfilesBaseController.ConfigLock"/> and released before anything else, so a
-    /// caller on any thread never holds the lock while Jellyfin is asked for a name, and a slow
-    /// caller cannot hold up a save.</para>
+    /// <see cref="ProfilesBaseController.ConfigLock"/> and released before anything else, so a caller
+    /// never holds the lock while Jellyfin is asked for a name and a slow caller cannot hold up a save.</para>
     /// <para>
     /// <b>While Bonfire is off or emergency-disabled</b> (<see cref="Plugin.IsOff"/>) it answers
-    /// nothing and raises nothing. For <c>getHousehold</c> that is the household of one the contract
-    /// already defines for a user Bonfire doesn't know, for <c>getDevice</c> the library's own
-    /// fallback key, and for <c>getSignInPolicy</c> a caller that fails open. The safe answer is the
-    /// one with no Bonfire opinion in it: a plugin that pooled a household's data on Bonfire's
-    /// word must not keep pooling it while the owner is trying to switch Bonfire off. The shared
-    /// file or environment brake is not consulted here: it is for what a browser sees ("Server-side
+    /// nothing and raises nothing. <c>getHousehold</c> gives the household of one the contract
+    /// already defines for an unknown user, <c>getDevice</c> the library's own fallback key, and
+    /// <c>getSignInPolicy</c> a caller that fails open. A plugin that pooled a household's data on
+    /// Bonfire's word must not keep pooling it while the owner is switching Bonfire off. The shared
+    /// file or environment brake is not consulted: it is for what a browser sees ("Server-side
     /// features keep running"), and these are server-side answers.</para>
     /// </summary>
     internal static class BonfireCampground
@@ -73,9 +71,8 @@ namespace Jellyfin.Profiles
         /// (a household of one, which the library answers itself).
         /// <para>
         /// <b>Most main accounts have no mapping row of their own</b>: one is written lazily, the first
-        /// time switcher preferences are saved. "Profiles point at it" is the proof an account is a main
-        /// account, so a user with no row of its own and rows naming it as <c>MasterUserId</c> is the
-        /// head of a household, never a household of one.</para>
+        /// time switcher preferences are saved. A user with no row of its own and rows naming it as
+        /// <c>MasterUserId</c> is the head of a household, never a household of one.</para>
         /// </summary>
         internal static Household? BuildHousehold(PluginConfiguration? config, Guid userId, Func<Guid, string?> nameOf)
         {
@@ -138,17 +135,16 @@ namespace Jellyfin.Profiles
 
         /// <summary>
         /// The device Bonfire has on record for <c>DeviceId</c>, or null (the library then builds its
-        /// own key from the app, the model and the user, which Bonfire does not guess at).
+        /// own key from the app, the model and the user).
         /// <para>
         /// <b>A grouping key, nothing more.</b> <c>StableKey</c> is the recorded id after the merges an
-        /// administrator made, so two ids of one browser answer alike. Bonfire's device restrictions
-        /// never read it: they match the id the client sent
-        /// (<see cref="ProfilesBaseController.EvaluateDeviceRestriction"/>), and
-        /// tests/cs/household fails if any of that code starts to.</para>
+        /// administrator made, so two ids of one browser answer alike. Device restrictions never read
+        /// it: they match the id the client sent
+        /// (<see cref="ProfilesBaseController.EvaluateDeviceRestriction"/>), and tests/cs/household fails
+        /// if that code starts to.</para>
         /// <para>
-        /// A name a household chose is given only to that household. When the caller says whose
-        /// request it is and the device has never been that household's, the client's own name is
-        /// what comes back, as it would for any device nobody named.</para>
+        /// A name a household chose is given only to that household. If the caller says whose request it
+        /// is and the device was never that household's, the client's own name comes back.</para>
         /// </summary>
         internal static DeviceIdentity? BuildDevice(PluginConfiguration? config, DeviceQuery query)
         {
@@ -178,11 +174,11 @@ namespace Jellyfin.Profiles
             => Publish(EventNames.ProfileDeleted, new ProfileEvent(mainUserId, profileUserId, name, null, null));
 
         // One switch is heard twice: the switch route knows who it came from, and the session it
-        // starts reaches BonfireSessionListener (which is the only place a native app is seen).
-        // The route says so before it signs in, because the session starts inside that call, and
-        // the listener then stays quiet for the same profile on the same device. The note is kept
-        // for SwitchWindow rather than removed, because Jellyfin reports a handover on an open
-        // session on the next request after it, which can be seconds later.
+        // starts reaches BonfireSessionListener (the only place a native app is seen). The route
+        // says so before it signs in, because the session starts inside that call, and the
+        // listener then stays quiet for the same profile on the same device. The note is kept for
+        // SwitchWindow, not removed, because Jellyfin reports a handover on an open session on the
+        // next request, which can be seconds later.
         private static readonly TimeSpan SwitchWindow = TimeSpan.FromSeconds(30);
         private static readonly ConcurrentDictionary<string, (Guid Profile, DateTime At)> ExpectedSwitches
             = new(StringComparer.OrdinalIgnoreCase);

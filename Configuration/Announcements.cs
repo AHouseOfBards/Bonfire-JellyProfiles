@@ -27,13 +27,12 @@ namespace Jellyfin.Profiles.Configuration
     /// <summary>
     /// The rules for <see cref="Announcement"/>: what is valid, and what is showing now.
     ///
-    /// <para><b>Severity, not colour.</b> An announcement says how much it matters, and each
-    /// theme decides what that looks like. An administrator picking colours would get a red
-    /// banner that is unreadable in half the themes.</para>
+    /// <para><b>Severity, not color.</b> An announcement says how much it matters and each theme
+    /// decides how that looks. Administrator-picked colors would give a red banner that is
+    /// unreadable in half the themes.</para>
     ///
-    /// <para><b>Plain text.</b> The message reaches every household on the server, and an
-    /// app may draw it natively. HTML would be an injection point in the web client and
-    /// meaningless everywhere else.</para>
+    /// <para><b>Plain text.</b> The message reaches every household, and an app may draw it
+    /// natively. HTML would be an injection point in the web client and meaningless elsewhere.</para>
     /// </summary>
     public static class Announcements
     {

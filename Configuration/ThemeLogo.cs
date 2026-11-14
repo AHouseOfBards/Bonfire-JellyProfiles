@@ -15,10 +15,9 @@ namespace Jellyfin.Profiles.Configuration
     /// The server's logo (1.7.2): an image, a line of text, or nothing, shown at the top right
     /// of every switcher screen. docs/themes.md, "Getting themes".
     /// <para>
-    /// The image is identified by its bytes, never by a name or a type the upload claims:
-    /// PNG, JPEG or WebP, with a size read from its header. Not SVG, which is a document that
-    /// can carry script and would be served from the server's own origin; not GIF, whose
-    /// animation on a screen people sit in front of was never asked for.
+    /// The image is identified by its bytes, never by a name or type the upload claims: PNG, JPEG
+    /// or WebP, with a size read from its header. Not SVG, which can carry script and would be
+    /// served from the server's own origin; not GIF, whose animation nobody asked for.
     /// </para>
     /// </summary>
     public static class ThemeLogo
@@ -93,10 +92,9 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public static LogoImageInfo Sniff(byte[] bytes)
         {
-            // The size is read from the file's own header and not checked against its data
-            // (R-1080). A file that claims one size and holds another is the administrator's
-            // own upload, and the browser draws what the data holds; nothing here allocates
-            // by the claimed size, so a wrong claim costs nothing.
+            // The size is read from the file's own header and not checked against its data (R-1080).
+            // A file that claims one size and holds another is the administrator's own upload, and the
+            // browser draws what the data holds. Nothing here allocates by the claimed size.
             LogoImageInfo? info;
             try
             {
@@ -116,10 +114,9 @@ namespace Jellyfin.Profiles.Configuration
             byte[] sig = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
             if (b.Length < 24 || !b.AsSpan(0, 8).SequenceEqual(sig)) return null;
             if (b[12] != (byte)'I' || b[13] != (byte)'H' || b[14] != (byte)'D' || b[15] != (byte)'R') return null;
-            // An APNG is a PNG with an acTL chunk ahead of its first IDAT, and a browser
-            // plays it. The signature and IHDR look the same, so it is the chunk list that
-            // says (r2-20-01). Walked until the first IDAT; a file that runs out first is
-            // left to the browser, which draws nothing from it.
+            // An APNG is a PNG with an acTL chunk ahead of its first IDAT, and a browser plays it. The
+            // signature and IHDR look the same, so the chunk list says (r2-20-01). Walked until the
+            // first IDAT; a file that runs out first is left to the browser, which draws nothing.
             for (var at = 8; at + 8 <= b.Length;)
             {
                 var length = U32(b, at);
