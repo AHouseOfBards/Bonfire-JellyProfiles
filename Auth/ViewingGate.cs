@@ -224,6 +224,14 @@ namespace Jellyfin.Profiles.Auth
                 // Jellyfin refusing the token itself: it answers 401 when the request goes on.
                 return false;
             }
+            catch (Exception ex) when (!limitsActive && ex is not OperationCanceledException)
+            {
+                // Nobody is limited, so no rule is kept by refusing: a break here only noted a
+                // PlaybackInfo, and refusing it told everyone, administrators included, that it was
+                // outside viewing hours (r3-01-02).
+                logger.LogWarning(ex, "ProfilesPlugin: noting a playback for {Path} failed; passing it on.", path);
+                return false;
+            }
             catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
             {
                 // Fails CLOSED (r2-17-02): a broken check must not let a limited child past the

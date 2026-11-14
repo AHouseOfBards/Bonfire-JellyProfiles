@@ -803,6 +803,16 @@ DeviceStub.ThrowFor = "tok-boom";
 http = Through("/Items/" + item + "/PlaybackInfo", "tok-boom", "dev-kid").GetAwaiter().GetResult();
 DeviceStub.ThrowFor = null;
 Ok("a check that breaks refuses the request rather than passing it on", (bool)http.Items["handled"] && http.Response.StatusCode == 403, http.Response.StatusCode.ToString());
+// With nobody limited there is no rule to keep: the same break must not refuse everyone's
+// playback, administrators' included, as "outside viewing hours" (r3-01-02).
+config.GetType().GetProperty("BonfireOn").SetValue(config, false);
+Fresh();
+DeviceStub.ThrowFor = "tok-boom";
+http = Through("/Items/" + item + "/PlaybackInfo", "tok-boom", "dev-main").GetAwaiter().GetResult();
+DeviceStub.ThrowFor = null;
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
+Fresh();
+Ok("with nobody limited, a check that breaks passes the request on", !(bool)http.Items["handled"] && http.Response.StatusCode == 200, http.Response.StatusCode.ToString());
 
 // Who a request is from is Jellyfin's to say. The gate read the headers itself and
 // disagreed with Jellyfin four ways; where it found no user it let the request through,
