@@ -24,38 +24,29 @@ namespace Jellyfin.Profiles.Auth
     /// <summary>
     /// Closed for maintenance: every request from an account that is not an administrator is
     /// answered with 503 before Jellyfin sees it.
-    ///
-    /// <para><b>Administrators are never turned away</b>, by any path. That is the one rule
-    /// that cannot bend: the person who turned it on has to be able to turn it off.</para>
-    ///
-    /// <para><b>Running streams keep going</b> unless the administrator asked to stop them.
-    /// A video or audio request is let through only for the item that account's session is
-    /// already playing, and so are its progress and stop reports. Starting something new is
-    /// refused: PlaybackInfo, the "playing" report, and a stream of any other item.</para>
-    ///
-    /// <para>The first version let every <c>/Videos/</c> and <c>/Audio/</c> request through on
-    /// the assumption that new playback needs PlaybackInfo. It does not: a direct stream URL
-    /// plays without it, and an app that builds one could start anything while closed.</para>
-    ///
-    /// <para><b>Not a security boundary.</b> An app that sends a progress report for an item
-    /// it is not playing can make that item "playing". This keeps a household out during an
-    /// upgrade; parental controls are what keep a profile out of what it may not watch.</para>
-    ///
-    /// <para><b>What still answers:</b> the web client's own files, the public server info,
-    /// the sign-in user list, Quick Connect, signing out, the live connection (so the
-    /// maintenance message reaches open apps), Bonfire's anonymous routes (so the client can
-    /// say why), and the account's own user record (so it knows who it is).</para>
-    ///
-    /// <para><b>Sign-in</b> is refused by name, before the password is checked: a household
-    /// member sees "closed for maintenance", not "wrong password". Quick Connect cannot be
-    /// refused that way, since the account is not known until it succeeds; such a session is
-    /// then refused on its first request like any other.</para>
-    ///
-    /// <para><b>Cost when it is off:</b> one field read. When it is on, a token is resolved
-    /// to its account once every 30 seconds, not per request.</para>
-    ///
-    /// <para><b>The emergency disable turns it off</b>, until Jellyfin restarts, the same as
-    /// everything else Bonfire does to Jellyfin's requests.</para>
+    /// <para><b>Administrators are never turned away</b>, by any path. The person who turned it on
+    /// has to be able to turn it off.</para>
+    /// <para><b>Running streams keep going</b> unless the administrator asked to stop them. A video
+    /// or audio request is let through only for the item that account's session is already
+    /// playing, and so are its progress and stop reports. Starting something new is refused:
+    /// PlaybackInfo, the "playing" report, and a stream of any other item. The first version let
+    /// every <c>/Videos/</c> and <c>/Audio/</c> request through, assuming new playback needs
+    /// PlaybackInfo. It does not: a direct stream URL plays without it.</para>
+    /// <para><b>Not a security boundary.</b> An app that sends a progress report for an item it is
+    /// not playing can make that item "playing". This keeps a household out during an upgrade;
+    /// parental controls keep a profile out of what it may not watch.</para>
+    /// <para><b>What still answers:</b> the web client's own files, the public server info, the
+    /// sign-in user list, Quick Connect, signing out, the live connection (so the maintenance
+    /// message reaches open apps), Bonfire's anonymous routes (so the client can say why), and the
+    /// account's own user record.</para>
+    /// <para><b>Sign-in</b> is refused by name, before the password is checked, so a household
+    /// member sees "closed for maintenance", not "wrong password". Quick Connect cannot be refused
+    /// that way because the account is not known until it succeeds; such a session is refused on
+    /// its first request like any other.</para>
+    /// <para><b>Cost:</b> one field read when off. When on, a token is resolved to its account once
+    /// every 30 seconds, not per request.</para>
+    /// <para><b>The emergency disable turns it off</b> until Jellyfin restarts, like everything else
+    /// Bonfire does to Jellyfin's requests.</para>
     /// </summary>
     public static class MaintenanceGate
     {
@@ -70,10 +61,9 @@ namespace Jellyfin.Profiles.Auth
         private static readonly ConcurrentDictionary<Guid, (bool Admin, DateTime Until)> Admins = new();
 
         /// <summary>
-        /// The maintenance settings while it is on, otherwise null. A closure that was set to
-        /// reopen by itself is not on once its time has come, whether or not anything has yet
-        /// written that down (<see cref="ReopenIfLapsed"/>): every reader gets the same answer
-        /// at the same moment.
+        /// The maintenance settings while it is on, otherwise null. A closure set to reopen by itself
+        /// is not on once its time has come, whether or not anything has written that down
+        /// (<see cref="ReopenIfLapsed"/>), so every reader gets the same answer at the same moment.
         /// </summary>
         public static MaintenanceMode? Active()
         {
@@ -83,11 +73,10 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Writes down a reopening that has already happened: when a closure's automatic time
-        /// has come, saves it as open and says so in the log and the activity feed. Called from
-        /// the request gate and the maintenance routes, so the saved state catches up on the
-        /// first request after the time, from nothing but the clock. Does nothing, and costs a
-        /// field read, the rest of the time. True when it reopened.
+        /// Writes down a reopening that has already happened: when a closure's automatic time has come,
+        /// saves it as open and says so in the log and the activity feed. Called from the request gate
+        /// and the maintenance routes, so the saved state catches up on the first request after the
+        /// time. Costs a field read the rest of the time. True when it reopened.
         /// </summary>
         public static bool ReopenIfLapsed(ILogger logger, IServiceProvider? services = null)
         {
@@ -190,9 +179,9 @@ namespace Jellyfin.Profiles.Auth
         };
 
         /// <summary>
-        /// The path as Jellyfin routes it: what follows the base URL it is published under. We
-        /// sit ahead of its UsePathBase, so the request still carries it. With no base URL
-        /// configured, or one the path does not start with, the path is returned as it is.
+        /// The path as Jellyfin routes it: what follows the base URL it is published under. We sit
+        /// ahead of its UsePathBase, so the request still carries it. With no base URL configured, or
+        /// one the path does not start with, the path is returned as it is.
         /// </summary>
         internal static string AfterBaseUrl(string path, string? baseUrl)
         {
@@ -220,9 +209,9 @@ namespace Jellyfin.Profiles.Auth
         {
             if (string.IsNullOrEmpty(path)) return PathKind.Open;
 
-            // Open paths are matched at the start of the path, never anywhere in it: the
-            // stream URL /Videos/{id}/hls1/{playlistId}/{n}.ts carries a free-text segment, and
-            // one that read "web" was an open path that skipped the stream check.
+            // Open paths are matched at the start of the path, never anywhere in it: the stream URL
+            // /Videos/{id}/hls1/{playlistId}/{n}.ts carries a free-text segment, and one that read "web"
+            // was an open path that skipped the stream check.
             path = AfterBaseUrl(path, baseUrl);
 
             foreach (var open in OpenPaths)
@@ -260,8 +249,8 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// True when a request by <paramref name="userId"/>, who is not an administrator, is
-        /// turned away. Also used by the profile picker for a profile it is acting as.
+        /// True when a request by <paramref name="userId"/>, who is not an administrator, is turned
+        /// away. Also used by the profile picker for a profile it is acting as.
         /// </summary>
         internal static bool Refuses(MaintenanceMode m, string method, string path, Guid userId, ISessionManager? sessions, string? baseUrl = null)
         {
@@ -290,15 +279,15 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// True for a request that belongs to something the account is already playing: a
-        /// progress or stop report, or a stream of an item the gates let it start
-        /// (<see cref="PlaybackRecord"/>). The "playing" report that starts something is not.
+        /// True for a request that belongs to something the account is already playing: a progress or
+        /// stop report, or a stream of an item the gates let it start (<see cref="PlaybackRecord"/>).
+        /// The "playing" report that starts something is not.
         /// </summary>
         internal static bool ContinuesPlayback(string path, Guid userId, ISessionManager? sessions, string? method = null)
         {
-            // The older routes, /PlayingItems/{id} and /Users/{id}/PlayingItems/{id}: a POST to the
-            // item is the report that starts something, a POST to its /Progress goes on, and a
-            // DELETE is the stop. Only the last two continue.
+            // The older routes, /PlayingItems/{id} and /Users/{id}/PlayingItems/{id}: a POST to the item
+            // starts something, a POST to its /Progress goes on, and a DELETE is the stop. Only the last
+            // two continue.
             var playing = path.IndexOf("/PlayingItems/", StringComparison.OrdinalIgnoreCase);
             if (playing >= 0)
             {
@@ -321,9 +310,9 @@ namespace Jellyfin.Profiles.Auth
             }
 
             // What the gates let start, not what a session says it is playing. This used to read
-            // session.NowPlayingItem, which POST /Sessions/Playing sets with nothing checked:
-            // report an item first, then stream it, and the gate called it "already playing"
-            // (R-1297). <paramref name="sessions"/> is no longer consulted.
+            // session.NowPlayingItem, which POST /Sessions/Playing sets unchecked: report an item, then
+            // stream it, and the gate called it "already playing" (R-1297). <paramref name="sessions"/>
+            // is no longer consulted.
             var item = StreamItemId(path);
             return item != null && PlaybackRecord.Has(userId, item.Value);
         }
@@ -357,9 +346,8 @@ namespace Jellyfin.Profiles.Auth
             var m = Active();
             if (m == null)
             {
-                // Off, or just reopened by the clock: either way nothing is turned away. This
-                // is where the saved state catches up, since it is the one place every request
-                // passes through.
+                // Off, or just reopened by the clock: either way nothing is turned away. The saved state
+                // catches up here, the one place every request passes through.
                 ReopenIfLapsed(logger, context.RequestServices);
                 return false;
             }
@@ -388,12 +376,11 @@ namespace Jellyfin.Profiles.Auth
                             return true;
                         }
 
-                        // Only an administrator's name goes on to Jellyfin. Every other name, an
-                        // account's, a profile's shown name or one nobody has, gets the same
-                        // closed answer: telling them apart (503 for one that exists, a passed
-                        // request for one that does not) let a stranger list the household's
-                        // usernames and profile names (R-1306). The lookup is the same for all
-                        // of them, so the answer does not take longer for a name that exists.
+                        // Only an administrator's name goes on to Jellyfin. Every other name (an account's, a
+                        // profile's shown name or one nobody has) gets the same closed answer. Telling them apart (503
+                        // for one that exists, a passed request for one that does not) let a stranger list the
+                        // household's usernames and profile names (R-1306). The lookup is the same for all of them, so
+                        // a name that exists does not take longer.
                         var user = string.IsNullOrEmpty(name) ? null : users.GetUserByName(name);
                         if (user != null && IsAdmin(users, user.Id)) return false;
 
@@ -429,8 +416,8 @@ namespace Jellyfin.Profiles.Auth
             }
             catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
             {
-                // Fails OPEN, on purpose (r2-17-02): a break only costs a maintenance rule, never a child's limit.
-                // Never the reason a request fails. Jellyfin answers it as it would without us.
+                // Fails OPEN, on purpose (r2-17-02): a break only costs a maintenance rule, never a child's
+                // limit. Never the reason a request fails; Jellyfin answers as it would without us.
                 logger.LogWarning(ex, "ProfilesPlugin: the maintenance check failed for {Path}; passing it on.", path);
                 return false;
             }
@@ -466,8 +453,8 @@ namespace Jellyfin.Profiles.Auth
 
         /// <summary>
         /// The name in a sign-in body, leaving the body readable for Jellyfin. The last
-        /// <c>Username</c> wins, as it does when Jellyfin binds the body. TooLarge is true when
-        /// the body is more than a sign-in can be and was not read.
+        /// <c>Username</c> wins, as when Jellyfin binds the body. TooLarge is true when the body is
+        /// more than a sign-in can be and was not read.
         /// </summary>
         private static async Task<(string? Name, bool TooLarge)> ReadUsernameAsync(HttpRequest request)
         {
@@ -517,11 +504,10 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Puts the server's own CORS headers on a response this plugin writes itself. The
-        /// plugin runs in front of Jellyfin's CORS middleware, so a refusal written here would
-        /// otherwise reach a web client on another origin with no CORS headers, and the browser
-        /// would show an opaque network error instead of the message. Never the reason a
-        /// request fails.
+        /// Puts the server's own CORS headers on a response this plugin writes itself. The plugin runs
+        /// in front of Jellyfin's CORS middleware, so a refusal written here would reach a web client
+        /// on another origin without them, and the browser would show an opaque network error instead
+        /// of the message. Never the reason a request fails.
         /// </summary>
         internal static async Task ApplyCorsAsync(HttpContext context)
         {
@@ -556,8 +542,8 @@ namespace Jellyfin.Profiles.Auth
             var seconds = m.UntilUtc.HasValue && m.UntilUtc.Value > now
                 ? (long)Math.Ceiling((m.UntilUtc.Value - now).TotalSeconds)
                 : 300;
-            // An end time months away is a reason to check back now and then, not a promise
-            // that nothing changes for months: cap it at an hour.
+            // An end time months away is a reason to check back now and then, not a promise that
+            // nothing changes for months: cap it at an hour.
             response.Headers[HeaderNames.RetryAfter] = Math.Min(3600, Math.Max(60, seconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             // The administrator's words, then what to do: an app with no notice shows only this.
@@ -567,9 +553,9 @@ namespace Jellyfin.Profiles.Auth
         // ── Turning it on ───────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Tells every open app of an account that is not an administrator, and stops what it
-        /// is playing if <paramref name="stopPlayback"/>. Best effort: an app that cannot be
-        /// reached is refused on its next request anyway.
+        /// Tells every open app of an account that is not an administrator, and stops what it is
+        /// playing if <paramref name="stopPlayback"/>. Best effort: an app that cannot be reached is
+        /// refused on its next request anyway.
         /// </summary>
         public static async Task<(int Told, int Stopped)> NotifyAsync(
             ISessionManager sessions, IUserManager users, MaintenanceMode m, bool stopPlayback, ILogger logger)
