@@ -108,15 +108,14 @@ namespace Jellyfin.Profiles.Controllers
                 if (linkedUser == null) continue;
 
                 var linkedMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == linkedId);
-                // Mirror the switch endpoint exactly, through the same function: reporting a
-                // PIN-less switch the server then rejects strands the user on a screen with
-                // nothing to do.
+                // Mirror /switch exactly, through the same function: reporting a PIN-less
+                // switch the server then rejects strands the user on a screen with nothing to do.
                 //
-                //  - Your own account: BypassPinOnLocalNetwork, or AskPinToOpen turned off.
-                //  - A linked account: only AllowHouseholdLanBypass, which belongs to that
-                //    account's owner. Your own settings never reach across a link.
-                //  - An account also added to this household (issue #39): the added account's
-                //    rules, which is what /switch applies to it.
+                // - Own account: BypassPinOnLocalNetwork, or AskPinToOpen turned off.
+                // - Linked account: only AllowHouseholdLanBypass, the account owner's setting.
+                //   Your own settings never reach across a link.
+                // - Account also added to this household (issue #39): the added account's
+                //   rules, as /switch applies them.
                 bool crossHousehold = linkedId != masterUserId;
                 bool added = crossHousehold && addedAccounts.ContainsKey(linkedId);
                 var addedRules = added
@@ -143,14 +142,14 @@ namespace Jellyfin.Profiles.Controllers
                     RequiresPin = masterRequiresPin,
                     HasPin = !string.IsNullOrEmpty(linkedMapping?.PinHash),
                     IsMaster = true,
-                    // Only so the PIN field can warn that this PIN opens an account which
-                    // can reach server settings. Sent for masters only; a sub-profile is
-                    // never created with administrator rights.
+                    // So the PIN field can warn that this PIN opens an account that can reach
+                    // server settings. Sent for masters only; a sub-profile is never created with
+                    // administrator rights.
                     //
-                    // Own household only (R-1304): another household's tile does not say
-                    // whether its owner is an administrator, how many profiles it may have,
-                    // or that it skips the PIN at home. LockoutMinutes stays, because the
-                    // client auto-locks a profile it entered on that value.
+                    // Own household only (R-1304): another household's tile must not reveal whether
+                    // its owner is an administrator, how many profiles it may have, or that it skips
+                    // the PIN at home. LockoutMinutes stays, because the client auto-locks a profile
+                    // it entered on that value.
                     IsAdministrator = linkedId == masterUserId && IsAdministratorAccount(linkedUser),
                     LockoutMinutes = linkedMapping?.LockoutMinutes ?? 5,
                     MaxSubProfiles = linkedId == masterUserId ? GetMaxProfilesForUser(linkedId, config) : (int?)null,
@@ -181,23 +180,21 @@ namespace Jellyfin.Profiles.Controllers
 
                 if (shouldAddShadowProfiles)
                 {
-                    // The profile's restrictions are for the edit form, which only its own
-                    // master can open. Everyone else — the household's other profiles, and
-                    // every member of a linked Bonfire — used to receive them too, device ids
-                    // included, and a device id is what a PIN-less profile is opened with on
-                    // another app's sign-in screen.
+                    // The restrictions are for the edit form, which only the profile's own master can
+                    // open. Everyone else (the household's other profiles, every member of a linked
+                    // Bonfire) used to receive them too, device ids included. A device id is what a
+                    // PIN-less profile is opened with on another app's sign-in screen.
                     bool ownerView = currentUserId == linkedId;
 
                     var mappingsSnapshot = config.Mappings.ToList();
 
-                    // Add all shadow profiles for this master
                     var shadowProfiles = config.Mappings
                         .Where(m => m.MasterUserId == linkedId && m.ProfileUserId != linkedId)
                         .Select(m => (Row: m, Rules: EvaluateSwitch(
                             mappingsSnapshot, masterUserId, m.ProfileUserId, linkedMasterIds, isLocal, addedAccounts)))
-                        // Mirror /switch exactly. A tile it would refuse — hidden by either
-                        // household, or PIN-less in another household without its owner's
-                        // consent — is a door that does not open.
+                        // Mirror /switch: a tile it would refuse (hidden by either household, or
+                        // PIN-less in another household without its owner's consent) is a door that
+                        // does not open.
                         .Where(x => !x.Rules.Unauthorized && x.Rules.Refusal == null)
                         .Select(x => {
                             var m = x.Row;
@@ -213,11 +210,10 @@ namespace Jellyfin.Profiles.Controllers
                                 m.TransparentAvatar,
                                 Theme = ownerView ? m.Theme : null,
                                 RequiresPin = requiresPin,
-                                // Whether a PIN EXISTS, independent of whether one will be
-                                // asked for right now. RequiresPin goes false on the LAN when
-                                // BypassPinOnLocalNetwork is set, so the edit form cannot use
-                                // it to decide if a PIN is configured — doing so made a saved
-                                // PIN look like it had never been stored.
+                                // Whether a PIN exists, not whether one will be asked for now. RequiresPin goes
+                                // false on the LAN when BypassPinOnLocalNetwork is set, so the edit form cannot
+                                // use it to tell if a PIN is configured: a saved PIN looked like it had never
+                                // been stored.
                                 HasPin = !string.IsNullOrEmpty(m.PinHash),
                                 IsMaster = false,
                                 m.LockoutMinutes,
@@ -244,8 +240,8 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Accounts added to this household (issue #39), after its own and its Bonfire's.
-            // The account only: its own profiles belong to its own household. One that is
-            // also in a Bonfire with this household is already above.
+            // The account only; its own profiles belong to its own household. One also in a
+            // Bonfire with this household is already above.
             foreach (var addedId in addedAccounts.Keys.Where(id => !linkedMasterIds.Contains(id)))
             {
                 var addedUser = _userManager.GetUserById(addedId);
@@ -355,7 +351,6 @@ namespace Jellyfin.Profiles.Controllers
             var folders = _libraryManager.GetVirtualFolders()
                 .Where(f => !Auth.LibraryOwnership.ManagedByOwner(_libraryManager, f)).ToList();
 
-            // Filter folders by caller's user policy
             var callerDto = _userManager.GetUserDto(caller, string.Empty);
             if (!callerDto.Policy.EnableAllFolders)
             {
@@ -364,9 +359,9 @@ namespace Jellyfin.Profiles.Controllers
                 folders = folders.Where(f => Guid.TryParse(f.ItemId, out var id) && enabled.Contains(id) && !blocked.Contains(id)).ToList();
             }
 
-            // A library with no item id — never scanned, or its folder is gone — cannot be
-            // granted to anybody, and listing it put an "undefined" checkbox in the form that
-            // failed the whole create the moment it was ticked (issue #33).
+            // A library with no item id (never scanned, or its folder is gone) cannot be
+            // granted to anybody. Listing it put an "undefined" checkbox in the form that
+            // failed the whole create when ticked (issue #33).
             return folders
                 .Where(f => Guid.TryParse(f.ItemId, out var parsed) && parsed != Guid.Empty)
                 .Select(f => (object)new
@@ -426,17 +421,17 @@ namespace Jellyfin.Profiles.Controllers
                 return Unauthorized("Only the master profile can manage profiles.");
             }
 
-            // The main PIN, like every other change to the household. There used to be an
-            // administrator setting to let creation skip it; once every other route asked,
-            // all it did was leave this one door open.
+            // The main PIN, like every other change to the household. An administrator
+            // setting once let creation skip it; once every other route asked, it only left
+            // this one door open.
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
             var nameError = ValidateProfileName(request.ProfileName) ?? ValidateProfileNameFree(_userManager, request.ProfileName);
             if (nameError != null) return BadRequest(nameError);
 
             // One creation at a time. The limit is counted before the account is created and
-            // the mapping written after it, so two requests arriving together both counted
-            // the same number and both got past a limit meant to stop the second.
+            // the mapping written after, so two simultaneous requests both counted the same
+            // number and both got past it.
             await CreateGate.WaitAsync().ConfigureAwait(false);
             try
             {
@@ -457,7 +452,6 @@ namespace Jellyfin.Profiles.Controllers
             var masterUser = _userManager.GetUserById(masterUserId);
             if (masterUser == null) return NotFound("Master user not found.");
 
-            // Enforce max profiles limit
             var maxProfiles = GetMaxProfilesForUser(masterUserId, config);
             var existingCount = ProfileCountOf(config, masterUserId);
             if (existingCount >= maxProfiles)
@@ -465,7 +459,6 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest($"Maximum profile limit of {maxProfiles} reached.");
             }
 
-            // PIN validation (4-8 digits numeric)
             if (!string.IsNullOrEmpty(request.Pin))
             {
                 if (!IsValidPin(request.Pin))
@@ -477,8 +470,8 @@ namespace Jellyfin.Profiles.Controllers
             var themeError = ValidateTheme(request.Theme, config);
             if (themeError != null) return BadRequest(themeError);
 
-            // The same answers /update takes (R-1144). Checked before the account exists. A
-            // rating that isn't a score was quietly read as no limit here too.
+            // The same answers /update gives (R-1144), checked before the account exists.
+            // A rating that isn't a score used to be read as no limit here too.
             if (request.AllLibraries == true && request.EnabledFolders != null)
                 return BadRequest(LibrariesTwiceMessage);
             var ratingError = ValidateRatingScore(request.MaxParentalRating);
@@ -486,9 +479,9 @@ namespace Jellyfin.Profiles.Controllers
             var (newDeviceIds, deviceIdsError) = NormalizeAllowedDeviceIds(request.AllowedDeviceIds);
             if (deviceIdsError != null) return BadRequest(deviceIdsError);
 
-            // Reject an allow-list that shares no tags with the master's, which would leave the
-            // profile with an empty library. Checked before the user is created so we don't
-            // leave a half-built account behind.
+            // Reject an allow-list that shares no tags with the master's: the profile would
+            // have an empty library. Checked before the user is created so no half-built
+            // account is left behind.
             var allowedTagsError = TagListError(request.BlockedTags) ?? TagListError(request.AllowedTags)
                 ?? ValidateAllowedTags(
                     _userManager.GetUserDto(masterUser, string.Empty).Policy, request.AllowedTags);
@@ -497,45 +490,40 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest(allowedTagsError);
             }
 
-            // A picture that would be refused is refused now, before the account exists,
-            // rather than after it: it used to be dropped silently and the profile made
-            // without one (R-1108).
+            // Refuse a picture that would be refused anyway before the account exists, not
+            // after. It used to be dropped silently and the profile made without one (R-1108).
             var pictureError = !string.IsNullOrEmpty(request.AvatarLibraryId)
                 ? CheckLibraryAvatar(request.AvatarLibraryId)
                 : CheckProfileImage(Guid.Empty, request.ProfileImage, null);
             if (pictureError != null) return BadRequest(pictureError);
 
-            // Standardize username to avoid global collisions
             string systemUsername = $"{masterUser.Username}_{profileName.Replace(" ", "")}";
 
-            // Ensure name uniqueness in system
             var existingUser = GetAllUsers().FirstOrDefault(u => string.Equals(u.Username, systemUsername, StringComparison.OrdinalIgnoreCase));
             if (existingUser != null)
             {
                 return BadRequest("A profile with this name already exists.");
             }
 
-            // Create system user
             var targetUser = await _userManager.CreateUserAsync(systemUsername).ConfigureAwait(false);
 
-            // Everything from here to the saved mapping either completes or takes the account
-            // away again. A throw part way used to leave an account no profile owned, and
+            // Everything from here to the saved mapping either completes or removes the
+            // account again. A throw part way used to leave an account no profile owned, and
             // every retry then said the name already existed (R-1136).
             try
             {
-            // Set high-entropy random password to prevent direct password-based bypass logins
+            // Random password, so no password login can bypass the PIN.
             string securePassword = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
             await ChangePasswordCompat(targetUser, securePassword).ConfigureAwait(false);
 
-            // Fetch master user's details for inheritance
             var masterUserDto = _userManager.GetUserDto(masterUser, string.Empty);
             var masterPolicy = masterUserDto.Policy;
             var masterConfig = masterUserDto.Configuration;
 
-            // Build target policy from the newly created Jellyfin user so required provider
-            // fields (e.g. AuthenticationProviderId) are preserved. Jellyfin 10.11 enforces
-            // AuthenticationProviderId as NOT NULL, so using new UserPolicy() would leave it
-            // null and cause UpdatePolicyAsync to throw. (Fix by PepeTechs, PR #6)
+            // Build the policy from the newly created Jellyfin user so provider fields such
+            // as AuthenticationProviderId are preserved. Jellyfin 10.11 enforces it as NOT
+            // NULL, so a new UserPolicy() left it null and UpdatePolicyAsync threw
+            // (fix by PepeTechs, PR #6).
             var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
             var targetPolicy = targetUserDto.Policy;
             CopyUserPolicy(masterPolicy, targetPolicy, targetUser.Id);
@@ -553,8 +541,8 @@ namespace Jellyfin.Profiles.Controllers
                 targetPolicy.MaxParentalRating, targetPolicy.MaxParentalSubRating,
                 masterPolicy.MaxParentalRating, masterPolicy.MaxParentalSubRating);
 
-            // Tag-based filtering. Stored on the mapping as the profile's own lists; the master's
-            // tags are merged in here and re-merged on every switch.
+            // Tag filtering. Stored on the mapping as the profile's own lists; the master's
+            // tags are merged in here and again on every switch.
             var profileBlockedTags = NormalizeTags(request.BlockedTags);
             var profileAllowedTags = NormalizeTags(request.AllowedTags);
             var (resolvedBlockedTags, resolvedAllowedTags) =
@@ -562,7 +550,6 @@ namespace Jellyfin.Profiles.Controllers
             targetPolicy.BlockedTags = resolvedBlockedTags;
             targetPolicy.AllowedTags = resolvedAllowedTags;
 
-            // Library folder filtering (propagate master blocks)
             List<Guid> validatedFolders = new List<Guid>();
             if (request.EnabledFolders != null)
             {
@@ -572,11 +559,9 @@ namespace Jellyfin.Profiles.Controllers
             }
             else
             {
-                // Inherit blocked libraries and folder accessibility from master user
                 validatedFolders = ApplyInheritedFolders(_libraryManager, masterPolicy, targetPolicy, keepOwned: false);
             }
 
-            // Clone general non-admin user configurations
             var targetConfig = new UserConfiguration
             {
                 AudioLanguagePreference = masterConfig.AudioLanguagePreference,
@@ -585,17 +570,15 @@ namespace Jellyfin.Profiles.Controllers
                 EnableLocalPassword = false
             };
 
-            // Persist the policy and configuration settings to the database
             await _userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
             await _userManager.UpdateConfigurationAsync(targetUser.Id, targetConfig).ConfigureAwait(false);
 
-            // The picture is written before the lock: disk work does not belong inside it
-            // (r2-11-05). The rollback below removes it again.
+            // Written before the lock: disk work does not belong inside it (r2-11-05).
+            // The rollback below removes it again.
             var profileImageUrl = !string.IsNullOrEmpty(request.AvatarLibraryId)
                 ? CopyLibraryAvatarToProfile(targetUser.Id, request.AvatarLibraryId).Url
                 : SaveProfileImage(targetUser.Id, request.ProfileImage, request.ProfileImageThumb).Url;
 
-            // Add new mapping entry
             lock (ConfigLock)
             {
                 config.Mappings.Add(new ProfileMapping
@@ -608,19 +591,17 @@ namespace Jellyfin.Profiles.Controllers
                         ? request.AvatarColor!.Trim()
                         : NextAvatarColor(masterUserId, config),
                     TransparentAvatar = request.TransparentAvatar ?? false,
-                    // Only while profiles may choose. Stored otherwise, it would surface the
-                    // day choosing is turned on, as a choice nobody remembers making.
+                    // Only while profiles may choose. Stored otherwise, it would surface the day
+                    // choosing is turned on, as a choice nobody remembers making.
                     Theme = config.AllowProfileThemes ? ThemeToStore(request.Theme, config) : null,
                     IsHidden = true,
                     LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes ?? 5),
-                    // Store the selected libraries as the plugin's own ground truth
                     EnabledFolders = validatedFolders,
-                    // Nothing ticked means every library the master has, then and later.
-                    // On create, leaving the list out is "every library" too: there is nothing
-                    // to keep. allLibraries: true says the same thing explicitly.
+                    // Nothing ticked means every library the master has, now and later. On create,
+                    // leaving the list out means the same; allLibraries: true says it explicitly.
                     AllLibraries = request.EnabledFolders == null,
-                    // What was just written to the account, when it was a list. Without it the
-                    // next sign-in would read this write as an administrator's change (R-1042).
+                    // What was just written to the account, when it was a list. Without it the next
+                    // sign-in would read this write as an administrator's change (R-1042).
                     LastAppliedFolders = request.EnabledFolders != null ? validatedFolders.ToList() : null,
                     // The rating asked for is the profile's own; none asked for follows the main
                     // account. What went to the account is recorded beside it (R-1045).
@@ -714,18 +695,18 @@ namespace Jellyfin.Profiles.Controllers
 
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
-            // One answer for a profile that does not exist and one that is not this household's,
-            // so the route cannot be used to find out which (r2-11-07). As /copy-rules answers.
+            // One answer for a profile that does not exist and one that is not this
+            // household's, so the route cannot be used to tell which (r2-11-07). Same as
+            // /copy-rules.
             var mapping = FindMapping(request.ProfileId);
             if (mapping == null || mapping.MasterUserId != masterUserId)
             {
                 return Unauthorized(OtherHouseholdMessage);
             }
 
-            // Delete underlying native system user.
-            // Track whether the Jellyfin user was fully removed so we know whether
-            // to remove the plugin mapping (if deletion failed we keep the mapping
-            // so the ghost account remains visible and manageable in the dashboard).
+            // Delete the underlying Jellyfin user. Track whether it was fully removed: if
+            // deletion failed the mapping is kept, so the ghost account stays visible and
+            // manageable in the dashboard.
             bool userFullyDeleted = false;
             var targetUser = _userManager.GetUserById(request.ProfileId);
             if (targetUser != null && mapping.KeepAccountOnDelete)
@@ -746,15 +727,14 @@ namespace Jellyfin.Profiles.Controllers
             {
                 try
                 {
-                    // Terminate all active sessions for this profile user BEFORE calling
-                    // DeleteUserAsync. Jellyfin throws an InvalidOperationException when you
-                    // try to delete an account that still has a live session, which was the
-                    // root cause of users seeing deletion always fail.
+                    // End all active sessions for this user before DeleteUserAsync, which throws
+                    // InvalidOperationException for an account with a live session. That was why
+                    // deletion always failed.
                     try
                     {
-                        // Revoke the user's tokens so Jellyfin considers every session dead.
-                        // This prevents DeleteUserAsync from throwing due to an active session.
-                        // One call revokes them all, so it is made once, if there is a session.
+                        // Revoke the tokens so Jellyfin counts every session dead; otherwise
+                        // DeleteUserAsync can still throw. One call revokes them all, so it is made
+                        // once, and only if there is a session.
                         if (_sessionManager.Sessions.Any(s => s.UserId == request.ProfileId))
                         {
                             try
@@ -781,8 +761,8 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 catch (Exception ex)
                 {
-                    // Best-effort fallback: disable the account so it cannot log in,
-                    // but keep the plugin mapping so the admin can see and retry later.
+                    // Fallback: disable the account so it cannot log in, but keep the mapping so the
+                    // admin can see it and retry.
                     _logger.LogError(ex,
                         "ProfilesPlugin: Error deleting Jellyfin user {UserId}. " +
                         "Disabling the account as a fallback — the plugin mapping is PRESERVED " +
@@ -799,7 +779,6 @@ namespace Jellyfin.Profiles.Controllers
                     {
                         _logger.LogError(updateEx, "ProfilesPlugin: Failed to disable underlying user {UserId} as fallback.", targetUser.Id);
                     }
-                    // Return an error so the UI knows deletion did not fully complete.
                     return StatusCode(StatusCodes.Status500InternalServerError,
                         "Profile could not be fully deleted. The account has been disabled. " +
                         "Retry deletion after restarting Jellyfin.");
@@ -807,14 +786,14 @@ namespace Jellyfin.Profiles.Controllers
             }
             else
             {
-                // Underlying Jellyfin user already gone — treat as a clean delete.
+                // The Jellyfin user is already gone; treat as a clean delete.
                 userFullyDeleted = true;
             }
 
             if (userFullyDeleted)
             {
-                // The mapping goes first, so a failure after this leaves a stray picture and not
-                // a mapping to an account that is gone (r2-11-05).
+                // The mapping goes first, so a failure after this leaves a stray picture, not a
+                // mapping to a gone account (r2-11-05).
                 lock (ConfigLock)
                 {
                     var mappingToRemove = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
@@ -825,16 +804,15 @@ namespace Jellyfin.Profiles.Controllers
                     }
                 }
 
-                // The static profile image, if any. Disk work, so outside ConfigLock.
                 SaveProfileImage(request.ProfileId, null);
 
-                // What it had watched today, kept per profile, would stay in viewing_usage.json (R-1023).
-                // Outside ConfigLock: the tracker's own lock is never taken inside it.
+                // Its usage for today is kept per profile and would stay in viewing_usage.json
+                // (R-1023). Outside ConfigLock: the tracker's own lock is never taken inside it.
                 Auth.ViewingTracker.Forget(request.ProfileId);
                 Auth.ViewingTracker.RulesChanged();
 
-                // The master's last profile may just have gone, and a master with no
-                // profiles is no longer one the PIN provider should hold.
+                // The master's last profile may have just gone, and a master with no profiles is
+                // no longer one the PIN provider should hold.
                 ProfilesBootstrapTask.ReconcileAuthProvidersNow();
 
                 LogActivity(_userManager.GetUserById(masterUserId)?.Username + " deleted the profile " + mapping.ProfileName,
@@ -851,9 +829,9 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<object>> SwitchProfile([FromBody] SwitchProfileRequest request)
         {
-            // Switching is the click users perceive as "loading the home screen", so the
-            // per-stage cost is logged at Debug. Enable debug logging for Jellyfin.Profiles to
-            // see which stage is responsible when a switch feels slow.
+            // Switching is what users perceive as "loading the home screen", so each stage's
+            // cost is logged at Debug. Enable debug logging for Jellyfin.Profiles to see
+            // which stage makes a switch slow.
             var sw = System.Diagnostics.Stopwatch.StartNew();
             long tAuth = 0, tPolicy = 0, tSession = 0;
 
@@ -862,7 +840,7 @@ namespace Jellyfin.Profiles.Controllers
             var config = ReadConfigSnapshot();
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            // Master user is always valid. If no mapping exists for master, check if request is master user ID.
+            // The master is always valid. With no mapping for it, check whether the request is the master's id.
             var currentUserIdVal = GetCurrentUserId();
             if (currentUserIdVal == null)
             {
@@ -886,14 +864,14 @@ namespace Jellyfin.Profiles.Controllers
 
             // Who may enter what, decided in one place for /switch, /verify-pin and /list.
             //
-            // Entering another household — its master, or since this release one of its
-            // sub-profiles — hands the caller a real session for it, including a master's
-            // admin rights if it has any. Its PIN is what stands between a shared Bonfire code
-            // and that session. The exception is consent from the household being entered:
-            // its owner can turn on AllowHouseholdLanBypass, which is what two adults sharing
-            // one TV actually want (issue #13). It is theirs to grant and nobody else's — the
-            // caller's own BypassPinOnLocalNetwork does not carry across a link — and only on
-            // the local network, so a leaked code is worth nothing outside the house.
+            // Entering another household (its master, or one of its sub-profiles) gives the
+            // caller a real session for it, including a master's admin rights. Its PIN is
+            // what stands between a shared Bonfire code and that session. The exception is
+            // consent from the household being entered: its owner can turn on
+            // AllowHouseholdLanBypass, for two adults sharing one TV (issue #13). Only the
+            // owner can grant it (the caller's own BypassPinOnLocalNetwork does not carry
+            // across a link), and only on the local network, so a leaked code is worth
+            // nothing outside the house.
             var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal,
                 LinkedAccountsFor(callerMasterUserId, config));
             if (rules.Unauthorized)
@@ -913,21 +891,20 @@ namespace Jellyfin.Profiles.Controllers
             bool isCrossAccountMasterSwitch = rules.CrossHousehold;
 
             // Set when the target household's owner has opted into household LAN switching
-            // and the request genuinely came from the local network.
+            // and the request came from the local network.
             bool householdLanBypass = rules.HouseholdLanBypass;
 
             if (householdLanBypass)
             {
-                // Recorded at Information alongside the audit entry: this is the path where
-                // one household is entered without proving anything but network location, so
-                // it needs to be visible in the log when an owner reviews access.
+                // Logged at Information beside the audit entry: here one household is entered
+                // with nothing proven but network location, so an owner reviewing access needs
+                // to see it.
                 _logger.LogInformation(
                     "ProfilesPlugin: Household LAN bypass — {Caller} entered linked account {Target} " +
                     "from {Ip} without a PIN (the target's owner enabled this).",
                     callerMasterUserId, request.ProfileId, ip);
             }
 
-            // Enforce device restrictions for sub-profiles
             var deviceAccess = EvaluateDeviceRestriction(
                 mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices, config.Mappings);
             if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
@@ -940,7 +917,6 @@ namespace Jellyfin.Profiles.Controllers
 
             var rateLimitKey = $"{ip}_{request.ProfileId}";
 
-            // Verify PIN if set
             var pinHashToCheck = mapping?.PinHash;
             if (!string.IsNullOrEmpty(pinHashToCheck))
             {
@@ -949,10 +925,9 @@ namespace Jellyfin.Profiles.Controllers
 
                 if (bypass)
                 {
-                    // Logged so an administrator can confirm the bypass only ever fires for
-                    // genuinely local clients. Behind a reverse proxy that is NOT listed in
-                    // Jellyfin's Known Proxies, every request arrives with the proxy's address
-                    // and would therefore look local — this line is how that shows up.
+                    // Logged so an administrator can confirm the bypass only fires for local
+                    // clients. Behind a reverse proxy not listed in Jellyfin's Known Proxies, every
+                    // request arrives with the proxy's address and looks local; this line shows it.
                     // The cross-account case has already logged its own, more specific line.
                     if (!isCrossAccountMasterSwitch)
                     {
@@ -967,16 +942,16 @@ namespace Jellyfin.Profiles.Controllers
                     var limited = BeginPinAttempt(rateLimitKey, request.ProfileId);
                     if (limited != null) return limited;
 
-                    // mapping is non-null here — pinHashToCheck came from it.
+                    // mapping is non-null here: pinHashToCheck came from it.
                     if (!VerifyPinAndUpgrade(request.Pin, mapping!))
                     {
                         return BadRequest("Invalid PIN code.");
                     }
 
-                    // Only a PIN that was actually checked and right starts the allowance again.
-                    // A pass with no PIN asked (none set, trusted address, LAN bypass) proves
-                    // nothing about it, and resetting there gave a remote guesser 20 more
-                    // whenever a household member opened the profile.
+                    // Only a PIN that was checked and right starts the allowance again. A pass with
+                    // no PIN asked (none set, trusted address, LAN bypass) proves nothing, and
+                    // resetting there gave a remote guesser 20 more whenever a household member
+                    // opened the profile.
                     EndPinAttempt(rateLimitKey, request.ProfileId);
                 }
             }
@@ -987,10 +962,10 @@ namespace Jellyfin.Profiles.Controllers
             if (targetUser == null) return NotFound("Underlying system user missing.");
 
             // An account turned off in Dashboard -> Users stays off. AuthenticateDirect does
-            // not check IsDisabled at all, and the block below used to write
-            // IsDisabled = false on every switch into a sub-profile, so disabling a profile's
-            // account was undone the next time anyone picked it. That included the account
-            // the delete route disables as its fallback "so it cannot log in".
+            // not check IsDisabled, and the block below used to write IsDisabled = false on
+            // every switch into a sub-profile, undoing the disable the next time anyone
+            // picked it. That included the account the delete route disables as its
+            // fallback.
             if (_userManager.GetUserDto(targetUser, string.Empty).Policy?.IsDisabled == true)
             {
                 _logger.LogWarning(
@@ -1000,7 +975,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Nor does turning off the main account: a profile's own account is never the one
-            // that was turned off, so its profiles stayed enterable (R-1135).
+            // turned off, so its profiles stayed enterable (R-1135).
             if (MainAccountDisabled(_userManager, mapping))
             {
                 _logger.LogWarning(
@@ -1010,8 +985,8 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Closed for maintenance. An administrator's own household can still switch to
-            // the administrator, but not into a profile the gate would refuse anyway: the
-            // switch would succeed and every request after it fail.
+            // the administrator, but not into a profile the gate would refuse: the switch
+            // would succeed and every request after it fail.
             var closed = Auth.MaintenanceGate.Active();
             if (closed != null && !Auth.MaintenanceGate.IsAdmin(_userManager, request.ProfileId))
             {
@@ -1019,14 +994,13 @@ namespace Jellyfin.Profiles.Controllers
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, Auth.MaintenanceGate.RefusalBody(closed));
             }
 
-            // Inherit/synchronize streaming policies and configurations from master user dynamically during switch
             var targetMasterUserId = mapping != null ? mapping.MasterUserId : request.ProfileId;
             var masterUser = _userManager.GetUserById(targetMasterUserId);
 
-            // Only a genuine sub-profile inherits. See ShouldInheritMasterPolicy for what
-            // this did to a main account when it ran there (issue #27): it cleared the
-            // account's library access permanently, demoted an administrator, and hid them.
-            // The work itself is shared with every other sign-in; see ProfilePolicySync.
+            // Only a genuine sub-profile inherits. Running this on a main account (issue
+            // #27) cleared its library access permanently, demoted an administrator and hid
+            // them; see ShouldInheritMasterPolicy. The work is shared with every other
+            // sign-in; see ProfilePolicySync.
             if (masterUser != null && ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId))
             {
                 await Auth.ProfilePolicySync.ApplyAsync(_userManager, _libraryManager, _logger, targetUser.Id)
@@ -1038,13 +1012,13 @@ namespace Jellyfin.Profiles.Controllers
             var deviceId = GetAuthorizationParameter("DeviceId");
             var version = GetAuthorizationParameter("Version");
 
-            // Jellyfin 10.11+ requires App, DeviceName, DeviceId, AppVersion to be non-null/non-empty.
-            // Provide safe fallbacks in case the Authorization header couldn't be parsed.
+            // Jellyfin 10.11+ requires App, DeviceName, DeviceId and AppVersion to be
+            // non-empty. Fall back in case the Authorization header could not be parsed.
             var authRequest = new AuthenticationRequest
             {
-                // UserId must be set. Without it SessionManager falls back to a username
-                // lookup, and any miss surfaces as "Invalid username or password entered."
-                // even though AuthenticateDirect never checks a password (issue #15).
+                // UserId must be set. Without it SessionManager falls back to a username lookup,
+                // and a miss surfaces as "Invalid username or password entered." although
+                // AuthenticateDirect never checks a password (issue #15).
                 UserId = targetUser.Id,
                 Username = targetUser.Username,
                 RemoteEndPoint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1",
@@ -1055,10 +1029,10 @@ namespace Jellyfin.Profiles.Controllers
             };
             tPolicy = sw.ElapsedMilliseconds;
 
-            // The profile's earlier sessions on this same device go first. Jellyfin counts
-            // them against MaxActiveSessions before it replaces any, so they made the switch
-            // fail and the page reload into the picker in a loop (issue #41).
-            // Best effort: if this fails, the switch goes ahead as it did before.
+            // The profile's earlier sessions on this device go first. Jellyfin counts them
+            // against MaxActiveSessions before replacing any, so the switch failed and the
+            // page reloaded into the picker in a loop (issue #41). Best effort: if this
+            // fails, the switch goes ahead as before.
             try
             {
                 await Auth.SameDeviceSessions.EndAsync(_sessionManager, _deviceManager, ReadConfigSnapshot(),
@@ -1069,16 +1043,17 @@ namespace Jellyfin.Profiles.Controllers
                 _logger.LogWarning(ex, "ProfilesPlugin: could not end {User}'s earlier sessions on this device.", targetUser.Username);
             }
 
-            // Authenticate directly bypassing password check (securely validated caller + PIN validation)
-            // Never let this throw past us: Jellyfin's exception middleware turns these into a 401,
-            // and the client reads a 401 as "the caller's session expired" and signs the master out.
+            // Authenticate directly, skipping the password check (the caller and PIN are
+            // already validated). Never let this throw: Jellyfin's exception middleware turns
+            // it into a 401, which the client reads as "the caller's session expired" and
+            // signs the master out.
             MediaBrowser.Controller.Authentication.AuthenticationResult session;
-            // Before the session exists: the session listener hears of it inside this call, and
-            // must leave the "switched" event to this route, which knows who it came from.
+            // Before the session exists: the session listener hears of it inside this call
+            // and must leave the "switched" event to this route, which knows who it came from.
             BonfireCampground.ExpectSwitch(targetUser.Id, authRequest.DeviceId);
 
             // A switch is not a password sign-in: the session it starts may refresh this
-            // device's record, never make one. The listener reads this note.
+            // device's record, never create one. The listener reads this note.
             Auth.RequestDevice.BeginSignIn(byPin: true);
             try
             {
@@ -1100,8 +1075,8 @@ namespace Jellyfin.Profiles.Controllers
 
             tSession = sw.ElapsedMilliseconds;
 
-            // Into another household: remembered, so taking the door away later can sign
-            // this device out of it (R-1302). See CrossHouseholdEntry.
+            // Into another household: remembered, so removing the door later can sign this
+            // device out of it (R-1302). See CrossHouseholdEntry.
             if (isCrossAccountMasterSwitch)
             {
                 lock (ConfigLock)
@@ -1113,7 +1088,6 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            // Record profile switch audit log
             RecordAuditLog(masterUser?.Username ?? "Unknown", targetUser.Username);
 
             BonfireCampground.RaiseSwitched(
@@ -1123,12 +1097,12 @@ namespace Jellyfin.Profiles.Controllers
                 authRequest.DeviceId,
                 currentUserId);
 
-            // The caller asked for the sign-in it made this request with to end, so it need not
-            // call /Sessions/Logout afterwards. This is what that route does: ISessionManager.
-            // Logout(token), for this one token. Never a user-wide revoke: the main account's
-            // other devices must stay signed in. After the new session exists, so a refused or
-            // failed switch ends nothing; and a failure here does not undo the switch.
-            // Skipped if Jellyfin handed back the same token (same user, same device).
+            // The caller asked for the sign-in it made this request with to end, so it need
+            // not call /Sessions/Logout afterwards. Same as that route: ISessionManager.
+            // Logout(token) for this one token, never a user-wide revoke, so the main
+            // account's other devices stay signed in. After the new session exists, so a
+            // refused or failed switch ends nothing; a failure here does not undo the
+            // switch. Skipped if Jellyfin returned the same token (same user and device).
             if (request.EndPreviousSession)
             {
                 var oldToken = Auth.ProxySwitcher.ReadToken(Request);
@@ -1146,7 +1120,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             var total = sw.ElapsedMilliseconds;
-            // Warn on switches slow enough for a user to notice; otherwise keep it at Debug.
+            // Warn on switches slow enough to notice; otherwise Debug.
             if (total >= 1000)
             {
                 _logger.LogWarning(
@@ -1167,8 +1141,8 @@ namespace Jellyfin.Profiles.Controllers
                 ActiveProfileToken = session.AccessToken,
                 JellyfinUserId = targetUser.Id,
                 // Carried in the switch response so the client can cache it before the reload.
-                // Fetching it afterwards would leave a window in which the home screen shows
-                // the library artwork this profile is not supposed to see.
+                // Fetching it afterward would leave a window where the home screen shows the
+                // library artwork this profile must not see.
                 LibraryArtwork = DescribeLibraryArtwork(config, targetUser.Id)
             });
         }
@@ -1179,7 +1153,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public ActionResult VerifyPin([FromBody] SwitchProfileRequest request)
         {
-            // A copy: the lists are only read here, and a PIN upgrade finds the live row itself.
+            // A copy: the lists are only read here; a PIN upgrade finds the live row itself.
             var config = ReadConfigSnapshot();
             if (config == null) return BadRequest("Plugin configuration missing.");
 
@@ -1195,7 +1169,6 @@ namespace Jellyfin.Profiles.Controllers
 
             var linkedMasterIds = GetLinkedMasterUserIds(callerMasterUserId, config);
 
-            // Enforce device restrictions for sub-profiles
             var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
             var deviceAccess = EvaluateDeviceRestriction(
                 mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices, config.Mappings);
@@ -1212,8 +1185,8 @@ namespace Jellyfin.Profiles.Controllers
             var ip = remoteIp?.ToString() ?? "127.0.0.1";
             var rateLimitKey = $"{ip}_{request.ProfileId}";
 
-            // Same rules as /switch, through the same function, so this endpoint can never
-            // green-light a switch /switch would then refuse.
+            // Same rules as /switch, through the same function, so this endpoint never
+            // approves a switch /switch would refuse.
             var rules = EvaluateSwitch(config.Mappings, callerMasterUserId, request.ProfileId, linkedMasterIds, isLocal,
                 LinkedAccountsFor(callerMasterUserId, config));
             if (rules.Unauthorized)
@@ -1281,8 +1254,8 @@ namespace Jellyfin.Profiles.Controllers
                         ProfileUserId = user.Id,
                         ProfileName = mapping?.ProfileName ?? user.Username,
                         MasterName = masterUser?.Username ?? "Unknown",
-                        // Grouping key for the dashboard. Name alone is not safe to group by —
-                        // it changes when an account is renamed and is not guaranteed unique.
+                        // Grouping key for the dashboard. Name alone is not safe: it changes when an
+                        // account is renamed and is not guaranteed unique.
                         MasterUserId = mapping?.MasterUserId ?? Guid.Empty,
                         RequiresPin = mapping != null && !string.IsNullOrEmpty(mapping.PinHash),
                         // Lets the settings page report pictures whose file has gone missing.
@@ -1325,10 +1298,9 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            // Re-read index.html so the dashboard reflects the file as it is right now.
-            // These flags used to be a snapshot taken at server boot, which is why the
-            // warning banner persisted after users ran the documented fix commands —
-            // nothing re-checked until the next full Jellyfin restart.
+            // Re-read index.html so the dashboard shows the file as it is now. These flags
+            // were a snapshot taken at server boot, so the warning banner stayed after users
+            // ran the documented fix commands, until the next Jellyfin restart.
             ProfilesBootstrapTask.RefreshInjectionStatus();
 
             return Ok(new
@@ -1339,8 +1311,8 @@ namespace Jellyfin.Profiles.Controllers
                 IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
                 IndexPath = ProfilesBootstrapTask.IndexPath,
                 FailureReason = ProfilesBootstrapTask.LastFailureReason,
-                // Lets the dashboard emit a permission command naming the exact account
-                // Jellyfin runs as, instead of guessing between service and desktop mode.
+                // Lets the dashboard emit a permission command naming the account Jellyfin runs
+                // as, instead of guessing between service and desktop mode.
                 ServiceAccount = ProfilesBootstrapTask.RunningAccount,
                 IsWindows = OperatingSystem.IsWindows(),
                 PluginVersion = GetPluginVersion(),
@@ -1363,12 +1335,11 @@ namespace Jellyfin.Profiles.Controllers
 
             return new
             {
-                // Installed or updated on a running server, so this build's pipeline hook
-                // was never registered and cannot be until Jellyfin restarts (issue #25).
+                // Installed or updated on a running server: this build's pipeline hook was never
+                // registered and cannot be until Jellyfin restarts (issue #25).
                 RestartRequired = ProfilesBootstrapTask.RestartRequired,
-                // Both versions, so "restart required" is something the reader can check
-                // rather than something they have to believe. They differ exactly when a
-                // newer copy is on disk waiting for the process to come back.
+                // Both versions, so "restart required" can be checked. They differ exactly when
+                // a newer copy is on disk waiting for the process to restart.
                 RunningVersion = runningVersion,
                 NewestInstalledVersion = newestInstalled,
                 NewerVersionInstalled = ProfilesBootstrapTask.NewerVersionInstalled(),
@@ -1401,8 +1372,8 @@ namespace Jellyfin.Profiles.Controllers
                 IsVersionStale = ProfilesBootstrapTask.IsVersionStale,
                 IndexPath = ProfilesBootstrapTask.IndexPath,
                 FailureReason = ProfilesBootstrapTask.LastFailureReason,
-                // Lets the dashboard emit a permission command naming the exact account
-                // Jellyfin runs as, instead of guessing between service and desktop mode.
+                // Lets the dashboard emit a permission command naming the account Jellyfin runs
+                // as, instead of guessing between service and desktop mode.
                 ServiceAccount = ProfilesBootstrapTask.RunningAccount,
                 IsWindows = OperatingSystem.IsWindows(),
                 PluginVersion = GetPluginVersion(),
@@ -1425,7 +1396,7 @@ namespace Jellyfin.Profiles.Controllers
 
             if (!string.IsNullOrWhiteSpace(informational))
             {
-                // Strip a "+<sha>" build-metadata suffix if one ever slips in.
+                // Strip a "+<sha>" build-metadata suffix.
                 var plus = informational.IndexOf('+');
                 return plus > 0 ? informational.Substring(0, plus) : informational;
             }
@@ -1502,11 +1473,11 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            // Each id is looked up once, outside the lock: GetUserById is a database read per
-            // call, and the old shape asked again for every row and every test inside the lock.
-            // The ids are copied under a short lock, resolved with none held, and the rows are
-            // then judged against that answer. An id that appears after the copy is simply not
-            // in the dead set, so a profile created meanwhile is never taken for an orphan.
+            // Each id is looked up once, outside the lock: GetUserById is a database read,
+            // and the old shape asked again for every row and test inside the lock. The ids
+            // are copied under a short lock, resolved with none held, then the rows judged
+            // against that answer. An id that appears after the copy is not in the dead set,
+            // so a profile created meanwhile is never taken for an orphan.
             HashSet<Guid> seen;
             lock (ConfigLock)
             {
@@ -1538,8 +1509,8 @@ namespace Jellyfin.Profiles.Controllers
                         profileUserId = m.ProfileUserId,
                         masterUserId = m.MasterUserId,
                         profileName = m.ProfileName,
-                        // The English line is for API callers; the dashboard maps the code to
-                        // its own language and never shows this one.
+                        // The English line is for API callers; the dashboard maps the code to its own
+                        // language and never shows this one.
                         reason = !Exists(m.ProfileUserId)
                             ? "the profile's Jellyfin user was deleted"
                             : "the master account was deleted",
@@ -1553,8 +1524,8 @@ namespace Jellyfin.Profiles.Controllers
                     .Select(g => new { groupId = g.GroupId, code = g.BonfireCode })
                     .ToList();
 
-                // A group whose owner is alive can still list members who are not. A group that
-                // is going anyway takes its members with it, so they are not counted here too.
+                // A group whose owner is alive can still list members who are not. A group
+                // going anyway takes its members with it, so they are not counted twice.
                 var deadMembers = config.BonfireGroups
                     .Where(g => Exists(g.OwnerUserId))
                     .SelectMany(g => (g.MemberUserIds ?? new List<Guid>())
@@ -1562,8 +1533,8 @@ namespace Jellyfin.Profiles.Controllers
                         .Select(id => new { groupId = g.GroupId, userId = id }))
                     .ToList();
 
-                // Theme background images no custom theme names: uploaded in an editor that was
-                // closed without saving. Under the lock, so a save cannot name one meanwhile.
+                // Theme background images no custom theme names, uploaded in an editor closed
+                // without saving. Under the lock, so a save cannot name one meanwhile.
                 var unusedImages = ThemeBackground.Unused(config);
                 // And uploaded pattern pictures, by the same rule; counted with the images.
                 var unusedPatterns = ThemePattern.Unused(config);
@@ -1607,21 +1578,22 @@ namespace Jellyfin.Profiles.Controllers
                 }
 
                 // An account shown in another household's switcher, where either side is gone.
-                // Nothing to review: a tile for an account that doesn't exist is never drawn.
+                // Nothing to review: a tile for a missing account is never drawn.
                 config.LinkedAccounts?.RemoveAll(l => !Exists(l.UserId) || !Exists(l.HouseholdId));
 
                 // First-time setup's "has seen it" rows for accounts that no longer exist (R-1075).
                 config.Onboarding?.Seen?.RemoveAll(s => !Exists(s.UserId));
 
                 // A confirmed address and a profile-limit override are kept per account and are
-                // personal data in the export; neither goes when Jellyfin deletes the account (R-1311).
+                // personal data in the export; neither goes when Jellyfin deletes the account
+                // (R-1311).
                 config.AccountEmails?.RemoveAll(a => !Exists(a.UserId));
                 config.UserProfileLimitOverrides?.RemoveAll(o => !Exists(o.UserId));
 
-                // Devices are NOT touched here. A device outliving the profile that used it is
-                // normal — the hardware is still in the house — and dropping one that some
-                // other profile still names would empty that whitelist, which means "any
-                // device". Device housekeeping has its own rules; see RemoveStaleDevices.
+                // Devices are not touched here. A device outliving the profile that used it is
+                // normal (the hardware is still in the house), and dropping one that another
+                // profile still names would empty that whitelist, which means "any device".
+                // Device housekeeping has its own rules; see RemoveStaleDevices.
                 Plugin.Instance?.SaveConfiguration();
 
                 // What was actually taken out, not what the preview listed. The linked-account,
@@ -1675,7 +1647,7 @@ namespace Jellyfin.Profiles.Controllers
                 mappings = config.Mappings.ToList();
             }
 
-            // Grouped first: a duplicated row — from an import, or two requests racing — made
+            // Grouped first: a duplicated row (from an import, or two racing requests) made
             // ToDictionary throw and the whole page a 500.
             var byProfile = mappings
                 .GroupBy(m => m.ProfileUserId)
@@ -1696,9 +1668,9 @@ namespace Jellyfin.Profiles.Controllers
                         sessionId = s.Id,
                         userId = s.UserId,
                         username = s.UserName,
-                        // Null for a plain Jellyfin account that Bonfire knows nothing about.
-                        // The dashboard groups on this, so it has to say "not ours" rather
-                        // than quietly attributing the session to somebody.
+                        // Null for a plain Jellyfin account Bonfire knows nothing about. The dashboard
+                        // groups on this, so it must say "not ours" rather than attribute the session
+                        // to somebody.
                         masterUsername = isSubProfile ? master?.Username : null,
                         isSubProfile,
                         deviceId = s.DeviceId,
@@ -1785,17 +1757,17 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            // The mail server's password is left out. The file is one an administrator can put
-            // somewhere careless, and a password is not a salted hash: it is the credential
-            // itself, in plain text. An import without one keeps the server's own (R-1149,
-            // R-1312). Exported from a copy whose Password is null, which EmailSettings leaves
-            // out of JSON. Not serialised by hand: Jellyfin's own formatter writes the file, as
-            // it always has, so nothing else in it changes.
+            // The mail server's password is left out. The file may end up somewhere careless,
+            // and a password is not a salted hash: it is the credential itself, in plain
+            // text. An import without one keeps the server's own (R-1149, R-1312). Exported
+            // from a copy whose Password is null, which EmailSettings leaves out of JSON.
+            // Not serialized by hand: Jellyfin's own formatter writes the file, so nothing
+            // else in it changes.
             //
-            // So is the emergency code. It is hashed like a PIN, and a short code is recovered
-            // from its hash in seconds, so the file would hand the code that switches Bonfire
-            // off to whoever reads it. An import without one keeps the server's own and says
-            // so, so the administrator knows to set it.
+            // So is the emergency code. It is hashed like a PIN, and a short code is
+            // recovered from its hash in seconds, so the file would hand the code that
+            // switches Bonfire off to whoever reads it. An import without one keeps the
+            // server's own and says so, so the administrator knows to set it.
             PluginConfiguration configuration;
             lock (ConfigLock)
             {
@@ -1848,31 +1820,29 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
 
-            // Bound as a JsonElement rather than straight to PluginConfiguration, and this is
-            // the most important line in the endpoint.
+            // Bound as a JsonElement, not straight to PluginConfiguration.
             //
-            // PluginConfiguration initialises every one of its lists to an empty list. So a
-            // body that fails to bind — a file whose properties are camelCase when the
-            // serialiser wants PascalCase, a truncated download, an object from some other
-            // tool — does not arrive as null and does not throw. It arrives as a pristine
-            // default configuration, and every field below then writes that emptiness over
-            // the real one. The administrator would have seen "Imported 0 profile(s)" and
-            // lost the household.
+            // PluginConfiguration initializes every list to empty. A body that fails to bind
+            // (camelCase properties where the serializer wants PascalCase, a truncated
+            // download, an object from another tool) does not arrive as null and does not
+            // throw. It arrives as a pristine default configuration, and every field below
+            // would write that emptiness over the real one: "Imported 0 profile(s)" and the
+            // household lost.
             //
-            // Reading the properties explicitly, case-insensitively, means "the file did not
-            // contain this" is distinguishable from "the file contained an empty list", which
-            // is the distinction the typed binding threw away.
+            // Reading the properties explicitly and case-insensitively keeps "the file did
+            // not contain this" distinct from "the file contained an empty list", which the
+            // typed binding lost.
             if (body.ValueKind != JsonValueKind.Object)
                 return BadRequest("No configuration in the request body.");
 
             // The export wrapper is accepted as well as a bare configuration: editing an
-            // export and pasting back the inner object is the obvious thing to do with it.
+            // export and pasting back the inner object is the obvious thing to do.
             var root = body;
             if (TryProperty(body, "configuration", out var inner) && inner.ValueKind == JsonValueKind.Object)
                 root = inner;
 
-            // At least one list this plugin owns must actually be present. Anything else is
-            // not a Bonfire configuration, whatever it is.
+            // At least one list this plugin owns must be present; anything else is not a
+            // Bonfire configuration.
             var recognised = new[] { "Mappings", "KnownDevices", "BonfireGroups", "AvatarLibrary" }
                 .Count(name => TryProperty(root, name, out _));
             if (recognised == 0)
@@ -1882,15 +1852,15 @@ namespace Jellyfin.Profiles.Controllers
                     + "expected sections. Nothing was changed.");
             }
 
-            // A value of the wrong type anywhere (a number where a list goes) makes the whole
-            // read fail, and substituting a default configuration there would write
-            // emptiness over every section. Refuse instead. r2-12-01.
+            // A value of the wrong type anywhere (a number where a list goes) fails the whole
+            // read, and substituting a default configuration would write emptiness over every
+            // section. Refuse instead (r2-12-01).
             var incoming = Read<PluginConfiguration>(root);
             if (incoming == null)
                 return BadRequest("That file couldn't be read. Nothing was changed.");
 
-            // Anything absent from the file keeps its current value rather than being reset,
-            // so a partial or older export cannot silently clear a setting it predates.
+            // Anything absent from the file keeps its current value, so a partial or older
+            // export cannot clear a setting it predates.
             var hasMappings = TryProperty(root, "Mappings", out _);
             var hasDevices = TryProperty(root, "KnownDevices", out _);
             var hasGroups = TryProperty(root, "BonfireGroups", out _);
@@ -1916,9 +1886,9 @@ namespace Jellyfin.Profiles.Controllers
                     })
                     .ToList();
 
-                // A backup holds the name of a picture, not the picture. One whose file is not in
-                // this server's data folder would be a broken image in the picker, so it is
-                // cleared, as a font or the logo is dropped. The profile itself stays.
+                // A backup holds a picture's name, not the picture. One whose file is not in this
+                // server's data folder would be a broken image in the picker, so it is cleared,
+                // as a font or the logo is. The profile stays.
                 foreach (var m in mappings)
                 {
                     if (!string.IsNullOrEmpty(m.ProfileImage)
@@ -1936,18 +1906,17 @@ namespace Jellyfin.Profiles.Controllers
                     g.MemberUserIds?.RemoveAll(id => !Exists(id));
                 }
 
-                // Written field by field onto the live object rather than swapping the
-                // reference. Jellyfin replaces Plugin.Configuration on its own whenever an
-                // administrator saves the settings page, so anything holding the old
-                // reference would be writing to an orphan — the same reason every write in
-                // this plugin happens inside ConfigLock. This is the shape UpdateAdminSettings
-                // uses.
-                // Each section is written only if the file actually carried it. A default
-                // value from a failed or partial bind must never overwrite a real one.
+                // Written field by field onto the live object, not by swapping the reference.
+                // Jellyfin replaces Plugin.Configuration whenever an administrator saves the
+                // settings page, so a holder of the old reference would write to an orphan (the
+                // reason every write here is inside ConfigLock). Same shape as
+                // UpdateAdminSettings.
+                // Each section is written only if the file carried it: a default from a failed
+                // or partial bind must never overwrite a real value.
                 if (hasMappings)
                 {
-                    // A file exported without PINs has none on any row, and must not clear the
-                    // PIN a row has here: the row keeps the server's own (r2-12-02).
+                    // A file exported without PINs has none on any row and must not clear the PIN a
+                    // row has here: the row keeps the server's own (r2-12-02).
                     var livePins = (config.Mappings ?? new List<ProfileMapping>())
                         .Where(l => !string.IsNullOrEmpty(l.PinHash))
                         .GroupBy(l => l.ProfileUserId).ToDictionary(g => g.Key, g => g.First().PinHash);
@@ -1975,7 +1944,7 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 if (hasLimits)
                     config.UserProfileLimitOverrides = (incoming.UserProfileLimitOverrides ?? new List<UserProfileLimitOverride>()).Where(o => o != null && Exists(o.UserId)).ToList();
-                // Only entries whose file is here, and whose id is a plain name: the id is joined
+                // Only entries whose file is here and whose id is a plain name: the id is joined
                 // onto a folder path.
                 if (hasAvatars)
                 {
@@ -2002,9 +1971,9 @@ namespace Jellyfin.Profiles.Controllers
                     config.DefaultAskOnStartup = incoming.DefaultAskOnStartup;
                 if (TryProperty(root, "DefaultSwitcherLocation", out _))
                     config.DefaultSwitcherLocation = incoming.DefaultSwitcherLocation;
-                // Themes before the default, which may name one of them, and each through the
-                // same checks as its route. A font whose file is not in this server's data
-                // folder is dropped: a backup holds the list, not the files.
+                // Themes before the default, which may name one of them, each through the same
+                // checks as its route. A font whose file is not in this server's data folder is
+                // dropped: a backup holds the list, not the files.
                 if (TryProperty(root, "CustomFonts", out _))
                 {
                     config.CustomFonts = (incoming.CustomFonts ?? new List<CustomFont>())
@@ -2025,8 +1994,8 @@ namespace Jellyfin.Profiles.Controllers
                         try { node = JsonNode.Parse(c.Json ?? string.Empty); }
                         catch (JsonException) { continue; }
                         if (node?["id"] is not JsonValue idv || !idv.TryGetValue<string>(out var nodeId) || nodeId != c.Id) continue;
-                        // A backup holds a background image's name, not its file, as with the
-                        // logo: one that is not on this server is dropped and the theme kept.
+                        // A backup holds a background image's name, not its file, as with the logo:
+                        // one not on this server is dropped and the theme kept.
                         ThemeBackground.DropMissing(node);
                         ThemePattern.DropMissing(node);
                         if (ThemeCatalog.ValidateCustom(node, config).Count == 0)
@@ -2104,20 +2073,19 @@ namespace Jellyfin.Profiles.Controllers
                         .ToList();
                 }
 
-                // Everything else the file carries, so a setting added to the configuration
-                // next month is restored the day it is added. The list above was the whole of
-                // import until now, and the SMTP settings, confirmed addresses, the PIN-reset
-                // switch, maintenance, first-time setup, starter avatars and the Quick Connect
-                // fields were each added after it was written, none came back from a backup,
-                // and the answer was still "success" (R-1146). Only what is named in
-                // ImportNotRestored stays as the server has it.
+                // Everything else the file carries, so a setting added to the configuration later
+                // is restored the day it is added. The list above was the whole of import until
+                // R-1146: the SMTP settings, confirmed addresses, PIN-reset switch, maintenance,
+                // first-time setup, starter avatars and Quick Connect fields were each added
+                // after it, none came back from a backup, and the answer was still "success".
+                // Only what ImportNotRestored names stays as the server has it.
                 foreach (var property in typeof(PluginConfiguration).GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
                     if (property.DeclaringType != typeof(PluginConfiguration) || !property.CanRead || !property.CanWrite) continue;
                     if (ImportHandledAbove.Contains(property.Name) || ImportNotRestored.Contains(property.Name)) continue;
                     if (!TryProperty(root, property.Name, out _)) continue;
-                    // "Email": null is a file that says nothing, not an instruction to remove
-                    // the section. Only a property declared nullable may be set to null. r2-12-03.
+                    // "Email": null is a file that says nothing, not an instruction to remove the
+                    // section. Only a property declared nullable may be set to null (r2-12-03).
                     if (property.GetValue(incoming) == null
                         && !PluginConfiguration.AcceptsNull(property)) continue;
                     if (property.Name == nameof(PluginConfiguration.Email)
@@ -2237,7 +2205,7 @@ namespace Jellyfin.Profiles.Controllers
                 return BadRequest(MainPinRequiredMessage);
             }
 
-            // Enforce ownership: the profile being edited must belong to the caller's master account.
+            // Ownership: the profile being edited must belong to the caller's master account.
             if (request.ProfileId != masterUserId)
             {
                 var nameError = ValidateProfileName(request.ProfileName);
@@ -2249,11 +2217,11 @@ namespace Jellyfin.Profiles.Controllers
                     return Unauthorized("Unauthorized profile update attempt.");
                 }
 
-                // A new name must not be an account's username (R-1336). One it already has
-                // is left alone, so a profile named before this check can still be edited.
-                // Not ProfileName?.Trim(): ValidateProfileName above has already refused a
-                // missing name, and the "?." told the compiler it might be null from here on,
-                // which failed the -warnaserror build at the two later .Trim() calls.
+                // A new name must not be an account's username (R-1336). One it already has is
+                // left alone, so a profile named before this check can still be edited.
+                // Not ProfileName?.Trim(): ValidateProfileName above has refused a missing name,
+                // and the "?." told the compiler it might be null from here on, which failed
+                // the -warnaserror build at the two later .Trim() calls.
                 if (!string.Equals(mapping.ProfileName, request.ProfileName.Trim(), StringComparison.OrdinalIgnoreCase))
                 {
                     var takenError = ValidateProfileNameFree(_userManager, request.ProfileName, request.ProfileId);
@@ -2261,7 +2229,6 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            // PIN validation (4-8 digits numeric if provided)
             if (!string.IsNullOrEmpty(request.Pin))
             {
                 if (!IsValidPin(request.Pin))
@@ -2271,18 +2238,18 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // A theme is refused, not ignored, while the server does not let profiles choose:
-            // Settings -> Theme saves through here, and a save that says nothing about why the
-            // tick did not move reads as the setting not taking. The profile form leaves the
-            // field out when it has no picker, so a form without one is not refused.
+            // Settings -> Theme saves through here, and a save that says nothing about why
+            // the tick did not move reads as the setting not taking. The profile form leaves
+            // the field out when it has no picker, so such a form is not refused.
             if (request.Theme != null && !config.AllowProfileThemes)
                 return StatusCode(StatusCodes.Status403Forbidden, "This server does not let profiles choose a theme.");
             var themeError = ValidateTheme(request.Theme, config);
             if (themeError != null) return BadRequest(themeError);
 
-            // R-1144: "every library" and "no rating limit" are explicit values now, because
+            // R-1144: "every library" and "no rating limit" are explicit values because
             // leaving a field out keeps it. Two answers at once, or a rating that isn't a
-            // score, is refused rather than guessed at: an unreadable rating used to be
-            // read as no limit.
+            // score, is refused, not guessed at: an unreadable rating used to be read as no
+            // limit.
             if (request.AllLibraries == true && request.EnabledFolders != null)
                 return BadRequest(LibrariesTwiceMessage);
             int? requestedRating = null;
@@ -2321,8 +2288,8 @@ namespace Jellyfin.Profiles.Controllers
                 : existingMapping?.AllowedTags;
 
             // A name another account already has is refused before anything is written. It
-            // was found after the picture was saved, so a refused rename still changed the
-            // picture (ST-11).
+            // used to be found after the picture was saved, so a refused rename still
+            // changed the picture (ST-11).
             if (request.ProfileId != masterUserId)
             {
                 var wantedUsername = $"{masterUser.Username}_{request.ProfileName.Trim().Replace(" ", "")}";
@@ -2334,14 +2301,13 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // The picture first, before anything else is written. A refused one answers 400
-            // with the reason and leaves the profile exactly as it was: the picture it has,
-            // its name and everything else in this request. A rejected picture used to be
-            // stored as "none", so a 3 MB upload deleted the existing one and answered 200
-            // (R-1108).
+            // with the reason and leaves the profile exactly as it was. A rejected picture
+            // used to be stored as "none", so a 3 MB upload deleted the existing one and
+            // answered 200 (R-1108).
             string? newImageUrl = null;
             var imageChanged = false;
             // A file was written under this profile's name by this request, so a later
-            // refusal or failure has to take it back. A value that only repeats the stored
+            // refusal or failure must take it back. A value that only repeats the stored
             // address, or points elsewhere, wrote nothing.
             var imageWritten = false;
             if (!string.IsNullOrEmpty(request.AvatarLibraryId))
@@ -2361,9 +2327,9 @@ namespace Jellyfin.Profiles.Controllers
                 imageWritten = request.ProfileImage.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) && newImageUrl != null;
             }
 
-            // The new account name, decided and checked here and written below, after the
-            // policy has been worked out. Written first, a failure in what followed left the
-            // account under the new name and the mapping under the old (R-1147).
+            // The new account name, checked here and written below, after the policy is
+            // worked out. Written first, a failure in what followed left the account under
+            // the new name and the mapping under the old (R-1147).
             string? newUsername = null;
             if (request.ProfileId != masterUserId)
             {
@@ -2379,16 +2345,16 @@ namespace Jellyfin.Profiles.Controllers
                 }
             }
 
-            // Update policy for sub-profiles. The policy sync (every sign-in) reads the profile
-            // and writes its account and mapping back; the gate keeps this save from landing
-            // between its read and its write and being undone by it (R-1046). Held to the end.
+            // Update policy for sub-profiles. The policy sync (every sign-in) reads the
+            // profile and writes its account and mapping back; the gate stops this save
+            // landing between that read and write and being undone (R-1046). Held to the end.
             using var syncGate = request.ProfileId != masterUserId
                 ? await Auth.ProfilePolicySync.HoldAsync().ConfigureAwait(false)
                 : null;
 
             // The profile is looked at again now that the gate is held. The first look was
             // before the picture was saved and before this wait, and the profile could have
-            // been deleted, or handed to another household, in between. Without it the account
+            // been deleted or handed to another household meanwhile. Without it the account
             // was renamed and its policy written for a profile the mapping no longer had, and
             // the save answered 200 while the lock below found nothing to update (r2-12-04).
             if (request.ProfileId != masterUserId)
@@ -2416,16 +2382,16 @@ namespace Jellyfin.Profiles.Controllers
                 var targetUserDto = _userManager.GetUserDto(targetUser, string.Empty);
                 var targetPolicy = targetUserDto.Policy;
 
-                // Set parental rating, never above the master's.
+                // Set the parental rating, never above the master's.
                 //
                 // The form has no sub-score, so the one on the account survives as long as the
-                // score is the one already set. Dropping it on every save loosened a TV-PG
-                // limit set in Dashboard -> Users to "anything scored PG" whenever the profile
-                // was saved for any reason, a new avatar included.
+                // score is the one already set. Dropping it on every save loosened a TV-PG limit
+                // set in Dashboard -> Users to "anything scored PG" whenever the profile was
+                // saved, a new avatar included.
                 //
-                // Left out (null) keeps it; "" is no limit of its own (R-1144). A left-out
-                // rating used to remove the limit, so a client that sent only a new name
-                // lifted a child's rating. Parsed and checked above, before anything is written.
+                // Left out (null) keeps it; "" is no limit of its own (R-1144). A left-out rating
+                // used to remove the limit, so a client that sent only a new name lifted a
+                // child's rating. Parsed and checked above, before anything is written.
                 if (request.MaxParentalRating != null && requestedRating != targetPolicy.MaxParentalRating)
                 {
                     targetPolicy.MaxParentalRating = requestedRating;
@@ -2440,7 +2406,6 @@ namespace Jellyfin.Profiles.Controllers
                     masterPolicy.MaxParentalRating, masterPolicy.MaxParentalSubRating);
                 ratingWritten = new ProfileRating { Score = targetPolicy.MaxParentalRating, SubScore = targetPolicy.MaxParentalSubRating };
 
-                // Tag-based filtering (clamped so it can never exceed the master's)
                 var (resolvedBlockedTags, resolvedAllowedTags) =
                     ResolveTagPolicy(masterPolicy, profileBlockedTags, profileAllowedTags);
                 targetPolicy.BlockedTags = resolvedBlockedTags;
@@ -2453,7 +2418,7 @@ namespace Jellyfin.Profiles.Controllers
                 if (request.AllLibraries != true && request.EnabledFolders != null)
                 {
                     // A library another plugin manages is not on the form, so it is never in the list:
-                    // what the account already has of one is kept as it is.
+                    // what the account already has of one is kept.
                     validatedFolders = ApplyListedFolders(
                         _libraryManager, masterPolicy, ParseFolderIds(request.EnabledFolders) ?? new List<Guid>(), targetPolicy, keepOwned: true);
                 }
@@ -2463,8 +2428,8 @@ namespace Jellyfin.Profiles.Controllers
                 }
 
                 // Everything above only worked the policy out. The account is written now: the
-                // rename, then the policy, and if the policy write fails the rename is taken
-                // back, so the account is not left under a name the mapping does not have.
+                // rename, then the policy, and if the policy write fails the rename is undone, so
+                // the account is not left under a name the mapping does not have.
                 var previousUsername = targetUser.Username;
                 if (newUsername != null)
                 {
@@ -2508,7 +2473,6 @@ namespace Jellyfin.Profiles.Controllers
             string? storedTheme = null;
             lock (ConfigLock)
             {
-                // Fetch or create mapping for this profile inside the lock
                 var mappingEntry = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
                 if (mappingEntry == null && request.ProfileId == masterUserId)
                 {
@@ -2524,7 +2488,7 @@ namespace Jellyfin.Profiles.Controllers
 
                 if (mappingEntry != null)
                 {
-                    // Update basic mapping properties (only for sub-profiles; master name is read-only)
+                    // Basic mapping properties (sub-profiles only; the master's name is read-only).
                     if (request.ProfileId != masterUserId)
                     {
                         var newName = request.ProfileName.Trim();
@@ -2532,21 +2496,21 @@ namespace Jellyfin.Profiles.Controllers
                         mappingEntry.ProfileName = newName;
                     }
 
-                    // Left out keeps it, like the other fields. It used to reset to a
-                    // fixed blue, the one exception to the API's own rule.
+                    // Left out keeps it, like the other fields. It used to reset to a fixed blue,
+                    // the one exception to the API's own rule.
                     if (request.AvatarColor != null)
                         mappingEntry.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
 
-                    // Null leaves it alone, so a caller that predates the field — or one
-                    // sending a partial update — cannot silently switch the background off.
+                    // Null leaves it alone, so a caller that predates the field, or sends a partial
+                    // update, cannot switch the background off.
                     if (request.TransparentAvatar.HasValue)
                     {
                         mappingEntry.TransparentAvatar = request.TransparentAvatar.Value;
                     }
 
                     // Null leaves it alone, for the same reason; "" follows the server's default.
-                    // Refused above while the server does not let profiles choose. The rule
-                    // itself is Themes.SetFor's, which POST /theme used to call on its own.
+                    // Refused above while the server does not let profiles choose. The rule is
+                    // Themes.SetFor's, which POST /theme used to call on its own.
                     if (request.Theme != null)
                     {
                         Themes.SetFor(config, masterUserId, request.ProfileId, request.Theme, masterUser.Username);
@@ -2559,7 +2523,6 @@ namespace Jellyfin.Profiles.Controllers
                         mappingEntry.ProfileImage = newImageUrl;
                     }
 
-                    // Handle PIN updates
                     if (request.Pin == string.Empty)
                     {
                         mappingEntry.PinHash = string.Empty;
@@ -2570,15 +2533,14 @@ namespace Jellyfin.Profiles.Controllers
                         pinChanged = true;
                     }
 
-                    // Handle lockout timer update
                     if (request.LockoutMinutes.HasValue)
                     {
                         mappingEntry.LockoutMinutes = ClampLockoutMinutes(request.LockoutMinutes.Value);
                     }
 
                     // The rating, as Bonfire's own write and the profile's own choice. A profile with
-                    // no record is left without one unless the form chose a rating: a record
-                    // made here would read "own: none" for a narrower rating it cannot tell apart.
+                    // no record is left without one unless the form chose a rating: a record made
+                    // here would read "own: none" for a narrower rating it cannot tell apart.
                     if (ratingWritten != null)
                     {
                         if (ratingChosen != null)
@@ -2592,24 +2554,22 @@ namespace Jellyfin.Profiles.Controllers
                         }
                     }
 
-                    // Update stored library list (plugin's ground truth)
                     if (validatedFolders != null)
                     {
                         mappingEntry.EnabledFolders = validatedFolders;
-                        // allLibraries: every library the master has, then and later. Only
-                        // reached when the request said which (R-1144).
+                        // allLibraries: every library the master has, now and later. Only reached when
+                        // the request said which (R-1144).
                         mappingEntry.AllLibraries = request.AllLibraries == true;
-                        // What was just written to the account, so the next sign-in does not
-                        // take this save for an administrator's change in Dashboard -> Users
-                        // (R-1042). Null when the master's own folder policy was copied: the
-                        // sign-in records what it applies.
+                        // What was just written to the account, so the next sign-in does not take this
+                        // save for an administrator's change in Dashboard -> Users (R-1042). Null when
+                        // the master's own folder policy was copied: the sign-in records what it applies.
                         mappingEntry.LastAppliedFolders = request.AllLibraries == true ? null : validatedFolders.ToList();
                     }
 
                     // Store the profile's own tag lists, not the master-merged result, so later
-                    // changes to the master's tags flow through instead of staying baked in.
-                    // Sub-profiles only: the master's tag policy is managed in Jellyfin itself,
-                    // and the block above never applies these to the master's user account.
+                    // changes to the master's tags flow through. Sub-profiles only: the master's tag
+                    // policy is managed in Jellyfin, and the block above never applies these to the
+                    // master's user account.
                     if (request.ProfileId != masterUserId)
                     {
                         if (request.BlockedTags != null)
@@ -2644,9 +2604,9 @@ namespace Jellyfin.Profiles.Controllers
 
             if (renamedTo != null) BonfireCampground.RaiseRenamed(masterUserId, request.ProfileId, renamedTo);
 
-            // A master setting its PIN becomes enterable by it on other apps at once, rather
-            // than after the next restart. A master clearing it must come off the PIN provider
-            // just as fast, or its password is refused there.
+            // A master setting its PIN is enterable by it on other apps at once, not after
+            // the next restart. A master clearing it must come off the PIN provider just as
+            // fast, or its password is refused there.
             if (request.ProfileId == masterUserId && request.Pin != null)
             {
                 ProfilesBootstrapTask.ReconcileAuthProvidersNow();
@@ -2701,17 +2661,16 @@ namespace Jellyfin.Profiles.Controllers
         {
             // Emergency disable: serve an inert script instead of the switcher. Answered
             // before the cache and the ETag so a browser holding a 304-able copy of the real
-            // script still gets this one — the whole point is to recover a client that the
-            // plugin has made unusable, and a conditional request must not defeat that.
+            // script still gets this one. A conditional request must not defeat recovering a
+            // client the plugin has made unusable.
             if (Plugin.IsPanicDisabled)
             {
                 Response.Headers["Cache-Control"] = "no-store";
                 return Content(InertProfilesJs, "application/javascript");
             }
 
-            // CachedProfilesJs lives on ProfilesBaseController as a static field.
-            // It is loaded once per app lifetime — no reason to read the embedded
-            // resource on every browser page load.
+            // CachedProfilesJs is a static field on ProfilesBaseController, loaded once per
+            // app lifetime so the embedded resource is not read on every page load.
             if (CachedProfilesJs == null)
             {
                 lock (JsCacheLock)
@@ -2730,20 +2689,20 @@ namespace Jellyfin.Profiles.Controllers
             // The script URL normally carries a ?v={version} cache-buster, but when the plugin
             // cannot rewrite index.html (read-only web root) that query string stays pinned to
             // an older version. A long immutable cache would then serve stale client code
-            // indefinitely and new features would silently never appear.
+            // indefinitely.
             //
-            // Tagging the response with the plugin version and asking for revalidation means a
-            // stale URL still picks up new code on its own within max-age, while unchanged
-            // content costs only a 304.
+            // Tagging the response with the plugin version and asking for revalidation means
+            // a stale URL still picks up new code within max-age, while unchanged content
+            // costs only a 304.
             //
             // Turned off (the Status tab), it is the same script told to stay off, not the
             // inert one: the settings page's theme preview runs on window.BonfireThemePreview
-            // from this script, and the dashboard must keep working while Bonfire is off. While
-            // off, index.html carries no tag for it (WebInjection.SyncRegistration), so only the
-            // settings page asks for it, loading it itself. The
-            // tag carries the state, and every load asks (no-cache, not max-age=300), so a
-            // browser holding the other copy gets this one on its next page load in either
-            // direction instead of up to five minutes later.
+            // from this script, and the dashboard must keep working while Bonfire is off.
+            // While off, index.html carries no tag for it (WebInjection.SyncRegistration), so
+            // only the settings page asks for it, loading it itself. The tag carries the
+            // state, and every load asks (no-cache, not max-age=300), so a browser holding the
+            // other copy gets this one on its next page load in either direction, not up to
+            // five minutes later.
             var off = Plugin.IsOff;
             var etag = "\"" + GetPluginVersion() + (off ? "-off" : "") + "\"";
             Response.Headers["ETag"] = etag;
@@ -2801,16 +2760,15 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         // ── Translations ────────────────────────────────────────────────────────────
-        // English ships inline in profiles.js — it is the fallback every client already
-        // has, so it is never requested here. This endpoint only ever serves the other
-        // languages, each embedded as its own Web/i18n/{locale}.json resource, fetched
-        // by the client once Jellyfin's Display language for the signed-in user asks for
-        // one.
+        // English ships inline in profiles.js as the fallback every client already has,
+        // so it is never requested here. This endpoint serves the other languages, each
+        // embedded as its own Web/i18n/{locale}.json resource, fetched by the client when
+        // Jellyfin's Display language for the signed-in user asks for one.
         //
-        // Adding a language is one JSON file in Web/i18n and nothing else: the .csproj
-        // embeds that folder by wildcard, the set below is read back out of the assembly
-        // rather than written by hand, and GetProfilesJs tells the client what it found.
-        // See docs/developer-api.md, "Adding a translation".
+        // Adding a language is one JSON file in Web/i18n: the .csproj embeds that folder
+        // by wildcard, the set below is read back out of the assembly, and GetProfilesJs
+        // tells the client what it found. See docs/developer-api.md, "Adding a
+        // translation".
 
         /// <summary>
         /// Locale codes with a translation file embedded in the assembly, discovered from
@@ -2900,9 +2858,9 @@ namespace Jellyfin.Profiles.Controllers
         private static readonly Lazy<HashSet<string>> EmbeddedLocales = new(() =>
         {
             var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            // typeof(ProfilesController), not typeof(Plugin): same assembly, but naming
-            // Plugin forces its base type out of MediaBrowser.Common to load, which makes
-            // this unreachable from a test harness that has only the plugin DLL.
+            // typeof(ProfilesController), not typeof(Plugin): same assembly, but naming Plugin
+            // forces its base type out of MediaBrowser.Common to load, which makes this
+            // unreachable from a test harness that has only the plugin DLL.
             foreach (var name in typeof(ProfilesController).Assembly.GetManifestResourceNames())
             {
                 if (!name.StartsWith(I18nResourcePrefix, StringComparison.Ordinal)) continue;
@@ -2912,8 +2870,8 @@ namespace Jellyfin.Profiles.Controllers
                     I18nResourcePrefix.Length,
                     name.Length - I18nResourcePrefix.Length - ".json".Length);
 
-                // The name comes from the build, not from a request, but a malformed one
-                // would still be published to every client as a locale to go and fetch.
+                // The name comes from the build, not a request, but a malformed one would still
+                // be published to every client as a locale to fetch.
                 if (LocaleCodeRegex.IsMatch(code)) found.Add(code);
             }
             return found;
@@ -2943,10 +2901,10 @@ namespace Jellyfin.Profiles.Controllers
         internal static string? ReadLocaleJson(string code, ILogger? logger = null)
         {
             // The set ignores case and the resource lookup does not. "pt-br" passed the
-            // endpoint's membership check, then asked the assembly for a resource named
-            // pt-br.json when the file is pt-BR.json, got null, and was answered 503 — "ask
-            // again" — forever. Resolved to the embedded spelling first, which also keys the
-            // cache by the file rather than by however the caller happened to type it.
+            // membership check, then asked the assembly for pt-br.json when the file is
+            // pt-BR.json, got null, and was answered 503 ("ask again") forever. Resolved to
+            // the embedded spelling first, which also keys the cache by the file, not by how
+            // the caller typed it.
             if (!EmbeddedLocales.Value.TryGetValue(code, out var canonical)) return null;
             code = canonical;
 
@@ -3019,7 +2977,7 @@ namespace Jellyfin.Profiles.Controllers
             foreach (var pair in all)
             {
                 if (pair.Key.StartsWith(AdminKeyPrefix, StringComparison.Ordinal) != admin) continue;
-                // The mail's words, and the messages sent to apps, are read by the server
+                // The mail's words and the messages sent to apps are read by the server
                 // (Mail.EmailText), never by a page.
                 if (Mail.EmailText.IsServerText(pair.Key)) continue;
                 part[pair.Key] = pair.Value?.DeepClone();
@@ -3027,9 +2985,9 @@ namespace Jellyfin.Profiles.Controllers
 
             // Letters are written as letters. The default encoder turns every non-ASCII
             // character into \uXXXX, which would roughly double a Polish or Turkish file.
-            // Not the "unsafe relaxed" encoder, though: this one still escapes HTML-
-            // sensitive characters and U+2028/U+2029, so the output stays safe in any
-            // context it might one day be put in (see tests/js/bundle.js).
+            // Not the "unsafe relaxed" encoder: this one still escapes HTML-sensitive
+            // characters and U+2028/U+2029, so the output stays safe wherever it is put
+            // (see tests/js/bundle.js).
             var text = part.ToJsonString(new System.Text.Json.JsonSerializerOptions
             {
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(
@@ -3043,14 +3001,14 @@ namespace Jellyfin.Profiles.Controllers
         [Produces("application/json")]
         public ActionResult GetI18n(string locale, [FromQuery] string? part = null)
         {
-            // profiles.js requests "fr.json"; strip the extension so the lookup key
-            // matches SupportedI18nLocales and the embedded resource name either way.
+            // profiles.js requests "fr.json"; strip the extension so the key matches
+            // SupportedI18nLocales and the embedded resource name either way.
             var code = locale.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
                 ? locale[..^5]
                 : locale;
 
             // Checked before the cache is touched, so an unknown code cannot grow the
-            // dictionary — the key would otherwise be whatever the caller sent.
+            // dictionary: the key would be whatever the caller sent.
             if (!EmbeddedLocales.Value.TryGetValue(code, out var canonical)) return NotFound();
             code = canonical;
 
@@ -3062,16 +3020,16 @@ namespace Jellyfin.Profiles.Controllers
             if (json == null)
             {
                 // The code is in EmbeddedLocales, so the file is in the assembly and this is a
-                // read that failed rather than a language nobody added. 503 says "ask again";
-                // 404 would tell the client to stop asking.
+                // failed read, not a language nobody added. 503 says "ask again"; 404 would tell
+                // the client to stop.
                 _logger.LogWarning(
                     "ProfilesPlugin: The {Locale} translation is embedded but could not be read; "
                     + "the client will fall back to English and retry.", code);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable);
             }
 
-            // Same cache contract as profiles.js: the plugin version is the cache-buster,
-            // so a stale copy still picks up an updated translation within max-age.
+            // Same cache contract as profiles.js: the plugin version is the cache-buster, so
+            // a stale copy still picks up an updated translation within max-age.
             var etag = "\"" + GetPluginVersion() + "-" + code + (admin ? "-admin" : "") + "\"";
             Response.Headers["ETag"] = etag;
             Response.Headers["Cache-Control"] = "public, max-age=300, must-revalidate";
@@ -3098,8 +3056,8 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterUserId = currentUserIdVal.Value;
 
-            // Read under the lock, like every other walk of the lists (R-1152), and a group
-            // saved with no member list is an empty one, not a crash (R-1153).
+            // Read under the lock, like every other walk of the lists (R-1152); a group saved
+            // with no member list is an empty one, not a crash (R-1153).
             lock (ConfigLock)
             {
             var currentMapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == masterUserId);
@@ -3170,9 +3128,9 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 else
                 {
-                    // Already has a Bonfire: this changes its code. Members stay in and the old
-                    // code stops working, for a code that has been shared further than intended.
-                    // Until 2.0 this was a route of its own.
+                    // Already has a Bonfire: this changes its code. Members stay in and the old code
+                    // stops working, for a code shared further than intended. Until 2.0 this was a
+                    // route of its own.
                     if (string.IsNullOrEmpty(group.GroupId))
                         group.GroupId = Guid.NewGuid().ToString("N").Substring(0, 8);
                     group.BonfireCode = GenerateSecureCode();
@@ -3214,7 +3172,7 @@ namespace Jellyfin.Profiles.Controllers
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
             var accountKey = "account:" + masterId.ToString("N");
             // The account first. A household that has used up its own guesses is refused
-            // before it is charged to the address, so it cannot go on spending the budget
+            // before it is charged to the address, so it cannot keep spending the budget
             // every other household behind the same router shares (R-1161).
             if (!RateLimiter.Bonfire.TryBegin(accountKey))
                 return TooManyAttempts(RateLimiter.Bonfire, accountKey, "Too many failed attempts.");
@@ -3253,9 +3211,9 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // The count is never cleared by a join. It was, and a household can always join a
-            // Bonfire whose code it knows - leave it and join again - so two guesses at other
-            // households' codes, a rejoin, two more, without end (R-1303). Three a quarter
-            // hour costs someone who mistyped nothing they will notice.
+            // Bonfire whose code it knows (leave and join again), so it could make two guesses
+            // at other households' codes, rejoin, and make two more, without end (R-1303).
+            // Three a quarter hour costs someone who mistyped nothing they will notice.
 
             return Ok(new
             {
@@ -3294,9 +3252,9 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     group.MemberUserIds.Remove(request.MemberId);
 
-                    // The code the kicked member joined with still worked, so a kick lasted
-                    // exactly as long as it took them to type it again. Everyone who stays
-                    // is already a member and does not need it.
+                    // The code the kicked member joined with still worked, so a kick lasted as long
+                    // as it took them to type it again. Everyone who stays is already a member and
+                    // does not need it.
                     group.BonfireCode = GenerateSecureCode();
                     Plugin.Instance?.SaveConfiguration();
                     newCode = group.BonfireCode;
@@ -3326,9 +3284,9 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid masterId = currentUserIdVal.Value;
 
-            // Only the main account is ever in a group, so a profile asking is refused the same
-            // way the other group routes refuse it, rather than asked for a PIN or told it is
-            // in none (R-1162).
+            // Only the main account is ever in a group, so a profile asking is refused the
+            // same way the other group routes refuse it, not asked for a PIN or told it is in
+            // none (R-1162).
             if (IsSubProfile(masterId, config)) return Unauthorized("Only the master profile can manage Bonfire groups.");
 
             if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
@@ -3438,8 +3396,8 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     masterMapping.AllowHouseholdLanBypass = request.AllowHouseholdLanBypass.Value;
 
-                    // Logged at Information because this is the one Bonfire setting that widens
-                    // access to the account rather than narrowing what others can see.
+                    // Logged at Information: this is the one Bonfire setting that widens access to
+                    // the account rather than narrowing what others can see.
                     _logger.LogInformation(
                         "ProfilesPlugin: Household LAN bypass {State} for account {Account} by its owner.",
                         masterMapping.AllowHouseholdLanBypass ? "enabled" : "disabled",
@@ -3455,9 +3413,9 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         // ── Per-account preferences ────────────────────────────────────────────────
-        // Settings that are a matter of taste rather than policy, chosen by the account
-        // holder and not by the server administrator. Stored on the master's own mapping so
-        // they follow the user to every device they sign in on.
+        // Settings of taste, not policy, chosen by the account holder and not the server
+        // administrator. Stored on the master's own mapping so they follow the user to
+        // every device.
 
         [HttpGet("preferences")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -3471,8 +3429,8 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid currentUserId = currentUserIdVal.Value;
 
-            // A sub-profile reads its master's preference: the switcher behaves the same way
-            // everywhere in the household rather than changing as you move between profiles.
+            // A sub-profile reads its master's preference, so the switcher behaves the same
+            // everywhere in the household.
             var currentMapping = FindMapping(currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
@@ -3484,20 +3442,20 @@ namespace Jellyfin.Profiles.Controllers
                 AskOnStartup = askOnStartup,
                 SwitcherLocation = location,
                 // The client caches these in localStorage to decide whether to raise the gate
-                // before this call returns. Echoing the account they belong to lets it throw
-                // the cache away when a different user signs in on the same browser.
+                // before this call returns. Echoing the account they belong to lets it discard
+                // the cache when a different user signs in on the same browser.
                 MasterUserId = masterUserId,
-                // Whether the switcher should offer the emergency disable link at all. Told
-                // to signed-in users only, and it says nothing about what the code is.
+                // Whether the switcher should offer the emergency disable link. Told to
+                // signed-in users only, and it does not reveal the code.
                 EmergencyCodeConfigured = !string.IsNullOrEmpty(config.PanicCodeHash),
-                // Read from the signed-in account's OWN row, not the master's: unlike the
+                // Read from the signed-in account's own row, not the master's: unlike the
                 // switcher settings above, a theme belongs to one profile.
                 Theme = Themes.Resolve(currentMapping, config),
                 DefaultTheme = Themes.Normalize(config.DefaultTheme, config),
                 AllowProfileThemes = config.AllowProfileThemes,
                 RichThemeMotion = config.RichThemeMotion,
                 // Read on every page load already, so the web client learns here whether to
-                // fetch /onboarding at all rather than asking on every load.
+                // fetch /onboarding at all.
                 OnboardingPending = OnboardingPendingFor(currentUserId, config)
             });
         }
@@ -3612,9 +3570,9 @@ namespace Jellyfin.Profiles.Controllers
                 if (config == null) return BadRequest("Plugin configuration missing.");
                 config.Onboarding ??= new OnboardingSettings();
                 config.Onboarding.Generation++;
-                // Whoever is in the list now was counted as having seen the old setup; they
-                // will see this one. The list itself can go: a record is only ever compared
-                // against the current generation, and none can reach it yet.
+                // Whoever is in the list now was counted as having seen the old setup; they will
+                // see this one. The list itself can go: a record is only compared against the
+                // current generation, and none can reach it yet.
                 config.Onboarding.Seen = new List<OnboardingRecord>();
                 generation = config.Onboarding.Generation;
                 Plugin.Instance?.SaveConfiguration();
@@ -3636,7 +3594,7 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid currentUserId = currentUserIdVal.Value;
 
-            // Unlike reads, only the account holder may write — a sub-profile changing this
+            // Unlike reads, only the account holder may write: a sub-profile changing this
             // would silently rewrite the whole household's experience.
             var currentMapping = FindMapping(currentUserId);
             if (currentMapping != null && currentMapping.MasterUserId != currentUserId)
@@ -3859,9 +3817,9 @@ namespace Jellyfin.Profiles.Controllers
             {
                 Folder = full,
                 Truncated = truncated,
-                // Length is read defensively: the folder is on a live filesystem and a
-                // file removed between the listing and here would otherwise throw out of
-                // the handler as a 500, past the error messages above.
+                // Length is read defensively: the folder is on a live filesystem, and a file
+                // removed between the listing and here would throw out of the handler as a 500,
+                // past the error messages above.
                 Files = files.Select(f => new
                 {
                     Name = Path.GetFileName(f),
@@ -3885,8 +3843,8 @@ namespace Jellyfin.Profiles.Controllers
 
             if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(name)) return BadRequest("Missing file.");
 
-            // A name, not a path. Rejecting separators outright is clearer than normalising
-            // them away, and the containment check below is the belt to this pair of braces.
+            // A name, not a path. Rejecting separators outright is clearer than normalizing
+            // them away; the containment check below backs it up.
             if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains("..", StringComparison.Ordinal))
             {
                 return BadRequest("Invalid file name.");
@@ -3923,10 +3881,10 @@ namespace Jellyfin.Profiles.Controllers
         // ── Library tile artwork (GitHub issue #19) ────────────────────────────────
         //
         // Jellyfin builds one image per library and caches it on the folder, from a query
-        // that has no user attached — so a profile restricted to children's films still gets
-        // a tile drawn from whatever else lives in that library. There is no per-user image
-        // for the server to hand out, so the client substitutes; these endpoints are the
-        // storage and the source of truth behind that.
+        // with no user attached, so a profile restricted to children's films still gets a
+        // tile drawn from whatever else is in that library. The server has no per-user
+        // image to hand out, so the client substitutes; these endpoints are the storage
+        // and source of truth behind that.
 
         /// <summary>
         /// A profile's artwork choices: the caller's own, or with <c>profileId</c> one profile's
@@ -3978,8 +3936,8 @@ namespace Jellyfin.Profiles.Controllers
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
-            // The library has to be one Jellyfin actually knows about. Without this the id is
-            // just a string that ends up in a filename.
+            // The library has to be one Jellyfin knows about; otherwise the id is just a
+            // string that ends up in a filename.
             bool known = _libraryManager.GetVirtualFolders()
                 .Any(f => Guid.TryParse(f.ItemId, out var id) && id == libraryId);
             if (!known) return BadRequest("That library no longer exists.");
@@ -4014,8 +3972,8 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 else if (!string.IsNullOrEmpty(request.Image))
                 {
-                    // Same rule as profile pictures: when the administrator has curated a set,
-                    // an arbitrary upload is not an option here either.
+                    // Same rule as profile pictures: when the administrator has curated a set, an
+                    // arbitrary upload is not an option here either.
                     if (AreCustomAvatarsBlocked())
                     {
                         return BadRequest("Only pictures from the avatar library can be used.");
@@ -4043,13 +4001,12 @@ namespace Jellyfin.Profiles.Controllers
                 var mapping = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
                 if (mapping == null)
                 {
-                    // A master account has no mapping row until one of its settings is
-                    // changed for the first time. Refusing here meant a master could never
-                    // set artwork for its own libraries, and every attempt left the image
-                    // files behind. Sub-profiles always have a row, so this only ever
-                    // creates the master one. A sub-profile with none was deleted since the
-                    // ownership check above: it gets no row made for it, and the files
-                    // written for it are taken back.
+                    // A master account has no mapping row until one of its settings is first changed.
+                    // Refusing here meant a master could never set artwork for its own libraries, and
+                    // every attempt left the image files behind. Sub-profiles always have a row, so
+                    // this only creates the master one. A sub-profile with none was deleted since
+                    // the ownership check above: it gets no row, and the files written for it are
+                    // taken back.
                     if (profileId != masterUserId)
                     {
                         DeleteImageFiles(LibraryArtFolder, baseName);
@@ -4099,9 +4056,9 @@ namespace Jellyfin.Profiles.Controllers
             var config = Plugin.Instance?.Configuration;
             if (config == null) return NotFound();
 
-            // Serve only what the configuration says is in use. The ids are parsed as GUIDs,
-            // so they cannot carry a path, but a file left behind by an old choice should not
-            // stay reachable either.
+            // Serve only what the configuration says is in use. The ids are parsed as GUIDs
+            // so they cannot carry a path, but a file left behind by an old choice should
+            // not stay reachable either.
             var mapping = FindMapping(profileId);
             var entry = mapping?.LibraryArtwork?.FirstOrDefault(a => a.LibraryId == libraryId);
             if (entry == null || LibraryArtworkModes.Normalize(entry.Mode) != LibraryArtworkModes.Custom)
@@ -4199,30 +4156,30 @@ namespace Jellyfin.Profiles.Controllers
             if (currentUserIdVal == null) return Unauthorized();
             Guid currentUserId = currentUserIdVal.Value;
 
-            // Resolve to the master account (a sub-profile calling this should see
-            // its master's devices, not its own — sub-profiles don't have sessions).
-            // The lists below are read from a copy; the live configuration is only touched
-            // under the lock further down, where this route writes.
+            // Resolve to the master account (a sub-profile calling this sees its master's
+            // devices, not its own: sub-profiles have no sessions). The lists below are read
+            // from a copy; the live configuration is only touched under the lock further
+            // down, where this route writes.
             var view = ReadConfigSnapshot() ?? config;
             var currentMapping = view.Mappings.FirstOrDefault(m => m.ProfileUserId == currentUserId);
             Guid masterUserId = currentMapping != null ? currentMapping.MasterUserId : currentUserId;
 
-            // The household's device ids are what a sibling's device whitelist and the known-device
-            // sign-in are matched against, so a profile gets them only when it could manage the
-            // household anyway: the main account always, a profile only if the main account is open
-            // or the PIN came with the request. Everyone else gets an empty list, not an error, so
-            // the picker still draws. R-1299.
+            // The household's device ids are what a sibling's device whitelist and the
+            // known-device sign-in are matched against, so a profile gets them only when it
+            // could manage the household anyway: the main account always, a profile only if
+            // the main account is open or the PIN came with the request. Everyone else gets
+            // an empty list, not an error, so the picker still draws (R-1299).
             if (masterUserId != currentUserId
                 && !ManagementAllowed(masterUserId, config, null, out _))
             {
                 return Ok(new List<KnownDevice>());
             }
 
-            // Every device already whitelisted on one of this account's profiles MUST appear in
-            // the picker, whether or not it is currently switched on. The edit form rebuilds
-            // AllowedDeviceIds from the checkboxes it rendered, so any whitelisted device that
-            // is missing from this response gets silently dropped on the next save — and a
-            // whitelist that empties out stops restricting anything at all.
+            // Every device already whitelisted on one of this account's profiles must appear
+            // in the picker, switched on or not. The edit form rebuilds AllowedDeviceIds from
+            // the checkboxes it rendered, so a whitelisted device missing from this response
+            // is silently dropped on the next save, and a whitelist that empties out
+            // restricts nothing.
             var whitelistedDeviceIds = view.Mappings
                 .Where(m => m.MasterUserId == masterUserId && m.AllowedDeviceIds != null)
                 .SelectMany(m => m.AllowedDeviceIds!)
@@ -4230,10 +4187,10 @@ namespace Jellyfin.Profiles.Controllers
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             // Claim ownership of records written before MasterUserId existed, using this
-            // household's live sessions. KnownDevices is a single server-wide list, so
-            // unowned records must be attributed here rather than shown to everyone —
-            // treating Guid.Empty as "visible to all" leaked every device on the server to
-            // every account, because on an existing install *every* record is Guid.Empty.
+            // household's live sessions. KnownDevices is one server-wide list, so unowned
+            // records must be attributed here, not shown to everyone: treating Guid.Empty as
+            // "visible to all" leaked every device on the server to every account, because
+            // on an existing install every record is Guid.Empty.
             var householdUserIds = new HashSet<Guid> { masterUserId };
             foreach (var m in view.Mappings.Where(m => m.MasterUserId == masterUserId))
             {
@@ -4249,14 +4206,13 @@ namespace Jellyfin.Profiles.Controllers
             lock (ConfigLock)
             {
                 var changed = false;
-                // Names recorded before 1.5.10 kept whatever encoding the client sent,
-                // because the header parser returned values verbatim — a phone shows as
-                // "Pixel+8". The parser is fixed, but a stored name only corrects itself
-                // the next time that device contacts the server, and a device on a
-                // whitelist may not do so for months. Repaired in place instead — once
-                // per run, for every row, since nothing writes an encoded name any more.
-                // It was a pattern match on two strings of every row on every look at
-                // this list (r2-13-04).
+                // Names recorded before 1.5.10 kept whatever encoding the client sent, because
+                // the header parser returned values verbatim: a phone shows as "Pixel+8". The
+                // parser is fixed, but a stored name only corrects itself the next time that
+                // device contacts the server, and a whitelisted device may not for months.
+                // Repaired in place instead, once per run for every row, since nothing writes an
+                // encoded name any more. It used to be a pattern match on two strings of every
+                // row on every look at this list (r2-13-04).
                 var repairNames = !_legacyNamesRepaired;
                 foreach (var d in config.KnownDevices)
                 {
@@ -4285,10 +4241,10 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 _legacyNamesRepaired = true;
 
-                // One device that got a new id, or one television signed in as several
-                // accounts, is one row: see DeviceRegistry.MergeSameDevices. Done here as well
-                // as on a sighting, so a household's existing records are tidied the first
-                // time anyone looks at them.
+                // One device that got a new id, or one television signed in as several accounts,
+                // is one row: see DeviceRegistry.MergeSameDevices. Done here as well as on a
+                // sighting, so a household's existing records are tidied the first time anyone
+                // looks at them.
                 if (Auth.DeviceRegistry.MergeSameDevices(config, masterUserId, DateTime.UtcNow) > 0) changed = true;
 
                 if (changed) Plugin.Instance?.SaveConfiguration();
@@ -4298,11 +4254,10 @@ namespace Jellyfin.Profiles.Controllers
             lock (ConfigLock)
             {
                 // Copied out under the lock before the names are touched: the scoping step
-                // synthesises records for whitelisted devices that are no longer in the list,
-                // and DisambiguateDeviceNames writes to what it is handed. Renaming the live
-                // configuration objects would persist a display decision as if it were the
-                // device's real name, and the next request would then disambiguate the
-                // already-disambiguated name.
+                // synthesizes records for whitelisted devices no longer in the list, and
+                // DisambiguateDeviceNames writes to what it is handed. Renaming the live
+                // configuration objects would persist a display decision as the device's real
+                // name, and the next request would disambiguate the already-disambiguated name.
                 devices = ScopeDevicesToHousehold(config.KnownDevices, masterUserId, whitelistedDeviceIds)
                     .Select(d => new KnownDevice
                     {
@@ -4343,26 +4298,25 @@ namespace Jellyfin.Profiles.Controllers
 
             lock (ConfigLock)
             {
-                // This household's claim and this household's lists, nothing more (R-1048).
-                // It matched on the id alone across the server-wide list: any main account
-                // could forget another household's television, strip it from that household's
-                // device lists, and read that household's profile names off the refusal.
-                // Rename and merge always checked ownership; this did not.
+                // This household's claim and lists, nothing more (R-1048). It used to match on
+                // the id alone across the server-wide list: any main account could forget another
+                // household's television, strip it from that household's lists, and read that
+                // household's profile names off the refusal. Rename and merge always checked
+                // ownership; this did not.
                 var household = config.Mappings.Where(m => m.MasterUserId == masterId).ToList();
                 bool Matches(string? id) => string.Equals(id?.Trim(), request.DeviceId.Trim(), StringComparison.OrdinalIgnoreCase);
                 var records = config.KnownDevices.Where(d => Matches(d.DeviceId)).ToList();
                 var owned = records.Where(d => d.OwnedBy(masterId)).ToList();
-                // A device on one of its lists with no record left is still the household's
-                // to take off them: the device list shows it as "Previously allowed device".
+                // A device on one of its lists with no record left is still the household's to
+                // take off them: the device list shows it as "Previously allowed device".
                 var listed = household.Any(m => m.AllowedDeviceIds?.Any(Matches) == true);
                 if (owned.Count == 0 && !listed) return BadRequest("Unknown device.");
 
-                // Forgetting a device also drops it from every list that named it, and an
-                // empty list means "any device". So forgetting the only device a profile
-                // was restricted to would silently make that profile available everywhere —
-                // the exact widening RemoveStaleDevices is written to avoid, arrived at by a
-                // different route. Refuse and say which profiles are in the way; the
-                // household can loosen or re-point them deliberately.
+                // Forgetting a device also drops it from every list that named it, and an empty
+                // list means "any device". Forgetting the only device a profile was restricted to
+                // would silently make that profile available everywhere: the widening
+                // RemoveStaleDevices exists to avoid, by a different route. Refuse and say which
+                // profiles are in the way; the household can loosen or re-point them deliberately.
                 var wouldUnrestrict = HouseholdProfilesLeftUnrestrictedBy(config, new[] { request.DeviceId }, masterId);
                 if (wouldUnrestrict.Count > 0)
                 {
