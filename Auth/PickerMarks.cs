@@ -17,24 +17,23 @@ namespace Jellyfin.Profiles.Auth
     /// <summary>
     /// Which TVs were in a child's profile, kept on disk so a restart cannot forget it.
     ///
-    /// <para><b>What went wrong.</b> The picker keeps its sessions, and the set of tokens it
-    /// must never serve as the main account, in memory. A restart empties both. A TV that was
-    /// in a child's profile then sends its next request on the main account's token, which is
-    /// what the app holds; with the app no longer ticked, the profiles deleted, or the emergency
-    /// code in use, nothing of ours is looking at it, and Jellyfin answers it as the main
-    /// account: the child is on the unrestricted account.</para>
+    /// <para><b>What went wrong.</b> The picker keeps its sessions, and the set of tokens it must
+    /// never serve as the main account, in memory, and a restart empties both. A TV that was in a
+    /// child's profile then sends its next request on the main account's token, which is what the
+    /// app holds. If the app is no longer ticked, the profiles are deleted, or the emergency code
+    /// is in use, nothing of ours is looking, and Jellyfin answers it as the main account: the
+    /// child is on the unrestricted account.</para>
     ///
-    /// <para><b>What is kept</b> is one row per TV in a child's profile, written when the
-    /// profile is opened and removed when the TV is back on the picker or signed out: the
-    /// main account's token (as a hash, since it is only ever compared), who it belongs to, and
-    /// the profile's own session token, which is what has to be signed out and is no more
-    /// secret than the row Jellyfin keeps for it. After a restart a request on a marked token
-    /// is signed out like any other child's TV, or, when the picker is on, is let back to the
-    /// picker with the profile's session ended.</para>
+    /// <para><b>What is kept</b> is one row per TV in a child's profile, written when the profile
+    /// is opened and removed when the TV is back on the picker or signed out: the main account's
+    /// token (hashed, since it is only compared), its owner, and the profile's own session token,
+    /// which has to be signed out and is no more secret than Jellyfin's own row for it. After a
+    /// restart a request on a marked token is signed out like any child's TV, or, when the picker
+    /// is on, sent back to the picker with the profile's session ended.</para>
     ///
-    /// <para><b>At start-up</b> <see cref="SweepAsync"/> ends the profile sessions the picker
-    /// made before the restart (Jellyfin tokens do not expire, so they would otherwise stay
-    /// valid for good), and drops a row whose main token no longer exists.</para>
+    /// <para><b>At start-up</b> <see cref="SweepAsync"/> ends the profile sessions the picker made
+    /// before the restart (Jellyfin tokens do not expire, so they would stay valid for good) and
+    /// drops a row whose main token no longer exists.</para>
     /// </summary>
     internal static class PickerMarks
     {
@@ -59,8 +58,8 @@ namespace Jellyfin.Profiles.Auth
             => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
         /// <summary>
-        /// True when any TV is marked. One flag read once the file has been read, which is the
-        /// whole cost on a request while nobody is: callers ask this before anything else.
+        /// True when any TV is marked. One flag read once the file has been read, the whole cost on
+        /// a request while nobody is: callers ask this first.
         /// </summary>
         internal static bool Any
         {
@@ -130,10 +129,10 @@ namespace Jellyfin.Profiles.Auth
             lock (PickerFileLock)
             {
                 if (_loaded) return;
-                // "Loaded" is said last, once the rows are in. It used to be said first, and
-                // Any reads it without the lock, so a request racing the first read saw no
-                // marks and served a child's TV on the main token as the main account. Now
-                // that request finds the flag down and queues on the lock behind the read.
+                // "Loaded" is set last, once the rows are in. It was set first, and Any reads it
+                // without the lock, so a request racing the first read saw no marks and served a
+                // child's TV on the main token as the main account. Now that request finds the
+                // flag down and queues on the lock behind the read.
                 try
                 {
                     var path = FilePath();
@@ -147,7 +146,7 @@ namespace Jellyfin.Profiles.Auth
                     catch (Exception ex) when (ex is IOException || ex is JsonException || ex is UnauthorizedAccessException)
                     {
                         // Unreadable: the TVs it named are served as the picker would serve them
-                        // once they next ask, and nothing worse than before this existed.
+                        // on their next request, no worse than before this existed.
                         Log?.LogWarning(ex, "ProfilesPlugin: {File} could not be read; which TVs were in a child's profile is forgotten.", path);
                     }
                 }
@@ -182,10 +181,10 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// At start-up: ends the profile sessions the picker made before the restart, and drops
-        /// a row whose main token Jellyfin no longer has (the TV signed out in the meantime).
-        /// A row is kept after its profile session is ended: the TV's main token still has to be
-        /// recognised the next time it asks. Best effort; never throws.
+        /// At start-up: ends the profile sessions the picker made before the restart, and drops a
+        /// row whose main token Jellyfin no longer has (the TV signed out meanwhile). A row stays
+        /// after its profile session ends, since the TV's main token must still be recognized.
+        /// Best effort; never throws.
         /// </summary>
         internal static async Task SweepAsync(ISessionManager? sessions, IDeviceManager? devices, ILogger logger)
         {
