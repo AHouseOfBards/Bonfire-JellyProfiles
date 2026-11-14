@@ -34,7 +34,8 @@ const tabs = (html.match(/data-tab="(\w+)"/g) || []).map(x => x.slice(10, -1));
 console.log('\n── The strip ───────────────────────────────────────────────────');
 ok('Experience is gone and Look and Setup are in its place',
    tabs.indexOf('experience') === -1 && tabs.indexOf('look') !== -1 && tabs.indexOf('setup') !== -1, tabs.join(','));
-ok('Look comes before Setup, Setup before Clients', tabs.indexOf('look') < tabs.indexOf('setup') && tabs.indexOf('setup') < tabs.indexOf('clients'));
+// Setup sits right after Status: it is the first place a new install needs (2026-11-13).
+ok('Setup comes right after Status, Look before Clients', tabs.indexOf('setup') === tabs.indexOf('status') + 1 && tabs.indexOf('look') < tabs.indexOf('clients'), tabs.join(','));
 ok('every tab has a panel and every panel a tab',
    tabs.length === Object.keys(panels).length && tabs.every(n => panels[n]), tabs.join(',') + ' / ' + Object.keys(panels).join(','));
 
