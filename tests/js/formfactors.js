@@ -1,10 +1,10 @@
 /*
  * Form factors, measured in a real browser: the shapes the review's phone and television
- * screenshots found wrong (P2-508 to P2-515, and the 8.6px text). Every other harness here
- * reads the stylesheet; these are questions about what the cascade and the font size settle
- * on, and the only honest way to ask them is to lay the screen out and measure it.
+ * screenshots found wrong (P2-508 to P2-515, and the 8.6px text). Other harnesses here read
+ * the stylesheet; these ask what the cascade and the font size settle on, which only laying
+ * the screen out and measuring can answer.
  *
- * It reuses tests/screens (the fixture and the Chrome driver), so like shortscreens.js it
+ * Reuses tests/screens (the fixture and the Chrome driver), so like shortscreens.js it
  * needs Chrome and the Material Icons font, and says it was skipped, exiting 0, without them.
  *
  *     node tests/js/formfactors.js [/path/to/old/profiles.js]
@@ -148,14 +148,13 @@ async function main() {
             ok(size + ': Settings takes half the width (' + Math.round(s.form.w) + 'px of ' + s.vw + ')', s.form.w >= s.vw * 0.5);
         }
         // P2-510/511: on a phone the dialogs ran edge to edge and almost nothing was a
-        // 44px target (buttons and fields 41px, checkboxes 18px, colour dots 36px).
+        // 44px target (buttons and fields 41px, checkboxes 18px, color dots 36px).
         const ph = 'phone-360x640';
         console.log('\n── ' + ph + ' ──');
-        // P2-503: the pinned Save bar. With bottom: 0 it stopped at the form's padding edge
-        // and left a strip of form showing under it. The side edges are held too: the bar
-        // bleeds through the form's padding on purpose, and without that bleed it stops
-        // short of both sides. Each edge is named on its own, at each size; 2px allows
-        // the form's border.
+        // P2-503: the pinned Save bar. With bottom: 0 it stopped at the form's padding edge and
+        // left a strip of form showing under it. The side edges are held too: the bar bleeds
+        // through the form's padding on purpose, and without that it stops short of both sides.
+        // Each edge is named on its own, at each size; 2px allows the form's border.
         for (const size of [ph, 'tv-1280x720', 'tv-1920x1080']) {
             const e = await look('edit', size);
             const got = e.bar && e.form ? 'bar ' + Math.round(e.bar.l) + '..' + Math.round(e.bar.r) + ' bottom ' + Math.round(e.bar.b)
