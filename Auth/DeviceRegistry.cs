@@ -899,10 +899,19 @@ namespace Jellyfin.Profiles.Auth
             }
 
             // Outside the lock: it takes a snapshot and sends on its own task.
-            if (isNew && ownerId != Guid.Empty && judged != false && !looksLikeService)
+            if (isNew && ownerId != Guid.Empty && judged != false)
             {
                 var label = string.IsNullOrWhiteSpace(deviceName) ? (client ?? string.Empty) : deviceName!;
-                if (judged == true)
+                // A lookalike of a learned service is held, not dropped: the fingerprint comes from a
+                // judgement that only means "nothing reported in sixty seconds", and a second TV of the
+                // same model was never announced even once it played (r3-01-01). A real service never
+                // plays, so its notice still lapses.
+                if (looksLikeService)
+                {
+                    logger?.LogDebug("ProfilesPlugin: {Device} looks like a service seen before; its notice waits for a playback.", label);
+                    HoldNewDevice(ownerId, heldId ?? deviceId ?? string.Empty, label, logger);
+                }
+                else if (judged == true)
                 {
                     Mail.Notifications.NewDevice(ownerId, deviceId ?? string.Empty, label, logger);
                 }

@@ -494,18 +494,23 @@ notePlayer.Invoke(null, new object[] { "svc-jfago", true });
 Ok("but a playback start within its ten minutes sends the notice that was held", Sent() == before + 1 && Last().To == "other@example.com", (Sent() - before) + "");
 
 // A device judged not a player teaches Bonfire what a service looks like: its client and
-// name. A later new device with the same pair is never mailed, held or not.
+// name. A later new device with the same pair is held like any unjudged one, not dropped: the
+// judgement at sixty seconds only means "nothing reported yet", and a second TV of the same
+// model is exactly the device this notice is for. It used to be dropped for good, so that TV
+// was never announced even once it played (r3-01-01).
 void Seen(string id, string name, string client) =>
     registry.GetMethod("RecordAndSave").Invoke(null, new object[] { id, name, client, OTHER, null });
 before = Sent();
 Seen("svc-learn-1", "Request Bot", "bot-client");
 notePlayer.Invoke(null, new object[] { "svc-learn-1", false });
 Seen("svc-learn-2", "Request Bot", "bot-client");
+notePlayer.Invoke(null, new object[] { "svc-learn-2", false });
+Ok("a new device that looks like a learned service is not mailed while it does not play", Sent() == before, (Sent() - before) + "");
 notePlayer.Invoke(null, new object[] { "svc-learn-2", true });
-Ok("a new device that looks like a learned service is never mailed, even if it later plays", Sent() == before, (Sent() - before) + "");
+Ok("and is mailed once it plays", Sent() == before + 1 && Last().To == "other@example.com", (Sent() - before) + "");
 Seen("svc-learn-3", "Request Bot", "Other-Client");
 notePlayer.Invoke(null, new object[] { "svc-learn-3", true });
-Ok("the same name under another client is a different thing and is mailed", Sent() == before + 1, (Sent() - before) + "");
+Ok("the same name under another client is a different thing and is mailed", Sent() == before + 2, (Sent() - before) + "");
 
 // The list is kept with the configuration, and it cannot grow without end.
 var fpProp = cfgType.GetProperty("ServiceFingerprints");
@@ -530,6 +535,14 @@ for (var i = 0; i < 20; i++) Device("dev-flood-" + i, "Flood " + i, MAIN);
 Ok("a flood of made-up devices is capped per account (R-1056)", Sent() - beforeFlood <= 3, (Sent() - beforeFlood) + " mails");
 
 // A device name is set by the client. It is cut and stripped before it goes in a mail.
+// OTHER has used its fifteen-minute device budget above (the cap is checked on MAIN); this
+// check is about the name, so it starts from an empty budget.
+{
+    var budgetField = asm.GetType("Jellyfin.Profiles.Mail.Notifications", true)
+        .GetField("DeviceBudget", BindingFlags.Static | BindingFlags.NonPublic);
+    Ok("setup: the device budget can be emptied", budgetField != null);
+    (budgetField?.GetValue(null) as IDictionary)?.Clear();
+}
 before = Sent();
 Device("dev-evil", "Phone\r\n\r\nYour account is locked, sign in at http://evil.example/login to fix it " + new string('x', 300), OTHER);
 note = Last();
