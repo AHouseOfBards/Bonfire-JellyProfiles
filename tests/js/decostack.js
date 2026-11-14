@@ -62,7 +62,7 @@ const COMPARE = `(async function (A) {
       + ' "' + (e.value || e.textContent || '').trim().slice(0, 24) + '"';
     var control = e.tagName === 'INPUT' || e.tagName === 'BUTTON';
     var own = [].some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); });
-    var n = 0, bad = 0, x, y;
+    var n = 0, bad = 0, x, y, where = [];
     if (control) {
       // A rounded box's corner pixels outside its curve are the backdrop, not the control: they
       // differ with the ornaments on by definition, and no fill can change that. Skipped,
@@ -80,9 +80,12 @@ const COMPARE = `(async function (A) {
         // And the outermost device pixel on each side: the box sits on a fractional position,
         // so that row is part backdrop.
         if (x < bx0 + 1 || x + 1 > bx1 - 1 || y < by0 + 1 || y + 1 > by1 - 1) continue;
-        n++; if (diff(x, y) > 12) bad++;
+        n++; if (diff(x, y) > 12) { bad++; if (where.length < 6) where.push('(' + ((x - bx0) / k).toFixed(1) + ',' + ((y - by0) / k).toFixed(1) + ' of ' + (r.width).toFixed(1) + 'x' + (r.height).toFixed(1) + ' css, diff ' + diff(x, y) + ')'); }
       }
-      out.push({ label: label, kind: 'control', n: n, bad: bad });
+      // Where the changed pixels are, in CSS pixels from the box's top left: a Linux runner
+      // failed bloom's PIN box on 2 pixels this machine never shows, and the count alone
+      // could not say whether they sit on the corner curve or inside the box.
+      out.push({ label: label, kind: 'control', n: n, bad: bad, where: where.join(' ') });
     } else if (own) {
       var c = rgb(cs.color); if (!c) return;
       for (y = y0; y < y1; y++) for (x = x0; x < x1; x++) {
@@ -119,7 +122,7 @@ async function main() {
                 const list = await c.evaluate(COMPARE + '(' + JSON.stringify({ on: on, off: off }) + ')');
                 const bad = list.filter(e => e.bad > 0);
                 ok(where + ': something was measured (' + list.length + ' elements)', list.length > 0);
-                bad.forEach(e => ok(where + ': ' + e.kind + ' ' + e.label + ' has no ornament over it', false, e.bad + ' of ' + e.n + ' pixels changed'));
+                bad.forEach(e => ok(where + ': ' + e.kind + ' ' + e.label + ' has no ornament over it', false, e.bad + ' of ' + e.n + ' pixels changed' + (e.where ? ' at ' + e.where : '')));
                 if (!bad.length) ok(where + ': nothing is drawn over text or controls', true);
             }
         }
