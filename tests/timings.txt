@@ -3,287 +3,291 @@
 # file over this one. 'est' marks a guess made without a measurement (Chrome harness 25s,
 # runner 120s, other serial 8s, plain JS 2s, C# 6s): the first full timed run replaces them.
 # tests/shard.awk balances shards over these, so a wrong number only costs balance.
-cs/accountlinks 6 serial est
-cs/announcements 6 serial est
-cs/apifoundation 6 serial est
-cs/auditlog 6 serial est
-cs/callerid 6 serial est
-cs/clientpin 6 serial est
-cs/configbackup 6 serial est
-cs/configimport 6 serial est
-cs/configlock 6 serial est
-cs/copyrules 6 serial est
-cs/deviceid 6 serial est
-cs/devicerestrictions 6 serial est
-cs/devices 6 serial est
-cs/email 6 serial est
-cs/endsession 6 serial est
-cs/errorcodes 6 serial est
-cs/formoptions 6 serial est
-cs/goldenconfig 6 serial est
-cs/homeseen 6 serial est
-cs/household 6 serial est
-cs/i18n 6 serial est
-cs/images 6 serial est
-cs/injection 6 serial est
-cs/libraryownership 6 serial est
-cs/limits 6 serial est
-cs/limitspublish 6 serial est
-cs/mainpin 6 serial est
-cs/maintenance 6 serial est
-cs/masterupdate 6 serial est
-cs/matrix 6 serial est
-cs/onboarding 6 serial est
-cs/panicbudget 6 serial est
-cs/partialupdate 6 serial est
-cs/patterns 6 serial est
-cs/pinhash 6 serial est
-cs/pinprompts 6 serial est
-cs/pipeline 6 serial est
-cs/policysync 6 serial est
-cs/proxyswitcher 6 serial est
-cs/publicusers 6 serial est
-cs/r3eserver 6 serial est
-cs/ratings 6 serial est
-cs/requestbinding 6 serial est
-cs/routecoverage 6 serial est
-cs/savedsignins 6 serial est
-cs/selfedit 6 serial est
-cs/sessionhandover 6 serial est
-cs/sessionlimit 6 serial est
-cs/shutdown 6 serial est
-cs/standalone 6 serial est
-cs/starteravatars 6 serial est
-cs/startup 6 serial est
-cs/switchpolicy 6 serial est
-cs/themeeditor 6 serial est
-cs/themes 6 serial est
-cs/tileimages 6 serial est
-cs/trustedips 6 serial est
-cs/userpatterns 6 serial est
-cs/viewing 6 serial est
-js/a11y 2 parallel est
-js/accountemail 2 parallel est
-js/accountlinks 2 parallel est
-js/accountsettings 2 parallel est
-js/accountzone 25 serial est
-js/actionpins 2 parallel est
-js/adminclients 2 parallel est
-js/adminconfirm 8 serial est
-js/admindependents 2 parallel est
-js/adminemail 2 parallel est
-js/admingettingstarted 2 parallel est
-js/admini18n 2 parallel est
-js/adminlayout 25 serial est
-js/adminledes 2 parallel est
-js/adminlimit 2 parallel est
-js/adminload 2 parallel est
-js/adminlogo 2 parallel est
-js/adminmaintconfirm 2 parallel est
-js/adminmaintreopen 2 parallel est
-js/adminonoff 2 parallel est
-js/adminphase3 2 parallel est
-js/adminphone 2 parallel est
-js/adminpinprompts 2 parallel est
-js/adminpinrow 2 parallel est
-js/adminpolish 2 parallel est
-js/adminr2y34 2 parallel est
-js/adminr2y35 2 parallel est
-js/adminr2y38a 2 parallel est
-js/adminr2y38b 2 parallel est
-js/adminr2z 2 parallel est
-js/adminr3b 2 parallel est
-js/adminsave 2 parallel est
-js/adminstatus 2 parallel est
-js/adminsweep10 2 parallel est
-js/adminsweep28 8 serial est
-js/admintabs 2 parallel est
-js/adminthemepreview 2 parallel est
-js/adminthemes 2 parallel est
-js/adminwording 2 parallel est
-js/announcements 2 parallel est
-js/apidocs 2 parallel est
-js/artworkbackoff 2 parallel est
-js/artworkpick 2 parallel est
-js/attrescape 2 parallel est
-js/auditlayout 25 serial est
-js/authheader 2 parallel est
-js/avatarcolors 2 parallel est
-js/avatarsempty 25 serial est
-js/backkey 2 parallel est
-js/balancedrows 25 serial est
-js/baseurl 2 parallel est
-js/betafeed 2 parallel est
-js/bonfiremark 25 serial est
-js/bonfiretoggle 2 parallel est
-js/breakpoints 2 parallel est
-js/bubblesession 2 parallel est
-js/buildtargets 2 parallel est
-js/bundle 2 parallel est
-js/busy 2 parallel est
-js/buttoncase 25 serial est
-js/buttonedge 25 serial est
-js/cachedlist 2 parallel est
-js/cachedlistfields 2 parallel est
-js/checkdash 2 parallel est
-js/clearpin 2 parallel est
-js/clientnames 2 parallel est
-js/colortokens 2 parallel est
-js/controlfonts 2 parallel est
-js/copylint 2 parallel est
-js/copyrules 2 parallel est
-js/coverbusy 25 serial est
-js/coverframe 25 serial est
-js/cropdialog 2 parallel est
-js/crowdedgrid 25 serial est
-js/cssbaseline 2 parallel est
-js/cssscope 2 parallel est
-js/customthemes 2 parallel est
-js/dashboardxss 8 serial est
-js/dashfields 25 serial est
-js/dashlight 2 parallel est
-js/dashloader 2 parallel est
-js/dashwarm 2 parallel est
-js/decolayers 2 parallel est
-js/decostack 25 serial est
-js/dialogescape 2 parallel est
-js/dialogwidth 2 parallel est
-js/disclosure 2 parallel est
-js/dismisstv 2 parallel est
-js/docspelling 2 parallel est
-js/driftname 2 parallel est
-js/editform 25 serial est
-js/emptystates 2 parallel est
-js/errorwording 2 parallel est
-js/exitbuttons 2 parallel est
-js/explicitall 2 parallel est
-js/failtext 2 parallel est
-js/fallbackname 2 parallel est
-js/firstlimits 2 parallel est
-js/flatlook 2 parallel est
-js/focustrap 2 parallel est
-js/fonts 2 parallel est
-js/formfactors 25 serial est
-js/gatecover 2 parallel est
-js/gatefit 2 parallel est
-js/gateoverflow 25 serial est
-js/gatepin 2 parallel est
-js/glasssheet 25 serial est
-js/headerinject 2 parallel est
-js/headscript 2 parallel est
-js/hiddenhints 25 serial est
-js/hiddenretry 2 parallel est
-js/hideprofiles 2 parallel est
-js/homeroute 2 parallel est
-js/homeskip 2 parallel est
-js/householdscreens 2 parallel est
-js/i18ntest 8 serial est
-js/imagequality 2 parallel est
-js/inject.test 2 parallel est
-js/issues151 2 parallel est
-js/jellyfintheme 2 parallel est
-js/jsbaseline 2 parallel est
-js/keptaccountdelete 2 parallel est
-js/keycodefallback 2 parallel est
-js/languagelist 2 parallel est
-js/layoutchoice 2 parallel est
-js/libartest 2 parallel est
-js/lightsafe 2 parallel est
-js/listhang 2 parallel est
-js/listnoticeonce 2 parallel est
-js/lockout 2 parallel est
-js/lockoutmail 2 parallel est
-js/logobacking 25 serial est
-js/logobackphoto 2 parallel est
-js/logocorner 25 serial est
-js/mainpin 2 parallel est
-js/mainpinroutes 2 parallel est
-js/maintenance 2 parallel est
-js/manifest 2 parallel est
-js/mappingslock 2 parallel est
-js/mastertoken 2 parallel est
-js/mdlinks 2 parallel est
-js/menupaths 2 parallel est
-js/mergetest 2 parallel est
-js/messages 2 parallel est
-js/modecache 2 parallel est
-js/moonfinchrome 25 serial est
-js/moonfinthemes 2 parallel est
-js/navtest 2 parallel est
-js/offpalette 25 serial est
-js/onboarding 2 parallel est
-js/onoff 2 parallel est
-js/openapi 2 parallel est
-js/orphanrefresh 2 parallel est
-js/ownprofile 2 parallel est
-js/pagessite 2 parallel est
-js/panicprompt 2 parallel est
-js/panicshortcutgate 2 parallel est
-js/patternupload 2 parallel est
-js/pickerbar 25 serial est
-js/pickerlook 2 parallel est
-js/pinbox 25 serial est
-js/pinhint 2 parallel est
-js/pinmasks 2 parallel est
-js/pinprefix 2 parallel est
-js/pinscreens 25 serial est
-js/placeholders 25 serial est
-js/pollbackoff 2 parallel est
-js/profile404 2 parallel est
-js/profilebasics 2 parallel est
-js/profileform 2 parallel est
-js/profilelanguage 2 parallel est
-js/profilelifecycle 2 parallel est
-js/profilevisibility 2 parallel est
-js/publicusers 2 parallel est
-js/r3a 2 parallel est
-js/r3hclient 2 parallel est
-js/r3i 2 parallel est
-js/ratings 2 parallel est
-js/readmecredits 2 parallel est
-js/refusals 2 parallel est
-js/restrictions 2 parallel est
-js/routetick 2 parallel est
-js/runner 120 serial est
-js/runtimeroute 2 parallel est
-js/selectors.test 2 parallel est
-js/serverinfo 8 serial est
-js/session 2 parallel est
-js/setuplook 25 serial est
-js/sharedcopy 1 serial est
-js/shortscreens 25 serial est
-js/startupreach 2 parallel est
-js/statusline 25 serial est
-js/stickybar 2 parallel est
-js/storagefail 2 parallel est
-js/stringhelpers 2 parallel est
-js/sweep09 2 parallel est
-js/switchermode 2 parallel est
-js/switchreload 2 parallel est
-js/themebar 25 serial est
-js/themecolumns 25 serial est
-js/themeeditor 25 serial est
-js/themefade 25 serial est
-js/themefonts 2 parallel est
-js/themegrid 25 serial est
-js/themelayout 25 serial est
-js/themelists 25 serial est
-js/themephoto 25 serial est
-js/themes 2 parallel est
-js/themetest 2 parallel est
-js/themetokens 2 parallel est
-js/timerequests 2 parallel est
-js/tizenloader 2 parallel est
-js/tvfocusring 2 parallel est
-js/tvheaderavatar 25 serial est
-js/tvinput 2 parallel est
-js/tvmode 2 parallel est
-js/tvsweep-a 25 serial est
-js/tvsweep-b 25 serial est
-js/tvsweep-c 25 serial est
-js/tvtabstops 2 parallel est
-js/uitest 2 parallel est
-js/validateextract 2 parallel est
-js/viewing 2 parallel est
-js/welcomealign 25 serial est
-js/workflows 2 parallel est
+cs/accountlinks 6.5 serial
+cs/announcements 0.4 serial
+cs/apifoundation 2.1 serial
+cs/auditlog 6.7 serial
+cs/callerid 0.3 serial
+cs/clientpin 3.2 serial
+cs/configbackup 0.6 serial
+cs/configimport 0.9 serial
+cs/configlock 12.1 serial
+cs/copyrules 2.4 serial
+cs/deviceid 0.6 serial
+cs/devicerestrictions 0.2 serial
+cs/devices 0.3 serial
+cs/email 5.0 serial
+cs/endsession 1.9 serial
+cs/errorcodes 0.8 serial
+cs/formoptions 1.7 serial
+cs/goldenconfig 1.1 serial
+cs/homeseen 1.3 serial
+cs/household 0.7 serial
+cs/i18n 0.8 serial
+cs/images 1.0 serial
+cs/injection 0.6 serial
+cs/libraryownership 2.3 serial
+cs/limits 1.5 serial
+cs/limitspublish 0.6 serial
+cs/mainpin 3.2 serial
+cs/maintenance 0.8 serial
+cs/masterupdate 8.3 serial
+cs/matrix 0.7 serial
+cs/onboarding 1.1 serial
+cs/panicbudget 5.8 serial
+cs/partialupdate 1.9 serial
+cs/patterns 0.3 serial
+cs/pinhash 0.5 serial
+cs/pinprompts 0.6 serial
+cs/pipeline 1.0 serial
+cs/policysync 1.2 serial
+cs/proxyswitcher 5.8 serial
+cs/publicusers 105.8 serial
+cs/r3eserver 22.7 serial
+cs/ratings 0.3 serial
+cs/requestbinding 0.8 serial
+cs/routecoverage 7.4 serial
+cs/savedsignins 0.5 serial
+cs/selfedit 0.7 serial
+cs/sessionhandover 2.6 serial
+cs/sessionlimit 0.6 serial
+cs/shutdown 1.0 serial
+cs/standalone 0.5 serial
+cs/starteravatars 0.7 serial
+cs/startup 0.8 serial
+cs/switchpolicy 0.4 serial
+cs/themeeditor 1.1 serial
+cs/themes 0.7 serial
+cs/tileimages 1.3 serial
+cs/trustedips 1.0 serial
+cs/userpatterns 0.6 serial
+cs/viewing 3.6 serial
+js/a11y 1.2 parallel
+js/accountemail 0.2 parallel
+js/accountlinks 0.2 parallel
+js/accountsettings 0.2 parallel
+js/accountzone 6.9 serial
+js/actionpins 0.1 parallel
+js/adminclients 0.1 parallel
+js/adminconfirm 0.1 serial
+js/admindependents 0.1 parallel
+js/adminemail 0.1 parallel
+js/admingettingstarted 0.1 parallel
+js/admini18n 0.1 parallel
+js/adminlayout 7.9 serial
+js/adminledes 0.1 parallel
+js/adminlimit 0.1 parallel
+js/adminload 0.1 parallel
+js/adminlogo 0.1 parallel
+js/adminmaintconfirm 0.1 parallel
+js/adminmaintreopen 0.1 parallel
+js/adminonoff 0.1 parallel
+js/adminphase3 0.1 parallel
+js/adminphone 0.1 parallel
+js/adminpinprompts 0.1 parallel
+js/adminpinrow 0.1 parallel
+js/adminpolish 0.2 parallel
+js/adminr2y34 0.1 parallel
+js/adminr2y35 0.1 parallel
+js/adminr2y38a 0.1 parallel
+js/adminr2y38b 0.1 parallel
+js/adminr2z 0.2 parallel
+js/adminr3b 0.1 parallel
+js/adminsave 0.1 parallel
+js/adminstatus 0.1 parallel
+js/adminsweep10 0.5 parallel
+js/adminsweep28 0.2 serial
+js/admintabs 0.1 parallel
+js/adminthemepreview 0.1 parallel
+js/adminthemes 0.3 parallel
+js/adminwording 0.1 parallel
+js/announcements 0.2 parallel
+js/apidocs 0.2 parallel
+js/artworkbackoff 0.1 parallel
+js/artworkpick 0.2 parallel
+js/attrescape 0.1 parallel
+js/auditlayout 4.4 serial
+js/authheader 0.1 parallel
+js/avatarcolors 0.1 parallel
+js/avatarsempty 3.2 serial
+js/backkey 0.1 parallel
+js/balancedrows 97.4 serial
+js/baseurl 0.2 parallel
+js/betafeed 0.1 parallel
+js/bonfiremark 39.1 serial
+js/bonfiretoggle 0.2 parallel
+js/breakpoints 0.2 parallel
+js/bubblesession 0.2 parallel
+js/buildtargets 0.3 parallel
+js/bundle 0.2 parallel
+js/busy 0.2 parallel
+js/buttoncase 108.9 serial
+js/buttonedge 33.0 serial
+js/cachedlist 0.1 parallel
+js/cachedlistfields 0.1 parallel
+js/checkdash 0.1 parallel
+js/clearpin 0.2 parallel
+js/clientnames 0.1 parallel
+js/colortokens 0.2 parallel
+js/controlfonts 0.1 parallel
+js/copylint 0.8 parallel
+js/copyrules 0.8 parallel
+js/coverbusy 2.2 serial
+js/coverframe 2.2 serial
+js/cropdialog 0.1 parallel
+js/crowdedgrid 121.4 serial
+js/cssbaseline 0.3 parallel
+js/cssscope 0.1 parallel
+js/customthemes 0.3 parallel
+js/dashboardxss 0.2 serial
+js/dashfields 2.4 serial
+js/dashlight 0.1 parallel
+js/dashloader 0.1 parallel
+js/dashwarm 0.1 parallel
+js/decolayers 0.2 parallel
+js/decostack 28.5 serial
+js/dialogescape 0.1 parallel
+js/dialogwidth 0.1 parallel
+js/disclosure 0.4 parallel
+js/dismisstv 0.1 parallel
+js/docspelling 0.2 parallel
+js/driftname 0.2 parallel
+js/editform 42.0 serial
+js/emptystates 0.1 parallel
+js/errorwording 0.2 parallel
+js/exitbuttons 0.2 parallel
+js/explicitall 0.7 parallel
+js/failtext 0.1 parallel
+js/fallbackname 0.1 parallel
+js/firstlimits 0.9 parallel
+js/flatlook 0.3 parallel
+js/focustrap 0.2 parallel
+js/fonts 0.3 parallel
+js/formfactors 42.0 serial
+js/gatecover 0.5 parallel
+js/gatefit 0.2 parallel
+js/gateoverflow 65.5 serial
+js/gatepin 0.1 parallel
+js/glasssheet 8.6 serial
+js/headerinject 0.2 parallel
+js/headscript 0.1 parallel
+js/hiddenhints 3.8 serial
+js/hiddenretry 0.1 parallel
+js/hideprofiles 0.2 parallel
+js/homeroute 0.1 parallel
+js/homeskip 0.6 parallel
+js/householdscreens 0.6 parallel
+js/i18ntest 0.2 serial
+js/imagequality 0.1 parallel
+js/inject.test 0.2 parallel
+js/issues151 0.2 parallel
+js/jellyfintheme 0.1 parallel
+js/jsbaseline 0.8 parallel
+js/keptaccountdelete 0.6 parallel
+js/keycodefallback 0.1 parallel
+js/languagelist 0.1 parallel
+js/layoutchoice 0.1 parallel
+js/libartest 0.1 parallel
+js/lightsafe 0.1 parallel
+js/listhang 0.1 parallel
+js/listnoticeonce 0.1 parallel
+js/lockout 0.2 parallel
+js/lockoutmail 0.1 parallel
+js/logobacking 211.3 serial
+js/logobackphoto 0.1 parallel
+js/logocorner 715.8 serial
+js/mainpin 0.2 parallel
+js/mainpinroutes 0.3 parallel
+js/maintenance 0.2 parallel
+js/manifest 0.1 parallel
+js/mappingslock 0.2 parallel
+js/mastertoken 0.2 parallel
+js/mdlinks 0.2 parallel
+js/menupaths 0.1 parallel
+js/mergetest 0.2 parallel
+js/messages 0.1 parallel
+js/modecache 0.1 parallel
+js/moonfinchrome 9.4 serial
+js/moonfinthemes 0.1 parallel
+js/navtest 0.1 parallel
+js/offpalette 2.6 serial
+js/onboarding 0.2 parallel
+js/onoff 0.2 parallel
+js/openapi 0.2 parallel
+js/orphanrefresh 0.1 parallel
+js/ownprofile 0.2 parallel
+js/pagessite 0.2 parallel
+js/panicprompt 0.2 parallel
+js/panicshortcutgate 0.1 parallel
+js/patternupload 0.5 parallel
+js/pickerbar 235.2 serial
+js/pickerlook 0.2 parallel
+js/pinbox 109.4 serial
+js/pinhint 0.2 parallel
+js/pinmasks 0.1 parallel
+js/pinprefix 0.2 parallel
+js/pinscreens 17.3 serial
+js/placeholders 73.2 serial
+js/pollbackoff 0.2 parallel
+js/profile404 0.1 parallel
+js/profilebasics 0.5 parallel
+js/profileform 0.2 parallel
+js/profilelanguage 0.1 parallel
+js/profilelifecycle 0.1 parallel
+js/profilevisibility 0.1 parallel
+js/publicusers 0.1 parallel
+js/r3a 0.1 parallel
+js/r3hclient 0.2 parallel
+js/r3i 0.1 parallel
+js/ratings 0.2 parallel
+js/readmecredits 0.1 parallel
+js/refusals 0.2 parallel
+js/restrictions 0.2 parallel
+js/routetick 0.2 parallel
+js/runner 236.6 serial
+js/runtimeroute 0.1 parallel
+js/selectors.test 0.3 parallel
+js/serverinfo 0.1 serial
+js/session 0.2 parallel
+js/setupfocus 19.0 serial
+js/setuplook 295.7 serial
+js/shards 46.0 parallel
+js/sharedcopy 5.7 serial
+js/shortscreens 28.8 serial
+js/startupreach 0.2 parallel
+js/statusline 49.4 serial
+js/stickybar 0.1 parallel
+js/storagefail 0.1 parallel
+js/stringhelpers 0.1 parallel
+js/sweep09 0.2 parallel
+js/switchermode 0.1 parallel
+js/switchreload 0.2 parallel
+js/themebar 19.2 serial
+js/themecolumns 14.7 serial
+js/themeeditor 41.7 serial
+js/themefade 12.8 serial
+js/themefonts 0.1 parallel
+js/themegrid 4.5 serial
+js/themelayout 337.3 serial
+js/themelists 5.6 serial
+js/themephoto 233.5 serial
+js/themes 1.2 parallel
+js/themestep 188.4 serial
+js/themetest 0.2 parallel
+js/themetokens 0.1 parallel
+js/timerequests 0.2 parallel
+js/tizenloader 0.4 parallel
+js/tvfocusring 0.1 parallel
+js/tvheaderavatar 1.1 serial
+js/tvinput 2.6 parallel
+js/tvmode 0.4 parallel
+js/tvsweep-a 143.0 serial
+js/tvsweep-b 130.2 serial
+js/tvsweep-c 79.0 serial
+js/tvtabstops 0.1 parallel
+js/uitest 0.3 parallel
+js/validateextract 0.9 parallel
+js/viewing 1.0 parallel
+js/viewwide 365.2 serial
+js/welcomealign 11.8 serial
+js/workflows 0.1 parallel
