@@ -999,31 +999,31 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public List<string>? BlockedTags { get; set; }
         /// <summary>
-        /// When non-empty, this profile can only see items carrying at least one of these tags. Jellyfin
-        /// matches an item's inherited tags, so tagging a series or a whole library cascades to everything
-        /// inside it. Null or empty = no allow-list.
+        /// When non-empty, this profile can only see items carrying at least one of these tags.
+        /// Jellyfin matches an item's inherited tags, so tagging a series or a library cascades to
+        /// everything inside it. Null or empty means no allow-list.
         /// </summary>
         public List<string>? AllowedTags { get; set; }
         public bool BypassPinOnLocalNetwork { get; set; } = false;
 
         /// <summary>
-        /// Main accounts only, set by their owner. False opens the main account from its own household's
-        /// switcher without the PIN, on any network; the PIN then only guards managing the household
-        /// (profiles, sharing, switcher settings).
+        /// Main accounts only, set by their owner. False opens the main account from its own
+        /// household's switcher without the PIN, on any network; the PIN then only guards managing the
+        /// household (profiles, sharing, switcher settings).
         /// <para>
-        /// True by default, so upgrading changes nothing. It never reaches across a Bonfire link: another
-        /// household opening this account still needs the PIN, or the owner's
+        /// True by default, so upgrading changes nothing. It never reaches across a Bonfire link:
+        /// another household opening this account still needs the PIN, or the owner's
         /// <see cref="AllowHouseholdLanBypass"/>. Ignored on sub-profiles. A native app's sign-in is
-        /// unaffected too: there the main account still types its PIN or password, because a blank
+        /// unaffected: there the main account still types its PIN or password, because a blank
         /// password on a sign-in form would open it on any device.
         /// </para>
         /// </summary>
         public bool AskPinToOpen { get; set; } = true;
 
         /// <summary>
-        /// Set on a master account by its own owner: allows other members of a shared Bonfire to switch
-        /// into this account from the local network without its PIN, and, if no PIN is set at all, to
-        /// enter it from the local network at all.
+        /// Set on a master account by its own owner: allows other members of a shared Bonfire to
+        /// switch into this account from the local network without its PIN, and, if no PIN is set at
+        /// all, to enter it from the local network at all.
         /// <para>
         /// Default false, so upgrading never widens access. Consent has to come from the account being
         /// entered: <see cref="BypassPinOnLocalNetwork"/> is the owner's convenience for their own
@@ -1034,20 +1034,19 @@ namespace Jellyfin.Profiles.Configuration
         /// Behind a reverse proxy missing from Known Proxies, every request looks local; the UI warns
         /// about this.
         /// </para>
-        /// </para>
         /// </summary>
         public bool AllowHouseholdLanBypass { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
 
         /// <summary>
         /// The profile was saved with no library ticked, which the form promises means "every library
-        /// your account does". <see cref="EnabledFolders"/> still holds the list as it was at that save,
-        /// but it is not what is applied: the master's libraries are, as when the profile is opened, so a
-        /// library added later reaches it too.
+        /// your account does". <see cref="EnabledFolders"/> still holds the list as it was at that
+        /// save, but it is not what is applied: the master's libraries are, as when the profile is
+        /// opened, so a library added later reaches it too.
         /// <para>
-        /// Default false, so a profile saved before this existed keeps its fixed list. Nothing in an old
-        /// configuration can tell "ticked nothing" from "ticked everything", and guessing the first would
-        /// widen the second.
+        /// Default false, so a profile saved before this existed keeps its fixed list. An old
+        /// configuration cannot tell "ticked nothing" from "ticked everything", and guessing the first
+        /// would widen the second.
         /// </para>
         /// </summary>
         public bool AllLibraries { get; set; } = false;
@@ -1060,52 +1059,51 @@ namespace Jellyfin.Profiles.Configuration
         public ProfileLimits? OwnLimits { get; set; }
 
         /// <summary>
-        /// What Bonfire last wrote for those limits, so a later change on the account can be told from
-        /// Bonfire's own earlier write. See <see cref="Auth.InheritedLimits"/>.
+        /// What Bonfire last wrote for those limits, so a later change on the account can be told
+        /// from Bonfire's own earlier write. See <see cref="Auth.InheritedLimits"/>.
         /// </summary>
         public ProfileLimits? LastAppliedLimits { get; set; }
 
         /// <summary>
         /// The parental rating that belongs to the profile itself (saved in its editor or set on its
-        /// account in Dashboard -> Users), as opposed to the main account's rating Bonfire copied onto it
-        /// (R-1045). A null score is "none of its own": it follows the main account. Null until the profile
-        /// is first opened on this version; a configuration from before it loads with no record. See
-        /// <see cref="Auth.InheritedRating"/>.
+        /// account in Dashboard -> Users), as opposed to the main account's rating Bonfire copied onto
+        /// it (R-1045). A null score is "none of its own": it follows the main account. Null until the
+        /// profile is first opened on this version. See <see cref="Auth.InheritedRating"/>.
         /// </summary>
         public ProfileRating? OwnRating { get; set; }
 
         /// <summary>
-        /// The rating Bonfire last wrote to the profile's account, so a different rating on the account
-        /// can be told from Bonfire's own earlier write. Null on a configuration from before it existed.
-        /// See <see cref="Auth.InheritedRating"/>.
+        /// The rating Bonfire last wrote to the profile's account, so a different rating on the
+        /// account can be told from Bonfire's own earlier write. Null on a configuration from before
+        /// it existed. See <see cref="Auth.InheritedRating"/>.
         /// </summary>
         public ProfileRating? LastAppliedRating { get; set; }
 
         /// <summary>
-        /// The library list Bonfire last wrote to the profile's account, so a change made on the account
-        /// in Dashboard -> Users can be told from Bonfire's own write and from a reset (R-1042). Null on a
-        /// configuration from before this existed: the first sign-in then behaves as it always did and
-        /// records it. See <see cref="Auth.LibraryAccessReconciler.ReconcileWithLastApplied"/>.
+        /// The library list Bonfire last wrote to the profile's account, so a change made on the
+        /// account in Dashboard -> Users can be told from Bonfire's own write and from a reset (R-1042).
+        /// Null on a configuration from before this existed: the first sign-in then behaves as it
+        /// always did and records it. See <see cref="Auth.LibraryAccessReconciler.ReconcileWithLastApplied"/>.
         /// </summary>
         public List<Guid>? LastAppliedFolders { get; set; }
 
         /// <summary>
         /// The access schedule Bonfire last wrote to the profile's account, one entry per row as
         /// "day:start-end" (R-1345). Same job as <see cref="LastAppliedFolders"/>: an account that still
-        /// matches it has not been touched, one that differs was changed in Dashboard -> Users. Null on a
-        /// configuration from before this existed; the first sign-in then behaves as it always did (the
-        /// main account's schedule) and records it. XmlSerializer loads an absent element as an empty list,
-        /// so empty also means no record; "the main account had no schedule" is stored as
+        /// matches it has not been touched, one that differs was changed in Dashboard -> Users. Null on
+        /// a configuration from before this existed; the first sign-in then behaves as it always did
+        /// (the main account's schedule) and records it. XmlSerializer loads an absent element as an
+        /// empty list, so empty also means no record; "the main account had no schedule" is stored as
         /// ScheduleReconciler.NoneMarker.
         /// </summary>
         public List<string>? LastAppliedSchedules { get; set; }
 
         /// <summary>
         /// The schedule an administrator set on the profile's account, adopted at a sign-in (R-1345).
-        /// Kept here because Bonfire writes the account's schedule from the main account's at every
-        /// sign-in; without this copy the next sign-in would see its own write and fall back to the main
-        /// account's. Empty or null: the profile has none of its own and follows the main account. Never
-        /// wider than the main account's.
+        /// Bonfire writes the account's schedule from the main account's at every sign-in; without this
+        /// copy the next sign-in would see its own write and fall back to the main account's. Empty or
+        /// null: the profile has none of its own and follows the main account. Never wider than the
+        /// main account's.
         /// </summary>
         public List<string>? OwnSchedules { get; set; }
 
@@ -1130,37 +1128,37 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// When this profile may watch, and for how long (1.7.2). Null is no limits. Only ever set on a
+        /// When this profile may watch, and for how long (1.7.2). Null is no limits. Only set on a
         /// profile's row, never a main account's. See <see cref="ViewingRules"/>.
         /// </summary>
         public ViewingRules? Viewing { get; set; }
 
         /// <summary>
-        /// The household's IANA time zone, read from the main account's row only. Null or empty follows
-        /// <see cref="PluginConfiguration.DefaultTimeZone"/>. See <see cref="HouseholdTime"/>.
+        /// The household's IANA time zone, read from the main account's row only. Null or empty
+        /// follows <see cref="PluginConfiguration.DefaultTimeZone"/>. See <see cref="HouseholdTime"/>.
         /// </summary>
         public string? TimeZone { get; set; }
 
         public string? ProfileImage { get; set; }
         /// <summary>
-        /// Per-library tile artwork for this profile. Only libraries the profile has a choice for appear
-        /// here; anything absent inherits Jellyfin's own artwork. The picture itself lives on disk under
-        /// <c>libraryart/</c>, named from the profile and library ids, so no separate image identifier has
-        /// to be stored or kept in step.
+        /// Per-library tile artwork for this profile. Only libraries the profile has a choice for
+        /// appear here; anything absent inherits Jellyfin's own artwork. The picture lives on disk under
+        /// <c>libraryart/</c>, named from the profile and library ids, so no image identifier has to be
+        /// stored or kept in step.
         /// </summary>
         public List<LibraryArtwork> LibraryArtwork { get; set; } = new List<LibraryArtwork>();
         public bool HideMySubProfilesFromOthers { get; set; } = false;
         public bool HideOthersSubProfilesFromMe { get; set; } = false;
         /// <summary>
-        /// Reads the 1.3.1-beta combined switcher setting and nothing else. It is not a setting any more:
-        /// nothing writes it out, and what it was told becomes <see cref="AskOnStartup"/> and
+        /// Reads the 1.3.1-beta combined switcher setting and nothing else. It is not a setting any
+        /// more: nothing writes it out, and what it was told becomes <see cref="AskOnStartup"/> and
         /// <see cref="SwitcherLocation"/>.
         /// <para>
         /// Only <c>native</c> was ever a choice. The old field defaulted to <c>gate</c> on every row
-        /// whether or not anyone chose, so <c>gate</c> says nothing and is ignored. A <c>native</c> account
-        /// that never touched the two newer settings would otherwise have gone back to the administrator's
-        /// default the day the field was dropped. An explicit value of either newer setting always wins,
-        /// whichever the file lists first.
+        /// whether or not anyone chose, so <c>gate</c> says nothing and is ignored. A <c>native</c>
+        /// account that never touched the two newer settings would otherwise have gone back to the
+        /// administrator's default the day the field was dropped. An explicit value of either newer
+        /// setting always wins, whichever the file lists first.
         /// </para>
         /// </summary>
         [System.Xml.Serialization.XmlElement("SwitcherMode")]
@@ -1183,8 +1181,8 @@ namespace Jellyfin.Profiles.Configuration
         /// <para>
         /// Null means never explicitly set, and the server-wide
         /// <see cref="PluginConfiguration.DefaultAskOnStartup"/> applies. See
-        /// <see cref="SwitcherLocations.Resolve"/>. That is why this is nullable rather than defaulting to
-        /// true.
+        /// <see cref="SwitcherLocations.Resolve"/>. That is why this is nullable rather than defaulting
+        /// to true.
         /// </para>
         /// </summary>
         public bool? AskOnStartup { get; set; }
@@ -1193,17 +1191,17 @@ namespace Jellyfin.Profiles.Configuration
         /// Where the switcher is reached from once past the startup prompt; see
         /// <see cref="SwitcherLocations"/>. Null means never explicitly set.
         /// <para>
-        /// A per-account preference, a matter of taste that one household should not impose on everyone on
-        /// the server. The administrator sets only the starting point
-        /// (<see cref="PluginConfiguration.DefaultSwitcherLocation"/>), which an account overrides when it
-        /// chooses. Only read from the master account's mapping; sub-profiles inherit it.
+        /// A per-account preference, a matter of taste one household should not impose on everyone. The
+        /// administrator sets only the starting point
+        /// (<see cref="PluginConfiguration.DefaultSwitcherLocation"/>), which an account overrides when
+        /// it chooses. Only read from the master account's mapping; sub-profiles inherit it.
         /// </para>
         /// </summary>
         public string? SwitcherLocation { get; set; }
 
         /// <summary>
-        /// This profile's own theme, one of <see cref="Themes.All"/>. Null means it follows the server's
-        /// <see cref="PluginConfiguration.DefaultTheme"/>.
+        /// This profile's own theme, one of <see cref="Themes.All"/>. Null means it follows the
+        /// server's <see cref="PluginConfiguration.DefaultTheme"/>.
         /// <para>
         /// Per profile, unlike <see cref="SwitcherLocation"/>, and read from this row rather than the
         /// master's: a child's profile can look different from its parent's. Set by whoever manages the
