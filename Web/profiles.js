@@ -24,32 +24,28 @@
     function isKey(e, name) { return keyName(e) === (KEY_ALIASES[name] || name); }
     // END keyName
 
-    // A second evaluation in the same page (a tag left in index.html next to the injected
-    // one, a client that loads the script as well as the server) would start everything
-    // twice: the route poll, the listeners, the history wrap, the gate. The first copy
-    // is the one that runs; the second does nothing (R-1245). Before the flag below, so
-    // the head script still sees one load.
+    // A second evaluation in the same page (a tag left in index.html beside the injected one,
+    // or a client that loads the script as well as the server) would start everything twice:
+    // the route poll, listeners, history wrap and gate. The first copy runs; the second does
+    // nothing (R-1245). Before the flag below, so the head script still sees one load.
     try {
         if (window.__jpBooted) return;
         window.__jpBooted = 1;
     } catch (e) { /* no window: reading the file, not running it */ }
 
-    // Told to the inline head script, which is the only other piece of the plugin that
-    // runs on a page load. This tag is deferred, so it has finished evaluating before
-    // DOMContentLoaded — meaning the absence of this flag at that point is proof the
-    // script never loaded, and the head script can stop holding the page hidden for
-    // something that is not coming.
+    // Told to the inline head script, the only other piece of the plugin that runs on page
+    // load. This tag is deferred, so it has finished before DOMContentLoaded: if the flag is
+    // absent then, the script never loaded and the head script can stop holding the page hidden.
     try { window.__jpLoaded = 1; } catch (e) { /* no window: reading the file, not running it */ }
 
-    /// Makes a drawn dialog a dialog to a screen reader, and returns focus where it came
-    /// from when it closes. Called with the markup in place and before the dialog is
-    /// added to the page, because that is the last moment document.activeElement is still
-    /// what opened it: every dialog focuses one of its own controls once it is shown.
+    /// Makes a drawn dialog a dialog to a screen reader, and returns focus to where it came
+    /// from on close. Call with the markup in place and before the dialog is added to the
+    /// page, the last moment document.activeElement is still what opened it (every dialog then
+    /// focuses one of its own controls).
     ///
-    /// Closing is `dialog.remove()` at every site, so that is what is wrapped, rather
-    /// than eight close handlers each remembering to give focus back. Without it focus
-    /// fell to the page, and the next remote key landed on the first control of a form
-    /// taller than a television, losing the place in it.
+    /// Closing is `dialog.remove()` at every site, so that is what is wrapped, not eight close
+    /// handlers. Without it focus fell to the page and the next remote key landed on the first
+    /// control of a form taller than a TV, losing the place.
     function markDialog(dialog) {
         dialog.setAttribute('role', 'dialog');
         dialog.setAttribute('aria-modal', 'true');
@@ -62,8 +58,7 @@
         const remove = dialog.remove;
         dialog.remove = function () {
             remove.call(dialog);
-            // Not isConnected (Chromium 54): the opener may be gone, redrawn under the
-            // dialog while it was up.
+            // Not isConnected (Chromium 54): the opener may be gone, redrawn under the dialog.
             if (opener && opener !== document.body && document.body.contains(opener)
                 && typeof opener.focus === 'function') {
                 opener.focus();
@@ -71,9 +66,9 @@
         };
     }
 
-    // The device list's placeholder names arrive in English with a code beside them
-    // (nameCode / clientCode), so they can be said in the viewer's language. A name
-    // that was disambiguated keeps its " (hint)" tail after the English.
+    // The device list's placeholder names arrive in English with a code beside them (nameCode /
+    // clientCode) so they can be said in the viewer's language. A disambiguated name keeps its
+    // " (hint)" tail after the English.
     var DEVICE_CODE_EN = {
         unrecognised: ['profileForm.deviceUnrecognised', 'Unrecognised device'],
         previouslyAllowed: ['profileForm.devicePreviouslyAllowed', 'Previously allowed device'],
@@ -91,10 +86,10 @@
         return dev.client || dev.Client || t('profileForm.unknownClient');
     }
 
-    // Bonfire's mark: a flame with a cut-out center over two crossed logs. One color, taken
-    // from currentColor, so a theme recolors it the way it recolored the Material flame glyph
-    // this replaced; no ids, so any number of copies can share a page. It is sized in em
-    // (.jpf-mark), so the font-size rules written for the glyph still size it.
+    // Bonfire's mark: a flame with a cut-out center over two crossed logs. One color, from
+    // currentColor, so a theme recolors it as it did the Material flame glyph this replaced.
+    // No ids, so any number of copies can share a page. Sized in em (.jpf-mark), so the
+    // font-size rules written for the glyph still size it.
     function bonfireMark(cls, style) {
         return '<svg class="jpf-mark ' + cls + '"' + (style ? ' style="' + style + '"' : '') + ' viewBox="14 2 92 120" fill="currentColor" aria-hidden="true" focusable="false">'
             + '<path fill-rule="evenodd" d="M60 6 C64 24 84 38 88 60 C92 82 78 98 60 98 C42 98 28 84 30 64 C31 52 37 44 43 36 C43 48 47 55 53 58 C49 40 54 22 60 6 Z M60 50 C65 60 73 68 73 79 C73 89 67 95 60 95 C53 95 47 89 47 81 C47 71 55 62 60 50 Z"></path>'
@@ -114,38 +109,37 @@
             .replace(/'/g, "&#039;");
     }
 
-    // Avatar colours and profile images are stored server-side and — through Bonfire
-    // groups — rendered on *other* accounts' switcher screens. Both are validated on the
-    // server, but they are re-validated here so a value predating that validation (or
-    // written directly to PluginConfiguration.xml) can never break out of its attribute.
+    // Avatar colors and profile images are stored server-side and rendered on other accounts'
+    // switcher screens (through Bonfire groups). The server validates both, but they are
+    // re-validated here so a value that predates that (or was written straight to
+    // PluginConfiguration.xml) cannot break out of its attribute.
 
     const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
     const DEFAULT_AVATAR_COLOR = '#00A4DC';
-    /// The colours the profile form offers, in order. ProfilesBaseController.AvatarPalette
-    /// is the same list, and picks from it the same way for a profile made by another app.
+    /// The colors the profile form offers, in order. ProfilesBaseController.AvatarPalette is
+    /// the same list and picks from it the same way for a profile made by another app.
     const AVATAR_PALETTE = [
         '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
         '#F97316', '#06B6D4', '#3B82F6', '#10B981', '#6366F1', '#8B5CF6',
         '#D946EF', '#F43F5E', '#14B8A6', '#F59E0B', '#84CC16', '#64748B'
     ];
 
-    /// The looks Bonfire's own screens can take. Must match Themes.All on the server and
-    /// the files in Web/themes/; tests/js/themes.js and tests/cs/themes hold the three
-    /// together. A theme's name is the string theme.<id> (themeName), so "High contrast"
-    /// can be translated; the proper names (Bonfire, Harvest...) are kept as they are in
-    /// every language file, so the dashboard and every profile call a theme the same thing.
+    /// The looks Bonfire's screens can take. Must match Themes.All on the server and the files
+    /// in Web/themes/; tests/js/themes.js and tests/cs/themes hold the three together. A
+    /// theme's name is the string theme.<id> (themeName) so "High contrast" can be translated;
+    /// proper names (Bonfire, Harvest...) stay as they are in every language file.
     const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
         'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
 
-    /// First-time setup steps this script can draw (OnboardingSteps on the server). A
-    /// newer server's unknown step is left out rather than shown blank.
+    /// First-time setup steps this script can draw (OnboardingSteps on the server). A newer
+    /// server's unknown step is left out, not shown blank.
     const ONBOARDING_STEPS = ['welcome', 'mainPin', 'resetEmail', 'firstProfile', 'switcher', 'theme'];
 
-    /// The administrator's own themes and fonts, and the built-ins they hid (1.7.2), from
-    /// GET themes?part=custom. Empty until that answers, or until the copy cached on this
-    /// device is read at startup (restoreCustomThemes). The built-ins are spliced into this
-    /// file; these cannot be, because profiles.js is cached for the life of the server and
-    /// an administrator changes them at any moment.
+    /// The administrator's own themes and fonts, and the built-ins they hid (1.7.2), from GET
+    /// themes?part=custom. Empty until that answers or the copy cached on this device is read
+    /// at startup (restoreCustomThemes). The built-ins are spliced into this file; these
+    /// cannot be, because profiles.js is cached for the life of the server and an
+    /// administrator changes them at any moment.
     let CUSTOM_THEMES = { themes: [], fonts: [], hidden: [], logo: null };
 
     /// Caps on what is read, the server's own (ThemeCatalog.MaxCustomThemes, MaxCustomFonts).
@@ -163,7 +157,7 @@
     }
 
     /// What the pickers offer: the built-ins less the hidden ones (never Bonfire), then the
-    /// custom themes in the order they were made. Themes.Offered on the server.
+    /// custom themes in the order made. Themes.Offered on the server.
     function offeredThemes() {
         return THEMES.filter(id => id === 'bonfire' || CUSTOM_THEMES.hidden.indexOf(id) === -1)
             .concat(CUSTOM_THEMES.themes.map(c => c.id));
@@ -175,8 +169,8 @@
         return v && offeredThemes().indexOf(v) !== -1 ? v : '';
     }
 
-    /// A theme's name as text. A built-in's is the string theme.<id>; a custom theme's is
-    /// the name.text the administrator typed, which is not markup: see themeName.
+    /// A theme's name as text: theme.<id> for a built-in, the administrator's name.text for a
+    /// custom one, which is not markup (see themeName).
     function themeNameText(id) {
         const v = normalizeTheme(id);
         const custom = customTheme(v);
@@ -184,15 +178,15 @@
         return t('theme.' + v);
     }
 
-    /// A theme's name for a template that becomes innerHTML. Escaped, because a custom
-    /// theme's name is whatever an administrator typed.
+    /// A theme's name for a template that becomes innerHTML. Escaped, because a custom theme's
+    /// name is whatever an administrator typed.
     function themeName(id) {
         return escapeHtml(themeNameText(id));
     }
 
-    /// The server's logo (1.7.2), or null for none: { image, text, alt }. The image only at
-    /// the one address the server gives a logo, a hash and an extension, so nothing in the
-    /// answer can point the switcher at another site. Text is one line; ThemeLogo's limits.
+    /// The server's logo (1.7.2), or null for none: { image, text, alt }. The image only at the
+    /// one address the server gives a logo (a hash and an extension), so nothing in the answer
+    /// can point the switcher at another site. Text is one line; ThemeLogo's limits.
     function readLogo(logo) {
         if (!logo || typeof logo !== 'object') return null;
         const line = (v, max) => (typeof v === 'string' && v.length <= max && !/[\r\n]/.test(v) && v.trim() ? v.trim() : null);
@@ -203,10 +197,9 @@
         return { image: image, text: text, alt: line(logo.alt, 100), corners: logo.corners === 'square' ? 'square' : 'rounded' };
     }
 
-    /// A ?part=custom answer, or the copy of one cached here, in the shape this script uses.
-    /// Anything malformed is dropped rather than trusted: themeCss forces every value into
-    /// its type as it writes CSS, and this keeps a custom theme from ever taking a
-    /// built-in's id, whose block would then be drawn twice.
+    /// A ?part=custom answer, or the copy cached here, in the shape this script uses. Anything
+    /// malformed is dropped: themeCss forces every value into its type as it writes CSS, and
+    /// this keeps a custom theme from taking a built-in's id, whose block would be drawn twice.
     function readCustomThemes(answer) {
         const out = { themes: [], fonts: [], hidden: [], logo: null };
         if (answer && typeof answer === 'object') out.logo = readLogo(answer.logo);
@@ -236,44 +229,43 @@
         return out;
     }
 
-    /// Jellyfin Dark and Jellyfin Light have a match in jellyfin-web's own theme list;
-    /// no other theme does. Choosing one OFFERS to switch the rest of Jellyfin too, and
-    /// never does it unasked: jellyfin-web's theme is the person's, not Bonfire's.
+    /// Jellyfin Dark and Jellyfin Light match a theme in jellyfin-web; no other does. Choosing
+    /// one offers to switch the rest of Jellyfin too and never does it unasked: jellyfin-web's
+    /// theme is the person's, not Bonfire's.
     ///
-    /// jellyfin-web keeps that theme on the device, not on the server: userSettings.theme()
-    /// is set('appTheme', id, false), and appSettings stores it in localStorage as
-    /// "<userId>-appTheme" (src/scripts/settings/userSettings.js and appSettings.js,
-    /// release-10.11.z). Nothing stored means its default, "dark". It is read again on
-    /// every page change (autoThemes.js, viewbeforeshow), so a value written here shows
-    /// from the next page opened, with no reload.
+    /// jellyfin-web keeps its theme on the device: userSettings.theme() is set('appTheme', id,
+    /// false) and appSettings stores it in localStorage as "<userId>-appTheme"
+    /// (src/scripts/settings/userSettings.js and appSettings.js, release-10.11.z). Nothing
+    /// stored means "dark". It is re-read on every page change (autoThemes.js, viewbeforeshow),
+    /// so a value written here shows from the next page, with no reload.
     const JELLYFIN_WEB_THEMES = { 'jellyfin-dark': 'dark', 'jellyfin-light': 'light' };
 
-    /// The localStorage key jellyfin-web reads a user's theme from, or null for anything
-    /// that is not a user id. jellyfin-web's ids are the server's: 32 hex digits, no dashes.
+    /// The localStorage key jellyfin-web reads a user's theme from, or null for anything that
+    /// is not a user id (the server's: 32 hex digits, no dashes).
     function jellyfinWebThemeKey(userId) {
         const id = String(userId || '').toLowerCase().replace(/-/g, '');
         return /^[0-9a-f]{32}$/.test(id) ? id + '-appTheme' : null;
     }
 
-    /// The jellyfin-web theme to offer when a profile is given `theme`, or null when there
-    /// is nothing to offer: a theme with no match, or a match the profile already has here.
+    /// The jellyfin-web theme to offer when a profile is given `theme`, or null when there is
+    /// nothing to offer: no match, or a match the profile already has here.
     function jellyfinWebOffer(theme, stored) {
         const match = JELLYFIN_WEB_THEMES[theme];
         if (!match) return null;
         return (stored || 'dark') === match ? null : match;
     }
 
-    /// GET plugins/profiles/form-options, its ratings part -> [[score, labels], ...], one entry per age.
+    /// GET plugins/profiles/form-options, its ratings part -> [[score, labels], ...], one entry
+    /// per age.
     ///
-    /// The server reads the rating table of its own Preferred metadata country — the one
-    /// Jellyfin scored the library with — so these are that country's ratings and no
-    /// others. Not /Localization/ParentalRatings: Jellyfin pads that list with generic
-    /// ages the country does not have, and a padded "10" cannot be told from France's
-    /// real one. See Configuration/RatingSystems.cs.
+    /// The server reads the rating table of its Preferred metadata country (the one Jellyfin
+    /// scored the library with), so these are that country's ratings only. Not
+    /// /Localization/ParentalRatings: Jellyfin pads that list with generic ages the country
+    /// does not have, and a padded "10" cannot be told from France's real one. See
+    /// Configuration/RatingSystems.cs.
     ///
-    /// A limit is stored as the score alone, so a profile keeps working whichever labels
-    /// are shown. Returns [] for anything unusable, and the caller falls back to the US
-    /// list this form always had.
+    /// A limit is stored as the score alone, so a profile keeps working whichever labels are
+    /// shown. Returns [] for anything unusable and the caller falls back to the US list.
     function ratingChoicesFrom(answer) {
         const list = answer && typeof answer === 'object'
             ? (Array.isArray(answer.ratings) ? answer.ratings : answer.Ratings) : null;
@@ -293,8 +285,8 @@
     }
 
     /// A theme this script can draw, or Bonfire. A hidden built-in still counts: the server
-    /// resolves a profile on one to the default before it says what to show, and a preview
-    /// of one must not turn into Bonfire. A custom theme counts once it is known.
+    /// resolves a profile on one to the default before saying what to show, and a preview of
+    /// one must not turn into Bonfire. A custom theme counts once it is known.
     function normalizeTheme(value) {
         const v = String(value || '').toLowerCase();
         return isThemeId(v) ? v : 'bonfire';
@@ -309,10 +301,9 @@
         return HEX_COLOR_RE.test(color || '') ? color : DEFAULT_AVATAR_COLOR;
     }
 
-    /// The letter on an avatar: white or near-black, whichever reads better on the
-    /// profile's colour. White was always used, and on half the palette (yellow, lime, the
-    /// default blue) it is under 3:1, which matters because with no picture the initial
-    /// is the whole face of the profile.
+    /// The letter on an avatar: white or near-black, whichever reads better on the profile's
+    /// color. White was always used and on half the palette (yellow, lime, the default blue) it
+    /// is under 3:1, which matters because with no picture the initial is the whole face.
     function onAvatarColor(color) {
         const h = safeColor(color).replace('#', '');
         // safeColor only lets six digits through (HEX_COLOR_RE), so there is no short form.
@@ -335,9 +326,9 @@
     }
 
     /// Our image endpoints are stored root-relative, which only resolves when the page was
-    /// served by the Jellyfin server. Inside a packaged client — Samsung Tizen bundles the
-    /// web client into the app — the origin is the app itself and those requests 404.
-    /// ApiClient knows the real server address, so route through it whenever we can.
+    /// served by the Jellyfin server. In a packaged client (Samsung Tizen bundles the web
+    /// client) the origin is the app and those requests 404. ApiClient knows the real server
+    /// address, so route through it when we can.
     function pluginUrl(value) {
         try {
             if (typeof ApiClient !== 'undefined' && ApiClient && typeof ApiClient.getUrl === 'function') {
@@ -348,9 +339,8 @@
         return value;
     }
 
-    /// Allows only the three shapes the plugin actually produces: its own image
-    /// endpoint, a data:image payload, and an absolute http(s) URL. Anything else
-    /// resolves to an empty src rather than being trusted.
+    /// Allows only the three shapes the plugin produces: its own image endpoint, a data:image
+    /// payload and an absolute http(s) URL. Anything else resolves to an empty src.
     function safeImageSrc(src) {
         if (!src) return '';
         const value = String(src).trim();
@@ -364,10 +354,9 @@
         return '';
     }
 
-    /// Appends ?size=thumb to one of our own image URLs. Grids and switcher cards ask for
-    /// the small rendering; showing twenty full-size avatars would decode tens of megabytes
-    /// of bitmap, which is enough to stall the TV browsers this plugin supports.
-    /// Remote URLs and data payloads are returned untouched — there is no variant of those.
+    /// Appends ?size=thumb to one of our image URLs. Grids and switcher cards ask for the small
+    /// rendering; twenty full-size avatars would decode tens of megabytes and stall the TV
+    /// browsers this plugin supports. Remote URLs and data payloads are returned untouched.
     function thumbSrc(src) {
         if (!src) return '';
         const value = String(src).trim();
@@ -377,13 +366,12 @@
 
     /// Markup for the inside of an avatar circle.
     ///
-    /// The initial is always rendered, with the picture layered over it. If the image fails
-    /// — the file was deleted, the disk is unreadable, a remote host is down — onerror
-    /// removes the img and the initial is simply revealed underneath. That is the whole
-    /// fallback: no state, no second request, and nothing for a caller to remember to do.
+    /// The initial is always rendered with the picture layered over it. If the image fails
+    /// (file deleted, disk unreadable, remote host down) onerror removes the img and the
+    /// initial shows underneath. No state, no second request, nothing for a caller to remember.
     ///
-    /// The containing element must be position:relative (all of ours already are, or are
-    /// given it inline at the call site).
+    /// The containing element must be position:relative (all of ours are, or are given it
+    /// inline at the call site).
     function avatarInner(src, initial, useThumb) {
         const safeInitial = escapeHtml(initial || '?');
         const resolved = safeImageSrc(useThumb ? thumbSrc(src) : src);
@@ -393,83 +381,75 @@
             `style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />`;
     }
 
-    // The profile gate overlay sits at z-index 99999. Anything that has to appear *over*
-    // it — alerts, confirmations — must beat that number, or it renders behind a full-screen
-    // opaque background and is completely invisible. That produced dead-looking buttons:
-    // clicking Save with an invalid PIN fired a validation alert nobody could see.
+    // The profile gate overlay sits at z-index 99999. Anything that must appear over it (alerts,
+    // confirmations) has to beat that, or it renders behind the opaque background and is
+    // invisible. That produced dead-looking buttons: Save with an invalid PIN fired a
+    // validation alert nobody could see.
     const OVERLAY_Z = 99999;
     const DIALOG_Z = OVERLAY_Z + 10;
-    // How long a request the person is waiting on may take before they are given their
-    // controls back. See _fetchTimed.
+    // How long a request the person is waiting on may take before they get their controls back.
+    // See _fetchTimed.
     const REQUEST_TIMEOUT_MS = 20000;
 
     // ── Internationalisation ────────────────────────────────────────────────────
-    // English lives inline, as the single dependency-free fallback every client can
-    // render immediately — no fetch, no flash of untranslated text, works even if the
-    // server is briefly unreachable. Every other language is a JSON file the server
-    // hands out from Web/i18n/, fetched only for a user whose Jellyfin Display language
-    // asks for it: nobody pays for a translation they will not read.
+    // English lives inline as the dependency-free fallback every client can render at once: no
+    // fetch, no flash of untranslated text, works if the server is briefly unreachable. Every
+    // other language is a JSON file the server hands out from Web/i18n/, fetched only for a
+    // user whose Jellyfin Display language asks for it.
     //
-    // To add a language: drop Web/i18n/<code>.json next to fr.json, with the same keys
-    // and translated values. That is the whole job — the .csproj takes Web/i18n/*.json
-    // as a wildcard, the server lists what it finds embedded, and the line below is
-    // rewritten with that list as the script is served. Nothing here needs editing.
+    // To add a language, drop Web/i18n/<code>.json next to fr.json with the same keys. The
+    // .csproj takes Web/i18n/*.json as a wildcard, the server lists what it finds embedded, and
+    // the line below is rewritten with that list as the script is served. Nothing here needs
+    // editing. `node Web/i18n/validate.js` checks a file against the catalogue below.
     //
-    // `node Web/i18n/validate.js` checks a file against the catalogue below before you
-    // open the pull request.
-    //
-    // The empty default is what a copy of this file read straight off disk will use, so
-    // reading the raw file always yields English and never a broken fetch.
+    // The empty default is what a copy read straight off disk uses, so the raw file yields
+    // English and never a broken fetch.
     let SUPPORTED_LOCALES = []; // __BONFIRE_LOCALES__
 
-    // True when an administrator has turned Bonfire off (the Status tab). The server
-    // rewrites this exact line as it serves the script (PublishOff); a copy read straight
-    // off disk is on. Off, init() takes down whatever an earlier copy left and stops, but
-    // window.BonfireThemePreview is still defined below, so the settings page keeps its
-    // theme preview. This is not the inert script the emergency code serves for that reason.
+    // True when an administrator has turned Bonfire off (the Status tab). The server rewrites
+    // this exact line as it serves the script (PublishOff); a copy read off disk is on. Off,
+    // init() takes down whatever an earlier copy left and stops, but window.BonfireThemePreview
+    // is still defined below so the settings page keeps its theme preview. That is why this is
+    // not the inert script the emergency code serves.
     const BONFIRE_OFF = false; // __BONFIRE_OFF__
 
     /*
      * The stylesheet, spliced in by the server from Web/styles.css.
      *
-     * This used to be a 1,400-line template literal right inside injectStyles, and
-     * it cost two releases: a code comment containing two backticks ended the literal
-     * early, the file still parsed, node --check passed, and the script threw at
-     * runtime three calls into startup. 1.5.2 and 1.5.3-beta shipped dead.
+     * It used to be a 1,400-line template literal inside injectStyles, which cost two
+     * releases: a comment containing two backticks ended the literal early, the file still
+     * parsed, node --check passed, and the script threw three calls into startup. 1.5.2 and
+     * 1.5.3-beta shipped dead.
      *
-     * PublishStyles replaces the marker below with the CSS encoded as a JSON string
-     * literal — double-quoted and fully escaped — so nothing in the stylesheet can
-     * terminate anything here. The failure mode is gone rather than guarded.
+     * PublishStyles replaces the marker below with the CSS as a double-quoted, fully escaped
+     * JSON string literal, so nothing in the stylesheet can end anything here.
      *
-     * The default is an empty string, not the real CSS, so this file is never the
-     * place the stylesheet lives. If the marker is ever edited away the replace does
-     * nothing and the plugin renders unstyled, which is loud and immediate — unlike a
-     * silently truncated literal, which is what got us here.
+     * The default is an empty string so this file is never where the stylesheet lives. If the
+     * marker is edited away the replace does nothing and the plugin renders unstyled, which is
+     * loud and immediate, unlike a silently truncated literal.
      */
     let BONFIRE_STYLES = ""; // __BONFIRE_STYLES__
 
     /*
-     * The themes, spliced in by the server from Web/themes/*.json, the same way as the
-     * stylesheet: { themes: [...], patterns: { name: "data:image/svg+xml,..." } }.
-     * docs/themes.md describes a theme file. themeCss below turns each one into the
-     * CSS Bonfire's screens read, and injectStyles puts that after the stylesheet.
+     * The themes, spliced in by the server from Web/themes/*.json like the stylesheet:
+     * { themes: [...], patterns: { name: "data:image/svg+xml,..." } }. docs/themes.md describes
+     * a theme file. themeCss turns each into the CSS Bonfire's screens read and injectStyles
+     * puts it after the stylesheet.
      *
-     * This is the only place a theme becomes CSS. Other apps read the same files and
-     * draw their own way; nothing about a theme is in styles.css any more, so nothing
-     * the web client shows is out of their reach.
+     * This is the only place a theme becomes CSS. Other apps read the same files and draw their
+     * own way; nothing about a theme is in styles.css.
      */
     let BONFIRE_THEMES = { themes: [], patterns: {} }; // __BONFIRE_THEMES__
 
-    /// One theme file as CSS: its tokens on [data-jpf-theme="id"] (and on :root for
-    /// Bonfire, the look before any theme is known), then the rules its layout and
-    /// decorations need.
+    /// One theme file as CSS: its tokens on [data-jpf-theme="id"] (and on :root for Bonfire,
+    /// the look before any theme is known), then the rules its layout and decorations need.
     ///
-    /// Every value is forced into its type on the way out: a colour is #rrggbb[aa] or
-    /// nothing, a number is a number, an id is letters, digits and dashes, a font name is
-    /// letters, digits and spaces. An administrator's theme file reaches this, so a value
-    /// that could close the declaration or the rule is dropped rather than written.
+    /// Every value is forced into its type on the way out: a color is #rrggbb[aa] or nothing, a
+    /// number is a number, an id is letters, digits and dashes, a font name is letters, digits
+    /// and spaces. An administrator's theme file reaches this, so a value that could close the
+    /// declaration or rule is dropped.
     ///
-    /// Chromium 53: no object spread, no ?. — this runs on every webOS television.
+    /// Chromium 53: no object spread, no ?. (this runs on every webOS television).
     function themeCss(theme, patterns) {
         if (!theme || typeof theme !== 'object') return '';
         const id = String(theme.id || '');
@@ -512,9 +492,9 @@
         const decorations = Array.isArray(theme.decorations) ? theme.decorations : [];
         const deco = name => decorations.filter(d => d && d.name === name)[0] || null;
         const light = theme.scheme === 'light';
-        // A theme with no accent writes nothing, so whatever wears it shows Bonfire, whose
-        // block is on :root. Not a stand-in colour: everything else in a theme is drawn
-        // around its accent, and a guessed one would be a theme nobody made.
+        // A theme with no accent writes nothing, so whatever wears it shows Bonfire, whose block is
+        // on :root. Not a stand-in color: everything in a theme is drawn around its accent and a
+        // guessed one would be a theme nobody made.
         const accent = hex(c.accent);
         if (!accent) return '';
         const sel = '[data-jpf-theme="' + id + '"]';
@@ -531,15 +511,13 @@
         }).filter(Boolean);
         const gateBg = layers.length ? layers.join(', ') : col(bg.fill, '#101010');
 
-        // A custom theme's picture (2.0, ThemeBackground on the server): drawn over all of
-        // the above, filling the screen, under a layer of the theme's own fill at `dim` so
-        // the text can stay readable whatever the picture holds. How much is the
-        // administrator's call: custom themes have no contrast rules (2026-11-12), and the
-        // editor only suggests a starting dim. Only the name is read from the file, and only one the server could have
-        // stored; the address is built here. Written under a rule that needs the picture
-        // to have loaded (loadThemePhoto marks <html>), so while it loads, or when it
-        // fails, the screen is exactly the theme without it, never the dimming layer over
-        // the gradient.
+        // A custom theme's picture (2.0, ThemeBackground on the server), drawn over all of the above
+        // and filling the screen, under a layer of the theme's own fill at `dim` so text stays
+        // readable. How much dim is the administrator's call: custom themes have no contrast rules
+        // (2026-11-12) and the editor only suggests a start. Only the name is read from the file,
+        // and only one the server could have stored; the address is built here. Written under a
+        // rule that needs the picture loaded (loadThemePhoto marks <html>), so while it loads, or
+        // if it fails, the screen is the theme without it, never the dimming layer over the gradient.
         const photo = g(bg, 'image');
         const photoFile = /^[0-9a-f]{32}\.(png|jpg|webp)$/.test(String(g(photo, 'file') || '')) ? String(photo.file) : '';
         const photoDim = Math.max(0, Math.min(0.95, num(g(photo, 'dim'), 0.95)));
@@ -551,13 +529,12 @@
             return 'linear-gradient(' + veil + ', ' + veil + '), url("' + url + '") center / cover no-repeat, ' + gateBg;
         })() : '';
 
-        // The accent drawn as small text ("Forgot PIN?", the "current" badge). A brand
-        // colour that carries white button text is dark, which is too dim to read on a
-        // dark panel, and the two needs cannot be met by one value. So the text gets its
-        // own: the accent itself when it can be read on the panel and on every colour of
-        // the background (a see-through stop laid over each solid one, as the contrast
-        // check does), otherwise the accent moved towards the text colour a step at a
-        // time, so it stays the same hue and changes no more than it must.
+        // The accent drawn as small text ("Forgot PIN?", the "current" badge). A brand color that
+        // carries white button text is dark, too dim to read on a dark panel, and one value cannot
+        // serve both. So the text gets its own: the accent itself when it reads on the panel and on
+        // every color of the background (a see-through stop laid over each solid one, as the contrast
+        // check does), else the accent moved towards the text color a step at a time, keeping the
+        // hue and changing no more than it must.
         const accentTextOn = withPhoto => {
             const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
             const lumOf = k => 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
@@ -565,8 +542,8 @@
                 const a = lumOf(p), b = lumOf(q);
                 return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
             };
-            // gateColours does the same for the logo; not shared, because the harnesses
-            // lift themeCss out of this file and run it on its own.
+            // gateColours does the same for the logo; not shared, because the harnesses lift themeCss
+            // out of this file and run it on its own.
             const seen = (String(gateBg).match(/#[0-9a-fA-F]{6}\b|rgba?\([^)]*\)/g) || []).map(s => {
                 if (s.charAt(0) === '#') return rgbOf(s).concat([1]);
                 const n = s.replace(/^rgba?\(|\)$/g, '').split(',').map(Number);
@@ -580,9 +557,9 @@
             });
             const panelHex = hex(c.panel);
             if (panelHex) backs.push(rgbOf(panelHex));
-            // Under a picture: the two ends of what it could be, a white one and a black
-            // one under the dimming layer, as the server's check holds them. Only in the
-            // picture's own rule: until it loads the screen is the theme without it.
+            // Under a picture: the two ends of what it could be, a white one and a black one under the
+            // dimming layer, as the server's check holds them. Only in the picture's own rule: until it
+            // loads the screen is the theme without it.
             if (withPhoto) {
                 const f = rgbOf(photoFill);
                 [255, 0].forEach(end => backs.push(f.map(x => Math.round(x * photoDim + end * (1 - photoDim)))));
@@ -608,11 +585,10 @@
         const btnR = btn.kind === 'pill' ? '999px' : btn.kind === 'square' ? '0' : num(btn.radius, 8) + 'px';
         const r = shape.radius || {};
 
-        // The font: the copy Bonfire serves (fontFaceCss), then the names it goes by on
-        // devices that have it installed, then the kind. The served copy is under a name of
-        // its own, so declaring it never changes how jellyfin-web draws its own Noto Sans;
-        // and where it is not declared (an engine without variable fonts) that first name
-        // simply matches nothing and the next one is used.
+        // The font: the copy Bonfire serves (fontFaceCss), then the names it goes by on devices that
+        // have it installed, then the kind. The served copy has a name of its own, so declaring it
+        // never changes how jellyfin-web draws its own Noto Sans; where it is not declared (an engine
+        // without variable fonts) that first name matches nothing and the next is used.
         const fontEntry = (BONFIRE_THEMES.fonts || []).concat(CUSTOM_THEMES.fonts)
             .filter(f => f && f.family === g(type.font, 'family'))[0];
         const names = (fontEntry && (fontEntry.files || fontEntry.file) ? [servedFontName(fontEntry.family)] : [])
@@ -640,8 +616,8 @@
         const patternImage = patternPicture(pattern);
         const patternSize = pattern ? num(pattern.size, 240) : 240;
         // A second pattern, drawn above the first (::after, where the first is ::before). Only a
-        // theme that has one gets any of its rules or variables, so every theme without it is
-        // written exactly as before. It needs the first: the validator says so, and so does this.
+        // theme that has one gets any of its rules or variables, so every other theme is written as
+        // before. It needs the first: the validator says so, and so does this.
         const pattern2 = patternImage ? deco('pattern2') : null;
         const pattern2Image = patternPicture(pattern2);
         const pattern2Size = pattern2Image ? num(pattern2.size, 240) : 240;
@@ -650,10 +626,10 @@
         const patternOpacity = layerOpacity(pattern);
         const pattern2Opacity = layerOpacity(pattern2);
         const ac = rgbOf(accent);
-        // The danger colour as a base for tints, and the select's arrow in the text colour.
-        // The arrow is a picture, so it cannot follow a token: it was one fixed white, and
-        // vanished on Jellyfin Light's white fields. Its fill is a plain #rrggbb; the text
-        // token's own alpha is left off, which only makes the arrow a little stronger.
+        // The danger color as a base for tints, and the select's arrow in the text color. The arrow
+        // is a picture so it cannot follow a token: it was one fixed white and vanished on Jellyfin
+        // Light's white fields. Its fill is a plain #rrggbb; the text token's alpha is left off,
+        // which only makes the arrow a little stronger.
         const dangerHex = hex(c.danger) || (light ? '#e03131' : '#ff6b6b');
         const arrowFill = (hex(c.text1) || (light ? '#1f1f1f' : '#ffffff')).slice(1, 7);
         const chevron = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23'
@@ -672,8 +648,8 @@
             ['--jpf-surface-1', col(c.surface1)], ['--jpf-surface-2', col(c.surface2)], ['--jpf-surface-3', col(c.surface3)],
             ['--jpf-border-1', col(c.border1)], ['--jpf-border-2', col(c.border2)], ['--jpf-border-3', col(c.border3)],
             ['--jpf-text-1', col(c.text1)], ['--jpf-text-2', col(c.text2)], ['--jpf-text-3', col(c.text3)],
-            // Shadows keep their own scale, and go lighter on a light theme: the same
-            // black at the same alpha reads as a smudge on white.
+            // Shadows keep their own scale and go lighter on a light theme: the same black at the same
+            // alpha reads as a smudge on white.
             ['--jpf-shadow-1', tint(shadowColour, light ? 0.1 : 0.2)],
             ['--jpf-shadow-2', tint(shadowColour, light ? 0.16 : 0.4)],
             ['--jpf-shadow-3', tint(shadowColour, light ? 0.22 : 0.55)],
@@ -740,27 +716,26 @@
             if (pattern2Opacity < 1) vars.push(['--jpf-deco2-opacity', String(pattern2Opacity)]);
         }
 
-        // On the attribute and on body, because the base tokens are declared on body too
-        // and a declaration on body beats one inherited from html. Bonfire also on :root:
-        // it is what every screen wears before a theme is known.
+        // On the attribute and on body, because the base tokens are declared on body too and a
+        // declaration on body beats one inherited from html. Bonfire also on :root, which is what
+        // every screen wears before a theme is known.
         const selectors = (id === 'bonfire' ? [':root', 'body'] : []).concat([sel, sel + ' body']);
         let css = selectors.join(',\n') + ' {\n' + vars.map(v => '    ' + v[0] + ': ' + v[1] + ';').join('\n') + '\n}\n';
 
-        // The picture, once it has loaded: on <html> wearing the theme (and its body, which
-        // redeclares the tokens), and on anything inside that wears it, such as a preview.
+        // The picture, once loaded: on <html> wearing the theme (and its body, which redeclares the
+        // tokens), and on anything inside that wears it, such as a preview.
         if (photoBg) {
             const ready = 'html[data-jpf-photos~="' + photoFile + '"]';
             css += [ready + sel, ready + sel + ' body', ready + ' ' + sel].join(',\n')
                 + ' {\n    --jpf-gate-bg: ' + photoBg + ';\n    --jpf-accent-text: ' + accentTextOn(true) + ';\n}\n';
         }
 
-        // A pattern is drawn behind the screen, and on a phone the content fills the width, so
-        // every ornament lands behind a button, a field or a card and shows through its
-        // translucent fill. Hiding the ornaments there was tried and the owner wants them kept,
-        // so at that width the fills are made opaque instead: each one laid over the theme's
-        // plain background, which is how it already looks where no ornament is. A fill that is
-        // fully clear (a sheet with no frame) stays clear; it paints nothing for an ornament to
-        // show through. tests/js/decostack.js measures this against the layer on and off.
+        // A pattern is drawn behind the screen and on a phone the content fills the width, so every
+        // ornament lands behind a button, field or card and shows through its translucent fill.
+        // Hiding the ornaments there was tried and the owner wants them kept, so at that width the
+        // fills are made opaque instead: each laid over the theme's plain background, which is how it
+        // looks where no ornament is. A fully clear fill (a sheet with no frame) stays clear.
+        // tests/js/decostack.js measures this against the layer on and off.
         if (patternImage) {
             const plain = hex(g(bg, 'fill')) ? rgbOf(hex(g(bg, 'fill'))) : null;
             const solidOver = v => {
@@ -785,17 +760,17 @@
             }
         }
 
-        // Without panels the tiles sit straight on the background, so the layout changes
-        // with it: one row where one fits, and a quiet heading, gone when there is only
-        // one household. The doubled attribute keeps these at the weight they had as
+        // Without panels the tiles sit straight on the background, so the layout changes: one row
+        // where one fits, and a quiet heading, gone when there is only one household. The doubled
+        // attribute keeps these at the weight they had as
         // [data-jpf-theme]:not([data-jpf-theme="bonfire"]), so the fitted gap
         // (#profiles-gate-overlay ... .jpf-fitted) still outranks the grid rule.
         if (!panels) {
             const open = sel + '[data-jpf-theme]';
             css += open + ':not(.jpf-tv) #profiles-gate-overlay .profiles-modal-content { max-width: 1240px; }\n'
                 + open + ':not(.jpf-tv) .profiles-grid { max-width: none; gap: 2rem; }\n'
-                // The same 2rem for a browser with no flex gap (Chromium 53), which would
-                // otherwise keep the base margins and lose the theme's tighter spacing.
+                // The same 2rem for a browser with no flex gap (Chromium 53), which would otherwise keep the
+                // base margins and lose the theme's tighter spacing.
                 + open + ':not(.jpf-tv).jpf-no-flex-gap .profiles-grid > * { margin: 0 1rem 2rem; }\n'
                 + open + ' .profiles-home-header { justify-content: center; padding-bottom: 0; margin-bottom: 1.5rem; }\n'
                 + open + ' .profiles-home-title { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--jpf-text-3); }\n'
@@ -803,14 +778,14 @@
                 + open + ' .jpf-one-home .profiles-home-header { display: none; }\n';
         }
 
-        // The other four layout choices (2.0): tiles or a list, centred or left, three tile
-        // sizes, the logo's corner. Each default writes nothing, so every built-in and every
-        // theme saved before these existed looks exactly as it did.
+        // The other four layout choices (2.0): tiles or a list, centered or left, three tile sizes,
+        // the logo's corner. Each default writes nothing, so every built-in and every theme saved
+        // before these looks as it did.
         //
-        // Weights, against the stylesheet (this block comes after it): the size and picture
-        // rules are one id and three classes, under the fitted rules' one id and four, so a
-        // crowded gate still shrinks. The list's own grid and card rules are one id and four,
-        // the fitted rules' weight, and win by coming later: a fitted list stays one column.
+        // Weights, against the stylesheet (this block comes after it): the size and picture rules
+        // are one id and three classes, under the fitted rules' one id and four, so a crowded gate
+        // still shrinks. The list's own grid and card rules are one id and four, the fitted rules'
+        // weight, and win by coming later: a fitted list stays one column.
         const lay = theme.layout || {};
         const asList = lay.profiles === 'list';
         const toLeft = lay.align === 'left';
@@ -822,10 +797,10 @@
         const tv = sel + '.jpf-tv #profiles-gate-overlay';
         const pick = sel + ' #profiles-gate-overlay .jpf-picker';
         if (asList) {
-            // One profile a row, the picture with the name beside it. The pictures are smaller
-            // than tiles (80px, 128px on a television, at medium) so a household of four fits
-            // a screen. Focus is spatial (_moveOverlayFocus), so Up and Down walk the column
-            // with nothing added. Margins stand in for gap on Chromium 53.
+            // One profile a row, the picture with the name beside it. The pictures are smaller than tiles
+            // (80px, 128px on a TV, at medium) so a household of four fits a screen. Focus is spatial
+            // (_moveOverlayFocus), so Up and Down walk the column with nothing added. Margins stand in for
+            // gap on Chromium 53.
             css += pick + ' .profiles-grid { flex-direction: column; flex-wrap: nowrap; align-items: '
                     + (toLeft ? 'flex-start' : 'center') + '; gap: 1rem; max-width: none; }\n'
                 + sel + '.jpf-no-flex-gap #profiles-gate-overlay .jpf-picker .profiles-grid > * { margin: 0 0 1rem; }\n'
@@ -837,10 +812,10 @@
                 + sel + ' #profiles-gate-overlay .jpf-profile-name { margin: 0 0 0 1.25rem; align-items: flex-start; text-align: left; min-width: 0; -webkit-box-flex: 1; flex: 1 1 auto; }\n'
                 + pick + ' .profiles-limit-notice { align-self: auto; width: auto; }\n';
         } else if (k !== 1) {
-            // The tile sizes in the stylesheet, scaled: the plain value first for Chromium 53,
-            // which drops the clamp(). Large's floor is only 10px over medium's: scaled by 1.25
-            // it left one tile a row on a phone, and fitted down they came out smaller than
-            // medium. 150px still puts two a row on a 360px phone.
+            // The tile sizes in the stylesheet, scaled: the plain value first for Chromium 53, which
+            // drops the clamp(). Large's floor is only 10px over medium's: scaled by 1.25 it left one
+            // tile a row on a phone, and fitted down they came out smaller than medium. 150px still puts
+            // two a row on a 360px phone.
             const lo = v => (k < 1 ? Math.round(v * k) : v + 10) + 'px';
             css += desk + ' .jpf-profile-card { width: ' + lo(140) + '; width: clamp(' + lo(140) + ', ' + vw(12) + 'vw, ' + px(210) + '); }\n'
                 + desk + ' .jpf-profile-avatar-container { width: ' + lo(130) + '; width: clamp(' + lo(130) + ', ' + vw(11) + 'vw, ' + px(195) + '); '
@@ -850,8 +825,8 @@
                 + sel + ' #profiles-gate-overlay .jpf-profile-avatar:not(.jpf-add-avatar) { font-size: ' + 3.5 * k + 'rem; }\n';
         }
         if (toLeft) {
-            // The picker's column moves to the left, 5% in (the gutter it has when centred on a
-            // phone), and everything in it lines up on that edge.
+            // The picker's column moves to the left, 5% in (the gutter it has when centered on a phone),
+            // and everything in it lines up on that edge.
             css += pick + ' { align-items: flex-start; text-align: left; margin-left: 5vw; margin-right: auto; }\n'
                 + pick + ' .profiles-grid { justify-content: flex-start; margin-left: 0; }\n'
                 + pick + ' .profiles-home-header { justify-content: flex-start; }\n'
@@ -865,16 +840,14 @@
                 css += logo + ' { right: auto; left: 2rem; left: calc(2rem + env(safe-area-inset-left)); }\n'
                     + sel + '.jpf-tv #profiles-logo { right: auto; left: 5vw; }\n';
             } else {
-                // A logo pinned to the bottom of the first screen would sit on the tiles of a
-                // gate long enough to scroll. So at the bottom it is in the flow instead: the
-                // gate becomes a column, the content keeps its auto margins (centred while it
-                // fits), and the logo comes after it, at the bottom or below the last button.
-                // fitGateToScreen measures it with everything else. flex-start, not the
-                // overlay's centre: in a column the main axis is the height, and a centred
-                // column longer than the screen spills its top above scroll position 0, where
-                // no scrolling reaches the title or the first rows (81px on a phone with four
-                // profiles, 861px on a TV list of 21). The auto margins still centre a gate
-                // that fits, since they take the free space before justify-content does.
+                // A logo pinned to the bottom of the first screen would sit on the tiles of a gate long
+                // enough to scroll. So at the bottom it is in the flow: the gate becomes a column, the
+                // content keeps its auto margins (centered while it fits) and the logo comes after it.
+                // fitGateToScreen measures it with everything else. flex-start, not the overlay's center:
+                // in a column the main axis is the height, and a centered column longer than the screen
+                // spills its top above scroll position 0 where no scrolling reaches the title or first rows
+                // (81px on a phone with four profiles, 861px on a TV list of 21). The auto margins still
+                // center a gate that fits, since they take the free space before justify-content does.
                 css += sel + ' #profiles-gate-overlay.jpf-has-logo { flex-direction: column; justify-content: flex-start; }\n'
                     + sel + ' #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: 0; }\n'
                     + logo + ' { position: relative; top: auto; right: auto; left: auto; flex-shrink: 0; align-self: '
@@ -884,11 +857,11 @@
             }
         }
 
-        // rings: a gradient cannot be a border colour, so each tile's frame is a disc
-        // behind it, painted in two layers: the gradient on the border box and the gap
-        // colour inside it, which leaves a ring. Opaque inside so a cut-out picture sits
-        // on the dark rather than on a gradient disc. Profile 1 takes the first gradient,
-        // profile 2 the second, and round again. Not on the add tile, which is not a person.
+        // rings: a gradient cannot be a border color, so each tile's frame is a disc behind it,
+        // painted in two layers: the gradient on the border box and the gap color inside it, which
+        // leaves a ring. Opaque inside so a cut-out picture sits on the dark, not on a gradient disc.
+        // Profile 1 takes the first gradient, profile 2 the second, and round again. Not on the add
+        // tile, which is not a person.
         if (rings && Array.isArray(rings.gradients) && rings.gradients.length) {
             const gap = col(rings.gap, '#000000');
             const w = num(shape.ringWidth, 3);
@@ -907,14 +880,13 @@
                 + sel + ' .jpf-profile-avatar { z-index: 1; box-sizing: border-box; }\n'
                 + sel + ' .jpf-profile-card:hover .jpf-profile-avatar-container,\n'
                 + sel + ' .jpf-profile-card:focus .jpf-profile-avatar-container { transform: scale(' + focusScale + '); }\n'
-                // Its own rule: :focus-within is Chrome 60, and a selector Chromium 53 cannot
-                // parse drops every other selector listed with it.
+                // Its own rule: :focus-within is Chrome 60, and a selector Chromium 53 cannot parse drops
+                // every other selector listed with it.
                 + sel + ' .jpf-profile-card:focus-within .jpf-profile-avatar-container { transform: scale(' + focusScale + '); }\n';
-            // The small preview in the pickers: three tiles, each framed in the colour
-            // halfway along its gradient (a box-shadow cannot be a gradient). Written here
-            // from the file, not in styles.css, which used to carry Nightfall's three
-            // colours by hand: a custom theme with rings had none in its preview, and an
-            // edit to Nightfall's file left the preview showing the old ones.
+            // The small preview in the pickers: three tiles, each framed in the color halfway along its
+            // gradient (a box-shadow cannot be a gradient). Written here from the file, not in
+            // styles.css, which used to carry Nightfall's three colors by hand: a custom theme with rings
+            // had none in its preview, and an edit to Nightfall's file left the old ones.
             const mid = p => {
                 const a = hex(p && p[0]), b = hex(p && p[1]);
                 if (!a || !b) return col(a || b);
@@ -927,11 +899,11 @@
             }
         }
 
-        // frost: backdrop-filter is Chromium 76, so webOS 4.5 and 5 keep the plain
-        // see-through fills, which still read as the theme. Both spellings, because
-        // Safari only knows the prefixed one. Not the Theme page, which draws no sheet:
-        // its "backdrop-filter: none" ties with this on specificity and this comes later,
-        // being written after the stylesheet, so the page has to be left out by name.
+        // frost: backdrop-filter is Chromium 76, so webOS 4.5 and 5 keep the plain see-through
+        // fills, which still read as the theme. Both spellings, since Safari only knows the prefixed
+        // one. Not the Theme page, which draws no sheet: its "backdrop-filter: none" ties with this
+        // on specificity and this comes later (written after the stylesheet), so the page is left
+        // out by name.
         const frost = deco('frost');
         if (frost) {
             const blur = num(frost.blur, 24);
@@ -942,8 +914,8 @@
         }
 
         // The second pattern's layer: the first's rule (styles.css, "Seasonal decoration") on
-        // ::after, for this theme only. Its own picture, size and opacity; z-index -1 in the same
-        // stacking context, and later in tree order, so it is drawn over the first.
+        // ::after, for this theme only, with its own picture, size and opacity. z-index -1 in the
+        // same stacking context and later in tree order, so it draws over the first.
         if (pattern2Image) {
             const gateAfter = sel + ' #profiles-gate-overlay::after';
             const previewAfter = '.jpf-theme-preview' + sel + '::after';
@@ -955,22 +927,21 @@
                 + previewAfter + ' {\n    background-size: calc(var(--jpf-deco2-size) * 0.45) calc(var(--jpf-deco2-size) * 0.45);\n}\n';
         }
 
-        // A drifting pattern comes down, slowly: a transform on a layer one tile taller
-        // than the screen, so the compositor moves it and nothing is repainted; one tile a
-        // loop, so it joins up. Not on a flat television (jpf-flat: a TV that cannot afford
-        // blur, which is the browser that cannot afford this either), and not for anyone who
-        // has asked their system for less motion. A television that can blur moves it like
-        // any other screen; it used to be held off every television by :not(.jpf-tv).
+        // A drifting pattern comes down slowly: a transform on a layer one tile taller than the
+        // screen, so the compositor moves it and nothing repaints; one tile a loop, so it joins up.
+        // Not on a flat television (jpf-flat: a TV that cannot afford blur cannot afford this
+        // either), and not for anyone who asked their system for less motion. A TV that can blur
+        // moves it like any other screen; it used to be held off every TV by :not(.jpf-tv).
         //
-        // And only when the administrator has asked for it (Advanced, Look: richer theme
-        // motion), which the client records as .jpf-rich-motion on <html>. Off by default.
-        // The setting is the third condition, never a way around the other two: the media
-        // query and :not(.jpf-flat) are still what decide first. Every moving decoration
-        // below writes the same three, and tests/js/a11y.js checks each rule for them.
+        // And only when the administrator asked for it (Advanced, Look: richer theme motion), which
+        // the client records as .jpf-rich-motion on <html>. Off by default. The setting is the third
+        // condition, never a way around the other two: the media query and :not(.jpf-flat) decide
+        // first. Every moving decoration below writes the same three, and tests/js/a11y.js checks
+        // each rule for them.
         if (patternImage && pattern.drift === 'down') {
             const seconds = num(pattern.seconds, 32);
-            // A name, so no '.': a size of 240.5 (the validator allows it) made
-            // "jpf-drift-240.5", which is not an identifier and dropped the animation.
+            // A name, so no '.': a size of 240.5 (the validator allows it) made "jpf-drift-240.5", which
+            // is not an identifier and dropped the animation.
             const anim = 'jpf-drift-' + String(patternSize).replace(/[^0-9a-z]/gi, '-');
             css += '@media (prefers-reduced-motion: no-preference) {\n'
                 + '    ' + sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay::before {\n'
@@ -997,23 +968,22 @@
                 + '@keyframes ' + anim2 + ' {\n    from { transform: translateY(0); }\n    to { transform: translateY(' + pattern2Size + 'px); }\n}\n';
         }
 
-        // twinkle: a slow fade of the pattern between two layers, so the stars do not all
-        // dim together. The pattern's own layer eases down to 45% and back; a second copy
-        // of it, shifted by a third of a tile so its stars fall in other places, rises to
-        // 60% and back while the first is at its lowest. Opacity only, which the
-        // compositor does without repainting. The same three conditions as the drift.
-        // The second layer exists only inside them, so a screen that does not twinkle has
-        // no extra layer to paint.
+        // twinkle: a slow fade of the pattern between two layers, so the stars do not all dim
+        // together. The pattern's layer eases down to 45% and back; a second copy, shifted a third
+        // of a tile so its stars fall elsewhere, rises to 60% and back while the first is lowest.
+        // Opacity only, which the compositor does without repainting. The same three conditions as
+        // the drift. The second layer exists only inside them, so a screen that does not twinkle
+        // has no extra layer to paint.
         const twinkle = deco('twinkle');
         if (patternImage && twinkle) {
             const period = num(twinkle.seconds, 8);
             const over = sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay';
             const run = name => '        -webkit-animation: ' + name + ' ' + period + 's ease-in-out infinite;\n'
                 + '        animation: ' + name + ' ' + period + 's ease-in-out infinite;\n';
-            // The layer's own opacity scales both fades, so a faint pattern twinkles from its
-            // faintness and not from full. At 1 every name and number is what it always was.
-            // With a second pattern, ::after is that pattern's layer, so the shifted copy is
-            // not drawn and the first layer's fade is all the twinkle there is.
+            // The layer's own opacity scales both fades, so a faint pattern twinkles from its faintness
+            // and not from full. At 1 every name and number is what it always was. With a second
+            // pattern, ::after is that pattern's layer, so the shifted copy is not drawn and the first
+            // layer's fade is all the twinkle there is.
             const tag = patternOpacity < 1 ? '-o' + String(patternOpacity).replace(/[^0-9]/g, '') : '';
             const sc = x => String(Math.round(x * patternOpacity * 1000) / 1000);
             const nameA = 'jpf-twinkle' + tag, nameB = 'jpf-twinkle-b' + tag;
@@ -1038,8 +1008,8 @@
         return css;
     }
 
-    /// Every theme the server sent, as CSS, Bonfire first so each later block wins its
-    /// ties on html.
+    /// Every theme the server sent, as CSS, Bonfire first so each later block wins its ties on
+    /// html.
     function allThemesCss() {
         const list = Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes.slice() : [];
         list.sort((a, b) => (a && a.id === 'bonfire' ? -1 : b && b.id === 'bonfire' ? 1 : 0));
@@ -1047,19 +1017,19 @@
     }
 
     /// The name a served font is declared under: its family with Bonfire's prefix, letters,
-    /// digits, spaces and hyphens only, as every font name written into CSS here is.
+    /// digits, spaces and hyphens only, like every font name written into CSS here.
     function servedFontName(family) {
         return 'Bonfire ' + String(family || '').replace(/[^A-Za-z0-9 -]/g, '');
     }
 
     /// @font-face for every font Bonfire serves, one per subset, each fetched only when a
-    /// character in its unicode-range is drawn in it. `urlFor` turns a file name into the
-    /// address to fetch (pluginUrl, so a packaged client asks the server and not itself).
+    /// character in its unicode-range is drawn in it. `urlFor` turns a file name into the address
+    /// to fetch (pluginUrl, so a packaged client asks the server and not itself).
     ///
-    /// Each file is a variable font spanning a range of weights. An engine without variable
-    /// fonts (Chromium 62; webOS 4.5 is 53) would draw every weight from the default one and
-    /// fake the bold, so injectFonts declares none there and the stack's installed names
-    /// are used, which is how every theme looked before Bonfire served fonts at all.
+    /// Each file is a variable font spanning a range of weights. An engine without variable fonts
+    /// (Chromium 62; webOS 4.5 is 53) would draw every weight from the default and fake the bold,
+    /// so injectFonts declares none there and the stack's installed names are used, as every theme
+    /// looked before Bonfire served fonts.
     function fontFaceCss(urlFor) {
         const subsets = BONFIRE_THEMES.subsets || {};
         let css = '';
@@ -1083,8 +1053,8 @@
     }
 
     /// @font-face for each uploaded font: one file holding every character it has, so no
-    /// unicode-range. A variable one is left out on an engine without variable fonts, for the
-    /// same reason as fontFaceCss; a static one is drawn everywhere.
+    /// unicode-range. A variable one is left out on an engine without variable fonts, as in
+    /// fontFaceCss; a static one is drawn everywhere.
     function customFontFaceCss(urlFor, variable) {
         let css = '';
         CUSTOM_THEMES.fonts.forEach(f => {
@@ -1098,15 +1068,15 @@
         return css;
     }
 
-    /// Every custom theme as CSS. Their ids are never a built-in's (readCustomThemes), so
-    /// no block here ties with one in the stylesheet's style element.
+    /// Every custom theme as CSS. Their ids are never a built-in's (readCustomThemes), so no
+    /// block here ties with one in the stylesheet's style element.
     function customThemesCss() {
         return CUSTOM_THEMES.themes.map(c => themeCss(c, BONFIRE_THEMES.patterns || {})).join('');
     }
 
-    /// The gate's background for one theme, as themeCss writes it, or '' for a theme this
-    /// build does not have. Read out of themeCss's own output rather than worked out again,
-    /// so the startup cover cannot drift from the gate it stands in for.
+    /// The gate's background for one theme, as themeCss writes it, or '' for a theme this build
+    /// does not have. Read out of themeCss's own output, not worked out again, so the startup
+    /// cover cannot drift from the gate it stands in for.
     function gateBackground(id) {
         const theme = (Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])
             .filter(t => t && t.id === id)[0] || customTheme(id);
@@ -1115,8 +1085,8 @@
         return m ? m[1] : '';
     }
 
-    /// The relative luminance of an [r, g, b] colour, and the contrast ratio of two, as
-    /// WCAG defines them.
+    /// The relative luminance of an [r, g, b] color, and the contrast ratio of two, as WCAG
+    /// defines them.
     function relLum(k) {
         const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
         return 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
@@ -1125,11 +1095,11 @@
         return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
     }
 
-    /// The solid colours of a gate background (themeCss's --jpf-gate-bg), as [r, g, b]:
-    /// what the logo's backing is decided against. Not the see-through stops laid over them,
-    /// as themeCss's accent text is, because a see-through stop is a glow placed somewhere:
-    /// Bonfire's is orange, at the bottom, and counting it put a backing behind an orange
-    /// logo at the top that read at 6:1 on what was really behind it.
+    /// The solid colors of a gate background (themeCss's --jpf-gate-bg), as [r, g, b]: what the
+    /// logo's backing is decided against. Not the see-through stops laid over them, as themeCss's
+    /// accent text counts them, because a see-through stop is a glow placed somewhere: Bonfire's
+    /// is orange, at the bottom, and counting it put a backing behind an orange logo at the top
+    /// that read at 6:1 on what was really behind it.
     function gateColours(gateBg) {
         return (String(gateBg || '').match(/#[0-9a-fA-F]{6}\b|rgba?\([^)]*\)/g) || []).map(s => {
             if (s.charAt(0) === '#') return [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)).concat([1]);
@@ -1138,11 +1108,11 @@
         }).filter(k => k[3] >= 1);
     }
 
-    /// What a custom theme's background picture can put behind the logo, as gateColours
-    /// does: [] for a theme without one. The picture is drawn under the fill at its dim, so
-    /// at a low dim a bright or dark photograph shows nearly as itself, and gateBackground
-    /// does not know it is there. Taken at its worst, as ThemeValidator takes it: the fill
-    /// at the dim over white and over black.
+    /// What a custom theme's background picture can put behind the logo, as gateColours does: []
+    /// for a theme without one. The picture is drawn under the fill at its dim, so at a low dim a
+    /// bright or dark photograph shows nearly as itself and gateBackground does not know it is
+    /// there. Taken at its worst, as ThemeValidator takes it: the fill at the dim over white and
+    /// over black.
     function gatePhotoColours(id) {
         const theme = customTheme(id);
         const bg = theme && theme.background;
@@ -1154,11 +1124,11 @@
         return [255, 0].map(end => [0, 1, 2].map(i => fill[i] * dim + end * (1 - dim)).concat([1]));
     }
 
-    /// The luminance of each visible pixel of a loaded logo, read off a canvas of at most
-    /// 64px a side, which is plenty to tell what colour a logo is. [] for a solid picture
-    /// (under 3% of it see-through): it carries its own background, so it never needs one.
-    /// null when the canvas cannot be read: a picture from another origin (the web client
-    /// bundled inside a TV app) taints it, and then the logo is left as it is.
+    /// The luminance of each visible pixel of a loaded logo, read off a canvas of at most 64px a
+    /// side, plenty to tell what color a logo is. [] for a solid picture (under 3% see-through):
+    /// it carries its own background and never needs one. null when the canvas cannot be read (a
+    /// picture from another origin, as when the web client is bundled inside a TV app, taints
+    /// it), and then the logo is left as it is.
     function logoLums(img) {
         try {
             const w = img.naturalWidth, h = img.naturalHeight;
@@ -1649,8 +1619,8 @@
         'profilePage.body': 'Watching as <strong>{name}</strong>. Switch profiles without signing out.',
         'profilePage.thisAccount': 'this account',
 
-        // What a refused request says, by the code the server sends in X-Bonfire-Error
-        // (see ERROR_KEYS). The server's own sentence is English and is never shown.
+        // What a refused request says, by the code the server sends in X-Bonfire-Error (see
+        // ERROR_KEYS). The server's own sentence is English and is never shown.
         'refused.notMain': 'Only the main account can do that.',
         'refused.adminOnly': 'Ask an administrator to do that.',
         'refused.notYours': "That profile isn't yours to change.",
@@ -1710,11 +1680,9 @@
 
     /// The sentence for each code a Bonfire route can send in X-Bonfire-Error
     /// (Controllers/ErrorCodes.cs). A code missing here, or a server too old to send one,
-    /// shows the fallback of whatever was being done instead; the server's English body
-    /// is never shown. Codes only the administrator's page can meet (announcements,
-    /// maintenance, themes, fonts, the logo, email settings) are in its own map.
-    /// invalid_request is left out on purpose: it is the code of every refusal nothing
-    /// else matched, and "Could not save that." names the action where this could not.
+    /// shows the fallback of whatever was being done. Codes only the administrator's page can
+    /// meet are in its own map. invalid_request is left out on purpose: it covers every
+    /// refusal nothing else matched, and "Could not save that." names the action.
     const ERROR_KEYS = {
         not_main_account: 'refused.notMain', admin_only: 'refused.adminOnly',
         not_your_profile: 'refused.notYours', themes_locked: 'refused.themesLocked',
@@ -1747,35 +1715,31 @@
         not_found: 'refused.notFound', unauthenticated: 'refused.signedOut'
     };
 
-    /// The active language's strings. Starts out equal to EN_STRINGS — every lookup
-    /// already resolves correctly before loadLocale() has done anything — and is
-    /// swapped wholesale, never merged, once a translation arrives: a partial file
-    /// would otherwise leave a stale mix of two languages on screen.
+    /// The active language's strings. Starts equal to EN_STRINGS, so lookups resolve before
+    /// loadLocale() runs, and is swapped wholesale, never merged: a partial file would leave
+    /// a stale mix of two languages on screen.
     let activeStrings = EN_STRINGS;
 
-    /// Looks up `key`, filling in `{token}` placeholders from `vars`. Falls back to the
-    /// English string, then to the key itself, so a translation file missing a newer
-    /// key degrades to English rather than showing nothing.
+    /// Looks up `key`, filling `{token}` placeholders from `vars`. Falls back to English,
+    /// then to the key, so a translation missing a newer key degrades to English.
     ///
-    /// `vars` values are interpolated as-is: pass already-escaped HTML for anything
-    /// that ends up in a template destined for innerHTML, exactly as callers already do
-    /// for user-supplied text like profile and device names.
+    /// `vars` values are interpolated as-is: pass already-escaped HTML for anything headed
+    /// for innerHTML.
     function t(key, vars) {
         let str = (activeStrings && activeStrings[key]) || EN_STRINGS[key] || key;
         if (vars) {
-            // One pass over the text. Replacing token by token meant a value that held a
-            // later token (a profile named "{n}") was filled in a second time (R-1174).
+            // One pass over the text. Replacing token by token filled a later token a second time
+            // when a value held one (a profile named "{n}", R-1174).
             str = str.replace(/\{([^{}]+)\}/g, (whole, k) =>
                 Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : whole);
         }
         return str;
     }
 
-    /// What to tell the person about a refused response, in their language, from the
-    /// code the server sent in X-Bonfire-Error. '' when there is no code, the server is
-    /// too old to send one, or the code has no sentence in ERROR_KEYS: the caller then
-    /// shows its own fallback. The response body is never read for display, because it
-    /// is English written for a developer.
+    /// What to tell the person about a refused response, in their language, from the code in
+    /// X-Bonfire-Error. '' when there is no code, the server is too old to send one, or ERROR_KEYS
+    /// has no sentence for it: the caller then shows its own fallback. The body is never shown
+    /// because it is English written for a developer.
     function refusalText(res) {
         let code = '';
         try { code = (res && res.headers && res.headers.get('X-Bonfire-Error')) || ''; } catch (e) { code = ''; }
@@ -1783,8 +1747,8 @@
     }
 
     /// An Error to throw for a refused response: the sentence for its code, or `fallback`.
-    /// serverText is set only when the code had a sentence, so _failText can tell a
-    /// refusal that was understood from a browser error.
+    /// serverText is set only when the code had a sentence, so _failText can tell an
+    /// understood refusal from a browser error.
     function refusalError(res, fallback) {
         const text = refusalText(res);
         const err = new Error(text || fallback);
@@ -1792,29 +1756,25 @@
         return err;
     }
 
-    /// The language Jellyfin is showing this user, as a tag ('fr', 'pt-br'), or '' if
-    /// there is nothing to go on.
+    /// The language Jellyfin is showing this user, as a tag ('fr', 'pt-br'), or '' if there
+    /// is nothing to go on.
     ///
-    /// Bonfire sits inside Jellyfin's own pages, so it speaks the language those pages
-    /// do: Settings → Display → Display language. Up to 1.7.0 it used the browser's
-    /// language list instead, so a French browser with Jellyfin set to English got
-    /// French profile screens around an English page, and the setting did nothing.
+    /// Bonfire sits inside Jellyfin's pages, so it uses their language (Settings → Display →
+    /// Display language). Up to 1.7.0 it used the browser's list, so a French browser with
+    /// Jellyfin set to English got French profile screens around an English page.
     ///
-    /// Read in the order jellyfin-web itself decides (src/lib/globalize,
-    /// updateCurrentCulture, verified against release-10.11.z):
-    ///
-    ///   1. The setting. userSettings.language() is stored per device in localStorage
-    ///      as '<userId>-language' (appSettings.#getKey). Read directly because <html
-    ///      lang> lags it: globalize runs once at import, before anyone is signed in, and
-    ///      only catches up on 'localusersignedin', which can land after the gate has
-    ///      drawn.
-    ///   2. <html lang>, which globalize writes from the same setting. Used when there is
-    ///      no user id to read the setting under yet.
-    ///   3. "Auto", which is an empty setting: jellyfin-web's getDefaultLanguage, which is
-    ///      data-culture (set by the native app shells) and then navigator.language. That
-    ///      is the device's language, but only because it is Jellyfin's too. Note it is
-    ///      navigator.language, not the navigator.languages list, so a second preference
-    ///      Jellyfin never shows does not get picked up here either.
+    /// Read in the order jellyfin-web decides (src/lib/globalize, updateCurrentCulture,
+    /// checked against release-10.11.z):
+    ///   1. The setting: userSettings.language(), stored per device in localStorage as
+    ///      '<userId>-language'. Read directly because <html lang> lags it: globalize runs
+    ///      once at import and catches up on 'localusersignedin', which can land after the
+    ///      gate has drawn.
+    ///   2. <html lang>, which globalize writes from the same setting. Used when there is no
+    ///      user id yet.
+    ///   3. "Auto" (an empty setting): jellyfin-web's getDefaultLanguage, which is data-culture
+    ///      (set by native app shells) then navigator.language. That is the device's language
+    ///      only because it is Jellyfin's too. It is navigator.language, not the languages
+    ///      list, so a second preference Jellyfin never shows is not picked up either.
     function jellyfinLanguage() {
         const root = document.documentElement;
         const attr = name => (root && root.getAttribute && root.getAttribute(name)) || '';
@@ -1838,27 +1798,23 @@
         return String(lang).replace('_', '-').toLowerCase();
     }
 
-    /// The translation this plugin ships for Jellyfin's language, or null to stay on
-    /// English.
+    /// The translation this plugin ships for Jellyfin's language, or null to stay on English.
     ///
-    /// A full tag wins over its base language, so pt-BR picks the Brazilian file when
-    /// there is one and falls back to pt when there is not. Slicing to two characters —
-    /// which is what this did first — made a regional translation unreachable and would
-    /// have handed a pt-BR reader a pt-PT file without either of them choosing that.
+    /// A full tag wins over its base language, so pt-BR picks the Brazilian file if there is
+    /// one and falls back to pt. Slicing to two characters, as this first did, made a regional
+    /// translation unreachable and could hand a pt-BR reader a pt-PT file.
     function detectLocale() {
         const tag = jellyfinLanguage();
         if (!tag) return null;
 
-        // Locale codes reach a URL below. They come from the server rather than from
-        // anything a visitor controls, but the shape is checked anyway — this is the one
-        // place a bad value could turn into a request for something else.
+        // Locale codes reach a URL below. They come from the server, not a visitor, but the shape
+        // is checked anyway: this is the one place a bad value could request something else.
         const have = SUPPORTED_LOCALES
             .filter(c => typeof c === 'string' && /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(c));
         const lower = have.map(c => c.toLowerCase());
 
-        // Longest match first, dropping one subtag at a time: zh-Hans-CN, then
-        // zh-Hans, then zh. Trying only the full tag and the bare language would
-        // skip straight past a zh-Hans file for a Jellyfin set to zh-Hans-CN.
+        // Longest match first, dropping one subtag at a time (zh-Hans-CN, zh-Hans, zh). Trying only
+        // the full tag and the bare language would skip a zh-Hans file for zh-Hans-CN.
         const parts = tag.split('-');
         for (let n = parts.length; n >= 1; n--) {
             const i = lower.indexOf(parts.slice(0, n).join('-'));
@@ -1867,19 +1823,17 @@
         return null;
     }
 
-    /// The locale whose strings are in activeStrings, or null for English. Lets a change
-    /// of language that lands on the same file skip the fetch.
+    /// The locale whose strings are in activeStrings, or null for English. Lets a change of
+    /// language that lands on the same file skip the fetch.
     let activeLocale = null;
-    /// Bumped on every load, so a slow response for a language the user has since moved
-    /// off cannot land on top of the one they moved to.
+    /// Bumped on every load, so a slow response for a language the user has moved off cannot
+    /// land on top of the current one.
     let localeLoadSeq = 0;
 
-    /// Fetches the detected locale's strings and swaps them in. Always resolves —
-    /// nothing here is worth failing startup over. No detected/supported locale, a
-    /// missing file, or a network error all leave English active.
-    ///
-    /// Runs again whenever Jellyfin's language changes (watchJellyfinLanguage), so it
-    /// has to be able to go back to English as well as away from it.
+    /// Fetches the detected locale's strings and swaps them in. Always resolves; no detected
+    /// locale, a missing file or a network error all leave English active. Runs again when
+    /// Jellyfin's language changes (watchJellyfinLanguage), so it must be able to go back to
+    /// English too.
     function loadLocale() {
         const locale = detectLocale();
         const seq = ++localeLoadSeq;
@@ -1902,70 +1856,62 @@
             .catch(() => { /* stay on what is showing */ });
     }
 
-    /// Calls `onChange` whenever jellyfin-web rewrites <html lang>: on sign-in, sign-out
-    /// and when the Display language setting is saved, which does not reload the page.
-    /// An attribute observer on one element costs nothing between changes, and nothing
-    /// is added to the route poll (see checkRoute). MutationObserver is Chromium 26, well
-    /// inside webOS 4.5.
+    /// Calls `onChange` whenever jellyfin-web rewrites <html lang>: on sign-in, sign-out and
+    /// when the Display language setting is saved, which does not reload the page. An
+    /// attribute observer on one element is free between changes and adds nothing to the
+    /// route poll (see checkRoute). MutationObserver is Chromium 26, inside webOS 4.5.
     function watchJellyfinLanguage(onChange) {
         if (typeof MutationObserver === 'undefined' || !document.documentElement) return;
         new MutationObserver(onChange)
             .observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
     }
 
-    // The startup cover: the page painted in the gate's background from before the first
-    // frame until the gate is on top of it. Normally raised by the head script in
-    // index.html (WebInjection.HeadScript), which carries this exact rule; this copy is
-    // for a page without it — the Tizen package loads this script from the server long
-    // after its own index.html has run. tests/js/gatecover.js fails if the two differ.
+    // The startup cover: the page painted in the gate's background from before the first frame
+    // until the gate is on top. Normally raised by the head script in index.html
+    // (WebInjection.HeadScript), which carries this exact rule; this copy is for a page without
+    // it (the Tizen package loads this script long after its own index.html has run).
+    // tests/js/gatecover.js fails if the two differ.
     //
-    // The colour is the gate's, through --jpf-gate-bg so a theme can set it in one place,
-    // but only once a theme is on the page. Before that it is jellyfin-web's own plain
-    // #101010: the fallback was Bonfire's gradient, so a household with another theme saw
-    // Bonfire, empty, before its own (1.9.0.4-beta). The plain rule is also what an engine
-    // without custom properties keeps when it drops the second.
+    // The colour is the gate's, via --jpf-gate-bg so a theme sets it in one place, but only once
+    // a theme is on the page. Before that it is jellyfin-web's plain #101010: the fallback was
+    // Bonfire's gradient, so a household with another theme saw an empty Bonfire before its own
+    // (1.9.0.4-beta). The plain rule is also what an engine without custom properties keeps.
     const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#101010;content:""}html[data-jpf-cover][data-jpf-theme]::before{background:var(--jpf-gate-bg,#101010)}';
 
-    // How long the cover may stay up without the gate arriving. Each holder (the head
-    // script, and profiles.js once it starts fetching the list) gets this long; a cover
-    // that outlives it comes down and the page shows whatever it has. A flash is the
-    // failure this exists to fix; a screen that stays blank is a much worse one.
+    // How long the cover may stay up without the gate arriving. Each holder (the head script,
+    // and profiles.js once it fetches the list) gets this long; then the cover comes down and
+    // the page shows what it has. A flash is the failure this fixes; a blank screen is worse.
     const GATE_COVER_MS = 3000;
 
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
             activeSessionKey: 'jellyfin_profiles_active_token',
-            // Key set before window.location.reload() so the early-hide
-            // inline head script can suppress the page flash on the next load.
+            // Set before window.location.reload() so the early-hide head script can suppress the page
+            // flash on the next load.
             switchingKey: 'jpf-sw',
-            // The background colour and colour-scheme of the page being left, written
-            // alongside switchingKey and read by the head script on the next load. See
-            // _captureLeavingBackground.
+            // The background colour and colour-scheme of the page being left, written with
+            // switchingKey and read by the head script on the next load (_captureLeavingBackground).
             backgroundKey: 'jpf-bg',
-            // Set when the emergency disable succeeds. profiles.js is served with a
-            // five-minute cache, so a reload inside that window can re-run this very script
-            // from cache — the marker is what stops it coming back to life.
+            // Set when the emergency disable succeeds. profiles.js is served with a five-minute cache,
+            // so a reload in that window can re-run this script from cache; the marker stops it.
             panicKey: 'jellyfin_profiles_disabled',
-            // Per-account cache of the library tile artwork rules, applied before the
-            // server answers so the real artwork never gets a frame on screen.
+            // Per-account cache of the library tile artwork rules, applied before the server answers
+            // so the real artwork never gets a frame on screen.
             libraryArtKey: 'jellyfin_profiles_library_art',
-            // Local mirror of the account's gate/native preference, so checkRoute can decide
-            // whether to raise the gate without waiting on a request.
+            // Local mirror of the account's gate/native preference, so checkRoute can decide whether
+            // to raise the gate without a request.
             switcherModeKey: 'jellyfin_profiles_switcher_mode',
-            // Retired in 1.7.2. It held "this device keeps its own answer to the startup
-            // question", which was cut: ask-on-startup is one answer per account. Nothing
-            // reads it; init removes it once so an old answer cannot linger on a TV.
+            // Retired in 1.7.2. It held a per-device answer to the startup question; ask-on-startup is
+            // now one answer per account. Nothing reads it; init removes it once.
             deviceGateKey: 'jellyfin_profiles_device_gate',
-            // The last theme this browser was told for an account, so the first paint is
-            // already in it rather than switching a moment after the gate appears.
+            // The last theme this browser was told for an account, so the first paint is already in it.
             themeKey: 'jellyfin_profiles_theme',
-            // The last ?part=custom answer, so a profile on a custom theme starts in it
-            // instead of in Bonfire until the server answers.
+            // The last ?part=custom answer, so a profile on a custom theme starts in it until the
+            // server answers.
             customThemesKey: 'jellyfin_profiles_custom_themes',
-            // This device's answer to "TV layout or standard": 'tv' or 'standard'. Absent is
-            // Automatic, so choosing Automatic removes the key rather than storing 'auto'.
-            // Device only: the same account is signed in on a phone and a television.
+            // This device's answer to "TV layout or standard": 'tv' or 'standard'. Absent is Automatic,
+            // so choosing Automatic removes the key. Per device: one account can be on a phone and a TV.
             layoutKey: 'jellyfin_profiles_layout'
         },
         pluginId: 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9',
@@ -1979,17 +1925,16 @@
         _switchLock: false,
         _switcherPrefs: null,
         _switcherPrefsLoading: false,
-        // How long a request the route poll makes on its own is left alone after it
-        // fails. The poll runs every 500 ms, so without this a failing server was asked
-        // twice a second by every open page — exactly when it could least afford it.
+        // How long a request the route poll makes on its own is left alone after it fails. The poll
+        // runs every 500 ms, so a failing server was asked twice a second by every open page.
         POLL_RETRY_MS: 30000,
-        // /list requests out now, when the oldest of them left, and when the poll may ask
-        // again after a failure. See _requestList.
+        // /list requests out now, when the oldest left, and when the poll may ask again after a
+        // failure. See _requestList.
         _listInFlight: 0,
         _listSentAt: 0,
         _listRetryAt: 0,
-        // { theme, defaultTheme, allow } from the server, or null until it answers. The
-        // profile form offers a theme picker only once this says choosing is allowed.
+        // { theme, defaultTheme, allow } from the server, or null until it answers. The profile
+        // form offers a theme picker only once this says choosing is allowed.
         _themeSettings: null,
         _panicDisabled: false,
         // Null until the server answers. Only true reveals the emergency link.
@@ -2005,37 +1950,34 @@
             const deviceId = typeof apiClient.deviceId === 'function' ? apiClient.deviceId() : (apiClient.deviceId || apiClient._deviceId || '');
             const version = typeof apiClient.appVersion === 'function' ? apiClient.appVersion() : (apiClient.appVersion || apiClient._appVersion || '');
 
-            // No token, no Token field: a null or undefined one used to go out as the text
-            // Token="null", which the server reads as a bad token rather than none (R-1249).
+            // No token, no Token field: null or undefined went out as the text Token="null", which the
+            // server reads as a bad token rather than none (R-1249).
             return {
                 'Authorization': `MediaBrowser Client="${client}", Device="${device}", DeviceId="${deviceId}", Version="${version}"` +
                     (token ? `, Token="${token}"` : '')
             };
         },
 
-        /// Object.assign rather than object spread: spread is Chromium 60, and webOS 4.5
-        /// (Chromium 53) rejects the whole file over it.
+        /// Object.assign, not object spread: spread is Chromium 60 and webOS 4.5 (Chromium 53)
+        /// rejects the whole file over it.
         jsonHeaders: function (token) {
             return Object.assign({ 'Content-Type': 'application/json' }, this.getAuthHeaders(token));
         },
 
-        /// Headers for a call that changes the household: devices, sharing, switcher
-        /// settings. The server checks the main PIN on every one of them, and most have no
-        /// body to put it in, so it goes in a header once Manage Profiles or Settings has
-        /// asked for it. Pass json false for a call with no body.
+        /// Headers for a call that changes the household: devices, sharing, switcher settings. The
+        /// server checks the main PIN on every one and most have no body for it, so it goes in a
+        /// header once Manage Profiles or Settings has asked. Pass json false for a call with no body.
         manageHeaders: function (token, json) {
             const headers = json === false ? this.getAuthHeaders(token) : this.jsonHeaders(token);
             if (this.masterPin) headers['X-Bonfire-Master-Pin'] = this.masterPin;
             return headers;
         },
 
-        /// A one-field dialog. Used where a value has to be typed rather than chosen, which
-        /// so far is renaming a device.
+        /// A one-field dialog, for a value that has to be typed (so far, renaming a device).
         ///
-        /// Not window.prompt(): it is blocked in several of the environments this runs in
-        /// (and silently returns null in a WebView), it cannot be reached with a D-pad on a
-        /// television, and it renders outside the focus trap the rest of the overlay lives
-        /// inside. The input is focused and selected on open so a rename is type-and-enter.
+        /// Not window.prompt(): it is blocked in several environments this runs in (a WebView
+        /// silently returns null), a D-pad cannot reach it, and it sits outside the overlay's focus
+        /// trap. The input is focused and selected on open so a rename is type-and-enter.
         showPromptDialog: function (title, label, initialValue, onSubmit) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-prompt-dialog';
@@ -2088,11 +2030,11 @@
             let submitted = false;
             const submit = () => {
                 const value = (input.value || '').trim();
-                // Said, not swallowed: a screen reader hears the box is invalid and focus
-                // goes back to it, where before Save and Enter did nothing at all.
+                // Said, not swallowed: a screen reader hears the box is invalid and focus returns to it.
+                // Before, Save and Enter did nothing.
                 if (!value) { input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
-                // Once: the dialog stays up for the 160 ms fade, and a second Enter or tap
-                // in that time called onSubmit again.
+                // Once: the dialog stays up for the 160 ms fade, and a second Enter or tap in that time
+                // called onSubmit again.
                 if (submitted) return;
                 submitted = true;
                 close();
@@ -2106,9 +2048,8 @@
             dialog.addEventListener('keydown', (e) => {
                 if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
                 else if (isKey(e, 'Enter')) {
-                    // Enter on a button is that button's own press (a remote's OK on
-                    // Cancel must cancel), and Enter that ends an IME composition is not
-                    // a request to save (keyCode 229 on old Chromium).
+                    // Enter on a button is that button's own press (a remote's OK on Cancel must cancel), and
+                    // Enter ending an IME composition is not a request to save (keyCode 229 on old Chromium).
                     if (e.target !== input || e.isComposing || e.keyCode === 229) return;
                     e.preventDefault();
                     submit();
@@ -2119,9 +2060,8 @@
             input.select();
         },
 
-        /// A dialog that asks which one. `options` is [{ id, name }]; the chosen id is
-        /// handed back. Built on a real <select> so a television's D-pad and a phone's
-        /// native picker both work without any focus handling of our own.
+        /// A dialog that asks which one. `options` is [{ id, name }]; the chosen id is handed back.
+        /// Built on a real <select> so a TV's D-pad and a phone's native picker both work.
         showSelectDialog: function (title, message, options, onSubmit, onCancel) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-select-dialog';
@@ -2199,9 +2139,8 @@
             select.focus();
         },
 
-        /// Title and message are text and are escaped here, so a caller never has to
-        /// remember to (r2-24-03). A caller whose message is markup it built itself passes
-        /// `asHtml` true, and then escapes whatever it interpolates into it.
+        /// Title and message are text and escaped here (r2-24-03). A caller whose message is markup
+        /// it built itself passes `asHtml` true and escapes what it interpolates.
         showConfirmDialog: function (title, message, onConfirm, onCancel, asHtml) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-confirm-dialog';
@@ -2287,9 +2226,9 @@
             });
         },
 
-        /// Escapes title and message like showConfirmDialog; `asHtml` is the same opt-in.
-        /// The OK button answers once: Enter held down, or a second click during the
-        /// fade, no longer runs onClose twice (r2-24-02).
+        /// Escapes title and message like showConfirmDialog; `asHtml` is the same opt-in. The OK
+        /// button answers once: Enter held down or a second click during the fade ran onClose
+        /// twice (r2-24-02).
         showAlert: function (title, message, onClose, asHtml) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-alert-dialog';
@@ -2358,17 +2297,17 @@
             });
         },
 
-        /// A dialog with a row of choices. `actions` is [{ label, primary, run }]; the
-        /// dialog closes before `run` is called. Escape closes it with no choice. The arrow
-        /// keys move along the buttons, for a remote.
+        /// A dialog with a row of choices. `actions` is [{ label, primary, run }]; the dialog
+        /// closes before `run` is called. Escape closes it with no choice. Arrow keys move along
+        /// the buttons, for a remote.
         ///
-        /// `onDismiss` runs when the dialog closes without any action that has a run: the
-        /// cancel button, Escape or the TV Back key. A caller holding the main PIN for one
-        /// act uses it to let the PIN go (r2-24-01).
+        /// `onDismiss` runs when the dialog closes without an action that has a run: the cancel
+        /// button, Escape or the TV Back key. A caller holding the main PIN for one act uses it to
+        /// let the PIN go (r2-24-01).
         showActionsDialog: function (title, message, actions, onDismiss) {
-            // The TV Back key clicks the dialog's cancel button (_dismissSurface), so it has
-            // to have an id. The cancel is the first action with nothing to run: choosing it
-            // only closes the dialog, which is exactly what Back should do.
+            // The TV Back key clicks the dialog's cancel button (_dismissSurface), so it needs an id.
+            // The cancel is the first action with nothing to run: choosing it only closes the dialog,
+            // which is what Back should do.
             let cancelAt = -1;
             actions.forEach((a, i) => { if (cancelAt < 0 && !(a && typeof a.run === 'function')) cancelAt = i; });
             const dialog = document.createElement('div');
