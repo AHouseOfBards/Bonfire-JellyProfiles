@@ -794,7 +794,10 @@ namespace Jellyfin.Profiles.Controllers
             if (userFullyDeleted)
             {
                 // The mapping goes first, so a failure after this leaves a stray picture, not a
-                // mapping to a gone account (r2-11-05).
+                // mapping to a gone account (r2-11-05). It is usually gone already: DeleteUserAsync
+                // publishes UserDeletedEventArgs before it returns, and Campground's clean-up
+                // (UserRecords) took the row out and raised the deleted event then.
+                var removedHere = false;
                 lock (ConfigLock)
                 {
                     var mappingToRemove = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.ProfileId);
@@ -802,6 +805,7 @@ namespace Jellyfin.Profiles.Controllers
                     {
                         config.Mappings.Remove(mappingToRemove);
                         Plugin.Instance?.SaveConfiguration();
+                        removedHere = true;
                     }
                 }
 
@@ -818,7 +822,8 @@ namespace Jellyfin.Profiles.Controllers
 
                 LogActivity(_userManager.GetUserById(masterUserId)?.Username + " deleted the profile " + mapping.ProfileName,
                     "ProfileDeleted", masterUserId);
-                BonfireCampground.RaiseDeleted(masterUserId, request.ProfileId, mapping.ProfileName);
+                // Once per profile: not again when the clean-up already raised it.
+                if (removedHere) BonfireCampground.RaiseDeleted(masterUserId, request.ProfileId, mapping.ProfileName);
             }
 
             return Ok();
@@ -1481,24 +1486,12 @@ namespace Jellyfin.Profiles.Controllers
             HashSet<Guid> seen;
             lock (ConfigLock)
             {
-                seen = new HashSet<Guid>();
-                foreach (var m in config.Mappings) { seen.Add(m.ProfileUserId); seen.Add(m.MasterUserId); }
-                foreach (var g in config.BonfireGroups)
-                {
-                    seen.Add(g.OwnerUserId);
-                    foreach (var id in g.MemberUserIds ?? new List<Guid>()) seen.Add(id);
-                }
-                if (config.LinkedAccounts != null) foreach (var l in config.LinkedAccounts) { seen.Add(l.UserId); seen.Add(l.HouseholdId); }
-                if (config.Onboarding?.Seen != null) foreach (var s in config.Onboarding.Seen) seen.Add(s.UserId);
-                if (config.AccountEmails != null) foreach (var a in config.AccountEmails) seen.Add(a.UserId);
-                if (config.UserProfileLimitOverrides != null) foreach (var o in config.UserProfileLimitOverrides) seen.Add(o.UserId);
+                seen = UserRecords.StoredUserIds(config);
             }
             var deadIds = seen.Where(id => id == Guid.Empty || _userManager.GetUserById(id) == null).ToHashSet();
             bool Exists(Guid id) => !deadIds.Contains(id);
 
-            var orphansRemoved = new List<Guid>();
-            var orphanEvents = new List<(Guid Main, Guid Profile, string Name)>();
-            (int Mappings, int Groups, int Members) removed;
+            UserRecords.Removed removed;
             var removedImages = 0;
             lock (ConfigLock)
             {
@@ -1556,64 +1549,21 @@ namespace Jellyfin.Profiles.Controllers
                     else _logger.LogWarning("ProfilesPlugin: could not delete the unused background image {File}.", file);
                 }
 
-                var orphanIds = orphans.Select(o => o.profileUserId).ToHashSet();
-                orphansRemoved = config.Mappings
-                    .Where(m => orphanIds.Contains(m.ProfileUserId) && (!Exists(m.ProfileUserId) || !Exists(m.MasterUserId)))
-                    .Select(m => m.ProfileUserId)
-                    .ToList();
-                orphanEvents = orphans
-                    .Where(o => orphansRemoved.Contains(o.profileUserId))
-                    .Select(o => (o.masterUserId, o.profileUserId, o.profileName))
-                    .ToList();
-                config.Mappings.RemoveAll(m => orphanIds.Contains(m.ProfileUserId)
-                                               && (!Exists(m.ProfileUserId) || !Exists(m.MasterUserId)));
-
-                var deadGroupIds = deadGroups.Select(g => g.groupId).ToHashSet(StringComparer.Ordinal);
-                config.BonfireGroups.RemoveAll(g => deadGroupIds.Contains(g.GroupId));
-
-                var membersRemoved = 0;
-                foreach (var g in config.BonfireGroups)
-                {
-                    membersRemoved += g.MemberUserIds?.RemoveAll(id => !Exists(id)) ?? 0;
-                }
-
-                // An account shown in another household's switcher, where either side is gone.
-                // Nothing to review: a tile for a missing account is never drawn.
-                config.LinkedAccounts?.RemoveAll(l => !Exists(l.UserId) || !Exists(l.HouseholdId));
-
-                // First-time setup's "has seen it" rows for accounts that no longer exist (R-1075).
-                config.Onboarding?.Seen?.RemoveAll(s => !Exists(s.UserId));
-
-                // A confirmed address and a profile-limit override are kept per account and are
-                // personal data in the export; neither goes when Jellyfin deletes the account
-                // (R-1311).
-                config.AccountEmails?.RemoveAll(a => !Exists(a.UserId));
-                config.UserProfileLimitOverrides?.RemoveAll(o => !Exists(o.UserId));
-
-                // Devices are not touched here. A device outliving the profile that used it is
-                // normal (the hardware is still in the house), and dropping one that another
-                // profile still names would empty that whitelist, which means "any device".
-                // Device housekeeping has its own rules; see RemoveStaleDevices.
+                // The same rules Campground's user clean-up uses (UserRecords), against the
+                // dead set resolved above.
+                removed = UserRecords.Remove(config, Exists);
                 Plugin.Instance?.SaveConfiguration();
-
-                // What was actually taken out, not what the preview listed. The linked-account,
-                // first-setup, address and override rows above are housekeeping with nothing
-                // for an administrator to review, so they are not counted.
-                removed = (orphansRemoved.Count, deadGroups.Count, membersRemoved);
             }
 
-            foreach (var gone in orphansRemoved) Auth.ViewingTracker.Forget(gone);   // R-1023
-            if (orphansRemoved.Count > 0) Auth.ViewingTracker.RulesChanged();
-            foreach (var (gonesMain, gonesProfile, gonesName) in orphanEvents) BonfireCampground.RaiseDeleted(gonesMain, gonesProfile, gonesName);
+            UserRecords.After(removed);
 
-            // A master whose profiles were all orphans is no longer one the PIN provider
-            // should hold.
-            ProfilesBootstrapTask.ReconcileAuthProvidersNow();
-
+            // What was actually taken out, not what the preview listed. The housekeeping rows
+            // (UserRecords.Removed.Other) have nothing for an administrator to review, so they
+            // are not counted.
             return Ok(new
             {
                 applied = true,
-                removedMappings = removed.Mappings,
+                removedMappings = removed.Profiles.Count,
                 removedGroups = removed.Groups,
                 removedMembers = removed.Members,
                 removedImages

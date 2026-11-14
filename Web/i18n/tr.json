@@ -441,7 +441,7 @@
   "admin.households.pinPerDayHint": "Hesap başına, tüm uygulamalar birlikte. 1 ile 20 arası.",
   "admin.save": "Kaydet",
   "admin.orphans.title": "Artık kayıtlar",
-  "admin.orphans.lede": "Bir profil Gösterge Paneli → Kullanıcılar'dan silindiğinde geride kalır. Hâlâ ana hesabın sınırına sayılırlar.",
+  "admin.orphans.lede": "Bir hesap Gösterge Paneli → Kullanıcılar'dan silindiğinde kendiliğinden kaldırılır. Tara, öncesinden kalanları bulur.",
   "admin.orphans.scan": "Tara",
   "admin.devices.title": "Oturumlar",
   "admin.refresh": "Yenile",

@@ -441,7 +441,7 @@
   "admin.households.pinPerDayHint": "Per compte, totes les aplicacions juntes. De 1 a 20.",
   "admin.save": "Desa",
   "admin.orphans.title": "Registres sobrants",
-  "admin.orphans.lede": "Queden quan s'elimina un perfil a Tauler → Usuaris. Continuen comptant per al límit del compte principal.",
+  "admin.orphans.lede": "S'eliminen sols quan s'elimina un compte a Tauler → Usuaris. Analitza troba els que quedin d'abans.",
   "admin.orphans.scan": "Analitza",
   "admin.devices.title": "Sessions",
   "admin.refresh": "Actualitza",

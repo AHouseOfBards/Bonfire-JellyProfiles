@@ -2489,8 +2489,10 @@ Every account and profile, and whether the client script is reaching browsers.
 
 **Authorization:** administrator.
 
-Finds records for Jellyfin users that were deleted outside Bonfire. They still count
-against the profile limit. `?apply=false`, the default, only reports:
+Finds records for Jellyfin users that were deleted outside Bonfire. Since 2.0 these are
+removed when the user is deleted, and at the next start for one deleted while Bonfire
+wasn't running, so this finds what is left from before. `?apply=false`, the default, only
+reports:
 
 ```json
 {

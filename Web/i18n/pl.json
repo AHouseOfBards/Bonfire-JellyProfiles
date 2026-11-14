@@ -441,7 +441,7 @@
   "admin.households.pinPerDayHint": "Na konto, wszystkie aplikacje razem. Od 1 do 20.",
   "admin.save": "Zapisz",
   "admin.orphans.title": "Pozostałe wpisy",
-  "admin.orphans.lede": "Zostają, gdy profil usunięto w Panel → Użytkownicy. Nadal liczą się do limitu konta głównego.",
+  "admin.orphans.lede": "Usuwane same, gdy konto usunięto w Panel → Użytkownicy. Skanuj znajduje te, które zostały z wcześniej.",
   "admin.orphans.scan": "Skanuj",
   "admin.devices.title": "Sesje",
   "admin.refresh": "Odśwież",

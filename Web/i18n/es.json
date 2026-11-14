@@ -441,7 +441,7 @@
   "admin.households.pinPerDayHint": "Por cuenta, todas las aplicaciones juntas. De 1 a 20.",
   "admin.save": "Guardar",
   "admin.orphans.title": "Registros sobrantes",
-  "admin.orphans.lede": "Quedan cuando se elimina un perfil en Panel de control → Usuarios. Siguen contando para el límite de la cuenta principal.",
+  "admin.orphans.lede": "Se eliminan solos cuando se elimina una cuenta en Panel de control → Usuarios. Analizar encuentra los que queden de antes.",
   "admin.orphans.scan": "Analizar",
   "admin.devices.title": "Sesiones",
   "admin.refresh": "Actualizar",

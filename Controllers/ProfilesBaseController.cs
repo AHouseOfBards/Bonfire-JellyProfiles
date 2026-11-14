@@ -2626,6 +2626,10 @@ namespace Jellyfin.Profiles.Controllers
         protected static void DeleteImageFiles(string folder, string baseName)
             => DeleteImageFilesExcept(folder, baseName, null);
 
+        /// <summary>A profile's own image, for a caller outside the controllers (UserRecords).</summary>
+        internal static void DeleteProfileImage(Guid profileId)
+            => DeleteImageFiles(ProfileImageFolder, profileId.ToString());
+
         /// <summary>As <see cref="DeleteImageFiles"/>, sparing the named files.</summary>
         private static bool DeleteImageFilesExcept(string folder, string baseName, ISet<string>? keep)
         {

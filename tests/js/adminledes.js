@@ -65,7 +65,8 @@ const SHORT = {
     'admin.banner.restartBody': 'Until then the old version keeps running.',
     'admin.onboarding.askBody': 'New main accounts get a few screens to set a main PIN and make a profile.',
     'admin.households.maxProfilesHint': "1 to 20. A main account's own limit wins.",
-    'admin.orphans.lede': "Left when a profile is deleted in Dashboard → Users. They still count against the main account's limit.",
+    // 2.0 cleans a deleted account up on its own (UserRecords), so the scan is for what is older.
+    'admin.orphans.lede': 'Removed on their own when an account is deleted in Dashboard → Users. Scan finds any left from before.',
     'admin.viewing.lede': 'Households can set their own.',
     'admin.panic.warnBody': 'Until Jellyfin restarts, signed-in devices skip the profile screen. A TV left on a main account opens its whole library.',
     'admin.panic.hint': "Blank turns it off. It can't be shown again, so write it down.",

@@ -28,7 +28,7 @@ Under **Advanced**:
 Lists each main account with its profiles.
 
 - **Profiles per main account.** 1 to 20, default 5. A main account's own limit wins.
-- **Leftover records.** **Scan** finds records left when a profile is deleted in **Dashboard → Users**. They still count against the main account's limit.
+- **Leftover records.** Deleting an account in **Dashboard → Users** removes its Bonfire records and profile image. **Scan** finds any left from before 2.0, and theme images no theme uses.
 - **Accounts with no password.** An account with no password, such as an SSO account, can't be added to a household by the household. An administrator adds it here.
 - **Forgotten PIN.** Clear it here. The account can then set a new one.
 

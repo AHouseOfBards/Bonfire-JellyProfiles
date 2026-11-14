@@ -441,7 +441,7 @@
   "admin.households.pinPerDayHint": "Par compte, toutes les applications ensemble. De 1 à 20.",
   "admin.save": "Enregistrer",
   "admin.orphans.title": "Enregistrements restants",
-  "admin.orphans.lede": "Laissés quand un profil est supprimé dans Tableau de bord → Utilisateurs. Ils comptent toujours dans la limite du compte principal.",
+  "admin.orphans.lede": "Supprimés d'eux-mêmes quand un compte est supprimé dans Tableau de bord → Utilisateurs. Analyser trouve ceux qui restent d'avant.",
   "admin.orphans.scan": "Analyser",
   "admin.devices.title": "Sessions",
   "admin.refresh": "Actualiser",

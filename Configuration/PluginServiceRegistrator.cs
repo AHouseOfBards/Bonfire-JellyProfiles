@@ -77,6 +77,12 @@ namespace Jellyfin.Profiles
             // Ends the profile sessions the picker made before the last restart.
             serviceCollection.AddHostedService<ProxyPickerStartup>();
 
+            // A user deleted in Dashboard → Users takes Bonfire's records about them along, and a
+            // clean-up missed while Bonfire wasn't running is done at the next start
+            // (Campground.Shared 1.0.1, UserDataCleanup).
+            serviceCollection.AddHostedService<UserRecordsStartup>();
+            serviceCollection.AddScoped<MediaBrowser.Controller.Events.IEventConsumer<Jellyfin.Data.Events.Users.UserDeletedEventArgs>, UserRecordsDeleted>();
+
             // For other plugins: which household a user belongs to. Read-only.
             serviceCollection.AddSingleton<IBonfireProfiles, BonfireProfiles>();
 
