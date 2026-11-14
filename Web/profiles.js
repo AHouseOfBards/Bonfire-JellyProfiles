@@ -13482,14 +13482,14 @@
 
         /// A see-through logo sits straight on the gate, and one logo serves every theme: a
         /// white one vanished on Jellyfin Light, a black one on every dark theme. Its visible
-        /// pixels are read once, when it loads (logoLums), and held against the solid colours
-        /// of the theme's background (gateColours) when it loads and whenever the theme
-        /// changes. If a third or more of them fall under 3:1, WCAG's floor for graphics,
-        /// the logo gets a backing: dark behind a light logo, light behind a dark one. Not
-        /// the theme's panel colour, which on a dark theme is as dark as its background and
-        /// would hide a dark logo just the same. A logo that reads is left bare, and so is a
-        /// solid picture. A theme's background picture counts at its worst under the dim
-        /// (gatePhotoColours), alongside the solid colours, which still show until it loads.
+        /// pixels are read once, when it loads (logoLums), and held against the solid colors
+        /// of the theme's background (gateColours) at load and whenever the theme changes.
+        /// If a third or more fall under 3:1, WCAG's floor for graphics, the logo gets a
+        /// backing: dark behind a light logo, light behind a dark one. Not the theme's panel
+        /// color, which on a dark theme is as dark as its background and would hide a dark
+        /// logo just the same. A logo that reads is left bare, and so is a solid picture. A
+        /// theme's background picture counts at its worst under the dim (gatePhotoColours),
+        /// alongside the solid colors, which show until it loads.
         /// Only from drawLogo and applyTheme, never from checkRoute.
         fitLogoBacking: function () {
             const box = document.getElementById('profiles-logo');
@@ -13507,7 +13507,7 @@
                         const near = L < lo ? lo : L > hi ? hi : L;
                         if (contrastOf(L, near) < 3) { lost++; lostSum += L; }
                     });
-                    // 0.179 is where black and white contrast equally with a colour.
+                    // 0.179 is where black and white contrast equally with a color.
                     if (lost / px.length >= 1 / 3) want = lostSum / lost > 0.179 ? 'dark' : 'light';
                 }
             }
@@ -13533,11 +13533,11 @@
                 document.head.appendChild(style);
             }
             if (style.textContent !== css) style.textContent = css;
-            // Only the picture of the theme the page wears. Every custom theme's used to be
-            // fetched here, so with forty themes every device, a TV included, downloaded
-            // forty pictures on every page load to show one. applyTheme and the profile
-            // form's picker fetch the others when they are put on; the dashboard's lists and
-            // editor ask through BonfireThemePreview.photo.
+            // Only the picture of the theme the page wears. Every custom theme's picture was
+            // fetched here, so with forty themes every device, a TV included, downloaded forty
+            // pictures per page load to show one. applyTheme and the profile form's picker fetch
+            // the others when they are put on; the dashboard's lists and editor ask through
+            // BonfireThemePreview.photo.
             this.loadThemePhotoOf(document.documentElement.getAttribute('data-jpf-theme'));
         },
 
@@ -13547,10 +13547,10 @@
             this.loadThemePhoto(c && c.background && c.background.image && c.background.image.file);
         },
 
-        /// Fetches a custom theme's background picture and, once it has loaded, adds its name
-        /// to <html data-jpf-photos>, which is what themeCss's picture rule waits for. Nothing
-        /// is marked for one that fails, so its theme stays as it is without one. Once per
-        /// picture per page; a failed one is tried again the next time the themes change.
+        /// Fetches a custom theme's background picture and, once loaded, adds its name to
+        /// <html data-jpf-photos>, which themeCss's picture rule waits for. Nothing is marked
+        /// for one that fails, so its theme stays as it is without one. Once per picture per
+        /// page; a failed one is retried the next time the themes change.
         loadThemePhoto: function (file) {
             if (typeof file !== 'string' || !/^[0-9a-f]{32}\.(png|jpg|webp)$/.test(file)) return;
             const asked = this._themePhotos || (this._themePhotos = {});
@@ -13568,25 +13568,25 @@
     };
 
     /// For the settings page's theme editor (1.7.2), which loads inside jellyfin-web after
-    /// this script. Its previews are drawn by themeCss, the one generator, so a preview is
-    /// what the theme will look like rather than a second copy's guess. css() returns text
-    /// and writes nothing; builtIns() is a copy, so the editor can start from a hidden
-    /// built-in, which GET /themes leaves out; refresh() is the startup fetch again, so a
-    /// theme just saved reaches this window's pickers without a reload. fit() sizes and
-    /// balances a copy of the picker (the editor's expanded preview) the way the real one is,
-    /// so a phone shows two tiles a row there too. The page works without this, minus the
-    /// preview, when the script was not injected.
+    /// this script. Previews are drawn by themeCss, the one generator, so a preview is what
+    /// the theme will look like, not a second copy's guess. css() returns text and writes
+    /// nothing; builtIns() is a copy, so the editor can start from a hidden built-in, which
+    /// GET /themes leaves out; refresh() is the startup fetch again, so a theme just saved
+    /// reaches this window's pickers without a reload. fit() sizes and balances a copy of
+    /// the picker (the editor's expanded preview) like the real one, so a phone shows two
+    /// tiles a row there too. The page works without this, minus the preview, when the
+    /// script was not injected.
     if (typeof window !== 'undefined') {
-        // Turned off, init returns before injectStyles, and the previews' own rules
-        // (.jpf-theme-preview) and the gate's rules the expanded view copies from #jpf-styles
-        // live in that sheet: the Themes tab drew unstyled. So the first preview call puts it
-        // in. Only then, so an ordinary page while off still gets nothing of ours.
+        // With the plugin turned off, init returns before injectStyles, and the previews'
+        // own rules (.jpf-theme-preview) and the gate's rules the expanded view copies from
+        // #jpf-styles live in that sheet: the Themes tab drew unstyled. So the first preview
+        // call puts it in, and only then, so an ordinary page while off gets nothing of ours.
         // injectStyles is idempotent, so on it is a lookup.
         const previewSheet = () => { if (BONFIRE_OFF) ProfilesPlugin.injectStyles(); };
         window.BonfireThemePreview = {
             css: theme => { previewSheet(); return themeCss(theme, BONFIRE_THEMES.patterns || {}); },
-            // A background picture the editor's preview names, fetched and marked as the
-            // pickers' are, so the preview shows it exactly when they would.
+            // A background picture the editor's preview names, fetched and marked like the
+            // pickers', so the preview shows it exactly when they would.
             photo: file => ProfilesPlugin.loadThemePhoto(file),
             fit: el => { previewSheet(); return ProfilesPlugin.fitGateToScreen(el); },
             builtIns: () => JSON.parse(JSON.stringify(Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])),
