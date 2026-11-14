@@ -2939,6 +2939,9 @@ js/viewing tests/js/_lib.js
 js/viewing tests/js/_stubdom.js
 js/viewing tests/js/viewing.js
 js/viewwide *
+js/webkitflows *
+js/webkitlayout *
+js/webkitstartup *
 js/welcomealign *
 js/workflows .github/workflows/ci.yml
 js/workflows .github/workflows/release.yml

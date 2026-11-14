@@ -162,6 +162,36 @@ jobs:
       - name: Validate translations
         run: node Web/i18n/validate.js
 
+  # The client script in WebKit, the engine of Safari and of the iPhone and iPad app. Every
+  # other browser harness drives Chrome, so nothing else here has ever run it in WebKit.
+  # Playwright is pinned in tests/webkit/package.json (a devDependency for this alone). The
+  # harnesses say SKIP when it is not installed, so this job sets BONFIRE_WEBKIT_REQUIRED:
+  # here a missing or broken install is a failure, never a skip. The JavaScript shards above
+  # do not install it, and those three harnesses skip there.
+  webkit:
+    name: WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Install Playwright and its WebKit
+        working-directory: tests/webkit
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright-core install --with-deps webkit
+
+      - name: Run the WebKit harnesses
+        env:
+          BONFIRE_WEBKIT_REQUIRED: '1'
+        run: bash tests/run.sh js --only js/webkitstartup,js/webkitlayout,js/webkitflows
+
   # The one name to require. `always()` so it runs, and fails, when a job it needs failed
   # or was canceled or skipped: a job that never ran must not read as a pass. The result
   # of every needed job is checked by name, not as a total.
@@ -169,7 +199,7 @@ jobs:
     name: CI passed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [js, csharp, binchk, static]
+    needs: [js, csharp, binchk, static, webkit]
     if: ${{ always() }}
     steps:
       - name: Every job succeeded
@@ -178,9 +208,10 @@ jobs:
           CSHARP: ${{ needs.csharp.result }}
           BINCHK: ${{ needs.binchk.result }}
           STATIC: ${{ needs.static.result }}
+          WEBKIT: ${{ needs.webkit.result }}
         run: |
           bad=0
-          for pair in "js=$JS" "csharp=$CSHARP" "binchk=$BINCHK" "static=$STATIC"; do
+          for pair in "js=$JS" "csharp=$CSHARP" "binchk=$BINCHK" "static=$STATIC" "webkit=$WEBKIT"; do
             echo "$pair"
             [ "${pair#*=}" = "success" ] || bad=1
           done
