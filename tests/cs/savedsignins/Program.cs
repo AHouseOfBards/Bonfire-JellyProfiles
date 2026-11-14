@@ -15,21 +15,19 @@ using MediaBrowser.Model.Querying;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Issue #40: a Roku opened a PIN-protected profile without asking for the PIN.
 //
-// Bonfire checked the PIN correctly. The Roku app saves the profile's access token on
-// the set ("Save Credentials?", ticked by default), and on its user list it tries that
-// token before anything else — and its "Change user" keeps it. So one PIN typed on a
-// television opened that profile for whoever held the remote, from then on.
+// Bonfire checked the PIN correctly. The Roku app saves the profile's access token on the set
+// ("Save Credentials?", ticked by default) and tries that token first on its user list; its
+// "Change user" keeps it. So one PIN typed on a television opened that profile for whoever
+// held the remote from then on.
 //
-// The fix revokes those saved sign-ins when the set's picker asks for its user list
-// (GET /Users/Public, anonymous). This harness drives the real middleware with that
-// request and counts which of Jellyfin's device rows are signed out. Against 1.7.1 the
-// first assertion fails: nothing is revoked, which is the bug.
+// The fix revokes those saved sign-ins when the set's picker asks for its user list (GET
+// /Users/Public, anonymous). This harness sends that request through the real middleware and
+// counts which of Jellyfin's device rows are signed out. Against 1.7.1 the first assertion
+// fails: nothing is revoked.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();

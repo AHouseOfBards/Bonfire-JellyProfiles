@@ -14,23 +14,19 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Routes no harness called (R-1288).
 //
-// Each of these was reachable only through a live server: the emergency disable (Panic,
-// SetPanicCode, GetPanicState), the PIN check behind the web switcher (VerifyPin), and
-// the administrator's SetProfileLimit, SetMaintenance, SignOutSession and CleanupOrphans.
-// Here the real controller methods are called against a modelled Jellyfin and what they
-// answer and change is read back.
-//
+// Each was reachable only through a live server: the emergency disable (Panic, SetPanicCode,
+// GetPanicState), the PIN check behind the web switcher (VerifyPin), and the administrator's
+// SetProfileLimit, SetMaintenance, SignOutSession and CleanupOrphans. The real controller
+// methods are called against a modelled Jellyfin and what they answer and change is read back.
 // Import and export are left to R-1146, which covers them as a round trip.
 //
-// A coverage harness can't fail against old code that behaves the same, so each route
-// group was shown to go red against a deliberate local break of the plugin, one per group,
-// listed in the commit that added this file.
+// A coverage harness can't fail against old code that behaves the same, so each route group
+// was shown red against a deliberate local break, one per group, listed in the commit that
+// added this file.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();
@@ -67,8 +63,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-routecoverage-" + Guid.N
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 object Cfg(string name) => cfgType.GetProperty(name).GetValue(config);

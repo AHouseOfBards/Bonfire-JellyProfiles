@@ -14,25 +14,23 @@ using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Users;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // A second account on the same app and device, without a sign-out (R-1008).
 //
 // Jellyfin 10.11 keys a session by app name + device id (SessionManager.GetSessionKey).
-// SessionStarted is raised only when GetOrAdd creates the record; when the key exists, the
-// new account's UserId and UserName are written over the old ones in place and nothing is
-// raised. A household's profile signing in on a television somebody else last used therefore
-// never reached BonfireSessionListener: no policy sync (so its main account's limits did not
-// reach it) and no device row (so its profiles were never offered on that sign-in screen).
+// SessionStarted is raised only when GetOrAdd creates the record; when the key exists, the new
+// account's UserId and UserName are written over the old ones and nothing is raised. A
+// profile signing in on a television somebody else last used never reached
+// BonfireSessionListener: no policy sync (its main account's limits did not apply) and no
+// device row (its profiles were never offered on that sign-in screen).
 //
-// The listener now also watches SessionActivity — raised from LogSessionActivity at most
-// once per ten seconds per session — and treats a change of account on a session it has
-// already seen as a sign-in. This harness drives the real listener with a modelled session
-// manager and raises the events the way 10.11 does.
+// The listener now also watches SessionActivity (raised from LogSessionActivity at most once
+// per ten seconds per session) and treats a change of account on a known session as a
+// sign-in. This harness drives the real listener with a modelled session manager and raises
+// the events as 10.11 does.
 //
 // Red against 2ea6ccc: the handover assertions fail (nothing listens to SessionActivity).
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();
@@ -68,8 +66,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-sessionhandover-" + Guid
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 var known = (IList)cfgType.GetProperty("KnownDevices").GetValue(config);
@@ -168,9 +166,9 @@ Console.WriteLine();
 Console.WriteLine("── What it must not do ─────────────────────────────────────────");
 {
     world.Lookups.Clear();
-    // A session that was already open when the plugin started: nothing is known of it, so
-    // its activity is a first sighting, not a handover. Acting on it would fire for every
-    // open session at once on each server start.
+    // A session already open when the plugin started: nothing is known of it, so its activity
+    // is a first sighting, not a handover. Acting on it would fire for every open session at
+    // each server start.
     var s = Session("s-old", "tv-old", KID);
     Raise("SessionActivity", s);
     Ok("a session first seen through activity is only remembered", !DeviceKnown("tv-old") && Syncs(KID) == 0);
@@ -197,9 +195,9 @@ Console.WriteLine();
 Console.WriteLine("── Only a password makes a device known ────────────────────────");
 {
     // The sign-in request's note, as the middleware starts it and the provider marks it.
-    // Jellyfin raises SessionStarted through Task.Run, which carries that request's
-    // context, so the listener reads the same note. A build without the note has no
-    // BeginSignIn, and then nothing can tell the listener, which is the bug.
+    // Jellyfin raises SessionStarted through Task.Run, which carries that request's context, so
+    // the listener reads the same note. Without BeginSignIn nothing can tell the listener,
+    // which was the bug.
     var rd = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", true);
     var begin = rd.GetMethod("BeginSignIn", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
     void Note(bool byPin) => begin?.Invoke(null, new object[] { byPin });

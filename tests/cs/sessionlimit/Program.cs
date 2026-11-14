@@ -23,12 +23,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Issue #41: with MaxActiveSessions set, a profile's leftover sessions on the same device
-// made /switch fail, and the page reloaded into the picker in a loop.
+// Issue #41: with MaxActiveSessions set, a profile's leftover sessions on the same device made
+// /switch fail, and the page reloaded into the picker in a loop.
 //
-// What Jellyfin does (release-10.11.z, SessionManager.AuthenticateNewSessionInternal), and
-// what the stub below does exactly:
+// What Jellyfin does (release-10.11.z, SessionManager.AuthenticateNewSessionInternal), which
+// the stub below copies:
 //
 //   int sessionsCount = Sessions.Count(i => i.UserId.Equals(user.Id));
 //   if (maxActiveSessions >= 1 && sessionsCount >= maxActiveSessions)
@@ -38,19 +37,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 //                                                  // session on that deviceId
 //   LogSessionActivity(...)                        // session keyed by app + deviceId
 //
-// So the session being replaced counts against the limit first. And Jellyfin for Android
-// signs the profile in under base + mainId from the picker, while the profile's own
-// requests after the reload carry base + profileId: two sessions for one phone, and
-// another with each restart.
+// So the session being replaced counts against the limit first. Jellyfin for Android signs the
+// profile in under base + mainId from the picker, while its own requests after the reload
+// carry base + profileId: two sessions for one phone, and another with each restart.
 //
-// This holds the plugin to: before the switch, the profile's own sessions and device rows
-// on this physical device are ended. Another account's session on the same device, and
-// the profile's own session on another device, are left alone.
+// The plugin is held to this: before the switch, the profile's own sessions and device rows on
+// this physical device are ended. Another account's session on the same device, and the
+// profile's session on another device, are left alone.
 //
 // Against 7455aa6 the switch fails at the limit.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();
@@ -88,8 +85,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-sessionlimit-" + Guid.Ne
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 
@@ -256,7 +253,7 @@ if (same != null)
 Section("Device rows, and a session that will not end");
 
 // A row on this phone under another id is the profile's own leftover and goes. The row for
-// the id being switched with is Jellyfin's, and logs itself out a moment later. Another
+// the id being switched with is Jellyfin's and logs itself out a moment later. Another
 // account's row on this phone, and the profile's row on another device, stay.
 world.Reset();
 world.SetMax(KID, 5);
