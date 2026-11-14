@@ -6094,7 +6094,9 @@
             if (Date.now() < (this._libraryArtRetryAt || 0)) return;
             this._libraryArtLoading = true;
 
-            fetch(ApiClient.getUrl('plugins/profiles/library-artwork'), {
+            // Timed: the flag above is cleared only by an answer, so a reply a proxy dropped
+            // stopped artwork being asked for on this page (r3-06-01).
+            this._fetchTimed(ApiClient.getUrl('plugins/profiles/library-artwork'), {
                 cache: 'no-store',
                 headers: this.getAuthHeaders(ApiClient.accessToken())
             })
@@ -9984,8 +9986,8 @@
                         </div>
                         <div class="jpf-libart-list" id="edit-library-artwork">
                             <div class="jpf-libart-head" aria-hidden="true">
-                                <span class="libart-head-lib">${t('profileForm.libraryHeader')}</span>
-                                <span class="libart-head-art">${t('profileForm.artworkHeader')}</span>
+                                <span>${t('profileForm.libraryHeader')}</span>
+                                <span>${t('profileForm.artworkHeader')}</span>
                             </div>
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;

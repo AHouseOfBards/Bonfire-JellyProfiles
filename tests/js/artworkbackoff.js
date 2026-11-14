@@ -48,16 +48,39 @@ Date.now = () => now;
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     };
     global.ApiClient = { accessToken: () => 't', getCurrentUserId: () => 'u', getUrl: p => p };
+    // _fetchTimed with it when the build has one; its timer is never reached by these cases.
+    const REQUEST_TIMEOUT_MS = 15000; // eslint-disable-line no-unused-vars
+    const timedSrc = src.indexOf('\n        _fetchTimed: function') >= 0 ? ',' + method('_fetchTimed') : '';
     function art() {
         return eval('({ _libraryArtLoaded: false, getAuthHeaders: () => ({}),'
             + 'cacheLibraryArtwork() {}, applyLibraryArtwork() {},'
-            + method('loadLibraryArtwork') + '})');
+            + method('loadLibraryArtwork') + timedSrc + '})');
     }
 
     let o = art();
     for (let i = 0; i < 10; i++) { o.loadLibraryArtwork(); now += 500; }
     await flush();
     check(sent === 1, 'a request that has not answered is not asked again (sent ' + sent + ')');
+
+    // But one that never answers is given up on: the one-at-a-time flag was cleared only by an
+    // answer, so a dropped reply stopped artwork being asked for on that page (r3-06-01).
+    {
+        const timers = [], realSet = global.setTimeout, realClear = global.clearTimeout;
+        global.setTimeout = (fn, ms) => { timers.push(fn); return timers.length; };
+        global.clearTimeout = () => {};
+        const REQUEST_TIMEOUT_MS = 15000; // eslint-disable-line no-unused-vars
+        sent = 0; mode = 'hang';
+        const timed = src.indexOf('\n        _fetchTimed: function') >= 0 ? ',' + method('_fetchTimed') : '';
+        const h = eval('({ _libraryArtLoaded: false, getAuthHeaders: () => ({}),'
+            + 'cacheLibraryArtwork() {}, applyLibraryArtwork() {},'
+            + method('loadLibraryArtwork') + timed + '})');
+        h.loadLibraryArtwork(); await flush();
+        timers.splice(0).forEach(fn => fn()); await flush();
+        now += 6 * 60 * 1000;
+        h.loadLibraryArtwork(); await flush();
+        global.setTimeout = realSet; global.clearTimeout = realClear;
+        check(sent === 2, 'a request that never answers is given up on and asked again later (sent ' + sent + ')');
+    }
 
     sent = 0; mode = 'fail'; o = art();
     for (let i = 0; i < 20; i++) { o.loadLibraryArtwork(); await flush(); now += 500; }
