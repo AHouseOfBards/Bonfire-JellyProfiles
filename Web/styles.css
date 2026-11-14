@@ -1,56 +1,41 @@
-/*
- * Bonfire's client stylesheet.
- *
- * This was 1,400 lines living inside a JavaScript template literal, and that cost
- * two releases: a code comment containing two backticks closed the literal early,
- * so the file still PARSED — node --check passed — and threw at runtime three calls
- * into startup, taking the nine steps after it down with it. 1.5.2 and 1.5.3-beta
- * shipped dead that way.
- *
- * A .css file cannot do that. There is no host language left to terminate, so the
- * failure mode is gone at the language level rather than guarded against.
- *
- * It is embedded as its own resource and spliced into the served script by
- * ProfilesController.PublishStyles, which encodes it as a JSON string literal —
- * double-quoted and fully escaped — so no character in here can affect the
- * surrounding JavaScript. Write plain CSS, including backticks if you want them.
- */
+/* Bonfire's client stylesheet.
+
+   This used to live in a JavaScript template literal. A code comment with two backticks
+   closed the literal early: the file still parsed (node --check passed) but threw three
+   calls into startup. 1.5.2 and 1.5.3-beta shipped dead that way.
+
+   ProfilesController.PublishStyles embeds this file and splices it into the served
+   script as an escaped JSON string, so nothing in here can affect the surrounding
+   JavaScript. Backticks are fine. */
 /* ── Tokens no theme sets ─────────────────────────────────────────
-   Every colour, corner and font a theme can change is written by themeCss from
-   the files in Web/themes/, Bonfire's on :root and body as well as its own
-   attribute, so the page has them before any theme is known. What is left here
-   is the same under every theme.
+   Every color, corner and font a theme can change is written by themeCss from
+   Web/themes/, on :root and body as well as its own attribute, so the page has them
+   before any theme is known. What is left here is the same under every theme.
 
-   Until 1.7.2 this block also held Bonfire's colours, following Jellyfin's
-   accent (--jf-palette-primary-main on 12.0, --accent on 10.11) and the
-   desktop's light or dark setting. Bonfire is a fixed look of its own now, so
-   that went: a second definition of a theme's tokens here is one the theme
-   file cannot see and no other app can read.
+   Until 1.7.2 this block also held Bonfire's colors, following Jellyfin's accent and
+   the desktop's light or dark setting. Bonfire has a fixed look now. A second
+   definition of a theme's tokens here is one the theme file cannot see.
 
-   What the theme tokens mean, for anyone writing a rule against them:
-   - surface-1..3, border-1..3, text-1..3: three steps you can actually see,
-     where this file once had thirty white alphas, seven of them between 0.02
-     and 0.08 where no eye can tell them apart. Alpha on purpose, so they sit on
-     whatever the theme paints.
-   - accent-a08..a60: tints of the accent. Plain rgba literals, because
-     deriving them needs colour arithmetic the older TV browsers do not have.
-   - danger, danger-quiet (an outline button on transparent), danger-deep (the
-     hover for a filled danger button), warn (warnings, and the flame).
-   - r-sm (inputs, chips), r-md (buttons, cards, dialogs), r-lg (full-screen
-     surfaces). 50% and 999px are deliberately not tokens: those mean a circle
-     and a pill, which are shapes rather than sizes. */
+   What the theme tokens mean:
+   - surface-1..3, border-1..3, text-1..3: three visible steps (this file once had
+     thirty white alphas, seven between 0.02 and 0.08 that no eye can tell apart).
+     Alpha on purpose, so they sit on whatever the theme paints.
+   - accent-a08..a60: tints of the accent. Plain rgba literals, because deriving them
+     needs color arithmetic the older TV browsers lack.
+   - danger, danger-quiet (an outline button on transparent), danger-deep (hover for a
+     filled danger button), warn (warnings, and the flame).
+   - r-sm (inputs, chips), r-md (buttons, cards, dialogs), r-lg (full-screen surfaces).
+     50% and 999px are not tokens: they mean a circle and a pill, not a size. */
 :root, body {
-    /* Shadows' darker cousin, behind a dialog. Black under every theme. */
+    /* Behind a dialog. Black under every theme. */
     --jpf-scrim: rgba(0, 0, 0, 0.62);
 
-    /* The far stop of the flame gradient only. A brand colour that happens to be
-       orange: collapsing it into the warning colour would have made every Bonfire
-       badge look like an error. */
+    /* The far stop of the flame gradient only. A brand color that happens to be orange;
+       using the warning color would make every Bonfire badge look like an error. */
     --jpf-flame-deep: #ff5500;
 
-    /* Spacing. Every screen was styled on its own, which left four gap values and
-       ten container widths across the product, so the surfaces never read as one
-       thing. Applied by the layout work rather than swapped in blind: a container
+    /* Spacing. Every screen was styled on its own, leaving four gap values and ten
+       container widths. Applied by the layout work, not swapped in blind: a container
        width is not interchangeable the way a radius is. */
     --jpf-gap: 12px;      /* controls sitting in a row */
     --jpf-gap-lg: 1.25rem; /* sections and button rows */
@@ -61,25 +46,21 @@
 }
 
 /* ── Themes ───────────────────────────────────────────────────────
-   The look of Bonfire's own screens, chosen per profile. Nothing about a theme
-   is in this file any more: each one is a JSON file in Web/themes/, described in
-   docs/themes.md, and themeCss in profiles.js writes its tokens and its few
-   rules (the open layout, rings, frost, a drifting pattern) after this sheet.
-   Other apps read the same files, so nothing the web client shows is out of
-   their reach.
+   The look of Bonfire's own screens, chosen per profile. Each theme is a JSON file in
+   Web/themes/ (docs/themes.md); themeCss in profiles.js writes its tokens and its few
+   rules (open layout, rings, frost, drifting pattern) after this sheet. Other apps read
+   the same files.
 
-   Every rule below reads the tokens a theme sets, never a literal: a colour or
-   a shape written here is one no theme can change and no other app can know. */
+   Rules below read the tokens a theme sets, never a literal. A color or shape written
+   here is one no theme can change and no other app can know. */
 
 /* ── Seasonal decoration ──────────────────────────────────────────
-   A theme's pattern decoration: a picture repeated behind everything on the
-   gate and its screens, and smaller behind a preview. A layer of its own, not
-   part of --jpf-gate-bg, because the head script repeats that value to paint
-   the startup cover and the contrast checks read its colour stops; the
-   decoration is faint and only drawn once the stylesheet is here. z-index -1
-   inside the overlay's own stacking context puts it above the overlay's
-   background and under everything in it. A theme without a pattern sets
-   --jpf-deco to none, so this draws nothing for it. */
+   A theme's pattern: a picture repeated behind the gate and its screens, smaller behind
+   a preview. It is its own layer, not part of --jpf-gate-bg, because the head script
+   repeats that value to paint the startup cover and the contrast checks read its color
+   stops. z-index -1 inside the overlay's stacking context puts it above the overlay's
+   background and under everything in it. A theme without a pattern sets --jpf-deco to
+   none, so nothing is drawn. */
 #profiles-gate-overlay::before,
 .jpf-theme-preview::before {
     content: '';
@@ -103,17 +84,14 @@
 }
 
 /* ── Theme previews ───────────────────────────────────────────────
-   A small "Who's watching?" in each theme: the title, three tiles, a
-   button. It wears the theme it shows through the same attribute, so it
-   is drawn from the real tokens and cannot drift from what choosing it
-   does. Used beside the picker in the profile form and on each card of
-   Settings → Theme. */
+   A small "Who's watching?" in each theme: title, three tiles, a button. It wears the
+   theme through the same attribute, so it is drawn from the real tokens. Used in the
+   profile form's picker and on each card of Settings → Theme. */
 .jpf-theme-preview {
     display: flex; flex-direction: column; align-items: center; gap: 10px;
     padding: 16px 14px;
-    /* Inside its card whatever the card's width. On a phone the cards are
-       two to a row and the tiles and Crimson's spaced capitals ran out
-       past the preview's edge, and past the card's. */
+    /* Stay inside the card at any width. On a phone the cards are two to a row, and the
+       tiles and Crimson's spaced capitals ran past the preview's edge. */
     box-sizing: border-box; width: 100%; min-width: 0; overflow: hidden;
     border-radius: var(--jpf-r-md);
     border: 1px solid var(--jpf-border-2);
@@ -140,14 +118,14 @@
 .jpf-theme-preview-tile:nth-child(1) { background: #d9534f; }
 .jpf-theme-preview-tile:nth-child(2) { background: #3fb37f; }
 .jpf-theme-preview-tile:nth-child(3) { background: #5b8def; }
-/* The first tile shows the theme's focus frame. */
+/* Theme-specific preview rules key on the preview's own attribute, never the page's. On a Nightfall page every preview took Nightfall's rings. */
 /* Theme-specific preview rules key on the preview's own attribute, never the
    page's: on a Nightfall page every preview took Nightfall's rings. */
 .jpf-theme-preview-tile:first-child {
     box-shadow: 0 0 0 var(--jpf-ring-w) var(--jpf-ring);
 }
-/* A theme with rings frames its preview tiles too: themeCss writes those from the
-   theme's own gradients, so no theme's colours are kept here. */
+/* A theme with rings frames its preview tiles too. themeCss writes those from the
+   theme's own gradients, so no theme's colors are kept here. */
 .jpf-theme-preview-button {
     padding: 4px 12px;
     border-radius: var(--jpf-btn-radius);
@@ -158,16 +136,14 @@
     letter-spacing: var(--jpf-btn2-spacing);
     font-weight: var(--jpf-btn2-weight);
     font-size: 0.68rem;
-    /* Wraps rather than being cut: Crimson's spaced capitals came out as
-       "MANAGE PROFIL..." even on a desktop card. */
+    /* Wraps rather than being cut: Crimson's spaced capitals came out as "MANAGE PROFIL...". */
     white-space: normal; line-height: 1.25;
     box-sizing: border-box; max-width: 100%;
     overflow: hidden;
 }
-/* Two cards to a row on a phone leaves about 100px inside a preview:
-   three 30px tiles, their gaps and a ring did not fit, nor did a spaced
-   capital button. Smaller tiles, and the button's letter-spacing eased,
-   so every theme's preview fits rather than being cut off. */
+/* Two cards to a row on a phone leaves about 100px in a preview. Three 30px tiles, their
+   gaps and a ring did not fit, nor did a spaced capital button. Smaller tiles and eased
+   button letter-spacing. */
 @media (max-width: 480px) {
     .jpf-theme-preview { padding: 12px 6px; gap: 8px; }
     .jpf-theme-preview-tiles { gap: 8px; }
@@ -175,8 +151,7 @@
     .jpf-theme-preview-button { padding: 3px 8px; font-size: 0.6rem; letter-spacing: 0.04em; }
 }
 
-/* A card you choose: the Settings entries and the switcher's location
-   options. Their colours were inline, which no theme could reach. */
+/* A card you choose: the Settings entries and the switcher's location options. Their colors were inline, which no theme could reach. */
 .jpf-choice {
     display: flex; gap: var(--jpf-gap); text-align: left; padding: 16px;
     border-radius: var(--jpf-r-md); cursor: pointer; box-sizing: border-box;
@@ -202,14 +177,12 @@
 }
 
 /* Settings → Theme: one card per theme, each a preview with its name. */
-/* The same in every theme: no sheet behind the cards, which are cards
-   already, and the full width for them. Bonfire drew its sheet here and
-   its 2rem padding left room for three previews a row where the other
-   themes, with transparent sheets, showed four. 8px of side padding is
-   kept so a focused card's ring is not cut off by the container's scroll
-   box. After the Glass frost rule above, which this has to undo. */
-/* 706px: nine themes as three rows of three rather than four, four and
-   one, with Done under the cards' left edge rather than out past it. */
+/* The same in every theme: no sheet behind the cards (they are cards already) and the
+   full width. Bonfire's own sheet and its 2rem padding left room for three previews a
+   row where the transparent-sheet themes showed four. 8px of side padding stays so a
+   focused card's ring is not cut by the container's scroll box. Comes after the Glass
+   frost rule above, which this undoes. */
+/* 706px: nine themes as three rows of three, not four, four and one, with Done under the cards' left edge. */
 .jpf-create-profile-container.jpf-theme-page {
     max-width: 706px;
     background: transparent;
@@ -236,8 +209,7 @@
     gap: var(--jpf-gap);
     width: 100%;
 }
-/* 130px is two to a row on a phone; seven cards one above another was a
-   long scroll to reach the last. */
+/* 130px is two to a row on a phone. Seven cards in a column was a long scroll. */
 .jpf-theme-grid > .jpf-theme-option {
     flex: 0 1 210px;
     min-width: 130px;
@@ -314,8 +286,7 @@
 .jpf-theme-status.is-error {
     color: var(--jpf-danger);
 }
-/* The offer to match jellyfin-web's own theme, under the cards. Flex with gap rather
-   than grid: grid is Chromium 57 and webOS 4.5 is 53. */
+/* The offer to match jellyfin-web's theme, under the cards. Flex with margins, not grid (Chromium 57; webOS 4.5 is 53). */
 .jpf-theme-match {
     display: flex; flex-direction: column; align-items: center; gap: var(--jpf-gap);
     margin-top: 12px; text-align: center;
@@ -324,18 +295,16 @@
 .jpf-theme-match-text { margin: 0; font-size: 0.95rem; color: var(--jpf-text-1); }
 .jpf-theme-match-text.is-error { color: var(--jpf-danger); }
 .jpf-theme-match-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--jpf-gap); }
-/* Administrator-supplied avatar picker.
-   auto-fill rather than a fixed count so it reflows from a phone to a TV
-   without a media query, and scrolls internally instead of pushing the
-   form's buttons off screen when the library is large. */
+/* Administrator-supplied avatar picker. auto-fill reflows from phone to TV without a
+   media query, and it scrolls internally so a large library does not push the form's
+   buttons off screen. */
 .jpf-avatar-color-group {
     transition: opacity 0.2s ease;
 }
 .jpf-avatar-color-group.is-inert {
     opacity: 0.45;
 }
-/* The only thing that said this button opens a panel was aria-expanded,
-   which is not a thing anyone can see. */
+/* Only aria-expanded said this button opens a panel, and nobody can see that. */
 .jpf-picture-caret {
     font-size: 1.15rem !important;
     margin-left: -2px;
@@ -345,8 +314,7 @@
 .jpf-picture-change-btn[aria-expanded="true"] .jpf-picture-caret {
     transform: rotate(180deg);
 }
-/* Held down for as long as the panel is out, so the link between the two
-   survives the panel being scrolled past. */
+/* Held while the panel is out, so the link between the two survives scrolling past it. */
 .jpf-picture-change-btn[aria-expanded="true"] {
     background-color: var(--jpf-accent-a18);
     border-color: var(--jpf-accent-a60);
@@ -371,12 +339,11 @@
 .jpf-picture-remove-btn:hover, .jpf-picture-remove-btn:focus {
     color: var(--jpf-danger-quiet);
 }
-/* Collapsed by default on a profile that already has a picture. When it
-   opens it needs to read as one panel belonging to the button above it —
-   loose controls stacked in the form was the part that looked unfinished. */
-/* Shown only while a picture is set — with no picture the colour is the
-   whole background and there is nothing to make transparent. The inline
-   display comes from renderAvatarPicker and is driven by setPreview. */
+/* Collapsed by default when the profile already has a picture. Opened, it reads as one
+   panel belonging to the button above; loose controls in the form looked unfinished. */
+/* Shown only while a picture is set. With no picture the color is the whole background
+   and there is nothing to make transparent. The inline display comes from
+   renderAvatarPicker and setPreview. */
 .jpf-picture-transparent-row {
     min-width: 0;
 }
@@ -392,8 +359,7 @@
     gap: var(--jpf-gap);
     width: 100%;
     min-width: 0;
-    /* Required: width:100% and padding on a content-box element add up
-       to wider than the card. This sheet has no global box-sizing. */
+    /* Required: width:100% plus padding on a content-box element is wider than the card. This sheet has no global box-sizing. */
     box-sizing: border-box;
     padding: 0.9rem;
     background: var(--jpf-shadow-1);
@@ -409,8 +375,7 @@
     gap: 8px;
     min-width: 0;
 }
-/* One rule, so a server with uploads locked off does not leave a divider
-   above nothing. */
+/* One rule, so a server with uploads locked off has no divider above nothing. */
 .jpf-picture-source-block + .jpf-picture-source-block {
     border-top: 1px solid var(--jpf-border-1);
     padding-top: var(--jpf-gap);
@@ -422,7 +387,7 @@
     text-transform: uppercase;
     color: var(--jpf-text-3);
 }
-/* The panel is the box now; a second one inside it was two frames deep. */
+/* The panel is the box now. A second one inside was two frames deep. */
 .jpf-picture-sources .jpf-avatar-library-grid {
     background: transparent;
     border: none;
@@ -465,8 +430,7 @@ body.profiles-no-scroll, html.profiles-no-scroll {
     height: 100% !important;
 }
 
-/* Hide loaders behind overlay. The two wildcards also match Bonfire's own spinner, which
-   the gate draws while a screen loads, so it is named out of them. */
+/* Hide loaders behind the overlay. The wildcards also match Bonfire's own spinner, which the gate draws while a screen loads, so it is excluded. */
 body.profiles-no-scroll .docloader,
 body.profiles-no-scroll .mainLoader,
 body.profiles-no-scroll .loadingSpinner,
@@ -491,21 +455,20 @@ body.profiles-no-scroll [id*="spinner"] {
     color: var(--jpf-text-1); font-family: var(--jpf-font);
     overflow-y: auto; padding: 2rem 0; box-sizing: border-box;
     opacity: 1; transition: opacity 0.22s ease;
-    /* A notch or a rounded corner: keep clear of it. jellyfin-web asks for the whole screen
-       (viewport-fit=cover) and does the same on its own padded-left/right. Declared after
-       the plain padding and not instead of it, because a browser that does not know env()
-       drops the declaration, and a calc() around the only value would drop the padding too. */
+    /* Keep clear of a notch or rounded corner. jellyfin-web asks for the whole screen
+       (viewport-fit=cover). Declared after the plain padding, not instead of it: a browser
+       that does not know env() drops the declaration, and a calc() around the only value
+       would drop the padding too. */
     padding-top: calc(2rem + env(safe-area-inset-top));
     padding-bottom: calc(2rem + env(safe-area-inset-bottom));
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
 }
-/* The theme's font on every Bonfire surface and every control in one. A dialog is
-   appended to <body>, outside the gate, so it never had the gate's font; and a button,
-   field or list does not inherit a font in any browser. jellyfin-web only fixes that
-   for its own emby-* elements (release-10.11.z, every .scss checked), so until 1.7.2
-   every Bonfire button, PIN field and dialog was drawn in the browser's default sans,
-   whatever font the theme named. Found by the golden screenshots, not by a user. */
+/* The theme's font on every Bonfire surface and every control. A dialog is appended to
+   <body>, outside the gate, so it never had the gate's font, and buttons, fields and
+   lists do not inherit a font in any browser. jellyfin-web fixes that only for its own
+   emby-* elements (release-10.11.z), so until 1.7.2 every Bonfire button, PIN field and
+   dialog drew in the browser's default sans. Found by the golden screenshots. */
 .jpf-trap-surface, .jpf-create-profile-container {
     font-family: var(--jpf-font, inherit);
 }
@@ -514,10 +477,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-create-profile-container button, .jpf-create-profile-container input, .jpf-create-profile-container select, .jpf-create-profile-container textarea {
     font-family: inherit;
 }
-/* Our own scroll areas get a scrollbar drawn to match them. Otherwise they take
-   whatever the page's theme gives the page, which on several themes is the accent
-   colour: a bright red bar down the side of a dark form. Two rules, not one, so a
-   browser that does not know one of the forms keeps the other. */
+/* Scrollbars drawn to match our own scroll areas. Otherwise they take the page theme's
+   scrollbar, which on several themes is the accent color: a bright red bar down a dark
+   form. Two rules so a browser that lacks one form keeps the other. */
 #profiles-gate-overlay, .jpf-create-profile-container {
     scrollbar-width: thin;
     scrollbar-color: var(--jpf-border-3) transparent;
@@ -545,12 +507,11 @@ body.profiles-no-scroll [id*="spinner"] {
     font-weight: var(--jpf-title-weight); margin-bottom: 3rem;
     text-shadow: var(--jpf-title-shadow); letter-spacing: var(--jpf-title-spacing);
 }
-/* The server's logo, top right (1.7.2). Absolute on the gate, which is the scroll box, so
-   it goes up with the page instead of floating over a long form. Never a target: it is
-   not a control, and on a TV it must not take focus from a profile. Kept small and away
-   from the title: 72px tall at most (1.7.3: half as big again, rounded, with padding; the
-   text in the title's colour), a third of the width. On a TV, 5% in from each edge,
-   the overscan safe area docs/themes.md promises to apps drawing the same thing. */
+/* The server's logo, top right (1.7.2). Absolute on the gate, which is the scroll box,
+   so it scrolls with the page. Never a target: it is not a control and must not take
+   focus from a profile on a TV. At most 72px tall (1.7.3: half again as big, rounded,
+   padded, text in the title's color) and a third of the width. On a TV, 5% in from each
+   edge, the overscan safe area docs/themes.md promises to apps drawing the same thing. */
 #profiles-logo {
     position: absolute; top: 2rem; right: 2rem; z-index: 1;
     max-width: 33%; pointer-events: none;
@@ -562,27 +523,23 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 #profiles-logo img { display: block; max-width: 100%; max-height: 72px; width: auto; height: auto; margin-left: auto; border-radius: var(--jpf-r-md); }
 .jpf-tv #profiles-logo { top: 5vh; right: 5vw; max-width: 30vw; font-size: 2.1rem; }
-/* A tenth of the screen's height, not 108px: 108px was 10% of a 1080p screen and 15% of a
-   720p one, so the same logo looked half as big again on the smaller television. */
+/* A tenth of the screen's height, not 108px: that was 10% of a 1080p screen but 15% of 720p, so the logo looked half again as big on the smaller TV. */
 .jpf-tv #profiles-logo img { max-height: 10vh; }
-/* A see-through logo that would vanish on this theme gets a backing (fitLogoBacking): dark
-   behind a light logo, light behind a dark one, so it contrasts with the logo itself. */
+/* A see-through logo that would vanish on this theme gets a backing (fitLogoBacking):
+   dark behind a light logo, light behind a dark one. */
 #profiles-logo.jpf-logo-back-dark { background: rgba(16, 16, 16, 0.85); border-radius: var(--jpf-r-md); }
 #profiles-logo.jpf-logo-back-light { background: rgba(255, 255, 255, 0.92); border-radius: var(--jpf-r-md); }
-/* The administrator's Logo corners setting: square takes the picture's and the backing's
-   corners off. Rounded, the default, is everything above. */
+/* The administrator's Logo corners setting. Square removes the picture's and backing's rounding. Rounded, the default, is everything above. */
 #profiles-logo[data-corners="square"] img,
 #profiles-logo[data-corners="square"].jpf-logo-back-dark,
 #profiles-logo[data-corners="square"].jpf-logo-back-light { border-radius: 0; }
-/* Room for it above the content, so on a short screen it sits above the title rather than
-   on it. A logo and nothing else changes: the class is only set while one is drawn. */
+/* Room above the content, so on a short screen the logo sits above the title, not on it. The class is only set while a logo is drawn. */
 #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: 7.5rem; }
 .jpf-tv #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: calc(15vh + 16px + 1rem); }
-/* Announcements, above the title. Each theme colours them through its own accent, warn
-   and danger tokens, so no theme needs a rule of its own. Margins, not flex gap: gap on a
-   flex box is Chromium 84, and webOS 4.5 is 53. */
+/* Announcements, above the title. Each theme colors them through its own accent, warn
+   and danger tokens. Margins, not flex gap (Chromium 84; webOS 4.5 is 53). */
 .profiles-announcements {
-    /* Drawn above the title, but last in the markup: see renderOverlayContent. */
+    /* Drawn above the title but last in the markup. See renderOverlayContent. */
     -webkit-box-ordinal-group: 0; order: -1;
     width: 100%; max-width: 720px; margin: 0 auto 1.5rem; text-align: left;
 }
@@ -606,14 +563,14 @@ body.profiles-no-scroll [id*="spinner"] {
     background: none; border: none; color: inherit; opacity: 0.7;
     font-size: 1.4rem; line-height: 1; padding: 0.2rem 0.5rem; cursor: pointer;
     border-radius: var(--jpf-r-sm);
-    /* A finger and a remote both have to find it: the glyph alone was about 20px. */
+    /* The glyph alone was about 20px, too small for a finger or a remote. */
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 2.75rem; min-height: 2.75rem;
 }
 .profiles-announcement-dismiss:hover,
 .profiles-announcement-dismiss:focus { opacity: 1; background: var(--jpf-surface-2); outline: none; box-shadow: 0 0 0 2px var(--jpf-accent); }
 /* Requests for more time, a row above the tiles. Each is a real button, so Enter and a
-   remote's OK open it. Margins and the theme's tokens only; no flex gap, no grid. */
+   remote's OK open it. Margins and theme tokens only; no flex gap, no grid. */
 .profiles-time-requests { width: 100%; max-width: 720px; margin: 0 auto 1.5rem; text-align: left; }
 .profiles-time-request {
     display: flex; align-items: center; width: 100%; box-sizing: border-box;
@@ -634,7 +591,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-time-request:focus { outline: none; box-shadow: 0 0 0 2px var(--jpf-accent); }
 .jpf-tv .profiles-time-request:focus { outline: 4px solid var(--jpf-accent); outline-offset: 2px; box-shadow: none; }
 /* Closed for maintenance. A strip on the sign-in screen and for administrators; the
-   whole page for anyone else signed in, whose every request is refused. Above the gate. */
+   whole page for anyone else signed in, whose requests are all refused. Above the gate. */
 .profiles-maintenance {
     position: fixed; left: 0; right: 0; top: 0; z-index: 100001;
     background: var(--jpf-gate-bg, #101010);
@@ -646,9 +603,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-maintenance.is-blocking {
     bottom: 0; border-bottom: none;
     display: flex;
-    /* A long message made the cover taller than a phone on its side. A flex item centred with
-       align-items overflows at both ends, so the title was cut off above the screen and could
-       not be scrolled to. Auto margins on the item centre it only while it fits. */
+    /* A long message made the cover taller than a phone on its side. A flex item centered
+       with align-items overflows at both ends, so the title was cut off above the screen
+       and could not be scrolled to. Auto margins center it only while it fits. */
     overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 .profiles-maintenance.is-blocking .profiles-maintenance-inner { margin: auto; }
@@ -658,8 +615,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-maintenance-text { white-space: pre-wrap; word-wrap: break-word; margin-top: 0.3rem; }
 .profiles-maintenance-text:empty { display: none; }
 .profiles-maintenance-when { margin-top: 0.3rem; }
-/* Check again and Sign out sit side by side on a wide screen and touched: the margin was
-   top only. A side margin rather than flex gap, which Chromium 53 does not have. */
+/* Check again and Sign out touched side by side on a wide screen: the margin was top only. A side margin, not flex gap (Chromium 53). */
 .profiles-maintenance .profiles-btn { margin: 1.5rem 0.4rem 0; }
 .profiles-home-section {
     width: 100%;
@@ -680,9 +636,9 @@ body.profiles-no-scroll [id*="spinner"] {
     padding-bottom: 0.75rem;
     border-bottom: var(--jpf-section-rule);
 }
-/* Bonfire's mark, an svg drawn in currentColor. It is sized in em so the font-size rules
-   written for the glyph it replaced still size it; the baseline offset keeps a heading
-   from shifting. text-shadow does nothing on an svg, so the glow is a drop-shadow. */
+/* Bonfire's mark, an svg in currentColor. Sized in em so the font-size rules written for
+   the glyph it replaced still apply; the baseline offset keeps a heading from shifting.
+   text-shadow does nothing on an svg, so the glow is a drop-shadow. */
 .jpf-mark {
     display: inline-block;
     width: 1em; height: 1em;
@@ -696,8 +652,7 @@ body.profiles-no-scroll [id*="spinner"] {
     color: var(--jpf-warn);
     filter: drop-shadow(0 2px 10px rgba(255, 153, 0, 0.35));
 }
-/* A linked household's Bonfire: deeper ember, so the two read as different
-   groups without needing a second mark. */
+/* A linked household's Bonfire: deeper ember, so two groups read as different without a second mark. */
 .profiles-home-icon.bonfire-icon-color {
     color: var(--jpf-flame-deep);
     filter: drop-shadow(0 2px 10px rgba(255, 85, 0, 0.3));
@@ -712,18 +667,14 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex; flex-wrap: wrap; gap: 3rem; justify-content: center; width: 100%;
     max-width: var(--jpf-w-wide); margin: 0 auto;
 }
-/* Cards used to be a fixed 140px whatever the display, so on a desktop
-   they sat in a thin band with large voids above and below, and on a TV
-   they were small at viewing distance. clamp keeps the phone size as
-   the floor and lets them grow with the viewport. */
-/* Each clamp is preceded by the plain value it falls back to. clamp() is
-   Chrome 79; the floor is Chromium 53 (webOS 4.x), so on every television
-   set the clamped declaration is dropped — and without a
-   preceding one the card would have no width at all, which is a large
-   part of what "colour bars stretched across the screen" was. The floor
-   is used rather than the ceiling because it is the value that was
-   shipping before clamp went in; TVs get their real size from .jpf-tv
-   below, which is a plain px value for exactly this reason. */
+/* Cards were a fixed 140px, so on a desktop they sat in a thin band and on a TV they
+   were small at viewing distance. clamp keeps the phone size as the floor and grows
+   with the viewport. */
+/* Each clamp is preceded by the plain value it falls back to. clamp() is Chrome 79 and
+   the floor is Chromium 53 (webOS 4.x), which drops the clamped declaration. Without a
+   preceding one the card had no width, a large part of the "color bars stretched across
+   the screen" bug. The floor value is used because it is what shipped before clamp.
+   TVs get their real size from .jpf-tv below, in plain px. */
 .jpf-profile-card {
     display: flex; flex-direction: column; align-items: center;
     width: 140px;
@@ -738,8 +689,7 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-top: 15px;
     transition: transform 0.12s ease;
 }
-/* Touch has no hover, so without this the first feedback of any kind is the
-   page changing a second or two later. */
+/* Touch has no hover, so without this the first feedback is the page changing a second or two later. */
 .jpf-profile-card:active .jpf-profile-avatar-container {
     transform: scale(0.95);
 }
@@ -747,8 +697,7 @@ body.profiles-no-scroll [id*="spinner"] {
 @keyframes jpfSpin {
     to { transform: rotate(360deg); }
 }
-/* The chosen profile carries the spinner; everything else steps back so it
-   is obvious which one is being opened and that the rest are not takers. */
+/* The chosen profile carries the spinner and the rest step back, so it is clear which one is opening. */
 #profiles-gate-overlay.is-switching .jpf-profile-card:not(.is-switching),
 #profiles-gate-overlay.is-switching .profiles-footer,
 #profiles-gate-overlay.is-switching .profiles-home-header {
@@ -766,12 +715,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-profile-card.is-switching .jpf-profile-avatar-container::after {
     content: '';
     position: absolute;
-    /* Longhand rather than the inset shorthand, which is Chrome 87;
-       the floor is Chromium 53, and a declaration it cannot
-       parse is dropped — leaving this spinner with no offsets at all,
-       so it collapses into the top-left corner of the avatar instead of
-       centring over it. The whole point of it is to show a switch is
-       under way on a device where nothing else moves. */
+    /* Longhand, not the inset shorthand (Chrome 87). Chromium 53 drops the shorthand and
+       the spinner collapses into the avatar's top-left corner. It is the only sign a switch
+       is under way on a device where nothing else moves. */
     top: 0;
     right: 0;
     bottom: 0;
@@ -786,8 +732,7 @@ body.profiles-no-scroll [id*="spinner"] {
     z-index: 20;
     pointer-events: none;
 }
-/* A button that has started something and is waiting for it. The label is
-   kept in place rather than replaced, so the button does not resize. */
+/* A button that has started something and is waiting. The label stays in place, not replaced, so the button does not resize. */
 .profiles-btn.is-busy {
     position: relative;
     color: transparent !important;
@@ -796,10 +741,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-btn.is-busy::after {
     content: '';
     position: absolute;
-    /* Longhand for the same reason as the switch spinner above: the
-       inset shorthand is Chrome 87 and the Chromium 53 floor drops
-       it, which would leave every busy button's spinner stuck in its
-       corner. */
+    /* Longhand for the same reason as the switch spinner above: Chromium 53 drops the inset shorthand and every busy button's spinner stuck in its corner. */
     top: 0;
     right: 0;
     bottom: 0;
@@ -809,8 +751,7 @@ body.profiles-no-scroll [id*="spinner"] {
     height: 18px;
     border-radius: 50%;
     border: 2px solid var(--jpf-border-3);
-    /* Not currentColor: the label is color:transparent above, so the arc took that and drew
-       nothing. Each button's own text colour, set where its fill is. */
+    /* Not currentColor: the label is color:transparent above, so the arc took that and drew nothing. Each button sets its own text color where its fill is. */
     border-top-color: var(--jpf-text-1);
     animation: jpfSpin 0.8s linear infinite;
 }
@@ -818,8 +759,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-btn-secondary.is-busy::after { border-top-color: var(--jpf-btn2-color); }
 .jpf-btn-danger.is-busy::after { border-top-color: #fff; }
 .jpf-btn-danger-quiet.is-busy::after { border-top-color: var(--jpf-danger-quiet); }
-/* The spinner still turns — it is the only thing reporting progress — but
-   nothing else moves. */
+/* The spinner still turns, being the only progress report, but nothing else moves. */
 @media (prefers-reduced-motion: reduce) {
     .jpf-profile-avatar-container,
     .jpf-profile-card.is-switching .jpf-profile-avatar {
@@ -832,10 +772,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-profile-avatar {
     position: relative;
     width: 100%; height: 100%; border-radius: var(--jpf-avatar-r);
-    /* The 3px border below is transparent, so without this the avatar
-       colour showed through it as a ring — a blue outline around Bard's
-       orange picture. Clipping to the padding box keeps the colour behind
-       the initial, which is the only thing it is for, and off the border. */
+    /* The 3px border below is transparent, so the avatar color showed through it as a ring,
+       a blue outline around Bard's orange picture. Clipping to the padding box keeps the
+       color behind the initial and off the border. */
     background-clip: padding-box;
     display: flex; align-items: center; justify-content: center;
     font-size: 3.5rem; font-weight: bold; text-transform: uppercase;
@@ -843,21 +782,18 @@ body.profiles-no-scroll [id*="spinner"] {
     transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.3s ease, border-color 0.3s ease;
     border: var(--jpf-ring-w) solid transparent;
 }
-/* The one you are already in. Now that the avatar colour no longer
-   paints the border, an accent ring means exactly one thing. */
+/* The profile you are already in. Since the avatar color no longer paints the border, an accent ring means one thing. */
 .jpf-profile-card.is-current .jpf-profile-avatar {
     border-color: var(--jpf-accent);
 }
 
 /* ── Cut-out pictures (issue #23) ────────────────────────────────
-   A circular avatar over a coloured rounded square shows the colour
-   in the four corners. With this on there is no colour, no clip and
-   nothing square drawn around the picture — the picture's own alpha
-   is the shape, so the shadow and the ring have to follow it.
+   A circular avatar over a colored rounded square shows the color in the four corners.
+   With this on there is no color, no clip and nothing square: the picture's own alpha
+   is the shape, so the shadow and ring must follow it.
 
-   That rules out box-shadow and border, which always draw the box.
-   drop-shadow() respects the alpha channel, so it is what both are
-   built from below. The border is kept at transparent rather than
+   That rules out box-shadow and border, which always draw the box. drop-shadow()
+   respects alpha, so both are built from it. The border stays transparent rather than
    removed, so turning this on does not shift the layout by 3px. */
 .jpf-profile-avatar.is-transparent {
     background-color: transparent;
@@ -865,49 +801,39 @@ body.profiles-no-scroll [id*="spinner"] {
     box-shadow: none;
     overflow: visible;
 }
-/* The rule above is two classes; the is-current rule below started life
-   at three, so it won and painted the accent border as a rounded square
-   around a circular picture — while the silhouette outline drew a second
-   ring inside it. Two highlights on one avatar, which is what was
-   reported. Every state that touches border-color or box-shadow on
-   .jpf-profile-avatar therefore needs an .is-transparent counterpart at equal
-   or higher specificity; they are kept together here so the next one
-   added is hard to miss. */
+/* The rule above is two classes, and the is-current rule below started at three, so it
+   won and painted the accent border as a rounded square around a circular picture,
+   with the silhouette outline as a second ring inside it. Every state that touches
+   border-color or box-shadow on .jpf-profile-avatar needs an .is-transparent
+   counterpart at equal or higher specificity. Keep them together here. */
 .jpf-profile-card.is-current .jpf-profile-avatar.is-transparent {
     border-color: transparent;
     box-shadow: none;
 }
-/* Manage mode dropped a dark rounded-square scrim over the picture, which
-   is a third square on something deliberately not square. The pencil
-   carries its own drop-shadow and reads fine without it, and the hover
+/* Manage mode drew a dark rounded-square scrim over the picture, a third square on
+   something deliberately not square. The pencil has its own drop-shadow and the hover
    silhouette already says the card is live. */
 .jpf-profile-avatar.is-transparent .jpf-profile-avatar-overlay-wrap {
     background: transparent;
 }
-/* The scrim was also what the white pencil was legible against. Without it
-   the icon sat on whatever the picture happens to be — invisible on a pale
-   one. A disc behind the icon restores the contrast and stays round, which
-   is the whole point of not drawing the square. */
+/* The scrim was also what made the white pencil legible; without it the icon is
+   invisible on a pale picture. A disc behind it restores contrast and stays round. */
 .jpf-profile-avatar.is-transparent .jpf-profile-avatar-overlay-svg {
     background: var(--jpf-scrim);
     border-radius: 50%;
     padding: 10px;
     box-sizing: content-box;
 }
-/* "No clip" stops at the theme's shape. A cut-out picture that is not
-   actually cut out — an opaque square — sat as a square over Nightfall's
-   round ring, its corners outside it. Rounding the picture to the
-   avatar's own radius keeps it inside whatever shape the theme draws,
-   and costs a real cut-out nothing: its transparent corners are what is
-   trimmed. drop-shadow() follows the rounded edge, so the ring and the
-   focus outline below trace the same shape. */
+/* "No clip" stops at the theme's shape. A cut-out that is really an opaque square sat
+   as a square over Nightfall's round ring, corners outside it. Rounding to the avatar's
+   own radius keeps it inside the theme's shape and costs a real cut-out nothing, since
+   its transparent corners are what is trimmed. drop-shadow() follows the rounded edge,
+   so the ring and focus outline below trace the same shape. */
 .jpf-profile-avatar.is-transparent img {
     border-radius: var(--jpf-avatar-r);
     filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
 }
-/* Four offsets approximate a stroke around an arbitrary silhouette;
-   CSS has no way to stroke an alpha channel directly. All static —
-   they composite once on hover rather than every frame. */
+/* Four offsets approximate a stroke around an arbitrary silhouette, since CSS cannot stroke an alpha channel. All static, so they composite once on hover, not every frame. */
 .jpf-profile-card.is-current .jpf-profile-avatar.is-transparent img {
     filter:
         drop-shadow(3px 0 0 var(--jpf-accent))
@@ -916,29 +842,25 @@ body.profiles-no-scroll [id*="spinner"] {
         drop-shadow(0 -3px 0 var(--jpf-accent))
         drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55));
 }
-/* These four must outrank the hover/focus block further down, which
-   sets box-shadow and border-color on .jpf-profile-avatar. Listing the
-   same three states keeps the specificity above it. */
+/* These four must outrank the hover/focus block further down, which sets box-shadow and border-color on .jpf-profile-avatar. Listing the same three states keeps the specificity above it. */
 .jpf-profile-card:hover .jpf-profile-avatar.is-transparent,
 .jpf-profile-card:focus .jpf-profile-avatar.is-transparent {
     box-shadow: none;
     border-color: transparent;
 }
-/* :focus-within is its own rule, here and in the four below: it is Chrome 60, and on
+/* :focus-within is its own rule here and in the four below. It is Chrome 60, and on
    Chromium 53 (webOS 4.5) one selector it cannot parse drops every rule it is listed
-   in, so sharing a list with :hover and :focus took those down with it. Each is
-   directly after the rule it was split from, so the cascade is unchanged. */
+   in, so sharing a list with :hover and :focus took those down too. Each sits directly
+   after the rule it was split from, so the cascade is unchanged. */
 .jpf-profile-card:focus-within .jpf-profile-avatar.is-transparent {
     box-shadow: none;
     border-color: transparent;
 }
-/* Focus is the D-pad cursor: on a television it is the only thing saying
-   which profile Enter will open, and it has to read across a room. The
-   rectangular states get a 3px border and a wide accent box-shadow; taking
-   both off for cut-outs left a 2px hairline as the whole indicator. The
-   outline matches the border it replaced, and the blurred accent pass is
-   the box-shadow glow rebuilt so it follows the picture instead of the
-   box it no longer fills. */
+/* Focus is the D-pad cursor: on a TV it is the only sign of which profile Enter opens,
+   and it must read across a room. The rectangular states get a 3px border and a wide
+   accent box-shadow; removing both for cut-outs left a 2px hairline. The outline matches
+   the border it replaced, and the blurred accent pass is the box-shadow glow rebuilt to
+   follow the picture. */
 .jpf-profile-card:hover .jpf-profile-avatar.is-transparent img,
 .jpf-profile-card:focus .jpf-profile-avatar.is-transparent img {
     filter:
@@ -956,12 +878,11 @@ body.profiles-no-scroll [id*="spinner"] {
         drop-shadow(0 -3px 0 var(--jpf-ring))
         drop-shadow(0 6px 20px var(--jpf-accent));
 }
-/* The small circular renderings clip to a circle already, so they
-   only need the colour taken off. */
+/* The small circular renderings already clip to a circle, so only the color comes off. */
 .jpf-image-upload-preview.is-transparent {
     background-color: transparent;
 }
-/* Text for a screen reader only: the same words a picture badge shows, as words. */
+/* Text for a screen reader only: the same words a picture badge shows. */
 .jpf-sr {
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
@@ -1011,23 +932,20 @@ body.profiles-no-scroll [id*="spinner"] {
     opacity: var(--jpf-name-opacity); transition: opacity 0.3s ease, color 0.3s ease;
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     text-align: center;
-    /* The card centres its children, so this box is content-sized and a
-       long name or badge widened it past the card and out into the gap
-       between profiles. Translation is what made that likely: "PIN
-       Protected" is 13 characters and "Protégé par code PIN" is 20, under
-       a card whose smallest width is 140px. Wrap inside the card instead. */
+    /* The card centers its children, so this box is content-sized and a long name or badge
+       widened it past the card into the gap between profiles. "PIN Protected" is 13
+       characters and "Protégé par code PIN" is 20, under a card as narrow as 140px. Wrap
+       inside the card. */
     max-width: 100%;
     overflow-wrap: break-word;
-    /* Above the tile's shadow. A grown tile is a stacking context painted
-       after this, so its shadow dimmed the name of the profile being
-       pointed at — the one name that should be brightest. */
+    /* Above the tile's shadow. A grown tile is a stacking context painted after this, and its shadow dimmed the name of the profile being pointed at. */
     position: relative;
     z-index: 1;
 }
-/* max-width above caps the name's box, not its lines: each is a span in a column flex box,
-   sized to its content, so a single long word ("Maximilian") was as wide as it was and ran
-   across the next tile while the box stayed inside the card. Capping each line is what lets
-   the break-word above apply. */
+/* max-width above caps the name's box, not its lines. Each is a span in a column flex
+   box sized to its content, so a single long word ("Maximilian") ran across the next
+   tile while the box stayed inside the card. Capping each line lets the break-word
+   above apply. */
 .jpf-profile-name > * {
     max-width: 100%;
 }
@@ -1089,8 +1007,7 @@ body.profiles-no-scroll [id*="spinner"] {
     transition: border-color 0.25s, box-shadow 0.25s;
     position: relative !important;
 }
-/* The Emergency disable code field: it had no style of its own and drew as a plain white
-   box on the dark dialog. */
+/* The Emergency disable code field had no style and drew as a plain white box on the dark dialog. */
 #profiles-panic-input {
     background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); color: var(--jpf-text-1);
@@ -1112,9 +1029,7 @@ body.profiles-no-scroll [id*="spinner"] {
     transform: scale(var(--jpf-hover-scale));
     border-color: var(--jpf-accent);
 }
-/* The fourth state that paints a border on .jpf-profile-avatar, and the one
-   that actually fires while Manage Profiles is open. See the note by
-   .jpf-profile-card.is-current .jpf-profile-avatar.is-transparent. */
+/* The fourth state that paints a border on .jpf-profile-avatar, and the one that fires while Manage Profiles is open. See .jpf-profile-card.is-current .jpf-profile-avatar.is-transparent. */
 .jpf-profile-card.jpf-manage-mode:hover .jpf-profile-avatar.is-transparent {
     border-color: transparent;
 }
@@ -1123,15 +1038,13 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-profile-pin-badge {
     font-size: 0.75rem; margin-top: 4px; padding: 2px 8px; border-radius: var(--jpf-r-md);
     font-weight: 600; display: inline-flex; align-items: center; gap: 4px;
-    /* Same reason as .jpf-profile-name above — an inline-flex box sizes to its
-       text and will happily sit wider than the card holding it. */
+    /* Same reason as .jpf-profile-name above: an inline-flex box sizes to its text and can sit wider than the card. */
     max-width: 100%;
     text-align: center;
 }
-/* These were inverted: "PIN Protected" in red and "No PIN" in green, so
-   the screen called the protected state a problem and the unprotected one
-   a success. Neither is an error, so neither gets an error colour —
-   protected reads present, unprotected reads muted. */
+/* These were inverted: "PIN Protected" in red and "No PIN" in green, calling the
+   protected state a problem. Neither is an error, so protected reads present and
+   unprotected reads muted. */
 .jpf-profile-pin-badge.locked {
     background: var(--jpf-surface-3); color: var(--jpf-text-1);
     border: 1px solid var(--jpf-border-3);
@@ -1175,73 +1088,70 @@ body.profiles-no-scroll [id*="spinner"] {
     vertical-align: middle;
     margin: 0 4px;
     padding: 0;
-    /* The modern toolbar is a flex row, and a flex item shrinks by default. With the
-       row tight the 28px avatar was squeezed into an ellipse — reported as "it's
-       being compressed". Nothing about this button should ever shrink. */
+    /* The modern toolbar is a flex row and flex items shrink by default. In a tight row the
+       28px avatar was squeezed into an ellipse ("it's being compressed"). This button must
+       never shrink. */
     flex: 0 0 auto;
 }
 #profiles-floating-bubble .profiles-header-avatar {
     flex: 0 0 auto;
 }
-/* jellyfin-web's emby-button.scss, identical in release-10.11.z and master:
+/* jellyfin-web's emby-button.scss, same in release-10.11.z and master:
        .paper-icon-button-light > div { max-height: 100%; transform: scale(1.8); … }
-   It is meant for icon glyphs. The button carries that class (see _buildHeaderBubble) and
-   the avatar is a div directly inside it, so the thumbnail was drawn 1.8x its size, zoomed
-   and blurry. Both layouts, since the class is set before the toolbar is known.
+   It is meant for icon glyphs. The button carries that class (see _buildHeaderBubble)
+   and the avatar is a div directly inside, so the thumbnail was drawn 1.8x, zoomed and
+   blurry. Both layouts, since the class is set before the toolbar is known.
    (1,2,0) against (0,1,1); the inline style sets neither property. */
 #profiles-floating-bubble.paper-icon-button-light > .profiles-header-avatar {
     transform: none;
     max-height: none;
 }
 
-/* Standing in the modern toolbar rather than the legacy header.
-   Its neighbour is a 40px MUI Avatar inside an IconButton with padding:0 —
-   components/UserAvatar.tsx renders <Avatar> at its default size — so a 28px circle
-   read as an afterthought next to it. The legacy header's own buttons are smaller,
-   which is why this is a class applied at insertion (see _insertBeforeUserBtn) and
-   not a change to the default.
+/* In the modern toolbar rather than the legacy header. Its neighbor is a 40px MUI
+   Avatar in an IconButton with padding:0 (components/UserAvatar.tsx, default size), so
+   a 28px circle looked like an afterthought. The legacy header's buttons are smaller,
+   which is why this is a class applied at insertion (_insertBeforeUserBtn) and not a
+   change to the default.
 
-   !important because the element carries its dimensions as inline style attributes,
-   written when the avatar is built, and an inline style outranks any rule without it. */
+   !important because the element carries its size as inline style, which outranks any
+   rule without it. */
 #profiles-floating-bubble.jpf-modern-toolbar-btn .profiles-header-avatar {
     width: 40px !important;
     height: 40px !important;
     font-size: 1.05rem !important;
 }
 
-/* On a television, in the legacy header. Its neighbours scale with the root, which
-   jellyfin-web raises for the TV layout (27px at 1080p, 20px at 720p): a header icon is
-   1.67em (emby-button.scss, .paper-icon-button-light > .material-icons) and the user's
-   own picture is a div scaled 1.8. A fixed 28px avatar sat at about 60% of their size on
-   a 1080p set. In rem it follows the same root. */
+/* On a TV, in the legacy header. Its neighbors scale with the root, which jellyfin-web
+   raises for the TV layout (27px at 1080p, 20px at 720p): a header icon is 1.67em
+   (emby-button.scss) and the user's picture is a div scaled 1.8. A fixed 28px avatar
+   was about 60% of their size on a 1080p set. In rem it follows the same root. */
 .jpf-tv #profiles-floating-bubble:not(.jpf-modern-toolbar-btn) .profiles-header-avatar {
     width: 1.7rem !important;
     height: 1.7rem !important;
     font-size: 0.8rem !important;
 }
 
-/* The section added to Jellyfin's own profile page (#/userprofile).
-   It sits in the .padded-left .padded-right container, as a sibling of the avatar
-   block and the password form. That container is close to full width — .padded-left
-   is 3.3% padding — while everything the page puts in it is centred, so a plain
-   block-level section landed hard against the left edge with the rest of the page
-   floating in the middle. Reported as "misaligned on the actual profile page".
+/* The section added to Jellyfin's profile page (#/userprofile). It sits in the
+   .padded-left .padded-right container beside the avatar block and password form. That
+   container is nearly full width (.padded-left is 3.3% padding) while everything in it
+   is centered, so a plain block section landed against the left edge ("misaligned on
+   the actual profile page").
 
-   These are jellyfin-web's own two rules for the siblings, from src/styles/site.scss
-   and identical in 10.11 and 12.0:
+   These are jellyfin-web's own rules for the siblings, from src/styles/site.scss,
+   same in 10.11 and 12.0:
 
        .readOnlyContent { @media (min-width: 50em) { max-width: 54em; } }
        form             { @media (min-width: 50em) { max-width: 54em; } }
 
    plus the inline margin:0 auto that userprofile.tsx gives .readOnlyContent. Matching
-   both puts our section on the same axis and the same width cap as the block above it,
-   at every viewport — including below 50em, where the siblings are unconstrained and
-   so is this. The 44em it used to carry was a number with nothing behind it.
+   both puts our section on the same axis and width cap as the block above it, at every
+   viewport, including below 50em where the siblings are unconstrained and so is this.
+   The 44em it once carried had nothing behind it.
 
-   The cap starts at 900px here, not jellyfin-web's 50em (800px): this sheet has one
+   The cap starts at 900px, not jellyfin-web's 50em (800px): this sheet has one
    breakpoint scale, 480 / 900 / 1280 (tests/js/breakpoints.js). Between 800 and 900 the
    viewport is narrower than 54em minus the page padding in all but a sliver, so the
-   section and its siblings still share an axis and a width. */
+   section and its siblings still share an axis and width. */
 .jpf-userprofile-section {
     margin: 2em auto;
 }
@@ -1257,42 +1167,35 @@ body.profiles-no-scroll [id*="spinner"] {
     /* Matches .jpf-pin-actions, the button row on the other gate screens. */
     gap: var(--jpf-gap-lg); flex-wrap: wrap;
 }
-/* Equal widths, so the gap between two buttons falls on the centre line.
-   The row was already centred correctly; what read as crooked was its seam.
-   Centring buttons of unequal width puts the gap between them off-axis, and
-   with two buttons sitting under two equal profile cards the eye compares
-   the two seams rather than the outer edges. Measured on the gate: cards
-   met at 653px, buttons at 681px.
-
-   Also stops the row resizing as labels change — it is Manage Profiles or
-   Done, sometimes plus Settings, sometimes plus Cancel. */
+/* Equal widths, so the gap between two buttons falls on the center line. The row was
+   centered correctly; the seam looked crooked. Centering unequal buttons puts the gap
+   off-axis, and under two equal profile cards the eye compares seams (cards met at
+   653px, buttons at 681px). Also stops the row resizing as labels change (Manage
+   Profiles or Done, plus Settings or Cancel). */
 .profiles-footer .profiles-btn {
     min-width: 11rem;
 }
-/* When the households do not fit the screen, the row stays at the bottom of it, drawn like
-   the Save bar on the profile forms: an opaque --jpf-panel with a line on top, so tiles
-   scrolling behind it do not show through. fitGateToScreen sets the class, and only when
-   it measured an overflow; a screen where everything fits keeps the row in the flow.
-   The panel and the line are box-shadows, so they reach the screen's edges without
-   widening the page (a wide child would give the gate a sideways scrollbar), and the
-   clip-path cuts the shadow off above and below the row. All of it is inside @supports:
-   without sticky (Chromium 53, webOS 4.x) the shadow would be a screen-wide block. There
-   the row is the last thing in the gate, and the remote's focus move scrolls to it. */
+/* When the households do not fit the screen, the row stays at the bottom, drawn like the
+   Save bar on the profile forms: an opaque --jpf-panel with a line on top, so tiles
+   scrolling behind do not show through. fitGateToScreen sets the class, and only when it
+   measured an overflow. The panel and line are box-shadows, so they reach the screen's
+   edges without widening the page (a wide child would give the gate a sideways
+   scrollbar), and clip-path cuts the shadow off above and below the row. All of it is
+   inside @supports: without sticky (Chromium 53, webOS 4.x) the shadow would be a
+   screen-wide block. There the row is last in the gate and the remote's focus move
+   scrolls to it. */
 @supports (position: sticky) {
-    /* The theme step of first-time setup pins its Next / Skip row the same way
-       (_pinSetupRow). */
+    /* The theme step of first-time setup pins its Next / Skip row the same way (_pinSetupRow). */
     #profiles-gate-overlay .profiles-footer.jpf-footer-stuck,
     #profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck {
-        /* Above the lock and the Bonfires badge on a tile (z-index 10), which are drawn over
-           the tile and would otherwise show on top of the row. */
+        /* Above the lock and the Bonfires badge on a tile (z-index 10), which would otherwise show on top of the row. */
         position: sticky; z-index: 12;
         box-sizing: border-box;
         /* The gate pads its own bottom (2rem and the safe area), and a sticky box stops at the
-           scroll box's padding, not at its edge: the row sat that far above the screen's
-           bottom with the next tiles showing through. Offset by the same amount, and pull the
-           margin box up by it so the row may also reach the edge at the end of the page,
-           where it cannot leave its parent. The max-height block below does the same for the
-           short screen's smaller padding. */
+           scroll box's padding, not its edge: the row sat that far above the screen's bottom
+           with tiles showing through. Offset by the same amount, and pull the margin box up by
+           it so the row can reach the edge at the end of the page. The max-height block below
+           does the same for the short screen's smaller padding. */
         bottom: -2rem;
         bottom: calc(-2rem - env(safe-area-inset-bottom));
         margin-bottom: -2rem;
@@ -1304,8 +1207,7 @@ body.profiles-no-scroll [id*="spinner"] {
         box-shadow: 0 0 0 100vmax var(--jpf-panel), 0 -1px 0 100vmax var(--jpf-border-1);
         clip-path: inset(-1px -100vmax 0 -100vmax);
     }
-    /* The setup row sits inside the sheet, not directly in the gate, so its margin box is
-       pulled down through the sheet's own padding as well. */
+    /* The setup row sits inside the sheet, not directly in the gate, so its margin box is pulled down through the sheet's padding as well. */
     #profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck {
         margin-bottom: calc(-2rem - var(--jpf-form-pad));
         margin-bottom: calc(-2rem - env(safe-area-inset-bottom) - var(--jpf-form-pad));
@@ -1324,8 +1226,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-pin-note {
     margin: 0; max-width: 26rem; text-align: center; font-size: 0.95rem; opacity: 0.8; line-height: 1.5;
 }
-/* A line of its own on a television, where a remote's number keys are not the obvious
-   way in. Not a placeholder: the box is too narrow to hold one. */
+/* A line of its own on a TV, where a remote's number keys are not the obvious way in. Not a placeholder: the box is too narrow for one. */
 .jpf-pin-keys-hint { display: none; }
 .jpf-tv .jpf-pin-keys-hint { display: block; text-align: center; font-size: 1.1rem; opacity: 0.8; }
 .profiles-pin-error {
@@ -1338,27 +1239,25 @@ body.profiles-no-scroll [id*="spinner"] {
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     -webkit-text-security: disc;
 }
-/* The mailed code is read off a phone and typed, so it stays visible, and six
-   digits need more room than a PIN's four. */
+/* The mailed code is read off a phone and typed, so it stays visible, and six digits need more room than a PIN's four. */
 #jpf-pin-reset-code {
     -webkit-text-security: none; width: 17rem; font-size: 2rem; letter-spacing: 0.35rem;
     height: 2.25rem;
 }
-/* As wide as the code above it, and wide enough for the eight digits a PIN may have: the
-   box was 180px and the typed number scrolled inside it from the fifth digit. */
+/* As wide as the code above it and wide enough for the eight digits a PIN may have. The box was 180px and the number scrolled inside it from the fifth digit. */
 #jpf-pin-reset-new { width: 17rem; height: 2.8rem; }
 /* An empty field's placeholder sits on the baseline of the field's own text, so a 1rem
-   placeholder in 2.5rem digits rode low. While the placeholder shows, the field takes the
-   placeholder's size; the fixed height above keeps the box the size it was. */
+   placeholder in 2.5rem digits rode low. While it shows, the field takes the
+   placeholder's size; the fixed height above keeps the box size. */
 #jpf-pin-reset-code:placeholder-shown, #jpf-pin-reset-new:placeholder-shown {
     font-size: 1rem; letter-spacing: normal;
 }
-/* Four dim dots until something is typed, like a phone's lock screen. Drawn as background
-   gradients, not placeholder text: there is nothing to translate, and a screen reader
-   hears the field's aria-label and not "bullet bullet". The boxes carry placeholder=" "
-   only so :placeholder-shown (Chromium 47) can tell empty from typed; ::placeholder is
-   Chromium 57 and would be dropped on a television. Not the emailed code: it is six
-   visible digits, not a PIN, so it keeps the word "Code" as its placeholder. */
+/* Four dim dots until something is typed, like a phone's lock screen. Drawn as
+   background gradients, not placeholder text: nothing to translate, and a screen reader
+   hears the aria-label, not "bullet bullet". The boxes carry placeholder=" " only so
+   :placeholder-shown (Chromium 47) can tell empty from typed; ::placeholder is Chromium
+   57 and would be dropped on a TV. Not the emailed code: it is six visible digits, so it
+   keeps the word "Code" as its placeholder. */
 #jpf-profile-pin-input:placeholder-shown, #jpf-master-pin-input:placeholder-shown, #jpf-main-pin-new:placeholder-shown,
 #jpf-pin-reset-new:placeholder-shown {
     background-image:
