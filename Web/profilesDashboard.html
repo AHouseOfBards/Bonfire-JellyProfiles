@@ -1959,12 +1959,11 @@
         (function () {
             const pluginId = "b1462fca-774b-4b13-8d02-e2d4f2bc18b9";
 
-            // While Bonfire is off the server leaves its script out of every page, but the
-            // theme previews below run on window.BonfireThemePreview from that script. Load it
-            // here when no tag brought it. Off, it only defines the preview and stands down.
+            // While Bonfire is off the server leaves its script out of every page, but the theme
+            // previews below run on window.BonfireThemePreview from that script. Load it here when
+            // no tag did. Off, it only defines the preview and stands down.
             try {
-                // The id: coming back to this page before the first copy has loaded must not
-                // add a second one.
+                // The id stops a second copy if the page is revisited before the first has loaded.
                 if (!window.__jpLoaded && !window.BonfireThemePreview && typeof ApiClient !== 'undefined'
                     && !document.getElementById('jpf-dashboard-script')) {
                     const tag = document.createElement('script');
@@ -1975,11 +1974,10 @@
                 }
             } catch (e) { /* the previews say they are unavailable */ }
 
-            // Every value this page renders came from the server, and a lot of it came to the
-            // server from a request header somebody else wrote: a device name, a client
-            // name, a profile name typed by any account holder. This page runs with the
-            // administrator's token, so an unescaped one of those is script running as the
-            // administrator. Escape anything that is not a literal written in this file.
+            // Everything this page renders came from the server, and much of it from a request
+            // header someone else wrote: a device name, a client name, a profile name typed by any
+            // account holder. This page runs with the administrator's token, so an unescaped one is
+            // script running as the administrator. Escape anything that is not a literal here.
             function escapeHtml(str) {
                 if (str === null || str === undefined) return '';
                 return String(str)
@@ -1992,21 +1990,18 @@
 
             // ── Translation ───────────────────────────────────────────────────────
             //
-            // The page is in the language Jellyfin shows its administrator, like the
-            // household's screens. Two sources of English, one per kind of text:
+            // The page is in the language Jellyfin shows its administrator. Two sources of English:
             //
-            //   - the markup's own words, marked data-i18n="admin.…" and read off the page
-            //     the first time it is translated, so the page reads correctly before any
-            //     of this runs;
+            //   - the markup's own words, marked data-i18n="admin.…" and read off the page the first
+            //     time it is translated, so it reads correctly before any of this runs;
             //   - ADMIN_EN below, for everything this script writes.
             //
-            // A key lives in exactly one of the two, and every other language is the
-            // admin.* keys in the same Web/i18n/{locale}.json file the household's strings
-            // are in. The server hands this page only that half (?part=admin), so no
-            // television downloads it. Web/i18n/validate.js reads both sources.
+            // A key lives in exactly one of the two. Every other language is the admin.* keys in
+            // the same Web/i18n/{locale}.json file as the household's strings. The server hands this
+            // page only that half (?part=admin), so no television downloads it. Web/i18n/validate.js
+            // reads both sources.
             //
-            // The bug report stays in English on purpose: it is read by whoever maintains
-            // Bonfire, not by the administrator.
+            // The bug report stays English: whoever maintains Bonfire reads it.
             const ADMIN_EN = {
                 'admin.cancel': 'Cancel',
                 'admin.error': 'Error',
@@ -2615,20 +2610,19 @@
                 return str;
             }
 
-            /// The name a screen reader gives a button or field whose visible text is the same on
-            /// every row ("Reset PIN", "Remove"): the action, then whose it is (R-1254, R-1260).
+            /// The name a screen reader gives a button or field whose visible text repeats on every
+            /// row ("Reset PIN", "Remove"): the action, then whose it is (R-1254, R-1260).
             function namedAria(action, name) {
                 return t('admin.aria.named', { action: action, name: name || '' });
             }
 
-            /// Asks, and resolves only on OK; Cancel leaves it pending, so what hangs off it
-            /// just never runs.
+            /// Asks, and resolves only on OK; Cancel leaves it pending, so what hangs off it never runs.
             ///
             /// Dashboard.confirm is confirm(message, title, callback) and returns nothing
-            /// (jellyfin-web, src/utils/dashboard.js, 10.11 and master alike). Every button here
-            /// used to chain .then on it: the dialog appeared, the chain threw behind it, and OK
-            /// did nothing. Reset PIN, closing for maintenance, signing a device out and
-            /// importing a backup all looked like they worked and didn't (#44).
+            /// (jellyfin-web, src/utils/dashboard.js, 10.11 and master). Buttons here used to chain
+            /// .then on it: the dialog appeared, the chain threw, and OK did nothing. Reset PIN,
+            /// closing for maintenance, signing a device out and importing a backup all looked like
+            /// they worked and didn't (#44).
             function askFirst(message, title) {
                 return new Promise(function (resolve) {
                     Dashboard.confirm(message, title, function (confirmed) {
@@ -2637,9 +2631,8 @@
                 });
             }
 
-            /// The language Jellyfin is showing this administrator, read the way
-            /// jellyfinLanguage() in profiles.js reads it (see the comment there): the
-            /// per-device setting, then <html lang>, then the device's own language.
+            /// The language Jellyfin shows this administrator, read as jellyfinLanguage() in
+            /// profiles.js reads it: the per-device setting, then <html lang>, then the device's.
             function adminLanguage() {
                 const root = document.documentElement;
                 const attr = function (n) { return (root && root.getAttribute(n)) || ''; };
@@ -2655,12 +2648,12 @@
                 return String(lang).replace('_', '-').toLowerCase();
             }
 
-            /// Fetches this page's strings for that language. Always resolves; anything
-            /// that goes wrong leaves the page in English.
+            /// Fetches this page's strings for that language. Always resolves; any failure leaves
+            /// the page in English.
             ///
-            /// This page has no list of the languages the server carries, so it asks for
-            /// the full tag and then shorter ones (pt-br, then pt) and takes the first
-            /// that exists. English asks for nothing.
+            /// The page has no list of the server's languages, so it asks for the full tag, then
+            /// shorter ones (pt-br, then pt), and takes the first that exists. English asks for
+            /// nothing.
             function loadAdminStrings() {
                 const parts = adminLanguage().split('-');
                 const candidates = [];
@@ -2687,10 +2680,10 @@
                 return attempt(0).catch(function () { adminStrings = null; });
             }
 
-            /// Puts the loaded language into the markup. Each element's English is kept on
-            /// the element the first time, so going back to English needs no reload.
-            /// Text goes in as text; only a string whose English holds tags goes in as
-            /// HTML, and validate.js fails a translation whose tags differ from it.
+            /// Puts the loaded language into the markup. Each element's English is kept on it the
+            /// first time, so going back to English needs no reload. Text goes in as text; only a
+            /// string whose English holds tags goes in as HTML (validate.js fails a translation
+            /// whose tags differ).
             function applyMarkupStrings(page) {
                 page.querySelectorAll('[data-i18n]').forEach(function (el) {
                     if (el._jpfEn === undefined) {
@@ -2699,8 +2692,8 @@
                     }
                     const key = el.getAttribute('data-i18n');
                     const value = (adminStrings && adminStrings[key]) || el._jpfEn.value;
-                    // Rewriting an unchanged HTML string would empty anything a loader has
-                    // since filled into it, such as the account name in the fix commands.
+                    // Rewriting an unchanged HTML string would empty anything a loader has since filled
+                    // into it, such as the account name in the fix commands.
                     if (el._jpfShown === value) return;
                     el._jpfShown = value;
                     if (el._jpfEn.html) el.innerHTML = value; else el.textContent = value;
@@ -2715,9 +2708,8 @@
                 });
             }
 
-            // Which tab was open is remembered per browser, because an administrator who
-            // is working through the account list does not want to land on Settings every
-            // time they come back to the page.
+            // The open tab is remembered per browser, so an administrator working through the
+            // account list does not land on Settings each time.
             function initTabs(page) {
                 const tabs = Array.prototype.slice.call(page.querySelectorAll('.jpf-tab'));
                 const panels = Array.prototype.slice.call(page.querySelectorAll('.jpf-tab-panel'));
@@ -2730,8 +2722,8 @@
                         const on = t.getAttribute('data-tab') === name;
                         t.classList.toggle('is-active', on);
                         t.setAttribute('aria-selected', on ? 'true' : 'false');
-                        // Roving tabindex: Tab reaches the strip once, then arrow keys move
-                        // within it. Five stops before the first field is a lot of tabbing.
+                        // Roving tabindex: Tab reaches the strip once, then arrow keys move within it. Five
+                        // stops before the first field is a lot of tabbing.
                         t.setAttribute('tabindex', on ? '0' : '-1');
                     });
                     panels.forEach(function (p) {
@@ -2762,24 +2754,24 @@
                     });
                 }
 
-                // Checked against the strip rather than turned into a selector, so a
-                // hand-edited localStorage value cannot become one.
+                // Checked against the strip, not turned into a selector, so a hand-edited
+                // localStorage value cannot become one.
                 let start = '';
                 try { start = localStorage.getItem('bonfire-admin-tab') || ''; } catch (e) { /* private mode */ }
-                // Experience was split into Look and Setup in 2.0; a browser that last had
-                // it open still holds its name.
+                // Experience was split into Look and Setup in 2.0; a browser that last had it open
+                // still holds its name.
                 if (start === 'experience') start = 'look';
                 // The Apps tab became Clients in 2.0, the same way.
                 if (start === 'apps') start = 'clients';
                 if (names.indexOf(start) < 0) start = names[0];
 
                 // A link into the page: #/configurationpage?name=Bonfire&tab=clients&setting=...
-                // Another plugin builds it, so tab and setting are 2.0 API. Both are looked up
-                // in a known list and never become a selector.
+                // Another plugin builds it, so tab and setting are 2.0 API. Both are looked up in a
+                // known list and never become a selector.
                 // The setting names a link may point at, and the control each one is.
                 const LINKED_SETTINGS = { pinLoginFromAnywhere: 'clientPinLoginFromAnywhere' };
-                // One value from the query part of the address hash, or ''. A malformed
-                // escape is an empty value, not an error.
+                // One value from the query part of the address hash, or ''. A malformed escape gives
+                // '', not an error.
                 function hashParam(name) {
                     const hash = typeof location === 'undefined' ? '' : String(location.hash || '');
                     const q = hash.indexOf('?');
@@ -2801,8 +2793,8 @@
                 const target = Object.prototype.hasOwnProperty.call(LINKED_SETTINGS, setting)
                     ? page.querySelector('#' + LINKED_SETTINGS[setting]) : null;
                 if (target) {
-                    // The control may sit in a closed Advanced fold, and nothing inside a
-                    // hidden panel or a closed fold can take focus.
+                    // The control may sit in a closed Advanced fold; nothing inside a hidden panel or a
+                    // closed fold can take focus.
                     const panel = target.closest ? target.closest('.jpf-tab-panel') : null;
                     if (panel && panel.hidden) show(panel.getAttribute('data-panel'));
                     openAdvancedFor(target);
@@ -2811,9 +2803,9 @@
                 }
             }
 
-            // The form is only a copy of the settings once a read has worked. Until then it
-            // shows defaults, and Save posts every setting on the page, so a save from that
-            // state would overwrite the real ones. saveConfiguration checks the flag.
+            // The form is a copy of the settings only once a read has worked. Until then it shows
+            // defaults, and Save posts every setting on the page, so a save then would overwrite
+            // the real ones. saveConfiguration checks the flag.
             function showConfigLoadError(page, on) {
                 const box = page.querySelector('#configLoadError');
                 if (box) box.classList.toggle('jpf-hidden', !on);
@@ -2831,8 +2823,8 @@
                     renderTrusted(page);
                     page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
                     page.dataset.requireMainPin = config.RequireMainPin ? '1' : '';
-                    // Also set by renderEmail; set here too, or a page whose email read
-                    // failed would save it off without anyone touching it.
+                    // Also set by renderEmail; set here too, or a page whose email read failed would save
+                    // it off untouched.
                     page.querySelector('#enablePinResetByEmail').checked = !!config.EnablePinResetByEmail;
                     page._config = config;
                     renderBonfireOn(page);
@@ -2844,8 +2836,8 @@
                     page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
                     page.querySelector('#defaultSwitcherLocation').value =
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
-                    // Kept as well as shown: a custom default has no option until the Themes
-                    // section has drawn the list, and Save must not read that gap as Bonfire.
+                    // Kept as well as shown: a custom default has no option until the Themes section has
+                    // drawn the list, and Save must not read that gap as Bonfire.
                     page._wantedDefaultTheme = normalizeTheme(config.DefaultTheme, page._themeOffered);
                     page.querySelector('#defaultTheme').value = page._wantedDefaultTheme;
                     if (page._themes) renderDefaultThemePreview(page);
@@ -2853,8 +2845,8 @@
                     page.querySelector('#richThemeMotion').checked = !!config.RichThemeMotion;
                     loadTimeZones(page, config.DefaultTimeZone || '');
                     loadOnboarding(page, config.Onboarding || {});
-                    // Absent before 1.6.1.2, and both default to off: neither may switch
-                    // itself on because a configuration predates it.
+                    // Absent before 1.6.1.2; both default to off, so neither switches itself on for an
+                    // older configuration.
                     page.querySelector('#enableClientPinLogin').checked = !!config.EnableClientPinLogin;
                     page.querySelector('#enableClientProfileList').checked = !!config.EnableClientProfileList;
                     page.querySelector('#clientPinLoginFromAnywhere').checked = !!config.ClientPinLoginFromAnywhere;
@@ -2865,8 +2857,8 @@
                     page.querySelectorAll('.jpfProxyClient').forEach(function (box) {
                         box.checked = proxied.indexOf(box.getAttribute('data-proxy-client')) !== -1;
                     });
-                    // Every settings field is filled in. Set here, not at the end: a loader
-                    // below failing must not lock Save, and one above must.
+                    // Every settings field is filled in. Set here, not at the end: a loader below failing
+                    // must not lock Save, and one above must.
                     page._configLoaded = true;
                     setUnsaved(page, false);
                     showConfigLoadError(page, false);
@@ -2896,24 +2888,22 @@
             }
 
             // One of the plugin's own addresses ('/plugins/profiles/image/...', as the server
-            // stores and returns them) made loadable under a Base URL. A root-relative path
-            // resolves against the origin, outside Jellyfin, so every picture came up missing.
-            // ApiClient.getUrl knows the Base URL. Anything else (a remote picture) is left alone.
+            // stores them) made loadable under a Base URL. A root-relative path resolves against
+            // the origin, outside Jellyfin, so every picture came up missing. ApiClient.getUrl
+            // knows the Base URL. Anything else (a remote picture) is left alone.
             function pluginAsset(value) {
                 const v = String(value || '');
                 return v.indexOf('/plugins/profiles/') === 0 ? ApiClient.getUrl(v.slice(1)) : v;
             }
 
-            // The one authorization header this page builds for itself. Every other call
-            // here goes through ApiClient.ajax, which builds its own; this exists for the
-            // two requests it can't make: one that wants a Blob back, and the font upload,
-            // whose body is the file itself.
+            // The one authorization header this page builds itself. Everything else goes through
+            // ApiClient.ajax; this is for the two requests it can't make: one that wants a Blob
+            // back, and the font upload, whose body is the file.
             //
-            // `MediaBrowser` scheme, and nothing else. Jellyfin 12.0 disables legacy
-            // authorization by default and migrates existing installs to off; with it off
-            // the server reads only this header with this scheme. Each field is read the
-            // way profiles.js reads it, because ApiClient exposes some of these as
-            // functions and some as properties depending on the build.
+            // `MediaBrowser` scheme only. Jellyfin 12.0 disables legacy authorization by default
+            // and migrates existing installs to off; then the server reads only this header with
+            // this scheme. Each field is read as profiles.js reads it, because ApiClient exposes
+            // some as functions and some as properties depending on the build.
             function authorizationHeader() {
                 const get = (fn, prop, fallback) => {
                     if (typeof ApiClient[fn] === 'function') return ApiClient[fn]() || fallback;
@@ -2929,17 +2919,16 @@
                     + '", Token="' + token + '"';
             }
 
-            // Canonical form of a GUID for use as a lookup key — GUIDs come back in mixed case
-            // and sometimes with or without hyphens depending on the serializer, so comparing
-            // the raw strings would fail to match a sub-profile to its master.
+            // Canonical form of a GUID for a lookup key. GUIDs come back in mixed case, with or
+            // without hyphens, so comparing raw strings would fail to match a sub-profile to its
+            // master.
             function normId(guid) {
                 if (!guid) return '';
                 return String(guid).toLowerCase().replace(/[^a-z0-9]/g, '');
             }
 
-            // Says whether the pipeline hook is actually there. Worth showing plainly: it is new
-            // in 1.4.1, and "it did not attach" and "it attached and had nothing to do" look
-            // identical from the outside.
+            // Says whether the pipeline hook is there (new in 1.4.1). "It did not attach" and "it
+            // attached and had nothing to do" look the same from outside.
             function renderMechanism(page, result) {
                 const line = page.querySelector('#middlewareStatusLine');
                 if (!line) return;
@@ -2972,8 +2961,8 @@
                 line.style.color = colour;
             }
 
-            // Single place that decides which status banner is visible, so the
-            // page load and the Re-check button can never disagree about the current state.
+            // The one place that decides which status banner shows, so page load and the Re-check
+            // button cannot disagree.
             function renderInjectionStatus(page, result) {
                 const warningContainer = page.querySelector('#injectionWarningContainer');
 
@@ -2983,13 +2972,11 @@
                 const reason = field(result, 'failureReason');
 
                 const mech = field(result, 'mechanism');
-                // Installed or updated on a running server. Not a failure and not something
-                // a command can fix, so it gets its own banner and suppresses the other two
-                // (issue #25).
+                // Installed or updated on a running server. Not a failure and not fixable by a
+                // command, so it gets its own banner and suppresses the other two (#25).
                 const restartRequired = mech ? field(mech, 'restartRequired') === true : false;
 
-                // Only treat an explicit false as failure — a missing field must never
-                // produce a false-positive warning.
+                // Only an explicit false is a failure; a missing field must never warn.
                 const failed = !restartRequired && (succeeded === false);
                 const ver = field(result, 'pluginVersion');
                 page.dataset.pluginVersion = ver || '';
@@ -2997,8 +2984,8 @@
                     const badge = page.querySelector('#pluginVersionBadge');
                     if (badge) {
                         badge.textContent = 'v' + ver;
-                        // A pre-release label in the version string is the signal — no separate
-                        // flag to forget to flip when promoting a build to stable.
+                        // A pre-release label in the version string is the signal, so no flag needs flipping
+                        // when a build goes stable.
                         const isPrerelease = /-(beta|alpha|rc)/i.test(ver);
                         badge.style.background = isPrerelease ? 'rgba(245,159,0,0.18)' : 'var(--jpf-w08)';
                         badge.style.borderColor = isPrerelease ? 'rgba(245,159,0,0.5)' : 'var(--jpf-w12)';
@@ -3010,10 +2997,9 @@
                 const restartContainer = page.querySelector('#restartRequiredContainer');
                 if (restartContainer) restartContainer.style.display = restartRequired ? 'block' : 'none';
 
-                // Name both versions, so "restart required" is checkable rather than a claim.
-                // Hidden when the two cannot be compared — running from somewhere that is not
-                // a plugin folder — because inventing a comparison would be worse than saying
-                // nothing (issue #25).
+                // Name both versions, so "restart required" is checkable. Hidden when they cannot be
+                // compared (running from outside a plugin folder): an invented comparison is worse
+                // than none (#25).
                 const restartVersions = page.querySelector('#restartVersions');
                 if (restartVersions) {
                     const runningVer = mech ? field(mech, 'runningVersion') : null;
@@ -3028,8 +3014,8 @@
                 }
 
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
-                // A banner above the tabs says a failure or a pending restart in full; Status
-                // lists every state with the rest, and is the only place "all is well" shows.
+                // A banner above the tabs gives a failure or pending restart in full; Status lists
+                // every state and is the only place "all is well" shows.
                 setStatus(page, 'script',
                     restartRequired ? [{ level: 'warn', text: t('admin.status.restart') }]
                     : failed ? [{ level: 'bad', text: t('admin.status.scriptFailed'), tab: 'troubleshoot', anchor: 'jpfClientScript', fix: t('admin.status.checkIt') }]
@@ -3049,9 +3035,9 @@
                 }
             }
 
-            // Re-runs injection server-side. Lets an admin apply a permission fix and confirm
-            // it worked without restarting Jellyfin — the old banner was a boot-time snapshot,
-            // so it stayed on screen no matter which fix command had just been run.
+            // Re-runs injection server-side, so an admin can apply a permission fix and confirm it
+            // without restarting Jellyfin. The old banner was a boot-time snapshot and stayed up
+            // whatever fix had just been run.
             function retryInjection(page) {
                 const buttons = page.querySelectorAll('.retryInjectionBtn');
                 const statuses = page.querySelectorAll('.retryInjectionStatus');
@@ -3065,9 +3051,9 @@
                     })
                     .then(function (result) {
                         renderInjectionStatus(page, result);
-                        // A pending restart has its own banner (renderInjectionStatus shows it and
-                        // hides the failure reason), so neither "still not fixed, see the reason
-                        // above" nor "installed and up to date" is true of it (R-1252).
+                        // A pending restart has its own banner (renderInjectionStatus shows it and hides the
+                        // failure reason), so neither "still not fixed, see the reason above" nor "installed
+                        // and up to date" is true of it (R-1252).
                         const mech = field(result, 'mechanism');
                         const restart = mech ? field(mech, 'restartRequired') === true : false;
                         const ok = field(result, 'injectionSucceeded') !== false;
@@ -3088,11 +3074,11 @@
 
 
             // ── Orphaned profiles ───────────────────────────────────────────────
-            // Two calls on purpose. The first is a dry run that only reports; the second
-            // deletes. This removes configuration and there is no undo, so the
-            // administrator sees the list and confirms it before anything goes.
-            /// The server's reasonCode in the page's language. A code this page does not know
-            /// (a newer server) shows the server's own English line, which is better than blank.
+            // Two calls on purpose. The first is a dry run that only reports; the second deletes.
+            // This removes configuration with no undo, so the administrator sees the list and
+            // confirms first.
+            /// The server's reasonCode in the page's language. A code this page does not know (a
+            /// newer server) shows the server's own English line, not a blank.
             function orphanReasonText(o) {
                 const keys = { profile_deleted: 'admin.orphans.reasonProfile', master_deleted: 'admin.orphans.reasonMaster' };
                 return Object.prototype.hasOwnProperty.call(keys, o.reasonCode) ? t(keys[o.reasonCode]) : String(o.reason || '');
@@ -3152,9 +3138,8 @@
 
             function bindOrphanScan(page) {
                 const btn = page.querySelector('#scanOrphansBtn');
-                // pageshow fires more than once for the same element; without this guard a
-                // second visit would run the scan twice per click, like every other handler
-                // on this page learned the hard way.
+                // pageshow fires more than once for the same element; without this guard a second
+                // visit would run the scan twice per click.
                 if (!btn || btn.dataset.bound) return;
                 btn.dataset.bound = '1';
                 btn.addEventListener('click', function () {
@@ -3175,8 +3160,8 @@
             }
 
             // Trusted addresses: one row each, an address and the main accounts it is for.
-            // page._trusted is the saved list; once the rows are drawn the form is the truth.
-            // They are drawn only when the accounts are known, or the ticks would be lost.
+            // page._trusted is the saved list; once the rows are drawn the form is the truth. They
+            // are drawn only when the accounts are known, or the ticks would be lost.
             function collectTrusted(page) {
                 if (!page._trustedDrawn) return page._trusted || [];
                 return Array.prototype.map.call(page.querySelectorAll('#trustedList .jpf-trust-row'), function (row) {
@@ -3265,17 +3250,17 @@
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
                     page._mappings = result;
-                    // Rows already drawn hold edits that are not saved yet; take them
-                    // before the redraw, or a PIN reset on Households wipes them (r2-35-01).
+                    // Rows already drawn hold unsaved edits; take them before the redraw, or a PIN reset
+                    // on Households wipes them (r2-35-01).
                     page._trusted = collectTrusted(page);
                     renderTrusted(page);
                     renderInjectionStatus(page, result);
 
                     const masterContainer = page.querySelector('#masterUsersList');
 
-                    // The list is drawn again after every action (reset a PIN, set a limit),
-                    // so note which sub-profile panels are open now and open them again
-                    // below (R-1255). Otherwise each action folds the household away.
+                    // The list is redrawn after every action (reset a PIN, set a limit), so note which
+                    // sub-profile panels are open and reopen them below (R-1255). Otherwise each action
+                    // folds the household away.
                     const wasOpen = [];
                     page.querySelectorAll('.sub-profile-toggle').forEach(function (b) {
                         if (b.getAttribute('aria-expanded') === 'true') wasOpen.push(b.getAttribute('data-master'));
@@ -3284,10 +3269,9 @@
                     const masterUsers = result.MasterUsers || result.masterUsers || [];
                     const subProfiles = result.SubProfiles || result.subProfiles || [];
 
-                    // Group sub-profiles under the master account they belong to. Keyed by
-                    // MasterUserId rather than the display name: names change on rename and are
-                    // not guaranteed unique, which would silently file profiles under the wrong
-                    // account or drop them entirely.
+                    // Group sub-profiles under their master account, keyed by MasterUserId, not display
+                    // name: names change on rename and are not unique, which would file profiles under
+                    // the wrong account or drop them.
                     const subsByMaster = {};
                     subProfiles.forEach(function (s) {
                         const key = normId(field(s, 'masterUserId'));
@@ -3295,8 +3279,8 @@
                         subsByMaster[key].push(s);
                     });
 
-                    // An account with profiles and no PIN: any of those profiles can switch
-                    // into it, past every restriction it was given.
+                    // An account with profiles and no PIN: any of those profiles can switch into it, past
+                    // every restriction it was given.
                     const open = masterUsers.filter(function (m) {
                         return field(m, 'requiresPin') !== true && (subsByMaster[normId(field(m, 'profileUserId'))] || []).length > 0;
                     }).length;
@@ -3305,8 +3289,8 @@
                     page._openPins = open;
                     renderGettingStarted(page);
 
-                    // Neither state is an error, so neither gets an error colour. This was
-                    // red for protected and green for unprotected, i.e. exactly backwards.
+                    // Neither state is an error, so neither gets an error color. It used to be red for
+                    // protected and green for unprotected, exactly backwards.
                     function pinStatusHtml(reqPin) {
                         return reqPin
                             ? '<span style="font-weight:600;opacity:0.9;">' + escapeHtml(t('admin.households.pinSet')) + '</span>'
@@ -3321,10 +3305,10 @@
                                escapeHtml(t('admin.households.resetPin')) + '</button>';
                     }
 
-                    // Profiles are not listed on Jellyfin's Dashboard -> Users page, so this is the
-                    // way to a profile's own user page (to disable it, or fix its libraries).
-                    // jellyfin-web moved that page's address in 12.0: 10.11 is
-                    // users/profile?userId=ID, 12.0 is users/ID/profile (routes/_asyncRoutes.ts).
+                    // Profiles are not listed on Jellyfin's Dashboard -> Users page, so this is the way to
+                    // a profile's own user page (to disable it or fix its libraries). jellyfin-web moved
+                    // that address in 12.0: 10.11 is users/profile?userId=ID, 12.0 is users/ID/profile
+                    // (routes/_asyncRoutes.ts).
                     function jellyfinUserPageUrl(id) {
                         let major = 10;
                         try { major = parseInt(String(ApiClient.serverVersion()).split('.')[0], 10) || 10; } catch (e) { /* older address */ }
@@ -3353,8 +3337,8 @@
                                standaloneFormHtml(pId);
                     }
 
-                    // Hidden until "Make own account" is pressed. A form rather than a
-                    // prompt: it needs a password, which a prompt would show in clear.
+                    // Hidden until "Make own account" is pressed. A form, not a prompt: it needs a
+                    // password, which a prompt would show in clear.
                     function standaloneFormHtml(pId) {
                         const id = escapeHtml(pId);
                         return '<div class="standalone-form jpf-hidden" data-id="' + id + '" style="padding:10px 15px 14px 56px; border-top:1px solid var(--jpf-w05);">' +
@@ -3371,10 +3355,10 @@
                                '</div>';
                     }
 
-                    // An administrator sets a household's PIN prompts for it: "Ask PIN to open" on
-                    // the main account, "No PIN on the server's network" on each profile. Those
-                    // two and nothing else. Not offered on an administrator's own household,
-                    // which the server refuses. Hidden until asked for.
+                    // An administrator sets a household's PIN prompts for it: "Ask PIN to open" on the main
+                    // account, "No PIN on the server's network" on each profile, and nothing else. Not
+                    // offered on an administrator's own household, which the server refuses. Hidden until
+                    // asked for.
                     function pinPromptsFormHtml(m) {
                         if (field(m, 'isAdministrator') === true) return '';
                         const key = normId(field(m, 'profileUserId'));
@@ -3394,9 +3378,9 @@
                                '</div>';
                     }
 
-                    // Under each main account: the other accounts on its screen (issue #39),
-                    // with "Add an account", and "Make it a profile" for an account that can
-                    // be one. Both forms stay hidden until asked for.
+                    // Under each main account: the other accounts on its screen (#39), with "Add an
+                    // account", and "Make it a profile" for one that can be. Both forms stay hidden until
+                    // asked for.
                     function accountExtrasHtml(m, subCount) {
                         const id = escapeHtml(field(m, 'profileUserId') || '');
                         const key = normId(field(m, 'profileUserId'));
@@ -3430,9 +3414,9 @@
                                '<div class="link-form jpf-extras-form jpf-hidden">' +
                                '<div class="fieldDescription">' + escapeHtml(t('admin.links.note')) + '</div>' +
                                (others.length
-                                   // Built the way the page's other selects are, inside a selectContainer:
-                                   // emby-select draws its arrow into the select's parent, and inside a
-                                   // plain <label> it had nowhere to sit, so this read as a text box.
+                                   // Built like the page's other selects, inside a selectContainer: emby-select draws
+                                   // its arrow into the select's parent, and inside a plain <label> it had nowhere to
+                                   // sit, so this read as a text box.
                                    ? '<div class="selectContainer jpf-link-select"><label class="selectLabel" for="link-user-' + id + '">' + escapeHtml(t('admin.links.account')) + '</label>' +
                                      '<select is="emby-select" class="link-user" id="link-user-' + id + '">' + others.map(option).join('') + '</select></div>' +
                                      '<button type="button" class="raised button-submit button-mini link-go jpf-sa-btn">' + escapeHtml(t('admin.links.go')) + '</button>'
@@ -3474,9 +3458,9 @@
                                     : '') +
                                 '</div>';
 
-                            // The toggle is a real <button> so it is keyboard reachable and
-                            // announces its expanded state; accounts with no sub-profiles get
-                            // static text instead of a control that would do nothing.
+                            // The toggle is a real <button>, so it is keyboard reachable and announces its
+                            // expanded state; an account with no sub-profiles gets static text instead of a
+                            // control that does nothing.
                             const countLabel = escapeHtml(subs.length === 1 ? t('admin.households.subOne') : t('admin.households.subMany', { count: subs.length }));
                             const toggle = subs.length > 0
                                 ? '<button type="button" class="sub-profile-toggle" data-master="' + normId(pId) + '" aria-expanded="false" ' +
@@ -3493,9 +3477,8 @@
                                   '</div>'
                                 : '';
 
-                            // One line per account. This used to be a stacked block roughly
-                            // 125px tall carrying two values, so a dozen accounts meant a very
-                            // long scroll for what is a table's worth of data.
+                            // One line per account. It used to be a stacked block about 125px tall carrying two
+                            // values, so a dozen accounts meant a very long scroll.
                             return '<div class="listItem-group jpf-divider">' +
                                    '<div class="listItem" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 15px;">' +
                                    '<div style="flex:1 1 220px; min-width:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
@@ -3512,11 +3495,10 @@
                         }).join('');
                     }
 
-                    // Any sub-profile whose master is not in the list above would otherwise
-                    // vanish from the dashboard entirely — the old flat list showed every
-                    // profile unconditionally, and losing that would hide exactly the broken
-                    // records an administrator most needs to find (and still needs to be able
-                    // to reset a PIN on).
+                    // A sub-profile whose master is not in the list above would otherwise vanish from the
+                    // dashboard. The old flat list showed every profile, and losing that would hide the
+                    // broken records an administrator most needs to find (and still needs to reset a PIN
+                    // on).
                     const knownMasterKeys = masterUsers.map(function (m) { return normId(field(m, 'profileUserId')); });
                     const orphans = subProfiles.filter(function (s) {
                         return knownMasterKeys.indexOf(normId(field(s, 'masterUserId'))) === -1;
@@ -3588,14 +3570,14 @@
 
             // -- Audit log -------------------------------------------------------
             //
-            // A thousand rows went into a 300-pixel scrolling div with no search at all, so
-            // the only way to answer "when did Sam last switch" was to scroll. The whole log
-            // is already in the response, so filtering, the date range and the export all
-            // happen here - no new endpoint, and no re-read per keystroke.
+            // A thousand rows went into a 300-pixel scrolling div with no search, so answering
+            // "when did Sam last switch" meant scrolling. The whole log is already in the response,
+            // so filtering, the date range and the export all happen here: no new endpoint, no
+            // re-read per keystroke.
             let auditEntries = [];
 
-            // Both spellings: the list can arrive as the plugin's camelCase JSON or straight
-            // off a PascalCase DTO, and this page has been bitten by assuming one of them.
+            // Both spellings: the list can arrive as the plugin's camelCase JSON or off a
+            // PascalCase DTO, and this page has been bitten by assuming one.
             function auditField(log, name) {
                 const lower = name.charAt(0).toLowerCase() + name.slice(1);
                 return log[name] || log[lower] || '';
@@ -3603,8 +3585,8 @@
 
             function auditMatches(log, term, from, to) {
                 if (term) {
-                    // Both username fields, which is what an administrator is looking for:
-                    // "who switched" and "into what".
+                    // Both username fields, which is what an administrator looks for: "who switched" and
+                    // "into what".
                     const hay = (auditField(log, 'MasterUsername') + ' ' +
                                  auditField(log, 'TargetUsername')).toLowerCase();
                     if (hay.indexOf(term) === -1) return false;
@@ -3612,9 +3594,8 @@
                 if (from || to) {
                     const when = new Date(auditField(log, 'Timestamp'));
                     if (isNaN(when.getTime())) return false;
-                    // The To box means "including that day", so it is compared against the
-                    // end of it. Comparing against midnight silently excluded today, which
-                    // is the range people pick most often.
+                    // The To box means "including that day", so it is compared against the end of it.
+                    // Midnight silently excluded today, the range people pick most.
                     if (from && when < from) return false;
                     if (to && when > to) return false;
                 }
@@ -3657,10 +3638,9 @@
                     return;
                 }
 
-                // Device and client are copied out of the Authorization header of whoever
-                // switched, and any account on the server can switch into itself. Before these
-                // were escaped, a device named <img onerror=…> ran as the administrator the
-                // moment this page loaded.
+                // Device and client are copied from the Authorization header of whoever switched, and
+                // any account can switch into itself. Before these were escaped, a device named
+                // <img onerror=…> ran as the administrator when this page loaded.
                 container.innerHTML = view.rows.map(function (log) {
                     const stamp = new Date(auditField(log, 'Timestamp'));
                     // An entry with no readable time says so instead of "Invalid Date" (R-1255).
@@ -3688,8 +3668,8 @@
             }
 
             function downloadAuditLogs(page) {
-                // What is on screen, not the whole log. An administrator who has narrowed to
-                // one account and then exports everything has been handed the wrong file.
+                // What is on screen, not the whole log: an administrator who narrowed to one account
+                // and exported everything got the wrong file.
                 const rows = auditVisible(page).rows;
                 const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
@@ -3699,15 +3679,14 @@
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                // Revoked ten seconds on, in all three exports: a timeout of 0 still runs
-                // before some browsers have read the blob, and the download is then cancelled.
+                // Revoked ten seconds on, in all three exports: a timeout of 0 can run before some
+                // browsers have read the blob, which cancels the download.
                 setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
             }
 
             function bindAuditControls(page) {
                 const filter = page.querySelector('#auditFilter');
-                // pageshow fires more than once for the same element; every handler on this
-                // page is guarded for that reason and these are no different.
+                // pageshow fires more than once for the same element; every handler here is guarded.
                 if (!filter || filter.dataset.bound) return;
                 filter.dataset.bound = '1';
 
@@ -3740,11 +3719,10 @@
             }
 
             // -- Signed-in devices -----------------------------------------------
-            // Every field here except the ids is client-supplied: device name, client name
-            // and even the device id come straight from the Authorization header of a
-            // session this page did not create, and the title playing comes from library
-            // metadata. Separate from loadProfileSessions so tests/js/dashboardxss.js can
-            // run it.
+            // Every field here except the ids is client-supplied: device name, client name and even
+            // the device id come from the Authorization header of a session this page did not
+            // create, and the title playing comes from library metadata. Separate from
+            // loadProfileSessions so tests/js/dashboardxss.js can run it.
             function sessionRowsHtml(sessions) {
                 return sessions.map(function (s) {
                     // Values escaped first, then placed: the strings around them are ours.
@@ -3768,10 +3746,10 @@
                 }).join('');
             }
 
-            // Plain text. The skipped names are profile names out of the imported file, which
-            // is exactly as trustworthy as wherever that file has been.
-            /// The import result as the markup shown under the button. A function, so the
-            /// escaping is something a test can run rather than a line it has to find.
+            // Plain text. The skipped names are profile names from the imported file, as
+            // trustworthy as wherever that file has been.
+            /// The import result as the markup shown under the button. A function, so a test can run
+            /// the escaping instead of finding a line.
             function importResultHtml(res) {
                 return '<span class="jpf-dim">' + escapeHtml(importSummary(res)) + '</span>';
             }
@@ -3806,8 +3784,8 @@
 
                         container.querySelectorAll('.jpf-signout-btn').forEach(function (btn) {
                             btn.addEventListener('click', function () {
-                                // Signing somebody out interrupts whatever they are watching,
-                                // and the administrator is often not in the same room.
+                                // Signing somebody out interrupts what they are watching, and the administrator is
+                                // often not in the same room.
                                 askFirst(
                                     t('admin.devices.signOutConfirm', { name: btn.getAttribute('data-name') }),
                                     t('admin.devices.signOut')
@@ -3891,10 +3869,9 @@
                             box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.notJson')) + '</span>';
                             return;
                         }
-                        // Accepts the export wrapper or a bare configuration, because the
-                        // obvious thing to do with an export is edit it and paste back the
-                        // inner object.
-                        // A file holding `null` parses fine and has no properties (R-1253).
+                        // Accepts the export wrapper or a bare configuration, because the obvious thing to do
+                        // with an export is edit it and paste back the inner object. A file holding `null`
+                        // parses and has no properties (R-1253).
                         const config = parsed && (parsed.configuration || parsed);
                         if (!config || typeof config !== 'object' || !('Mappings' in config || 'mappings' in config)) {
                             box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.notExport')) + '</span>';
@@ -3948,9 +3925,9 @@
                 });
             }
 
-            // An empty or odd box used to parse to NaN, which JSON writes as null, and the
-            // server reads null as "remove the override". Set must never mean Reset, so
-            // anything but a whole number from 1 to 20 stops here with the range.
+            // An empty or odd box used to parse to NaN, which JSON writes as null, and the server
+            // reads null as "remove the override". Set must never mean Reset, so anything but a
+            // whole number from 1 to 20 stops here with the range.
             function saveLimitFromBox(page, userId) {
                 const input = page.querySelector('.user-limit-input[data-id="' + userId + '"]');
                 const raw = String(input.value).trim();
@@ -3997,12 +3974,12 @@
             }
 
             // ── Avatar library ────────────────────────────────────────────────────
-            // Images are squared and resized here, in the browser, before upload — the
-            // plugin has no server-side image library, and doing it this way keeps it that
-            // way. Two renderings are sent: a master, and a thumbnail for the pickers.
-
-            // Mirrors ImageQualities on the server. The upload is resized here to whatever
-            // the picture quality select says, which is also what the server will accept.
+            // Images are squared and resized here in the browser before upload, because the plugin
+            // has no server-side image library. Two renderings are sent: a master, and a thumbnail
+            // for the pickers.
+            //
+            // Mirrors ImageQualities on the server: the upload is resized to what the picture
+            // quality select says, which is also what the server accepts.
             const IMAGE_QUALITY_SPECS = {
                 standard: { master: 512, thumb: 128, jpeg: 0.85, mb: 2 },
                 high: { master: 1024, thumb: 256, jpeg: 0.9, mb: 4 },
@@ -4015,13 +3992,13 @@
                 return v === 'high' || v === 'maximum' || v === 'ultra' ? v : 'standard';
             }
 
-            // A theme the server will take as the default, or Bonfire. The server refuses
-            // anything else, so this keeps a stale or hand-edited value from turning Save into
-            // an error. `offered` is what the Themes section found the server offers (1.7.2:
-            // the built-ins less the hidden ones, then the administrator's own). Before that
-            // answer arrives, any well-formed id is let through: the default may be a custom
-            // theme, and quietly saving Bonfire over it would be worse than a refusal.
-            // The list lives inside the function so it can be lifted out whole for a test.
+            // A theme the server will take as the default, or Bonfire. The server refuses anything
+            // else, so this keeps a stale or hand-edited value from turning Save into an error.
+            // `offered` is what the Themes section found the server offers (1.7.2: the built-ins
+            // less the hidden ones, then the administrator's own). Before that answer arrives any
+            // well-formed id passes: the default may be a custom theme, and quietly saving Bonfire
+            // over it would be worse than a refusal. The list lives inside the function so a test
+            // can lift it out whole.
             function normalizeTheme(value, offered) {
                 const ids = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
                     'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
@@ -4035,12 +4012,11 @@
                 return IMAGE_QUALITY_SPECS[normalizeImageQuality(select ? select.value : 'standard')];
             }
 
-            // Centre-cropped square. The admin is uploading a set of avatars rather than
-            // positioning one picture, so this stays automatic — end users get the crop
-            // editor when they choose one.
+            // Center-cropped square. The admin is uploading a set of avatars, not positioning one
+            // picture, so it stays automatic; end users get the crop editor.
             function squareToDataUrl(img, size, preferPng, jpegQuality) {
-                // An image that decodes as 0x0 would give a zero-size source rectangle, and
-                // drawImage throws on that with a message nobody can act on.
+                // An image that decodes as 0x0 gives a zero-size source rectangle, and drawImage
+                // throws on that with a message nobody can act on.
                 if (!(img.width > 0 && img.height > 0)) throw new Error(t('admin.avatars.zeroSize'));
                 const canvas = document.createElement('canvas');
                 canvas.width = size;
@@ -4069,8 +4045,8 @@
             function rejectAvatarFile(file) {
                 const name = (file.name || '').toLowerCase();
                 const type = (file.type || '').toLowerCase();
-                // iPhones shoot HEIC by default and only Safari decodes it, so without this
-                // the upload just fails silently on most machines.
+                // iPhones shoot HEIC and only Safari decodes it, so without this the upload fails
+                // silently on most machines.
                 if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
                     return t('admin.avatars.heic');
                 }
@@ -4104,8 +4080,7 @@
                         const builtIn = field(a, 'isStarter') === true;
                         return '<div style="text-align:center;">' +
                             '<div style="position:relative; width:100%; aspect-ratio:1/1; border-radius:50%; overflow:hidden; background:var(--jpf-w06);">' +
-                            // If the file has gone missing the tile shows a marker rather
-                            // than a broken-image icon, and the count above says why.
+                            // A missing file shows a marker, not a broken-image icon, and the count above says why.
                             '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0.35;font-size:0.75rem;">' + escapeHtml(t('admin.avatars.missing')) + '</span>' +
                             '<img src="' + escapeHtml(pluginAsset(thumb)) + '" alt="" onerror="this.remove()" ' +
                             'style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />' +
@@ -4129,9 +4104,8 @@
             }
 
             function deleteAvatar(page, id) {
-                // Profiles created from this avatar keep their own copy, so nothing anyone
-                // is using breaks — only the picker loses the option. It still asks first, as
-                // every other removal on this page does (R-1257).
+                // Profiles created from this avatar keep their own copy; only the picker loses the
+                // option. It still asks first, like every removal here (R-1257).
                 askFirst(t('admin.avatars.removeConfirm'), t('admin.avatars.removeTitle')).then(function () {
                     ApiClient.ajax({
                         type: 'DELETE',
@@ -4145,9 +4119,8 @@
                 });
             }
 
-            // Resolves when the file has been stored, rejects with a message fit to show.
-            // Separated from the batching below so one bad file in a selection of twenty
-            // reports itself and the rest still upload.
+            // Resolves when the file is stored, rejects with a message fit to show. Separate from
+            // the batching below so one bad file in twenty reports itself and the rest upload.
             function uploadOneAvatar(file) {
                 const reason = rejectAvatarFile(file);
                 if (reason) return Promise.reject(new Error(reason));
@@ -4162,17 +4135,17 @@
                             reject(new Error(t('admin.avatars.badFormat')));
                         };
                         img.onload = function () {
-                            // Canvas work can throw — a zero-dimension decode, or no 2d
-                            // context under memory pressure. An escaping exception here
-                            // would leave this promise unsettled and stall the whole batch.
+                            // Canvas work can throw (a zero-dimension decode, or no 2d context under memory
+                            // pressure). An escaping exception would leave this promise unsettled and stall the
+                            // batch.
                             let payload;
                             try {
                                 const preferPng = hasTransparency(img);
                                 payload = JSON.stringify({
                                     image: squareToDataUrl(img, spec.master, preferPng, spec.jpeg),
                                     thumb: squareToDataUrl(img, spec.thumb, preferPng, spec.jpeg),
-                                    // Filename without its extension is a reasonable default
-                                    // label, and the admin can rename the file to change it.
+                                    // The filename without its extension is a reasonable default label; rename the file
+                                    // to change it.
                                     displayName: (file.name || '').replace(/\.[^.]+$/, '').trim() || t('admin.avatars.defaultName')
                                 });
                             } catch (e) {
@@ -4188,8 +4161,8 @@
                                 data: payload
                             }).then(resolve).catch(function (err) {
                                 console.error('Avatar upload failed:', err);
-                                // The server's own reason when it gave one; "too big" was only ever
-                                // one of the things it refuses for (R-1259).
+                                // The server's own reason when it gave one: "too big" was only one of the things it
+                                // refuses for (R-1259).
                                 reject(new Error(refusalMessage(err) || t('admin.avatars.rejected', { mb: spec.mb })));
                             });
                         };
@@ -4199,9 +4172,8 @@
                 });
             }
 
-            // One at a time, not Promise.all: each upload carries two base64 images, and
-            // firing twenty at once is how you get a queue of rejected requests instead of
-            // twenty avatars.
+            // One at a time, not Promise.all: each upload carries two base64 images, and twenty at
+            // once gives a queue of rejected requests instead of twenty avatars.
             function uploadAvatars(page, files) {
                 const list = Array.prototype.slice.call(files || []);
                 if (!list.length) return;
@@ -4252,10 +4224,9 @@
 
             // Imports a folder of pictures that already live on the server.
             //
-            // The server lists the folder and hands over one file at a time; the resizing
-            // happens here, on a canvas, exactly as it does for an upload. That is what
-            // keeps the plugin free of a server-side image library, and it means every
-            // stored avatar comes out of one code path rather than two.
+            // The server lists the folder and hands over one file at a time; the resizing happens
+            // here on a canvas, as for an upload. That keeps the plugin free of a server-side image
+            // library, and every stored avatar comes out of one code path.
             function importAvatarFolder(page) {
                 const pathInput = page.querySelector('#avatarScanPath');
                 const statusEl = page.querySelector('#avatarUploadStatus');
@@ -4307,20 +4278,15 @@
                         const name = field(files[i], 'name');
                         setStatus(t('admin.avatars.importing', { n: i + 1, total: files.length }));
 
-                        // One of two hand-rolled requests on this page (the font upload is
-                        // the other) — everything else goes through ApiClient.ajax, which
-                        // builds this header itself. It is hand-rolled because the response
-                        // is wanted as a Blob.
+                        // One of two hand-rolled requests on this page (the font upload is the other);
+                        // everything else goes through ApiClient.ajax. Hand-rolled because the response is
+                        // wanted as a Blob.
                         //
-                        // It used to send X-Emby-Token. Jellyfin 12.0 turns legacy
-                        // authorization off by default and migrates existing installs to
-                        // off, and with it off the server reads none of X-Emby-Token,
-                        // X-MediaBrowser-Token, the api_key query parameter, the
-                        // X-Emby-Authorization header, or the `Emby` scheme — see
-                        // AuthorizationContext.GetAuthorizationDictionary. This request
-                        // would have come back 401 and the avatar folder import would have
-                        // stopped working, on 12.0 and on any 10.11 install whose
-                        // administrator had already turned legacy authorization off.
+                        // It used to send X-Emby-Token. Jellyfin 12.0 turns legacy authorization off by default
+                        // and migrates existing installs to off, and then the server reads none of
+                        // X-Emby-Token, X-MediaBrowser-Token, api_key, X-Emby-Authorization or the `Emby` scheme
+                        // (AuthorizationContext.GetAuthorizationDictionary). The folder import would have come
+                        // back 401 on 12.0 and on any 10.11 install that had turned legacy authorization off.
                         fetch(ApiClient.getUrl('plugins/profiles/admin/avatars/scan/file', { path: folder, name: name }), {
                             headers: { 'Authorization': authorizationHeader() }
                         })
@@ -4328,8 +4294,8 @@
                             if (!res.ok) throw new Error(refusalMessage(res) || t('admin.avatars.unreadable'));
                             return res.blob();
                         })
-                        // A Blob is what the upload path already expects, so the file goes
-                        // through the same checks, resize and encode as a picked one.
+                        // A Blob is what the upload path expects, so the file gets the same checks, resize
+                        // and encode as a picked one.
                         .then(function (blob) { return uploadOneAvatar(new File([blob], name, { type: blob.type })); })
                         .catch(function (err) { failures.push({ name: name, reason: err.message }); })
                         .then(function () { step(i + 1); });
@@ -4343,9 +4309,9 @@
                 });
             }
 
-            // Counts profiles whose stored picture no longer resolves. The images are
-            // fetched by the browser anyway when the picker renders, so this is a cheap
-            // HEAD-style check rather than new server work.
+            // Counts profiles whose stored picture no longer resolves. The browser fetches the
+            // images anyway when the picker renders, so this is a cheap HEAD-style check, not new
+            // server work.
             function loadAvatarHealth(page) {
                 ApiClient.ajax({
                     type: 'GET',
@@ -4356,8 +4322,8 @@
                     const subs = field(data, 'subProfiles') || [];
                     const all = masters.concat(subs).filter(function (p) {
                         const img = field(p, 'profileImage');
-                        // Only our own stored images can go missing; a remote URL failing is
-                        // the remote host's problem and not something to report here.
+                        // Only our own stored images can go missing; a remote URL failing is the remote
+                        // host's problem.
                         return img && String(img).indexOf('/plugins/profiles/image/') === 0;
                     });
 
@@ -4395,8 +4361,8 @@
 
             // ── Announcements ─────────────────────────────────────────────────────
 
-            // datetime-local has no zone: it is the admin's own clock. Sent as an ISO
-            // instant so the server never has to guess, and shown back the same way.
+            // datetime-local has no zone: it is the admin's own clock. Sent as an ISO instant so
+            // the server never guesses, and shown back the same way.
             function localInputToIso(value) {
                 if (!value) return null;
                 const d = new Date(value);
@@ -4440,16 +4406,14 @@
             /// The sentence for a refused response, or '' when its code has none.
             ///
             /// The map has a sentence for each code a Bonfire route sends in X-Bonfire-Error
-            /// (Controllers/ErrorCodes.cs), in the page's language. A code not here, or a server
-            /// too old to send one, shows the fallback of whatever was being done: the response
-            /// body is English and is never shown. The codes the household screens meet
-            /// are in profiles.js's ERROR_KEYS.
+            /// (Controllers/ErrorCodes.cs), in the page's language. A code not here, or a server too
+            /// old to send one, shows the fallback for whatever was being done; the response body is
+            /// English and never shown. The household screens' codes are in profiles.js's
+            /// ERROR_KEYS. The theme, font and logo codes are here too; image_invalid is the
+            /// avatar's, and the logo's own is passed by readThemeError.
             ///
-            /// The theme, font and logo codes are here too. image_invalid is the avatar's; the
-            /// logo's own is passed by readThemeError.
-            ///
-            /// The map is inside this function, not beside it: the harnesses lift these
-            /// functions by name, and a const would be left behind.
+            /// The map is inside this function, not beside it: the harnesses lift these functions by
+            /// name, and a const would be left behind.
             function refusalMessage(err, vars, overrides) {
                 const ERROR_KEYS = {
                 admin_only: 'admin.err.adminOnly', forbidden: 'admin.err.forbidden',
@@ -4497,15 +4461,14 @@
                 delete page.dataset.annEditing;
             }
 
-            // An Advanced fold is closed until somebody opens it, so an error that lands inside
-            // one is an error nobody sees. Every message goes through here: a failure opens the
-            // fold it sits in.
+            // An Advanced fold stays closed until opened, so an error inside one goes unseen.
+            // Every message goes through here: a failure opens the fold it sits in.
             function openAdvancedFor(el) {
                 const fold = el && el.closest ? el.closest('details.jpf-advanced') : null;
                 if (fold) fold.open = true;
             }
 
-            // Good or bad, by class: the colours are the page's tokens, not literals here.
+            // Good or bad, by class: the colors are the page's tokens, not literals here.
             function paintOutcome(el, good) {
                 el.classList.add(good ? 'jpf-text-good' : 'jpf-text-bad');
                 el.classList.remove(good ? 'jpf-text-bad' : 'jpf-text-good');
@@ -4572,7 +4535,7 @@
                         page.querySelector('#annSeverity').value = severity;
                         page.querySelector('#annStarts').value = isoToLocalInput(field(a, 'startsUtc'));
                         page.querySelector('#annEnds').value = isoToLocalInput(field(a, 'endsUtc'));
-                        // Dates this announcement already has are not to be hidden in a closed fold.
+                        // Dates this announcement already has must not hide in a closed fold.
                         if (page.querySelector('#annStarts').value || page.querySelector('#annEnds').value) {
                             openAdvancedFor(page.querySelector('#annStarts'));
                         }
@@ -4666,26 +4629,25 @@
 
             // ── Themes (1.7.2) ────────────────────────────────────────────────────
             //
-            // The administrator's own themes, the built-ins they hide, and the fonts they
-            // upload, through admin/themes/* (docs/developer-api.md, "Custom themes"). Each
-            // change saves at once; only the default theme waits for Save, being one of the
-            // settings that sends.
+            // The administrator's own themes, the built-ins they hide, and their uploaded fonts,
+            // through admin/themes/* (docs/developer-api.md, "Custom themes"). Each change saves at
+            // once; only the default theme waits for Save, being one of the settings it sends.
             //
             // A theme's name, a font's name and any key in an imported file are whatever an
-            // administrator typed, so each is set as text or escaped before it becomes
-            // markup. tests/js/adminthemes.js runs these functions with hostile values.
+            // administrator typed, so each is set as text or escaped before it becomes markup.
+            // tests/js/adminthemes.js runs these functions with hostile values.
 
-            /// The id the editor's preview wears. themeCss keys a theme's tokens on its id,
-            /// and the theme being edited may be the one this page itself wears, which a
-            /// preview under the real id would repaint as the administrator typed.
+            /// The id the editor's preview wears. themeCss keys a theme's tokens on its id, and the
+            /// theme being edited may be the one this page itself wears, which a preview under the
+            /// real id would repaint as the administrator typed.
             const THEME_PREVIEW_ID = 'jpf--editor-preview';
 
             /// Every field of a theme file that Advanced shows, in the order of docs/themes.md:
             /// [group's string key, [[path, kind, options]]]. A bounded number is a slider and a
             /// shadow is small boxes with a None tick (ThemeValidator.Shadow's ranges). Only the
             /// lists stay JSON, because their shape varies (a layer may be linear or radial; each
-            /// decoration has its own values). Every one was a JSON or number box until 1.9.0.4-beta,
-            /// and themeeditor.js checks each control writes what the box wrote.
+            /// decoration has its own values). Every one was a JSON or number box until 1.9.0.4-beta;
+            /// themeeditor.js checks each control writes what the box wrote.
             function themeFieldList() {
                 const colour = function (path) { return [path, 'color']; };
                 const shadow = function (path) { return [path, 'shadow']; };
