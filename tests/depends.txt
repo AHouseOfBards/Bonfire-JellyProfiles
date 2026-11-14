@@ -1324,6 +1324,7 @@ js/copylint Web/themes/snowfall.json
 js/copylint Web/themes/starlight.json
 js/copylint Web/tizen/
 js/copylint _includes/
+js/copylint dist/
 js/copylint docs/
 js/copylint docs/themes/
 js/copylint docs/themes/screens/
@@ -1341,6 +1342,7 @@ js/copylint docs/themes/screens/snowfall/
 js/copylint docs/themes/screens/starlight/
 js/copylint images/
 js/copylint images/screenshots/
+js/copylint release-notes/
 js/copylint tests/js/_lib.js
 js/copylint tests/js/copylint.js
 js/copyrules Web/profiles.js

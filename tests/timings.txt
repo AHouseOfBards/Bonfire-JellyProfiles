@@ -195,7 +195,7 @@ js/lockout 0.2 parallel
 js/lockoutmail 0.1 parallel
 js/logobacking 211.3 serial
 js/logobackphoto 0.1 parallel
-js/logocorner 715.8 serial
+js/logocorner 98.0 serial
 js/mainpin 0.2 parallel
 js/mainpinroutes 0.3 parallel
 js/maintenance 0.2 parallel
@@ -288,6 +288,6 @@ js/tvtabstops 0.1 parallel
 js/uitest 0.3 parallel
 js/validateextract 0.9 parallel
 js/viewing 1.0 parallel
-js/viewwide 365.2 serial
+js/viewwide 55.0 serial
 js/welcomealign 11.8 serial
 js/workflows 0.1 parallel

@@ -36,11 +36,23 @@ const HEADER = [
 
 // Everything the plugin DLL is built from: every top-level directory that is not tests,
 // documentation or tooling, and the project files at the top.
-const NOT_PRODUCT = new Set(['tests', 'docs', 'images', '_includes', '.git', '.github', 'node_modules', 'scratch', 'bin', 'obj']);
+// release-notes/ is read by the release workflow only. Only directories git tracks count: an
+// untracked build folder (dist/) on one machine made the record look stale there and
+// nowhere else.
+const NOT_PRODUCT = new Set(['tests', 'docs', 'images', '_includes', '.git', '.github', 'node_modules', 'scratch', 'bin', 'obj', 'release-notes']);
+function trackedTop(root) {
+    try {
+        const out = require('child_process').execFileSync('git', ['ls-files'], { cwd: root || ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+        const set = new Set();
+        out.split('\n').forEach(p => { const i = p.indexOf('/'); if (i > 0) set.add(p.slice(0, i)); });
+        return set;
+    } catch (e) { return null; }
+}
 function productTrees(root) {
     const out = [];
+    const tracked = trackedTop(root);
     for (const e of fs.readdirSync(root || ROOT, { withFileTypes: true })) {
-        if (e.isDirectory() && !NOT_PRODUCT.has(e.name) && !e.name.startsWith('.')) out.push(e.name + '/**');
+        if (e.isDirectory() && !NOT_PRODUCT.has(e.name) && !e.name.startsWith('.') && (!tracked || tracked.has(e.name))) out.push(e.name + '/**');
         else if (e.isFile() && /\.(csproj|props|targets|sln)$/.test(e.name)) out.push(e.name);
     }
     return out.sort();
