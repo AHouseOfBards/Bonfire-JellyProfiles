@@ -353,31 +353,30 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool RichThemeMotion { get; set; }
 
-        // There used to be an IndexInjectionMode here, with "file" and "both" modes that
-        // rewrote index.html on disk. Only the middleware remains, so the field is gone.
-        // A configuration saved with it still loads: XmlSerializer skips an element it has no
-        // property for, and the next save leaves it out. A server that was in one of those
-        // modes has its index.html cleaned by ProfilesBootstrapTask once the middleware has
-        // served a page.
+        // There used to be an IndexInjectionMode here, with "file" and "both" modes that rewrote
+        // index.html on disk. Only the middleware remains, so the field is gone. A configuration saved
+        // with it still loads (XmlSerializer skips an element it has no property for) and the next save
+        // leaves it out. A server in one of those modes has its index.html cleaned by
+        // ProfilesBootstrapTask once the middleware has served a page.
 
         /// <summary>
-        /// PBKDF2 hash of the emergency disable code, or null when the feature is off (the
-        /// default). Entering the code shuts the plugin's client script down until the
-        /// server restarts — see <see cref="Plugin.IsPanicDisabled"/>.
+        /// PBKDF2 hash of the emergency disable code, or null when the feature is off (the default).
+        /// Entering the code shuts the plugin's client script down until the server restarts; see
+        /// <see cref="Plugin.IsPanicDisabled"/>.
         /// <para>
-        /// Hashed like a PIN, so the code cannot be read back from it. None of this plugin's
-        /// own endpoints return the field — <c>admin/panic-status</c> reports only whether one
-        /// is set. Note that it is still part of the plugin configuration, which Jellyfin
-        /// exposes to administrators through its own <c>/Plugins/{id}/Configuration</c>
-        /// endpoint; that is the same audience that can set it, and only the hash is there.
+        /// Hashed like a PIN, so the code cannot be read back. None of this plugin's endpoints return the
+        /// field (<c>admin/panic-status</c> reports only whether one is set). It is still part of the
+        /// plugin configuration, which Jellyfin exposes to administrators through its own
+        /// <c>/Plugins/{id}/Configuration</c>; that is the same audience that can set it, and only the
+        /// hash is there.
         /// </para>
         /// </summary>
         public string? PanicCodeHash { get; set; }
     }
 
     /// <summary>
-    /// One administrator-supplied avatar. The image itself lives in the plugin's data
-    /// directory under <c>avatars/</c>; only metadata is kept in the configuration.
+    /// One administrator-supplied avatar. The image lives in the plugin's data directory under
+    /// <c>avatars/</c>; only metadata is kept in the configuration.
     /// </summary>
     public class AvatarLibraryItem
     {
@@ -397,16 +396,16 @@ namespace Jellyfin.Profiles.Configuration
         public DateTime LastSeen { get; set; }
 
         /// <summary>
-        /// When this id was first recorded. <see cref="DateTime.MinValue"/> on a record made
-        /// before 2.0, which therefore can never be the newer half of a merge by time: that
-        /// rule needs to know when the new id appeared (Auth.DeviceRegistry.MergeSameDevices).
+        /// When this id was first recorded. <see cref="DateTime.MinValue"/> on a record made before 2.0,
+        /// which can never be the newer half of a merge by time: that rule needs to know when the new id
+        /// appeared (Auth.DeviceRegistry.MergeSameDevices).
         /// </summary>
         public DateTime FirstSeen { get; set; }
 
         /// <summary>
-        /// Set only on the device list the API returns, never stored: names the English
-        /// placeholder in <see cref="DeviceName"/> ("unrecognised", "previouslyAllowed") so
-        /// the client can translate it. The English is still sent for older clients.
+        /// Set only on the device list the API returns, never stored: names the English placeholder in
+        /// <see cref="DeviceName"/> ("unrecognised", "previouslyAllowed") so the client can translate it.
+        /// The English is still sent for older clients.
         /// </summary>
         [System.Xml.Serialization.XmlIgnore]
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -418,36 +417,35 @@ namespace Jellyfin.Profiles.Configuration
         public string? ClientCode { get; set; }
 
         /// <summary>
-        /// Master account this device was last seen on. Used to scope the device picker so one
-        /// household never sees another's hardware.
+        /// Master account this device was last seen on. Scopes the device picker so one household never
+        /// sees another's hardware.
         /// <para>
-        /// Ownership is recorded rather than inferred from live sessions: a device that is
-        /// simply switched off must still appear in the picker, otherwise editing a profile
-        /// would silently drop it from that profile's whitelist.
+        /// Ownership is recorded, not inferred from live sessions: a device that is simply switched off
+        /// must still appear in the picker, or editing a profile would silently drop it from that
+        /// profile's whitelist.
         /// </para>
         /// <para>
-        /// Guid.Empty means "recorded before this field existed". Unowned records are never
-        /// listed for anyone — they are claimed first, either by a live session for the
-        /// household or by already appearing on one of its whitelists. Treating Guid.Empty as
-        /// visible would expose every device on the server to every account, since on an
-        /// existing install every record starts out unowned.
+        /// Guid.Empty means "recorded before this field existed". Unowned records are never listed for
+        /// anyone; they are claimed first, by a live session for the household or by already appearing on
+        /// one of its whitelists. Treating Guid.Empty as visible would expose every device on the server
+        /// to every account, since on an existing install every record starts out unowned.
         /// </para>
         /// </summary>
         public Guid MasterUserId { get; set; }
 
         /// <summary>
-        /// Every household that has signed in on this device, <see cref="MasterUserId"/>
-        /// (the one seen last) among them (R-1050).
+        /// Every household that has signed in on this device, <see cref="MasterUserId"/> (the one seen
+        /// last) among them (R-1050).
         /// <para>
-        /// One owner per id did not fit a browser or a Roku that two households share: the
-        /// first to sign in kept it for good, so the second could not restrict a profile to
-        /// it, and its PINs were refused there once a PIN needed a household device
-        /// (R-1344). Ownership is what grants things; <see cref="MasterUserId"/> only
-        /// decides whose profiles a sign-in screen shows, since nobody is signed in to ask.
+        /// One owner per id did not fit a browser or a Roku that two households share: the first to sign
+        /// in kept it for good, so the second could not restrict a profile to it, and its PINs were
+        /// refused there once a PIN needed a household device (R-1344). Ownership is what grants things;
+        /// <see cref="MasterUserId"/> only decides whose profiles a sign-in screen shows, since nobody is
+        /// signed in to ask.
         /// </para>
         /// <para>
-        /// Replaced, never edited in place: a configuration snapshot shares these objects
-        /// and reads them without the lock.
+        /// Replaced, never edited in place: a configuration snapshot shares these objects and reads them
+        /// without the lock.
         /// </para>
         /// </summary>
         public List<Guid> Owners { get; set; } = new List<Guid>();
@@ -455,12 +453,11 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>
         /// Other ids this device has been seen under, folded in by a merge (R-1049, C-1003).
         /// <para>
-        /// A merge took the old id off every device list and deleted its record. The old id
-        /// was not gone, it was the same machine at another address (the documented case is
-        /// a LAN address and a domain), so its next request made a fresh record and a
-        /// restricted profile was refused there. An alias is looked up as this record.
+        /// A merge took the old id off every device list and deleted its record. But it was the same
+        /// machine at another address (a LAN address and a domain), so its next request made a fresh
+        /// record and a restricted profile was refused there. An alias is looked up as this record.
         /// </para>
-        /// <para>Replaced, never edited in place, for the same reason as <see cref="Owners"/>.</para>
+        /// <para>Replaced, never edited in place, like <see cref="Owners"/>.</para>
         /// </summary>
         public List<string> Aliases { get; set; } = new List<string>();
 
@@ -481,9 +478,9 @@ namespace Jellyfin.Profiles.Configuration
             => householdId != Guid.Empty && (MasterUserId == householdId || (Owners?.Contains(householdId) ?? false));
 
         /// <summary>
-        /// True if <paramref name="householdId"/> owns this device and nobody else has used it.
-        /// A merge rewrites every household's device lists, so only a device no other household
-        /// has signed in on may be merged by a household (r2-09-01).
+        /// True if <paramref name="householdId"/> owns this device and nobody else has used it. A merge
+        /// rewrites every household's device lists, so only a device no other household has signed in on
+        /// may be merged by a household (r2-09-01).
         /// </summary>
         public bool OnlyOwnedBy(Guid householdId)
             => OwnedBy(householdId)
@@ -491,29 +488,28 @@ namespace Jellyfin.Profiles.Configuration
                && (Owners ?? new List<Guid>()).All(o => o == householdId);
 
         /// <summary>
-        /// True once an administrator has renamed this device by hand, which stops the name
-        /// being overwritten by whatever the client sends on its next request.
+        /// True once an administrator has renamed this device by hand, which stops the name being
+        /// overwritten by whatever the client sends next.
         /// <para>
-        /// Without this the rename is pointless: the device reports "Chrome" on every call,
-        /// so a name typed in the picker survives until the next page load. Renaming is the
-        /// only way to tell apart two records that are genuinely one computer reached at two
-        /// addresses, so it has to stick.
+        /// Without this the rename is pointless: the device reports "Chrome" on every call, so a typed
+        /// name survives only until the next page load. Renaming is the only way to tell apart two records
+        /// that are one computer reached at two addresses, so it has to stick.
         /// </para>
         /// </summary>
         public bool NameIsCustom { get; set; }
 
         /// <summary>
-        /// Whether this device can play media, learned from what its sessions report: true
-        /// once one has posted playable media types or media control, or has played
-        /// something; false once a session has been signed in for a minute and done neither;
-        /// null until then, which counts as a player. A service that signs in as a user
-        /// (jfa-go's account page, for one) is a row here, but not somebody's television, and
-        /// listing it hides the devices a household can actually restrict a profile to.
+        /// Whether this device can play media, learned from what its sessions report: true once one has
+        /// posted playable media types or media control, or has played something; false once a session has
+        /// been signed in for a minute and done neither; null until then, which counts as a player. A
+        /// service that signs in as a user (jfa-go's account page, for one) is a row here but not
+        /// somebody's television, and listing it hides the devices a household can actually restrict a
+        /// profile to.
         /// <para>
-        /// A true never goes back to false: a server restart empties every session's
-        /// capabilities until the app reconnects, and a quiet minute then proves nothing.
-        /// A device already on a whitelist is listed whatever this says
-        /// (<see cref="Auth.DeviceRegistry.IsListedFor"/>), so a restriction is never dropped.
+        /// A true never goes back to false: a server restart empties every session's capabilities until the
+        /// app reconnects, and a quiet minute then proves nothing. A device already on a whitelist is
+        /// listed whatever this says (<see cref="Auth.DeviceRegistry.IsListedFor"/>), so a restriction is
+        /// never dropped.
         /// </para>
         /// </summary>
         public bool? CanPlay { get; set; }
@@ -524,17 +520,16 @@ namespace Jellyfin.Profiles.Configuration
 
     public class BonfireGroup
     {
-        // Initialized to empty so deserialization doesn't regenerate it on every load.
-        // The controller sets this explicitly when creating a new group.
+        // Initialized to empty so deserialization doesn't regenerate it on every load. The controller
+        // sets it explicitly when creating a group.
         public string GroupId { get; set; } = string.Empty;
         public string BonfireCode { get; set; } = string.Empty; // 6-character alphanumeric code
         public Guid OwnerUserId { get; set; }
         public List<Guid> MemberUserIds { get; set; } = new List<Guid>();
 
         /// <summary>
-        /// A copy for <see cref="PluginConfiguration.SnapshotForReading"/>. The member list is
-        /// edited in place when someone joins or leaves, so a snapshot that shared it could be
-        /// enumerated while that happened.
+        /// A copy for <see cref="PluginConfiguration.SnapshotForReading"/>. The member list is edited in
+        /// place when someone joins or leaves, so a shared one could be enumerated mid-edit.
         /// </summary>
         public BonfireGroup Copy() => new BonfireGroup
         {
@@ -546,11 +541,10 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// Legacy single-setting switcher modes, superseded by the independent
-    /// <see cref="ProfileMapping.AskOnStartup"/> and <see cref="ProfileMapping.SwitcherLocation"/>
-    /// pair. Retained only so a saved or imported 1.3.1-beta value migrates on load
-    /// (<see cref="ProfileMapping.LegacySwitcherMode"/>) instead of resetting to the default.
-    /// The preferences route no longer accepts or sends it (R-1333).
+    /// Legacy single-setting switcher modes, superseded by <see cref="ProfileMapping.AskOnStartup"/>
+    /// and <see cref="ProfileMapping.SwitcherLocation"/>. Kept so a saved or imported 1.3.1-beta value
+    /// migrates on load (<see cref="ProfileMapping.LegacySwitcherMode"/>) instead of resetting to the
+    /// default. The preferences route no longer accepts or sends it (R-1333).
     /// </summary>
     public static class SwitcherModes
     {
@@ -566,20 +560,20 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// The looks Bonfire's own screens can take: the switcher, the PIN pad and the profile
-    /// forms. Never the rest of Jellyfin — a server's own theme is the administrator's, and
-    /// re-skinning jellyfin-web would mean chasing its markup every release.
+    /// The looks Bonfire's own screens can take: the switcher, the PIN pad and the profile forms.
+    /// Never the rest of Jellyfin: a server's own theme is the administrator's, and re-skinning
+    /// jellyfin-web would mean chasing its markup every release.
     /// <para>
     /// The ids are lowercase, stored in configuration, and are also the value of the
-    /// <c>data-jpf-theme</c> attribute the generated CSS keys on, so the three lists — this
-    /// one, <c>THEMES</c> in profiles.js and the files in Web/themes/ — must agree.
-    /// tests/js/themes.js fails if they do not.
+    /// <c>data-jpf-theme</c> attribute the generated CSS keys on, so the three lists (this one,
+    /// <c>THEMES</c> in profiles.js and the files in Web/themes/) must agree. tests/js/themes.js fails
+    /// if they do not.
     /// </para>
     /// <para>
-    /// Named for how each one looks, not for any service it resembles. The one exception is
-    /// Jellyfin Dark and Jellyfin Light, which match the server's own web client: that is
-    /// the project Bonfire runs inside, not another service. No other brand names, logos or
-    /// brand typefaces: every font is one Bonfire serves under the OFL (fonts.json).
+    /// Named for how each one looks, not for any service it resembles. The exception is Jellyfin Dark
+    /// and Jellyfin Light, which match the server's own web client, the project Bonfire runs inside.
+    /// No other brand names, logos or brand typefaces: every font is one Bonfire serves under the
+    /// OFL (fonts.json).
     /// </para>
     /// </summary>
     public static class Themes
@@ -610,10 +604,10 @@ namespace Jellyfin.Profiles.Configuration
             && All.Contains(value.Trim().ToLowerInvariant());
 
         /// <summary>
-        /// True for a theme this server offers: a built-in the administrator has not hidden
-        /// (Bonfire always), or one of its <see cref="PluginConfiguration.CustomThemes"/>.
-        /// The configuration is required, not optional: before 1.7.2 this took only the value,
-        /// and a call left without it would quietly have refused every custom theme.
+        /// True for a theme this server offers: a built-in the administrator has not hidden (Bonfire
+        /// always), or one of its <see cref="PluginConfiguration.CustomThemes"/>. The configuration is
+        /// required: before 1.7.2 this took only the value, and a call left without it would quietly have
+        /// refused every custom theme.
         /// </summary>
         public static bool IsKnown(string? value, PluginConfiguration config)
         {
@@ -632,10 +626,10 @@ namespace Jellyfin.Profiles.Configuration
             IsKnown(value, config) ? value!.Trim().ToLowerInvariant() : Bonfire;
 
         /// <summary>
-        /// The theme one account sees: its own choice when the server lets accounts choose and
-        /// it has made one the server still offers, otherwise the server's default. A stored
-        /// choice is kept while choosing is turned off, or while its theme is hidden or
-        /// deleted, so undoing either gives everybody their pick back.
+        /// The theme one account sees: its own choice when the server lets accounts choose and it has
+        /// made one the server still offers, otherwise the server's default. A stored choice is kept while
+        /// choosing is turned off, or its theme is hidden or deleted, so undoing either gives everybody
+        /// their pick back.
         /// </summary>
         public static string Resolve(ProfileMapping? mapping, PluginConfiguration config) =>
             config.AllowProfileThemes && IsKnown(mapping?.Theme, config)
@@ -648,23 +642,23 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>
         /// Sets one profile's theme for the account that owns it: the rule behind
-        /// <c>POST /plugins/profiles/update</c>, kept here so it can be tested without a server.
-        /// The caller holds <c>ConfigLock</c> and saves. Empty or null means "follow the
-        /// server default". Nothing is changed unless the answer is <see cref="ThemeChange.Changed"/>.
+        /// <c>POST /plugins/profiles/update</c>, kept here so it can be tested without a server. The
+        /// caller holds <c>ConfigLock</c> and saves. Empty or null means "follow the server default".
+        /// Nothing is changed unless the answer is <see cref="ThemeChange.Changed"/>.
         /// </summary>
         public static ThemeChange SetFor(PluginConfiguration config, System.Guid masterUserId, System.Guid profileId, string? theme, string? ownName = null)
         {
             if (!config.AllowProfileThemes) return ThemeChange.NotAllowed;
             if (!string.IsNullOrWhiteSpace(theme) && !IsKnown(theme, config)) return ThemeChange.UnknownTheme;
 
-            // The master's own row, or one of its profiles. A linked Bonfire's profiles have
-            // a different master, so they are someone else's to change.
+            // The master's own row, or one of its profiles. A linked Bonfire's profiles have a different
+            // master, so they are someone else's to change.
             var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
 
-            // A main account has no row until something creates one, and first-time setup is
-            // exactly when a new one picks its theme: it was refused as "not in household" and
-            // got a 401 (R-1157). Only its own row is made here, the way UpdatePreferences
-            // makes it, and only now that every refusal above has been passed.
+            // A main account has no row until something creates one, and first-time setup is exactly when a
+            // new one picks its theme: it was refused as "not in household" and got a 401 (R-1157). Only its
+            // own row is made here, as UpdatePreferences does, and only after every refusal above has
+            // passed.
             if (row == null && profileId == masterUserId)
             {
                 row = new ProfileMapping
@@ -724,9 +718,9 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// Where an account reaches the profile switcher. Independent of whether the startup
-    /// prompt appears — the two were one setting in 1.3.1-beta, which could not express
-    /// "ask me on startup, but put the switcher in Jellyfin's menu" (GitHub issue #14).
+    /// Where an account reaches the profile switcher. Independent of whether the startup prompt
+    /// appears: the two were one setting in 1.3.1-beta, which could not express "ask me on startup, but
+    /// put the switcher in Jellyfin's menu" (GitHub issue #14).
     /// </summary>
     public static class SwitcherLocations
     {
@@ -741,10 +735,9 @@ namespace Jellyfin.Profiles.Configuration
             string.Equals(location, Menu, System.StringComparison.OrdinalIgnoreCase) ? Menu : Button;
 
         /// <summary>
-        /// Resolves an account's effective preference. Null is what distinguishes "never set"
-        /// from "deliberately set to the default", which is why both new fields are nullable:
-        /// an account that has chosen keeps its choice, and one that has not inherits the
-        /// server-wide default the administrator set.
+        /// Resolves an account's effective preference. Null distinguishes "never set" from "deliberately
+        /// set to the default", which is why both fields are nullable: an account that has chosen keeps its
+        /// choice, and one that has not inherits the administrator's server-wide default.
         /// </summary>
         public static (bool AskOnStartup, string Location) Resolve(
             ProfileMapping? mapping,
@@ -762,26 +755,24 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// The sizes pictures are stored at. Every resize happens in the browser, on a canvas —
-    /// the plugin has no server-side image library and keeps it that way — so this decides
-    /// what the browser is told to render, and the server enforces the matching byte limit.
+    /// The sizes pictures are stored at. Every resize happens in the browser, on a canvas (the plugin
+    /// has no server-side image library and keeps it that way), so this decides what the browser is
+    /// told to render, and the server enforces the matching byte limit.
     /// <para>
-    /// Standard is what every picture was before this setting existed: 512 pixels square,
-    /// which is sharp on a phone and soft on a large television or a high-density screen.
-    /// Maximum is the default for a fresh install; a server that saved a level keeps it.
-    /// The larger tiers cost disk and bandwidth, and every switcher on the server loads the
-    /// full-size picture of whoever is shown large, so an administrator may step down.
+    /// Standard is what every picture was before this setting: 512 pixels square, sharp on a phone and
+    /// soft on a large television or high-density screen. Maximum is the default for a fresh install; a
+    /// server that saved a level keeps it. The larger tiers cost disk and bandwidth, and every switcher
+    /// loads the full-size picture of whoever is shown large, so an administrator may step down.
     /// Anything unreadable falls back to Standard, the safest level, not to the default.
     /// </para>
     /// <para>
-    /// <b>The ids are stored values, and they differ from the words on screen on purpose.</b>
-    /// The dashboard calls the four levels Low, Medium, High and Maximum; the ids are
-    /// <c>standard</c>, <c>high</c>, <c>maximum</c> and <c>ultra</c>. A fourth level was added
-    /// above the old three, so the words moved up one place. The ids did not: saved configs
-    /// already hold <c>high</c> (1024 px) and <c>maximum</c> (2048 px), and renaming them to
-    /// match the words would turn every such server's setting into a different size on
-    /// upgrade. Never rename an id; add a new one. tests/js/imagequality.js and
-    /// tests/cs/matrix pin each id to its size and each label to its id's real size.
+    /// <b>The ids are stored values, and differ from the words on screen on purpose.</b> The dashboard
+    /// calls the four levels Low, Medium, High and Maximum; the ids are <c>standard</c>, <c>high</c>,
+    /// <c>maximum</c> and <c>ultra</c>. A fourth level was added above the old three, so the words moved
+    /// up one place but the ids did not: saved configs already hold <c>high</c> (1024 px) and
+    /// <c>maximum</c> (2048 px), and renaming them to match the words would change every such server's
+    /// size on upgrade. Never rename an id; add a new one. tests/js/imagequality.js and tests/cs/matrix
+    /// pin each id to its size and each label to its id's real size.
     /// </para>
     /// </summary>
     public static class ImageQualities
@@ -824,9 +815,9 @@ namespace Jellyfin.Profiles.Configuration
         };
 
         /// <summary>
-        /// The largest picture the server accepts under any tier. A picture saved while a
-        /// larger tier was set must stay readable after it is lowered, so reading never
-        /// checks against the current tier — only saving does.
+        /// The largest picture the server accepts under any tier. A picture saved under a larger tier
+        /// must stay readable after it is lowered, so reading never checks against the current tier, only
+        /// saving does.
         /// </summary>
         public static int LargestMaxBytes => UltraSpec.MaxBytes;
     }
@@ -835,16 +826,16 @@ namespace Jellyfin.Profiles.Configuration
     /// What a profile sees as a library's tile artwork.
     /// <para>
     /// Jellyfin builds one image per library and caches it on the folder
-    /// (<c>CollectionFolderImageProvider</c>, a collage of up to eight random items). The
-    /// query behind it has no user, so the artwork cannot respect who is asking: a profile
-    /// restricted to children's films still gets a tile drawn from whatever else is in the
-    /// library. That is GitHub issue #19, and it is why the substitution has to happen in
-    /// the client — there is no per-user image for the server to hand out.
+    /// (<c>CollectionFolderImageProvider</c>, a collage of up to eight random items). The query behind
+    /// it has no user, so the artwork cannot respect who is asking: a profile restricted to children's
+    /// films still gets a tile drawn from whatever else is in the library. That is GitHub issue #19, and
+    /// why the substitution has to happen in the client: there is no per-user image for the server to
+    /// hand out.
     /// </para>
     /// <para>
-    /// One setting with three values rather than an override plus a separate "hide artwork"
-    /// switch: two mechanisms would have to negotiate which wins, and this way choosing a
-    /// picture and refusing one are the same decision.
+    /// One setting with three values, not an override plus a separate "hide artwork" switch: two
+    /// mechanisms would have to negotiate which wins, and this way choosing a picture and refusing one
+    /// are the same decision.
     /// </para>
     /// </summary>
     public static class LibraryArtworkModes
@@ -868,8 +859,8 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// One profile's artwork choice for one library. Absent means <see cref="LibraryArtworkModes.Inherit"/>,
-    /// so a profile that has never been configured stores nothing at all.
+    /// One profile's artwork choice for one library. Absent means
+    /// <see cref="LibraryArtworkModes.Inherit"/>, so a profile never configured stores nothing.
     /// </summary>
     public class LibraryArtwork
     {
@@ -880,10 +871,9 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// The five limits a profile takes as the stricter of its own and its master's. Each
-    /// field's "no limit" value — 0, false, CreateAndJoinGroups, empty — is also what an
-    /// unset field means, so a profile with no limits of its own is simply the default.
-    /// See <see cref="Auth.InheritedLimits"/>.
+    /// The five limits a profile takes as the stricter of its own and its master's. Each field's "no
+    /// limit" value (0, false, CreateAndJoinGroups, empty) is also what an unset field means, so a
+    /// profile with no limits of its own is simply the default. See <see cref="Auth.InheritedLimits"/>.
     /// </summary>
     public class ProfileLimits
     {
@@ -891,19 +881,18 @@ namespace Jellyfin.Profiles.Configuration
         public int MaxActiveSessions { get; set; }
         public bool ForceRemoteSourceTranscoding { get; set; }
 
-        // The two Jellyfin enums are stored as plain text, under the element names they always
-        // had, and converted here where they are used (R-1127). They were stored as the enum
-        // itself, so a Jellyfin that renamed or dropped a member made the whole configuration
-        // fail to load, every household's, not this one limit. XmlSerializer refuses an
-        // unknown name outright; text it reads, and a name this build doesn't know is kept as
-        // written (the server that wrote it may know it) and ignored where it is used.
-        // Files written before the change load unchanged: the same elements, the same text.
-        // (tests/golden holds one, and tests/cs/goldenconfig reads it.)
+        // The two Jellyfin enums are stored as plain text, under the element names they always had, and
+        // converted where used (R-1127). They were stored as the enum itself, so a Jellyfin that renamed
+        // or dropped a member made the whole configuration fail to load, every household's, not just this
+        // limit. XmlSerializer refuses an unknown name outright; text it reads, and a name this build
+        // doesn't know is kept as written (the server that wrote it may know it) and ignored where used.
+        // Files written before the change load unchanged (tests/golden holds one, and
+        // tests/cs/goldenconfig reads it).
         //
-        // Jellyfin 10.11.5 and master have the same members (SyncPlayUserAccessType:
-        // CreateAndJoinGroups, JoinGroups, None; UnratedItem: Movie, Trailer, Series, Music,
-        // Book, LiveTvChannel, LiveTvProgram, ChannelContent, Other), so nothing is lost
-        // today. This is for the release that changes them.
+        // Jellyfin 10.11.5 and master have the same members (SyncPlayUserAccessType: CreateAndJoinGroups,
+        // JoinGroups, None; UnratedItem: Movie, Trailer, Series, Music, Book, LiveTvChannel,
+        // LiveTvProgram, ChannelContent, Other), so nothing is lost today. This is for the release that
+        // changes them.
 
         /// <summary>The stored text of <see cref="SyncPlayAccess"/>.</summary>
         [System.Xml.Serialization.XmlElement("SyncPlayAccess")]
@@ -925,8 +914,8 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// A new list on every read, with the names this build doesn't know left out: assign
-        /// to change it, adding to the one returned changes nothing.
+        /// A new list on every read, with names this build doesn't know left out: assign to change it,
+        /// adding to the one returned changes nothing.
         /// </summary>
         [System.Xml.Serialization.XmlIgnore]
         public List<Jellyfin.Data.Enums.UnratedItem> BlockUnratedItems
@@ -946,9 +935,9 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// A maximum parental rating as Jellyfin keeps it: a score and an optional sub-score,
-    /// null for "no limit". Stored on a mapping twice, as the profile's own rating and as
-    /// the one Bonfire last wrote to its account. See <see cref="Auth.InheritedRating"/>.
+    /// A maximum parental rating as Jellyfin keeps it: a score and an optional sub-score, null for
+    /// "no limit". Stored on a mapping twice, as the profile's own rating and as the one Bonfire last
+    /// wrote to its account. See <see cref="Auth.InheritedRating"/>.
     /// </summary>
     public class ProfileRating
     {
@@ -967,160 +956,156 @@ namespace Jellyfin.Profiles.Configuration
         public string? PinHash { get; set; }
         public string AvatarColor { get; set; } = "#00A4DC";
         /// <summary>
-        /// Suppresses <see cref="AvatarColor"/> behind the profile picture, for pictures
-        /// that are cut out rather than rectangular — a circular avatar over a coloured
-        /// square shows the colour in the corners (issue #23).
+        /// Suppresses <see cref="AvatarColor"/> behind the profile picture, for cut-out pictures: a
+        /// circular avatar over a colored square shows the color in the corners (issue #23).
         /// </summary>
         /// <remarks>
-        /// The client sets this automatically when it detects transparent corners in an
-        /// uploaded picture, and the edit form can override it either way. It has no
-        /// effect when no picture is set: the colour is the entire background then.
+        /// The client sets this when it detects transparent corners in an uploaded picture, and the edit
+        /// form can override it either way. It has no effect when no picture is set: the color is the whole
+        /// background then.
         /// </remarks>
         public bool TransparentAvatar { get; set; }
         public bool IsHidden { get; set; } = true;
 
         /// <summary>
-        /// Set on a profile that was a real account (made a profile by an administrator): deleting
-        /// the profile removes it from the household and leaves the account, with its watch
-        /// history, as an account of its own (R-1134). Not set on a profile Bonfire created, whose
-        /// account exists only for it and is deleted with it. The person who makes the profile
-        /// chooses; keep is the default.
+        /// Set on a profile that was a real account (made a profile by an administrator): deleting the
+        /// profile removes it from the household and leaves the account, with its watch history, as an
+        /// account of its own (R-1134). Not set on a profile Bonfire created, whose account exists only for
+        /// it and is deleted with it. The person who makes the profile chooses; keep is the default.
         /// <para>
-        /// Nothing recorded which profiles were made from accounts before this field, so those
-        /// read false and are deleted with their account, as they always were. They can't be told
-        /// apart from a created profile, and guessing wrong would leave an orphaned account behind
-        /// for every profile ever created.
+        /// Nothing recorded which profiles were made from accounts before this field, so those read false
+        /// and are deleted with their account, as they always were. They can't be told apart from a created
+        /// profile, and guessing wrong would leave an orphaned account behind for every profile ever
+        /// created.
         /// </para>
         /// </summary>
         public bool KeepAccountOnDelete { get; set; }
 
         /// <summary>
-        /// Minutes of inactivity before auto-lock. 0 = never. Default 5.
-        /// Only honoured when the profile has a PIN set.
+        /// Minutes of inactivity before auto-lock. 0 = never. Default 5. Only honored when the profile
+        /// has a PIN.
         /// </summary>
         public int LockoutMinutes { get; set; } = 5;
         /// <summary>
-        /// The plugin's ground-truth list of library GUIDs this profile can access.
-        /// Stored here so it survives Jellyfin server restarts that may reset user policies.
-        /// Empty list = no library access. Null = not yet set (legacy; falls back to Jellyfin policy).
+        /// The plugin's ground-truth list of library GUIDs this profile can access. Kept here so it
+        /// survives Jellyfin restarts that may reset user policies. Empty = no library access. Null = not
+        /// yet set (legacy; falls back to Jellyfin policy).
         /// </summary>
         public List<Guid>? EnabledFolders { get; set; }
         /// <summary>
-        /// Tags this profile must never see. Stored as the profile's own list — the master's
-        /// blocked tags are merged in when the policy is applied, so unblocking a tag on the
-        /// master flows through to sub-profiles instead of staying baked in here.
-        /// Null or empty = block nothing.
+        /// Tags this profile must never see. Stored as the profile's own list; the master's blocked tags
+        /// are merged in when the policy is applied, so unblocking a tag on the master flows through to
+        /// sub-profiles instead of staying baked in here. Null or empty = block nothing.
         /// </summary>
         public List<string>? BlockedTags { get; set; }
         /// <summary>
-        /// When non-empty, this profile can only see items carrying at least one of these tags.
-        /// Jellyfin matches against an item's *inherited* tags, so tagging a series or a whole
-        /// library cascades to everything inside it. Null or empty = no allow-list.
+        /// When non-empty, this profile can only see items carrying at least one of these tags. Jellyfin
+        /// matches an item's inherited tags, so tagging a series or a whole library cascades to everything
+        /// inside it. Null or empty = no allow-list.
         /// </summary>
         public List<string>? AllowedTags { get; set; }
         public bool BypassPinOnLocalNetwork { get; set; } = false;
 
         /// <summary>
-        /// Main accounts only, set by their owner. False opens the main account from its own
-        /// household's switcher without the PIN, on any network; the PIN then only guards
-        /// managing the household (profiles, sharing, switcher settings).
+        /// Main accounts only, set by their owner. False opens the main account from its own household's
+        /// switcher without the PIN, on any network; the PIN then only guards managing the household
+        /// (profiles, sharing, switcher settings).
         /// <para>
-        /// True by default, so upgrading changes nothing. It never reaches across a Bonfire
-        /// link: another household opening this account still needs the PIN, or the owner's
-        /// <see cref="AllowHouseholdLanBypass"/>. Ignored on sub-profiles. A native app's
-        /// sign-in is unaffected too: there the main account still types its PIN or password,
-        /// because a blank password on a sign-in form would open it on any device.
+        /// True by default, so upgrading changes nothing. It never reaches across a Bonfire link: another
+        /// household opening this account still needs the PIN, or the owner's
+        /// <see cref="AllowHouseholdLanBypass"/>. Ignored on sub-profiles. A native app's sign-in is
+        /// unaffected too: there the main account still types its PIN or password, because a blank
+        /// password on a sign-in form would open it on any device.
         /// </para>
         /// </summary>
         public bool AskPinToOpen { get; set; } = true;
 
         /// <summary>
-        /// Set on a master account by its own owner: allows other members of a shared Bonfire
-        /// to switch into this account from the local network without entering its PIN, and —
-        /// if no PIN is set at all — to enter it from the local network at all.
+        /// Set on a master account by its own owner: allows other members of a shared Bonfire to switch
+        /// into this account from the local network without its PIN, and, if no PIN is set at all, to
+        /// enter it from the local network at all.
         /// <para>
-        /// Default false, so upgrading never widens access on an existing install. Consent has
-        /// to come from the account being entered: <see cref="BypassPinOnLocalNetwork"/> is the
-        /// owner's convenience for their own household and deliberately does not carry across a
-        /// Bonfire link.
+        /// Default false, so upgrading never widens access. Consent has to come from the account being
+        /// entered: <see cref="BypassPinOnLocalNetwork"/> is the owner's convenience for their own
+        /// household and does not carry across a Bonfire link.
         /// </para>
         /// <para>
-        /// "Local" is decided by Jellyfin's own network settings and is relative to the
-        /// <em>server</em>. Behind a reverse proxy missing from Known Proxies, every request
-        /// looks local — the UI warns about this.
+        /// "Local" is decided by Jellyfin's network settings and is relative to the <em>server</em>.
+        /// Behind a reverse proxy missing from Known Proxies, every request looks local; the UI warns
+        /// about this.
+        /// </para>
         /// </para>
         /// </summary>
         public bool AllowHouseholdLanBypass { get; set; } = false;
         public List<string> AllowedDeviceIds { get; set; } = new List<string>();
 
         /// <summary>
-        /// The profile was saved with no library ticked, which the form promises means "every
-        /// library your account does". <see cref="EnabledFolders"/> still holds the list as it
-        /// was at that save, but it is not what is applied: the master's libraries are, as they
-        /// are when the profile is opened, so a library added later reaches it too.
+        /// The profile was saved with no library ticked, which the form promises means "every library
+        /// your account does". <see cref="EnabledFolders"/> still holds the list as it was at that save,
+        /// but it is not what is applied: the master's libraries are, as when the profile is opened, so a
+        /// library added later reaches it too.
         /// <para>
-        /// Default false, so a profile saved before this existed keeps its fixed list. Nothing
-        /// in an old configuration can tell "ticked nothing" apart from "ticked everything",
-        /// and guessing the first would widen the second.
+        /// Default false, so a profile saved before this existed keeps its fixed list. Nothing in an old
+        /// configuration can tell "ticked nothing" from "ticked everything", and guessing the first would
+        /// widen the second.
         /// </para>
         /// </summary>
         public bool AllLibraries { get; set; } = false;
 
         /// <summary>
-        /// Limits that belong to the profile itself rather than to its master — set on the
-        /// profile's own account in Dashboard -> Users. Null until the profile is first opened
-        /// on this version. See <see cref="Auth.InheritedLimits"/>.
+        /// Limits that belong to the profile itself rather than its master, set on the profile's own
+        /// account in Dashboard -> Users. Null until the profile is first opened on this version. See
+        /// <see cref="Auth.InheritedLimits"/>.
         /// </summary>
         public ProfileLimits? OwnLimits { get; set; }
 
         /// <summary>
-        /// What Bonfire last wrote for those limits, so a later change on the account can be
-        /// told apart from Bonfire's own earlier write. See <see cref="Auth.InheritedLimits"/>.
+        /// What Bonfire last wrote for those limits, so a later change on the account can be told from
+        /// Bonfire's own earlier write. See <see cref="Auth.InheritedLimits"/>.
         /// </summary>
         public ProfileLimits? LastAppliedLimits { get; set; }
 
         /// <summary>
-        /// The parental rating that belongs to the profile itself — the one saved in its editor
-        /// or set on its account in Dashboard -> Users — as opposed to the main account's
-        /// rating Bonfire copied onto it (R-1045). A null score is "none of its own": it
-        /// follows the main account. Null until the profile is first opened on this version;
-        /// a configuration from before it loads with no record. See <see cref="Auth.InheritedRating"/>.
+        /// The parental rating that belongs to the profile itself (saved in its editor or set on its
+        /// account in Dashboard -> Users), as opposed to the main account's rating Bonfire copied onto it
+        /// (R-1045). A null score is "none of its own": it follows the main account. Null until the profile
+        /// is first opened on this version; a configuration from before it loads with no record. See
+        /// <see cref="Auth.InheritedRating"/>.
         /// </summary>
         public ProfileRating? OwnRating { get; set; }
 
         /// <summary>
-        /// The rating Bonfire last wrote to the profile's account, so a rating on the account
-        /// that differs from it can be told from Bonfire's own earlier write. Null on a
-        /// configuration from before it existed. See <see cref="Auth.InheritedRating"/>.
+        /// The rating Bonfire last wrote to the profile's account, so a different rating on the account
+        /// can be told from Bonfire's own earlier write. Null on a configuration from before it existed.
+        /// See <see cref="Auth.InheritedRating"/>.
         /// </summary>
         public ProfileRating? LastAppliedRating { get; set; }
 
         /// <summary>
-        /// The library list Bonfire last wrote to the profile's account, so a change made on
-        /// the account in Dashboard -> Users can be told apart from Bonfire's own write and
-        /// from a reset (R-1042). Null on a configuration from before this existed: the first
-        /// sign-in then behaves as it always did and records it. See
-        /// <see cref="Auth.LibraryAccessReconciler.ReconcileWithLastApplied"/>.
+        /// The library list Bonfire last wrote to the profile's account, so a change made on the account
+        /// in Dashboard -> Users can be told from Bonfire's own write and from a reset (R-1042). Null on a
+        /// configuration from before this existed: the first sign-in then behaves as it always did and
+        /// records it. See <see cref="Auth.LibraryAccessReconciler.ReconcileWithLastApplied"/>.
         /// </summary>
         public List<Guid>? LastAppliedFolders { get; set; }
 
         /// <summary>
-        /// The access schedule Bonfire last wrote to the profile's account, one entry per row
-        /// as "day:start-end" (R-1345). The same job as <see cref="LastAppliedFolders"/>: an
-        /// account that still matches it has not been touched, one that differs was changed
-        /// in Dashboard -> Users. Null on a configuration from before this existed; the first
-        /// sign-in then behaves as it always did (the main account's schedule) and records it.
-        /// XmlSerializer loads an absent element as an empty list, so empty also means no
-        /// record; "the main account had no schedule" is stored as ScheduleReconciler.NoneMarker.
+        /// The access schedule Bonfire last wrote to the profile's account, one entry per row as
+        /// "day:start-end" (R-1345). Same job as <see cref="LastAppliedFolders"/>: an account that still
+        /// matches it has not been touched, one that differs was changed in Dashboard -> Users. Null on a
+        /// configuration from before this existed; the first sign-in then behaves as it always did (the
+        /// main account's schedule) and records it. XmlSerializer loads an absent element as an empty list,
+        /// so empty also means no record; "the main account had no schedule" is stored as
+        /// ScheduleReconciler.NoneMarker.
         /// </summary>
         public List<string>? LastAppliedSchedules { get; set; }
 
         /// <summary>
-        /// The schedule an administrator set on the profile's account, adopted at a sign-in
-        /// (R-1345). It is kept here because Bonfire writes the account's schedule from the
-        /// main account's at every sign-in; without this copy the next sign-in would see its
-        /// own write and fall back to the main account's. Empty or null: the profile has none
-        /// of its own and follows the main account. Never wider than the main account's.
+        /// The schedule an administrator set on the profile's account, adopted at a sign-in (R-1345).
+        /// Kept here because Bonfire writes the account's schedule from the main account's at every
+        /// sign-in; without this copy the next sign-in would see its own write and fall back to the main
+        /// account's. Empty or null: the profile has none of its own and follows the main account. Never
+        /// wider than the main account's.
         /// </summary>
         public List<string>? OwnSchedules { get; set; }
 
@@ -1145,37 +1130,37 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// When this profile may watch, and for how long (1.7.2). Null is no limits. Only ever
-        /// set on a profile's row, never a main account's. See <see cref="ViewingRules"/>.
+        /// When this profile may watch, and for how long (1.7.2). Null is no limits. Only ever set on a
+        /// profile's row, never a main account's. See <see cref="ViewingRules"/>.
         /// </summary>
         public ViewingRules? Viewing { get; set; }
 
         /// <summary>
-        /// The household's IANA time zone, read from the main account's row only. Null or empty
-        /// follows <see cref="PluginConfiguration.DefaultTimeZone"/>. See <see cref="HouseholdTime"/>.
+        /// The household's IANA time zone, read from the main account's row only. Null or empty follows
+        /// <see cref="PluginConfiguration.DefaultTimeZone"/>. See <see cref="HouseholdTime"/>.
         /// </summary>
         public string? TimeZone { get; set; }
 
         public string? ProfileImage { get; set; }
         /// <summary>
-        /// Per-library tile artwork for this profile. Only libraries the profile has been
-        /// given a choice for appear here; anything absent inherits Jellyfin's own artwork.
-        /// The picture itself lives on disk under <c>libraryart/</c>, named from the profile
-        /// and library ids, so no separate image identifier has to be stored or kept in step.
+        /// Per-library tile artwork for this profile. Only libraries the profile has a choice for appear
+        /// here; anything absent inherits Jellyfin's own artwork. The picture itself lives on disk under
+        /// <c>libraryart/</c>, named from the profile and library ids, so no separate image identifier has
+        /// to be stored or kept in step.
         /// </summary>
         public List<LibraryArtwork> LibraryArtwork { get; set; } = new List<LibraryArtwork>();
         public bool HideMySubProfilesFromOthers { get; set; } = false;
         public bool HideOthersSubProfilesFromMe { get; set; } = false;
         /// <summary>
-        /// Reads the 1.3.1-beta combined switcher setting and nothing else. It is not a
-        /// setting any more: this has no value to give back, so nothing writes it out, and
-        /// what it was told becomes <see cref="AskOnStartup"/> and <see cref="SwitcherLocation"/>.
+        /// Reads the 1.3.1-beta combined switcher setting and nothing else. It is not a setting any more:
+        /// nothing writes it out, and what it was told becomes <see cref="AskOnStartup"/> and
+        /// <see cref="SwitcherLocation"/>.
         /// <para>
-        /// Only <c>native</c> was ever a choice. The old field defaulted to <c>gate</c> on every
-        /// row whether or not anyone chose, so <c>gate</c> says nothing and is ignored. A
-        /// <c>native</c> account that never touched the two newer settings would otherwise
-        /// have gone back to the administrator's default the day the field was dropped.
-        /// An explicit value of either newer setting always wins, whichever the file lists first.
+        /// Only <c>native</c> was ever a choice. The old field defaulted to <c>gate</c> on every row
+        /// whether or not anyone chose, so <c>gate</c> says nothing and is ignored. A <c>native</c> account
+        /// that never touched the two newer settings would otherwise have gone back to the administrator's
+        /// default the day the field was dropped. An explicit value of either newer setting always wins,
+        /// whichever the file lists first.
         /// </para>
         /// </summary>
         [System.Xml.Serialization.XmlElement("SwitcherMode")]
@@ -1193,37 +1178,36 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// Whether the "Who's Watching?" screen appears when the client first loads. It is
-        /// shown once per browser session, not on every trip to the home screen.
+        /// Whether the "Who's Watching?" screen appears when the client first loads, once per browser
+        /// session, not on every trip to the home screen.
         /// <para>
-        /// Null means never explicitly set, in which case the server-wide
+        /// Null means never explicitly set, and the server-wide
         /// <see cref="PluginConfiguration.DefaultAskOnStartup"/> applies. See
-        /// <see cref="SwitcherLocations.Resolve"/>. That distinction is the whole reason this
-        /// is nullable rather than defaulting to true.
+        /// <see cref="SwitcherLocations.Resolve"/>. That is why this is nullable rather than defaulting to
+        /// true.
         /// </para>
         /// </summary>
         public bool? AskOnStartup { get; set; }
 
         /// <summary>
-        /// Where the switcher is reached from once past the startup prompt — see
+        /// Where the switcher is reached from once past the startup prompt; see
         /// <see cref="SwitcherLocations"/>. Null means never explicitly set.
         /// <para>
-        /// A per-account preference — it is a matter of taste, and one household's answer
-        /// should not be imposed on everyone on the server. The administrator sets only the
-        /// starting point, via <see cref="PluginConfiguration.DefaultSwitcherLocation"/>,
-        /// which an account overrides the moment it chooses for itself. Only ever read from
-        /// the master account's mapping — sub-profiles inherit it.
+        /// A per-account preference, a matter of taste that one household should not impose on everyone on
+        /// the server. The administrator sets only the starting point
+        /// (<see cref="PluginConfiguration.DefaultSwitcherLocation"/>), which an account overrides when it
+        /// chooses. Only read from the master account's mapping; sub-profiles inherit it.
         /// </para>
         /// </summary>
         public string? SwitcherLocation { get; set; }
 
         /// <summary>
-        /// This profile's own theme, one of <see cref="Themes.All"/>. Null means it follows
-        /// the server's <see cref="PluginConfiguration.DefaultTheme"/>.
+        /// This profile's own theme, one of <see cref="Themes.All"/>. Null means it follows the server's
+        /// <see cref="PluginConfiguration.DefaultTheme"/>.
         /// <para>
-        /// Per profile, unlike <see cref="SwitcherLocation"/>, and read from this row rather
-        /// than the master's: a child's profile can look different from its parent's. Set by
-        /// whoever manages the profile, from its edit form.
+        /// Per profile, unlike <see cref="SwitcherLocation"/>, and read from this row rather than the
+        /// master's: a child's profile can look different from its parent's. Set by whoever manages the
+        /// profile, from its edit form.
         /// </para>
         /// </summary>
         public string? Theme { get; set; }
