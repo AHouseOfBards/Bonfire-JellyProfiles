@@ -24,17 +24,16 @@ namespace Jellyfin.Profiles.Auth
     /// emergency disable empties <see cref="ViewingTracker.Index"/>, which reads as allowed.</para>
     ///
     /// <para><b>Grace.</b> The contract starts grace when the answer turns to no, so a refusal
-    /// carries how long a running activity may carry on: what is left of the grace Bonfire already
-    /// gave a video, or Bonfire's five minutes. A game and a film stop together. The answer is
-    /// <i>not</i> held at "allowed" through the grace: the caller would then wait out its own
-    /// grace on top of it.</para>
+    /// carries how long a running activity may carry on: what is left of the grace Bonfire gave
+    /// a video, or five minutes. A game and a film stop together. The answer is <i>not</i> held
+    /// at "allowed" through the grace, or the caller would wait out its own grace on top.</para>
     ///
     /// <para><b>Never waits.</b> The call can arrive on any thread. It reads the rules from memory
     /// and takes only the short locks the playback gate takes; it asks Jellyfin nothing.</para>
     ///
     /// <para><b>Maintenance</b> refuses everyone but administrators, with <c>Until</c> when the
-    /// administrator set an end. Whether a user is an administrator is a database query in
-    /// Jellyfin, so the call reads a set of administrator ids that is refreshed off it.</para>
+    /// administrator set an end. Checking for an administrator is a database query in Jellyfin,
+    /// so the call reads a set of administrator ids refreshed in the background.</para>
     /// </summary>
     internal static class LimitsProvider
     {
@@ -43,16 +42,15 @@ namespace Jellyfin.Profiles.Auth
 
         /// <summary>
         /// Offers the capability. Safe to call more than once. Not before the Campground generation
-        /// is open, or the offer is swept: see <see cref="LimitsStartupFilter"/>.
+        /// is open, or the offer is swept (<see cref="LimitsStartupFilter"/>).
         /// </summary>
         internal static void Register() => Register(null);
 
         internal static void Register(IUserManager? users)
         {
             if (users != null) _users = users;
-            // Said once: with no user manager the administrators are never known, so
-            // maintenance reads as "allowed" for every Campground caller, by design but not
-            // quietly (R2-02-04).
+            // Logged once: with no user manager the administrators are never known, so
+            // maintenance reads as "allowed" for every Campground caller (R2-02-04).
             if (_users == null && Interlocked.Exchange(ref _saidNoUsers, 1) == 0)
             {
                 ViewingTracker.Log?.LogWarning("ProfilesPlugin: no user manager, so maintenance is not enforced for other Campground plugins.");
@@ -60,19 +58,19 @@ namespace Jellyfin.Profiles.Auth
 
             Limits.Provide(PluginIds.Bonfire, Minor, (userId, _, _) => Task.FromResult(Decide(userId, ViewingTracker.Now())));
             RefreshAdmins();
-            // Who is limited, for a caller that gets no answer from this provider. Written now so
-            // the file is current after a restart, and again whenever a save changes it.
+            // Who is limited, for a caller that gets no answer from this provider. Written now
+            // so the file is current after a restart, and again when a save changes it.
             ViewingTracker.RulesChanged();
         }
 
         // ── Maintenance ─────────────────────────────────────────────────────────────
 
         // Jellyfin's UserManager.GetUserById is a database query (release-10.11.z opens a
-        // context and runs FirstOrDefault), so the answer cannot ask it. The ids of the
-        // administrators are kept here instead and refreshed off the call: on startup, and
-        // whenever a call during maintenance finds the set older than a minute. Until the first
-        // refresh lands the set is null and maintenance reads as "allowed", the contract's
-        // fail-open, rather than refusing an administrator on a guess.
+        // context and runs FirstOrDefault), so the answer cannot ask it. Administrator ids are
+        // kept here and refreshed off the call: on startup, and when a call during maintenance
+        // finds the set older than a minute. Until the first refresh the set is null and
+        // maintenance reads as "allowed" (the contract's fail-open), not refusing an
+        // administrator on a guess.
         private static readonly TimeSpan AdminsFresh = TimeSpan.FromSeconds(60);
         private static volatile HashSet<Guid>? _admins;
         private static long _adminsAtTicks;
@@ -101,8 +99,8 @@ namespace Jellyfin.Profiles.Auth
             var users = _users;
             if (users == null || Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0) return;
             // BackgroundWork, not Task.Run, so a server stop does not leave this running
-            // (tests/cs/shutdown). The user list goes through AllUsersOf: users.Users is not on
-            // 10.11.7 and later, and its MissingMethodException fired before this try block,
+            // (tests/cs/shutdown). The user list goes through AllUsersOf: users.Users is gone
+            // from 10.11.7 on, and its MissingMethodException fired before this try block,
             // leaving _refreshing set for good.
             _ = BackgroundWork.Run(_ =>
             {
@@ -121,9 +119,9 @@ namespace Jellyfin.Profiles.Auth
                 }
                 catch (Exception ex)
                 {
-                    // Keeps the old set, or none. Tried again a minute on, not by the very next
-                    // call: stamping the failure as a refresh made every call during
-                    // maintenance start another one (R2-02-04). Said once.
+                    // Keeps the old set, or none. Retried a minute later, not by the next call:
+                    // stamping the failure as a refresh made every call during maintenance
+                    // start another (R2-02-04). Logged once.
                     Interlocked.Exchange(ref _adminsAtTicks, DateTime.UtcNow.Ticks);
                     if (Interlocked.Exchange(ref _saidRefreshFailed, 1) == 0)
                     {
@@ -138,9 +136,9 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The refusal for a non-administrator while maintenance is on, or null when it does not
-        /// apply: maintenance is off or has lapsed, the emergency disable is on, the user is an
-        /// administrator, or the administrators are not known yet. Reads memory only.
+        /// The refusal for a non-administrator while maintenance is on, or null when maintenance is
+        /// off or lapsed, the emergency disable is on, the user is an administrator, or the
+        /// administrators are not known yet. Reads memory only.
         /// </summary>
         private static LimitsDecision? Maintenance(Guid userId, DateTime nowUtc)
         {
@@ -186,10 +184,10 @@ namespace Jellyfin.Profiles.Auth
     }
 
     /// <summary>
-    /// Offers <see cref="LimitsProvider"/> once the Campground generation is open. That happens when
-    /// the coordinator's startup filter configures the pipeline, and an offer made before it can be
-    /// swept as the old host's. This filter is registered after the coordinator's, so its
-    /// configuration runs after it; it adds no middleware.
+    /// Offers <see cref="LimitsProvider"/> once the Campground generation is open, which happens
+    /// when the coordinator's startup filter configures the pipeline; an earlier offer can be swept
+    /// as the old host's. Registered after the coordinator's filter so it runs after it. Adds no
+    /// middleware.
     /// </summary>
     internal sealed class LimitsStartupFilter : IStartupFilter
     {
