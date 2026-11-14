@@ -1,10 +1,10 @@
 /*
  * The README credits the fonts it ships (R-1316).
  *
- * Ten fonts ship under the SIL Open Font License, each with its licence text beside it in
+ * Ten fonts ship under the SIL Open Font License, each with its license text beside it in
  * Web/themes/fonts. The README credited the avatars and said nothing about them.
  * Pairwise: every <name>-OFL.txt must have its font named in the README, and the README
- * must say which licence and where the texts are.
+ * must say which license and where the texts are.
  *
  *   node tests/js/readmecredits.js
  */

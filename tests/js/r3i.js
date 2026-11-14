@@ -3,7 +3,6 @@
 //
 // Runs the real code against the stub DOM. Red against the build before the fixes:
 //   node tests/js/r3i.js /path/to/old/profiles.js
-//
 //   node tests/js/r3i.js [path/to/profiles.js]
 
 'use strict';

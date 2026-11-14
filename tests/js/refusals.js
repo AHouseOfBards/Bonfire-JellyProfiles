@@ -1,10 +1,10 @@
-// A refused request is said in the person's language, by the code the server sends, and
-// the server's English body is never shown (P2: errors say what to do).
+// A refused request is said in the person's language, by the code the server sends; the
+// server's English body is never shown (P2: errors say what to do).
 //
 // Every error from a Bonfire route carries a stable code in X-Bonfire-Error. The client
-// used to show the response body, about twenty-five times over: English, written for a
-// developer, and untranslated on a television in Spanish. This reads Controllers/ErrorCodes.cs
-// for the codes that exist and holds the two pages to them, then drives the shared plumbing
+// used to show the response body in about twenty-five places: English, written for a
+// developer, untranslated on a television in Spanish. This reads Controllers/ErrorCodes.cs
+// for the codes that exist, holds the two pages to them, then drives the shared plumbing
 // with an English body that must never appear.
 //
 //   node tests/js/refusals.js [path/to/profiles.js [path/to/profilesDashboard.html]]
@@ -97,7 +97,7 @@ const stale = [...Object.keys(clientMap || {}), ...Object.keys(dashMap || {})].f
 ok('and no map names a code the server never sends', stale.length === 0, stale.join(', '));
 
 // The client's own codes: the household pages reach all but the ones only the
-// administrator's page can (themes, fonts, the logo, announcements, maintenance, mail settings).
+// administrator's page can (themes, fonts, logo, announcements, maintenance, mail settings).
 const ADMIN_ONLY = /^(theme_|font_|logo_|announcement_|maintenance_invalid|email_settings_invalid)/;
 const hole = [...codes].filter(c => !EXEMPT[c] && !ADMIN_ONLY.test(c) && !(clientMap && clientMap[c]) && !['image_invalid'].includes(c));
 ok('a household screen has a sentence for every code it can meet', hole.length === 0, hole.join(', '));
@@ -121,8 +121,8 @@ ok('each sentence exists, is one or two short sentences, with no raw code', copy
 
 // ── Nothing reads a body to show it ─────────────────────────────────────────
 console.log('\n-- No response body reaches a screen --------------------------');
-// Enumerated: every .text() call in the client, with the line it is on. The two that
-// remain read a body for something other than showing it.
+// Enumerated: every .text() call in the client, with its line. The two that remain read a
+// body for something other than showing it.
 const lines = SRC.split('\n');
 const textCalls = [];
 lines.forEach((ln, i) => { if (/\.text\(\)/.test(ln)) textCalls.push({ n: i + 1, ln: ln.trim() }); });
@@ -183,8 +183,8 @@ PP.handleSessionExpired = () => {};
     });
     const s1 = await switched({ 'X-Bonfire-Error': 'pin_wrong' });
     ok('a wrong PIN on a switch is said by its sentence', s1 === 'Wrong PIN. Try again.', s1);
-    // That sentence is now the PIN screen's own line too, so it cannot show the code was read.
-    // A code whose sentence no fallback has does.
+    // That sentence is now the PIN screen's own line too, so it cannot show the code was
+    // read. A code whose sentence no fallback has does.
     const s1b = await switched({ 'X-Bonfire-Error': 'too_many_sessions' });
     ok('and a switch refused for too many screens says so, by its code', s1b === 'This profile is open on too many screens. Close one and try again.', s1b);
     const s2 = await switched(null);
