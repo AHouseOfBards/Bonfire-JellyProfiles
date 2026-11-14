@@ -36,9 +36,8 @@ const HEADER = [
 
 // Everything the plugin DLL is built from: every top-level directory that is not tests,
 // documentation or tooling, and the project files at the top.
-// release-notes/ is read by the release workflow only. Only directories git tracks count: an
-// untracked build folder (dist/) on one machine made the record look stale there and
-// nowhere else.
+// release-notes/ is read by the release workflow only. Only directories git tracks count:
+// an untracked build folder (dist/) made the record look stale on one machine only.
 const NOT_PRODUCT = new Set(['tests', 'docs', 'images', '_includes', '.git', '.github', 'node_modules', 'scratch', 'bin', 'obj', 'release-notes']);
 function trackedTop(root) {
     try {

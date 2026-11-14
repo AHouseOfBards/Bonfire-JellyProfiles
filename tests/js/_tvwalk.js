@@ -1,8 +1,8 @@
 // Walk a drawn screen with a television remote, in real Chrome at 1920x1080 with layout-tv.
 //
-// Not a harness (no tests run here; the leading underscore is the convention for shared
-// plumbing). tvinput.js walks a stub DOM with no layout; this presses real keys through
-// CDP into the real page, so the real trap code runs on real geometry.
+// Not a harness (no tests run here; the leading underscore marks shared plumbing).
+// tvinput.js walks a stub DOM with no layout; this presses real keys through CDP into the
+// real page, so the real trap code runs on real geometry.
 //
 //   const tv = await require('./_tvwalk').start({ source });   // source: optional profiles.js text
 //   const steps = await tv.walk(scene, ['ArrowDown', 'Enter', 'Back']);
@@ -121,9 +121,9 @@ const PAGE = `(function () {
 
 // Waits for the page to settle after a key, in the page. Every 30 ms it reads the focused
 // element, its box, the element count (a dialog opening or closing) and whether anything is
-// still animating; it is settled when three polls in a row match. Floor 120 ms: the script
-// moves focus into a new dialog from a 100 ms timer, and a quiet page before that would
-// read as settled. Ceiling 450 ms, the fixed wait this replaced.
+// still animating; settled is three matching polls in a row. Floor 120 ms: the script moves
+// focus into a new dialog from a 100 ms timer, and a quiet page before that would read as
+// settled. Ceiling 450 ms, the fixed wait this replaced.
 const SETTLE = `new Promise(function (resolve) {
   var t0 = Date.now(), last = null, same = 0;
   function snap() {
@@ -151,8 +151,8 @@ async function start(opts) {
         const url = 'http://127.0.0.1:' + server.port + '/?' + (/(^|&)scene=/.test(q) ? q : 'scene=' + q) + '&device=tv';
         const r = await c.open(url, 'tv');
         if (r.error) throw new Error('scene failed: ' + r.error);
-        // init() never runs in the fixture, and it is what binds the remote's key handler
-        // (once, for the page's life). Bind it as init does, or no arrow does anything.
+        // init() never runs in the fixture and it binds the remote's key handler (once, for
+        // the page's life). Bind it as init does, or no arrow does anything.
         await c.evaluate('window.__bonfire._bindOverlayFocusTrap()');
         await c.evaluate(PAGE);
         await c.evaluate("(function(){var s=document.createElement('style');s.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.appendChild(s)})()");
@@ -207,9 +207,9 @@ async function start(opts) {
             for (const arrow of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
                 const ok = await c.evaluate('(function(){var e=window.__tw.find(' + JSON.stringify(from) + ');if(!e)return false;e.focus();return document.activeElement===e})()');
                 if (!ok) break;
-                // Up and down on a dropdown change its value and leave focus where it is
-                // (the trap hands them to it). Pressing them here changed the form under
-                // the walk, which moved other controls and made reach depend on the order.
+                // Up and down on a dropdown change its value and leave focus where it is (the
+                // trap hands them to it). Pressing them here changed the form under the walk,
+                // which moved other controls and made reach depend on the order.
                 if ((arrow === 'ArrowUp' || arrow === 'ArrowDown') && await c.evaluate('document.activeElement.tagName==="SELECT"')) {
                     edges.push(from + ' --' + arrow + '--> ' + from);
                     continue;

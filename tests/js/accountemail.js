@@ -121,7 +121,7 @@ const last = url => sent(url).pop();
     q('#account-email-code').value = '000000';
     q('#account-email-confirm').click();
     await settle();
-    // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+    // A refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
     ok("the refusal is shown by its code, still on the code", !!q('#account-email-code')
        && q('#account-email-status').textContent === "That code isn't right. Check it and try again.");
 
@@ -326,8 +326,8 @@ const last = url => sent(url).pop();
 
     PP._onboarding = { steps: [{ id: 'resetEmail', required: true, done: false }], welcome: '', index: 0 };
     PP.showOnboardingStep();
-    // "Can't skip" is gone. A server that has not been updated yet still sends the flag; it
-    // must not take Skip away.
+    // "Can't skip" is gone. A server not yet updated still sends the flag; it must not take
+    // Skip away.
     ok('a step an older server marks "required" still has Skip', !!id('#onboarding-email') && !!id('#onboarding-skip'));
     id('#onboarding-email').value = 'parent@example.com';
     id('#onboarding-next').click();

@@ -8,8 +8,8 @@
  * after another in directory order. https://www.w3.org/TR/WOFF2/
  *
  * THROWS on anything it does not understand. A coverage check handed an empty character
- * set would report every character missing, which is loud; one handed a parse that went
- * wrong quietly could report every character present, which is not.
+ * set reports every character missing, which is loud; handed a parse that went wrong, it
+ * could quietly report every character present.
  */
 'use strict';
 

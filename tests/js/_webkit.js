@@ -2,14 +2,13 @@
  * Shared plumbing for the WebKit harnesses (webkit*.js). Not a harness: run.sh skips _*.js.
  *
  * Why: the official Jellyfin app for iPhone and iPad, and Safari, run WebKit. Every other
- * client harness drives Chrome, so nothing had ever run the client script in WebKit.
+ * client harness drives Chrome, so nothing had run the client script in WebKit.
  *
  * Playwright lives in tests/webkit/package.json (a devDependency for this alone, never
  * shipped). It is the only way to get a WebKit that runs on a Linux CI box and on this
  * Windows desk. When Playwright or its WebKit build is missing, a harness says SKIP and
- * exits 0, which is the same convention the Chrome harnesses use. CI sets
- * BONFIRE_WEBKIT_REQUIRED=1 in its WebKit job, and then a missing install is a failure:
- * that job must never skip.
+ * exits 0, as the Chrome harnesses do. CI sets BONFIRE_WEBKIT_REQUIRED=1 in its WebKit
+ * job, where a missing install is a failure: that job must never skip.
  *
  *     cd tests/webkit && npm ci && npx playwright-core install webkit
  *

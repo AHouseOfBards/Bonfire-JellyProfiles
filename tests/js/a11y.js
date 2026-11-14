@@ -1,4 +1,4 @@
-// Screen reader and remote behaviour of the client screens (P2 accessibility findings).
+// Screen reader and remote behavior of the client screens (P2 accessibility findings).
 //
 // Each block draws a real screen through the stub DOM and reads the markup a screen
 // reader would read. Point it at an older profiles.js to see it fail:
@@ -92,7 +92,7 @@ function tagOf(id) {
         msg = null;
         PP.executeProfileSwitch('kid', '1234', m => { msg = m; });
         await settle();
-        // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+        // A refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
         ok('a refusal from the server is said by its code', msg === "You can't do that here.", String(msg));
 
         // A tap on a profile with no PIN has no screen to report on.
@@ -322,9 +322,9 @@ function tagOf(id) {
         await env14.settle();
         ok('an expired session is not announced as an unreachable server', !noteNode() && P14._expired === true);
 
-        // Another failure before any list has loaded stays quiet: the home page retries
-        // every 30 s and the note used to come back with each one (ni-C2b). A success in
-        // between re-arms it; tests/js/listnoticeonce.js holds that half.
+        // Another failure before any list has loaded stays quiet: the home page retries every
+        // 30 s and the note used to come back with each one (ni-C2b). A success in between
+        // re-arms it; tests/js/listnoticeonce.js holds that half.
         sb.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
         P14.fetchAndRenderProfiles(sb.ApiClient, 'main', 'tok', true);
         await env14.settle();
@@ -355,8 +355,8 @@ function tagOf(id) {
         ok('the stop follows focus, so a card passed on the way is not left behind',
             stops().join() === 'button', stops().join());
 
-        // The real _overlayFocusables, against fixtures, with the selector read the way a
-        // browser reads it: each comma part is a tag, [attr], [attr="v"] and :not([attr="v"]).
+        // The real _overlayFocusables, against fixtures, with the selector read as a browser
+        // reads it: each comma part is a tag, [attr], [attr="v"] or :not([attr="v"]).
         const matches = (node, selector) => selector.split(',').some(part => {
             const p = part.trim();
             const tag = /^[a-z]+/.exec(p);
@@ -394,7 +394,7 @@ function tagOf(id) {
         ok('and wraps to the stop, not to a card that is out of the tab order', fx.focused === b);
     }
 
-    // 7. The colour swatches are a radio group, named by position, with a state.
+    // 7. The color swatches are a radio group, named by position, with a state.
     {
         const P4 = D.loadPlugin(SRC).PP;
         const html = P4.renderColorPicker('#E50914');
@@ -409,9 +409,9 @@ function tagOf(id) {
 
     // 12. Focus is a ring, not only a tint. The cascade is resolved: a rule that says
     // `outline: ring` is no use if a later rule of the same weight says `outline: none`.
-    // Only plain compound selectors ending in :focus are read (every control below is
-    // one); media blocks and descendant rules are not, which is why the television's own
-    // thicker ring is not asserted here.
+    // Only plain compound selectors ending in :focus are read (every control below is one),
+    // so media blocks and descendant rules are not, and the television's own thicker ring
+    // is not asserted here.
     {
         const css = require('fs').readFileSync(process.argv[3] || require('path').join(L.ROOT, 'Web', 'styles.css'), 'utf8')
             .replace(/\/\*[\s\S]*?\*\//g, '');
@@ -474,8 +474,8 @@ function tagOf(id) {
             /\.jpf-profile-card:focus \.jpf-profile-avatar[^{]*\{[^}]*transform:\s*none/.test(all));
         ok('swatches and buttons do not scale', /\.jpf-color-dot:focus[^{]*\{[^}]*transform:\s*none/.test(all));
 
-        // The fades written from script. An inline style cannot be overridden by a media
-        // query, so each is a class the stylesheet owns, and the reduced block names it.
+        // The fades written from script. An inline style cannot be overridden by a media query,
+        // so each is a class the stylesheet owns, and the reduced block names it.
         ok('no dialog writes its own fade inline', !/transition:\s*opacity\s*0\.15s/.test(SRC));
         ok('the page fade is not an inline transition', !/\.style\.transition\s*=/.test(SRC));
         const fades = [
@@ -520,9 +520,9 @@ function tagOf(id) {
         ok('Snowfall, Bloom and Harvest drift and Starlight twinkles on two layers (' + n + ' rules)', n === 5, n + ' rules');
         // And it sits inside the no-preference media query, one theme at a time.
         // Each rule on its own: the nearest @media before it must be that query and still be
-        // open where the rule starts. A count of queries against a count of rules let one
-        // query stand in for two (a twinkle writes two layers in one query), and would let
-        // one unguarded rule hide behind another's query.
+        // open where the rule starts. Counting queries against rules let one query stand in
+        // for two (a twinkle writes two layers in one query) and let one unguarded rule hide
+        // behind another's query.
         const notInside = [];
         const again = /([^{}]+)\{[^{}]*animation:\s*jpf-(?:drift|twinkle)[^{}]*\}/g;
         let r2;
@@ -568,8 +568,8 @@ function tagOf(id) {
         });
     }
 
-    // 10. The letter on an avatar is readable on every palette colour (3:1 at least, it is
-    // large text; most are well past it).
+    // 10. The letter on an avatar is readable on every palette color (3:1 at least; it is
+    // large text, and most are well past it).
     {
         const P6 = D.loadPlugin(SRC).PP;
         const hexes = (SRC.match(/AVATAR_PALETTE\s*=\s*\[([^\]]*)\]/) || ['', ''])[1].match(/#[0-9A-Fa-f]{6}/g) || [];
@@ -595,7 +595,7 @@ function tagOf(id) {
     {
         const bare = [];
         SRC.replace(/<label>\$\{t\('([^']+)'\)\}<\/label>/g, (m, key) => { bare.push(key); return m; });
-        // The colour picker is a radiogroup with its own name; its label is a caption.
+        // The color picker is a radiogroup with its own name; its label is a caption.
         const unnamed = bare.filter(k => k !== 'profileForm.avatarColor');
         ok('every label over a widget is tied to it' + (unnamed.length ? ' (bare: ' + unnamed.join(', ') + ')' : ''),
             unnamed.length === 0);
@@ -604,8 +604,8 @@ function tagOf(id) {
         ok('a tag editor names its box after the label', /<input[^>]*aria-labelledby="x-label"/.test(tags), tags);
     }
 
-    // R-1207. Storage that is blocked or full: the master id is written and never comes
-    // back, so every switch had no household to act for and returned without a word.
+    // R-1207. Storage that is blocked or full: the master id is written and never comes back,
+    // so every switch had no household to act for and returned without a word.
     {
         const e7 = D.loadPlugin(SRC);
         const P7 = e7.PP;
@@ -631,9 +631,9 @@ function tagOf(id) {
         ok('without sending anything', sent === 0);
     }
 
-    // R-1205. The crop view is a tab stop that takes the arrow keys: it needs a role and a
-    // name, and a description pointing at the hint that says what the keys do. The canvas
-    // inside it is not something a screen reader can read.
+    // R-1205. The crop view is a tab stop that takes the arrow keys: it needs a role, a name
+    // and a description pointing at the hint that says what the keys do. The canvas inside
+    // is not something a screen reader can read.
     {
         const from = SRC.indexOf('showCropDialog: function');
         const body = from < 0 ? '' : SRC.slice(from, SRC.indexOf('fetchAvatarLibrary: function', from));
