@@ -293,3 +293,4 @@ js/welcomealign 11.8 serial
 js/workflows 0.1 parallel
 js/initwait 2 parallel est
 cs/usercleanup 6 serial est
+js/dashround3 2 parallel est

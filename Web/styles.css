@@ -286,7 +286,7 @@
 .jpf-theme-status.is-error {
     color: var(--jpf-danger);
 }
-/* The offer to match jellyfin-web's theme, under the cards. Flex with margins, not grid (Chromium 57; webOS 4.5 is 53). */
+/* The offer to match jellyfin-web's theme, under the cards. Flex with gap, not grid (Chromium 57; webOS 4.5 is 53); .jpf-no-flex-gap adds margins where gap is missing. */
 .jpf-theme-match {
     display: flex; flex-direction: column; align-items: center; gap: var(--jpf-gap);
     margin-top: 12px; text-align: center;

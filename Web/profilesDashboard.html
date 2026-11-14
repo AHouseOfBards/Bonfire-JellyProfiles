@@ -7936,7 +7936,9 @@
             /// save checks again and names it if it is not.
             function themePictureExists(route, file) {
                 return fetch(ApiClient.getUrl('plugins/profiles/themes/' + route + '/' + encodeURIComponent(file)))
-                    .then(function (res) { return !!res.ok; }, function () { return true; });
+                    // Missing means 404. A 429 or a 5xx says nothing about the file, and reading it
+                    // as missing dropped a theme's background on load (r3-09-03).
+                    .then(function (res) { return res.status !== 404; }, function () { return true; });
             }
 
             function loadThemeFile(page, file) {
@@ -8323,6 +8325,11 @@
                 editor.addEventListener('touchstart', down);
                 document.addEventListener('mouseup', up);
                 document.addEventListener('touchend', up);
+                // A touch the browser took over, or a release while another window had focus,
+                // sends no touchend or mouseup: without these the next edits joined that step
+                // in the undo history (r3-09-04).
+                document.addEventListener('touchcancel', up);
+                window.addEventListener('blur', up);
                 page.querySelector('#teUndo').addEventListener('click', function () { themeHistoryGo(page, -1); });
                 page.querySelector('#teRedo').addEventListener('click', function () { themeHistoryGo(page, 1); });
                 editor.addEventListener('click', function (e) {
@@ -9651,8 +9658,23 @@
                         try { matchControlHeights(page); } catch (e) { /* a row left as it was is not worth a broken page */ }
                     });
                 };
+                // A change of text alone moves no row: the theme editor rewrites the preview's
+                // name on every keystroke and every frame of a slider drag, and each one paid
+                // for a pass over every button on the page (r3-09-01).
+                const onlyText = function (nodes) {
+                    for (let i = 0; i < nodes.length; i++) if (nodes[i].nodeType !== 3) return false;
+                    return true;
+                };
+                const moved = function (records) {
+                    for (let i = 0; i < records.length; i++) {
+                        const r = records[i];
+                        if (r.type !== 'childList' || !onlyText(r.addedNodes) || !onlyText(r.removedNodes)) return true;
+                    }
+                    return false;
+                };
                 if (window.MutationObserver) {
-                    new MutationObserver(run).observe(page, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'open', 'disabled'] });
+                    new MutationObserver(function (records) { if (moved(records)) run(); })
+                        .observe(page, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'open', 'disabled'] });
                 }
                 window.addEventListener('resize', run);
                 run();
