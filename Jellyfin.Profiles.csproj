@@ -14,13 +14,13 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Jellyfin.Profiles</AssemblyName>
     <RootNamespace>Jellyfin.Profiles</RootNamespace>
-    <Version>1.7.5</Version>
+    <Version>2.0.0</Version>
     <!-- Jellyfin requires a purely numeric assembly version, so any pre-release label lives
          here instead. The plugin reports this string in the API and the dashboard badge, and
          the settings page shows a pre-release notice whenever it matches -beta/-alpha/-rc.
          STABLE RELEASE: no suffix. Append "-beta" here (and only here) to mark a build as
          pre-release; nothing else needs changing. -->
-    <InformationalVersion>1.7.5</InformationalVersion>
+    <InformationalVersion>2.0.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
@@ -49,8 +49,8 @@
   </ItemGroup>
 
   <!-- The SDK globs **/*.cs, so anything under these would be compiled into the plugin.
-       tests\ holds four standalone harness projects; without this the plugin build picks
-       up their Program.cs files and fails on duplicate assembly attributes. -->
+       tests\ and tools\ hold standalone projects; without this the plugin build picks up
+       their Program.cs files and fails on duplicate assembly attributes. -->
   <ItemGroup>
     <Compile Remove="scratch\**" />
     <EmbeddedResource Remove="scratch\**" />
@@ -58,7 +58,20 @@
     <Compile Remove="tests\**" />
     <EmbeddedResource Remove="tests\**" />
     <None Remove="tests\**" />
+    <Compile Remove="tools\**" />
+    <EmbeddedResource Remove="tools\**" />
+    <None Remove="tools\**" />
+    <!-- Compiled through the Import below, which links each file under its own name. The
+         default glob would add every file a second time. -->
+    <Compile Remove="Campground.Shared\**" />
+    <None Remove="Campground.Shared\**" />
   </ItemGroup>
+
+  <!-- Campground.Shared, the library every Campground plugin compiles in as internal code.
+       A vendored copy: refresh it with tools/vendor-shared.sh in Campground-Coordination,
+       never by editing it here (CI checks the hashes in campground-shared.json). Bonfire
+       uses it for index.html, so the plugins share one middleware and one copy of each tag. -->
+  <Import Project="Campground.Shared\Campground.Shared.props" />
 
   <ItemGroup>
     <EmbeddedResource Include="Web/profilesDashboard.html" />
@@ -68,6 +81,14 @@
          makes the 1.5.2 failure impossible at the language level. -->
     <EmbeddedResource Include="Web/styles.css" />
     <EmbeddedResource Include="Web/i18n/*.json" />
+    <!-- The built-in themes (docs/themes.md), their fonts and pattern pictures. Named
+         explicitly so a theme id with a hyphen keeps it. See ThemeCatalog. -->
+    <EmbeddedResource Include="Web/themes/*.json" LogicalName="Jellyfin.Profiles.Themes.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Web/themes/patterns/*.svg" LogicalName="Jellyfin.Profiles.Themes.Patterns.%(Filename)%(Extension)" />
+    <!-- The fonts Bonfire serves (fonts.json), and the SIL Open Font License each comes with,
+         which has to travel with the font. -->
+    <EmbeddedResource Include="Web/themes/fonts/*.woff2" LogicalName="Jellyfin.Profiles.Themes.Fonts.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Web/themes/fonts/*.txt" LogicalName="Jellyfin.Profiles.Themes.Fonts.%(Filename)%(Extension)" />
     <!-- The starter avatars (StarterAvatars.cs) and their licence. Named explicitly: the
          default manifest name would mangle the hyphen in the folder and in polar-bear. -->
     <EmbeddedResource Include="Web/starter-avatars/*.webp" LogicalName="Jellyfin.Profiles.StarterAvatars.%(Filename)%(Extension)" />

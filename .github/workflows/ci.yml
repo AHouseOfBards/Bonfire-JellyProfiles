@@ -1,65 +1,299 @@
 name: CI
 
-# Until now the only workflow here ran on tags, so a pull request got no build, no syntax
-# check and no translation check at all. 1.5.2 shipped a client script that threw on
-# startup and nothing noticed, because the file was still valid JavaScript.
+# This workflow used to run only on tags, so a pull request got no build, no syntax check
+# and no translation check. 1.5.2 shipped a client script that threw on startup and
+# nothing noticed, because the file was still valid JavaScript.
+#
+# The whole suite used to be one job and took a quarter of an hour. It now runs as
+# parallel jobs: the JavaScript harnesses in SHARDS slices (tests/run.sh js --shard K/N),
+# the C# harnesses against each framework, the check against newer Jellyfin builds, and
+# the quick static checks. Every check still runs, in exactly one of them. The last job,
+# "CI passed", needs all of them; a branch rule and release.yml depend on that one name
+# and nothing else.
+#
+# release.yml does not run the suite again: it requires "CI passed" from this workflow on
+# the tagged commit, so that job keeps its name.
 on:
   pull_request:
   push:
     branches: [main, beta]
 
-jobs:
-  check:
-    name: Build and verify
-    runs-on: ubuntu-latest
+# Read-only: nothing in this workflow writes to the repository, so its token should not
+# be able to.
+permissions:
+  contents: read
 
+# A newer push to the same ref makes the older run's result worthless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # SHARDS: the matrix below must list 1..N for the N in every `--shard K/N`. Most of the
+  # time is in the Chrome harnesses, which cannot share a machine, so more shards speed
+  # this up, not more cores. tests/js/workflows.js fails if the two disagree or a number
+  # in 1..N is missing.
+  js:
+    name: JavaScript ${{ matrix.shard }}/6
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Both, because the plugin multi-targets. Jellyfin 10.11.x runs on .NET 9 and 12.0
-      # runs on .NET 10, and the C# harnesses run on whichever runtime the build they are
-      # loading was compiled for — a net9 harness cannot load a net10 assembly.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      # Chrome is already on the runner. This is one slice of the JavaScript half of
+      # `tests/run.sh`; the Campground.Shared copy check is one slice's member.
+      - name: Run the JavaScript harnesses, shard ${{ matrix.shard }} of 6
+        run: bash tests/run.sh js --shard ${{ matrix.shard }}/6
+
+  # Both frameworks, because the plugin multi-targets: Jellyfin 10.11.x runs on .NET 9 and
+  # 12.0 on .NET 10, and a harness runs on the runtime its build was compiled for (a net9
+  # harness cannot load a net10 assembly). net9.0 ships. net10.0 does not, but a build
+  # nobody has loaded is not a working build, so its assembly is loaded and reflected on,
+  # not just compiled. When Jellyfin drops .NET 9, the net10.0 job will already have been
+  # passing for months.
+  csharp:
+    name: C# on ${{ matrix.tfm }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tfm: net9.0
+            section: cs
+          - tfm: net10.0
+            section: cs10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Setup .NET 9 and 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: |
             9.0.x
             10.0.x
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '20'
+          node-version: '22'
 
-      # Necessary but NOT sufficient — this passed against the 1.5.2 defect, which was
-      # valid JavaScript that threw on the first call. tests/run.sh is what catches that.
+      # Packages only, keyed on what names them. Nothing built is cached: a stale build that
+      # passes is the failure this suite exists to prevent.
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.proj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Builds the plugin (Release, -warnaserror, both frameworks), then the C# harnesses
+      # against ${{ matrix.tfm }}.
+      - name: Run the C# harnesses against the ${{ matrix.tfm }} build
+        run: bash tests/run.sh ${{ matrix.section }}
+
+  # The plugin compiles against Jellyfin 10.11.5, so a green build says nothing about the
+  # servers it runs on. The Campground kit's binchk resolves every Jellyfin member the
+  # net9.0 DLL references against each release in tests/gate.conf. It restores those
+  # packages from NuGet (network), which tests/run.sh must not need.
+  binchk:
+    name: Check against newer Jellyfin
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET 9 and 10
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.proj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # No SKIP_BUILD: this job has not built the plugin, so binchk builds it itself.
+      - name: Check the plugin against newer Jellyfin
+        run: sh tools/binchk.sh
+
+  static:
+    name: Syntax and translations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      # Necessary, not sufficient: this passed against the 1.5.2 defect, valid JavaScript
+      # that threw on the first call. The harnesses are what catch that.
       - name: Syntax check the client script
         run: node --check Web/profiles.js
 
-      # Builds the plugin (Release, -warnaserror, both frameworks) and runs every
-      # harness, JS and C#. Same command a maintainer runs locally, so CI and the desk
-      # cannot disagree about what "the tests pass" means.
-      # The C# half runs against net9.0, which is the build that ships.
-      - name: Run the test suite
-        run: bash tests/run.sh
-
-      # And again against the other build. net9.0 is what ships — it is the only one of
-      # the two that loads on both a 10.11 and a 12.0 server — but a build nobody has ever
-      # loaded is not a working build, so the net10.0 assembly is loaded and reflected on
-      # rather than merely compiled. When Jellyfin drops the .NET 9 runtime, this is the
-      # step that will already have been passing for months.
-      - name: Run the C# harnesses against the .NET 10 build
-        run: bash tests/run.sh cs10
-
-      # The plugin compiles against Jellyfin 10.11.5, so a green build says nothing about the
-      # servers it runs on. This resolves every Jellyfin member the built DLL references
-      # against the newest 10.11 and against 12.0. Its own step because it restores those
-      # packages from NuGet (network), which tests/run.sh must not need.
-      - name: Check the plugin against newer Jellyfin
-        run: SKIP_BUILD=1 bash tests/binchk.sh
-
-      # Contributors are told to run this before opening a PR (Web/i18n/README.md).
-      # Nothing enforced it, so the first person to forget shipped a broken catalogue.
+      # Contributors are told to run this before opening a PR (Web/i18n/README.md). Nothing
+      # enforced it, so the first person to forget shipped a broken catalog.
       - name: Validate translations
         run: node Web/i18n/validate.js
+
+  # Every other job loads our assembly into a harness or runs the client script against a
+  # fixture page. None starts a server. This one installs the net9.0 build that ships into
+  # a real Jellyfin, which has to load it, serve index.html with Bonfire's tags, serve a
+  # client script that starts, answer an anonymous route and refuse a signed-out one
+  # (tests/live/smoke.sh; Docker legs also restart the container and check again).
+  #
+  # The matrix is the servers the plugin supports: 10.11.x (.NET 9) and 12.x (.NET 10), on
+  # Docker (Debian, standing for Linux) and on Windows. A Docker image is pinned by digest
+  # and a Windows zip by SHA-256, because a tag or URL is a pointer its owner can move, and
+  # a "pass" against a different server proves nothing. Jellyfin publishes no checksum for
+  # the Windows zip; the value is of the file as first downloaded from repo.jellyfin.org
+  # and is checked on every run.
+  #
+  # To move a pin: pull the new image and copy its digest (docker buildx imagetools
+  # inspect), or download the new zip and run sha256sum on it, and change the name in the
+  # same edit. tests/js/workflows.js fails if a digest, checksum or version is missing or
+  # disagrees.
+  live:
+    name: Live ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Docker 10.11.11
+            os: ubuntu-latest
+            image: jellyfin/jellyfin@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db
+          - name: Docker 12.4
+            os: ubuntu-latest
+            image: jellyfin/jellyfin@sha256:fea863d0cd9ec445985d9c75fc6ed64e38a1d2766cf0c250a33d553f4fc1b771
+          - name: Windows 10.11.11
+            os: windows-latest
+            zip: https://repo.jellyfin.org/files/server/windows/stable/v10.11.11/amd64/jellyfin_10.11.11-amd64.zip
+            sha256: 3b5d3e904415ac6bd2c0ee9fe93235b4145d41c4c85ae782d244ac9767f77374
+          - name: Windows 12.4
+            os: windows-latest
+            zip: https://repo.jellyfin.org/files/server/windows/stable/v12.4/amd64/jellyfin_12.4-amd64.zip
+            sha256: d62b5b30390213680fd1fae5484082ae27b2a778cfd40a473ad7b1e4147d75a6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET 9 and 10
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      # Both frameworks, like every other build here; only net9.0 is installed below.
+      - name: Build the plugin
+        shell: bash
+        run: dotnet build Jellyfin.Profiles.csproj -c Release -warnaserror
+
+      # One step for every leg, so none is conditional: an image leg has no zip and a zip
+      # leg has no image, and the script picks by which is set.
+      - name: Start Jellyfin with the plugin and check it
+        shell: bash
+        env:
+          IMAGE: ${{ matrix.image }}
+          ZIP: ${{ matrix.zip }}
+          ZIP_SHA256: ${{ matrix.sha256 }}
+        run: |
+          set -euo pipefail
+          if [ -n "$IMAGE" ]; then
+            docker pull "$IMAGE"
+            bash tests/live/smoke.sh --plugin bin/Release/net9.0 --image "$IMAGE"
+          else
+            mkdir -p .live-dl/server
+            curl -fsSL -o .live-dl/jellyfin.zip "$ZIP"
+            echo "$ZIP_SHA256  .live-dl/jellyfin.zip" | sha256sum -c -
+            unzip -q .live-dl/jellyfin.zip -d .live-dl/server
+            bash tests/live/smoke.sh --plugin bin/Release/net9.0 --server .live-dl/server/jellyfin
+          fi
+
+  # The client script in WebKit, the engine of Safari and the iPhone and iPad app. Every
+  # other browser harness drives Chrome, so nothing else has run it in WebKit. Playwright
+  # is pinned in tests/webkit/package.json (a devDependency for this alone). The harnesses
+  # say SKIP when it is not installed, so this job sets BONFIRE_WEBKIT_REQUIRED: here a
+  # missing or broken install fails. The JavaScript shards above do not install it, and
+  # those three harnesses skip there.
+  webkit:
+    name: WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Install Playwright and its WebKit
+        working-directory: tests/webkit
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright-core install --with-deps webkit
+
+      - name: Run the WebKit harnesses
+        env:
+          BONFIRE_WEBKIT_REQUIRED: '1'
+        run: bash tests/run.sh js --only js/webkitstartup,js/webkitlayout,js/webkitflows
+
+  # The one name to require. `always()` so it runs, and fails, when a job it needs failed
+  # or was canceled or skipped: a job that never ran must not read as a pass. Each needed
+  # job's result is checked by name, not as a total.
+  passed:
+    name: CI passed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [js, csharp, binchk, static, live, webkit]
+    if: ${{ always() }}
+    steps:
+      - name: Every job succeeded
+        env:
+          JS: ${{ needs.js.result }}
+          CSHARP: ${{ needs.csharp.result }}
+          BINCHK: ${{ needs.binchk.result }}
+          STATIC: ${{ needs.static.result }}
+          LIVE: ${{ needs.live.result }}
+          WEBKIT: ${{ needs.webkit.result }}
+        run: |
+          bad=0
+          for pair in "js=$JS" "csharp=$CSHARP" "binchk=$BINCHK" "static=$STATIC" "live=$LIVE" "webkit=$WEBKIT"; do
+            echo "$pair"
+            [ "${pair#*=}" = "success" ] || bad=1
+          done
+          exit $bad

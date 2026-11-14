@@ -1,12 +1,12 @@
 /*
  * No token for the master account is kept in the browser, and nothing puts one back.
  *
- * The switcher kept the master's token in localStorage for as long as a profile was in
- * use, so it could list profiles, manage them, and "revert" to the master when the tab was
- * closed or a profile's inactivity lock fired. Anybody at that browser with the developer
- * tools — or any other script on the page — therefore had the master account, and every
- * PIN and parental control on the profiles was a picture drawn over it. The lock and a
- * closed tab were worse: they put the master account back in use on their own.
+ * The switcher kept the master's token in localStorage while a profile was in use, so it
+ * could list and manage profiles and "revert" to the master when the tab closed or a
+ * profile's inactivity lock fired. Anybody at that browser with the developer tools, or any
+ * other script on the page, therefore had the master account, and every PIN and parental
+ * control on the profiles was a picture drawn over it. The lock and a closed tab put the
+ * master back in use on their own.
  *
  * The server never needed it. /list and /switch resolve the household from whatever
  * session calls them, and entering the master goes through /switch with its PIN.

@@ -1,22 +1,15 @@
 /*
- * Where the Switch Profile button goes, and — the part that was never checked — whether
- * the container it goes into is one a person can see.
+ * Where the Switch Profile button goes, and whether that container is visible.
  *
- * jellyfin-web keeps its entire legacy header in the DOM and hides it whenever the modern
- * layout is active. components/AppHeader.tsx says so itself: "these components are not
- * used with the new layouts, but legacy views interact with the elements directly so they
- * need to be present in the DOM. We use display: none to hide them and prevent errors."
- * RootAppRouter renders it as <AppHeader isHidden={layoutManager.modern || isNewLayoutPath} />
- * — `isExperimentalLayout` in 10.11, `layoutManager.modern` in 12.0 — and libraryMenu.js
- * still fills that hidden .skinHeader with .headerRight, .headerButton and
- * .headerUserButton.
+ * jellyfin-web keeps its legacy header in the DOM, hidden with display:none, whenever the
+ * modern layout is active (components/AppHeader.tsx; RootAppRouter hides it on
+ * `isExperimentalLayout` in 10.11, `layoutManager.modern` in 12.0), and libraryMenu.js
+ * still fills that hidden .skinHeader with .headerRight, .headerButton and .headerUserButton.
  *
- * So every named strategy matched, the button was inserted into a display:none container,
- * and the geometric fallback that would have found the real MUI toolbar never ran because
- * the search had already "succeeded". Reported against 1.6.0.1 with a screenshot of a
- * header with no Bonfire button in it.
- *
- * Modern is the default layout in 12.0, so this stopped being a minority path.
+ * So a named strategy matched, the button went into a display:none container, and the
+ * geometric fallback that would have found the real MUI toolbar never ran. Reported
+ * against 1.6.0.1 with a screenshot of a header with no Bonfire button. Modern is the
+ * default layout in 12.0, so this is no longer a minority path.
  *
  *     node tests/js/headerinject.js                    # the working tree
  *     node tests/js/headerinject.js path/to/old.js     # must fail
@@ -43,7 +36,7 @@ if (src.split(INIT).length - 1 !== 1) {
 }
 src = src.replace(INIT, 'globalThis.__PP = ProfilesPlugin;');
 
-/* ── A DOM where "in the document" and "on the screen" are different things ────── */
+/* ── A DOM where in-document and on-screen differ ─────────────────────────────── */
 
 let idSeq = 0;
 function el(opts) {
@@ -55,9 +48,8 @@ function el(opts) {
         id: o.id || '',
         children: [],
         parentElement: null,
-        // laidOut is the whole point: an element inside a display:none wrapper is in the
-        // document and has no client rects. Inherited from the parent, the way display
-        // actually works.
+        // laidOut: an element inside a display:none wrapper is in the document but has no
+        // client rects. Inherited from the parent, as display is.
         _ownLaidOut: o.laidOut === undefined ? true : !!o.laidOut,
         rect: o.rect || null,
         getClientRects() {
@@ -80,8 +72,8 @@ function el(opts) {
         querySelectorAll(sel) { return descendants(this).filter(n => matches(n, sel)); },
         querySelector(sel) { return this.querySelectorAll(sel)[0] || null; },
         contains(other) { return other === this || descendants(this).indexOf(other) !== -1; },
-        // A real insertBefore honours the reference node, and that is exactly what is
-        // under test: the button has to land BEFORE the account button, not after it.
+        // A real insertBefore honours the reference node; the button must land BEFORE the
+        // account button, not after it.
         insertBefore(n, ref) {
             const i = ref ? this.children.indexOf(ref) : -1;
             if (i >= 0) this.children.splice(i, 0, n); else this.children.push(n);
@@ -99,11 +91,10 @@ function el(opts) {
         setAttribute() {}, addEventListener() {},
         // The code asks whether a candidate page is the visible one via offsetParent.
         get offsetParent() { return this.isLaidOut() ? {} : null; },
-        // Assigning innerHTML in a browser parses the markup into real children. The only
-        // thing the code under test then does with those children is look them up by id,
-        // so that is what this models: every id the markup declares becomes findable.
-        // Modelling nothing at all would make querySelector return null and the code would
-        // throw on a listener, which tests the fixture rather than the plugin.
+        // innerHTML in a browser parses markup into real children. The code under test only
+        // looks them up by id, so every id the markup declares becomes findable. Modelling
+        // nothing would make querySelector return null and throw on a listener, testing the
+        // fixture rather than the plugin.
         set innerHTML(html) {
             this._html = html;
             this.children = this.children.filter(c => !c.__fromHtml);
@@ -132,8 +123,8 @@ function el(opts) {
         })(),
         style: {}
     };
-    // The code under test reaches for parentNode as well as parentElement; a real element
-    // has both and they agree for everything in this fixture.
+    // The code reaches for parentNode as well as parentElement; a real element has both and
+    // they agree for everything here.
     Object.defineProperty(node, 'parentNode', { get() { return node.parentElement; } });
     (o.children || []).forEach(c => { node.children.push(c); c.parentElement = node; });
     return node;
@@ -147,8 +138,8 @@ function descendants(node) {
     return out;
 }
 
-/// Only the selector shapes the code under test actually uses. Anything else throws,
-/// so a new strategy cannot be silently unexamined by this file.
+/// Only the selector shapes the code under test uses. Anything else throws, so a new
+/// strategy cannot go unexamined.
 function matches(node, sel) {
     return sel.split(',').map(s => s.trim()).some(one => {
         if (one === 'button' || one === 'div' || one === 'nav' || one === 'ul' || one === 'span') {
@@ -180,7 +171,7 @@ function matches(node, sel) {
 const hasClass = (n, c) => (' ' + n.className + ' ').indexOf(' ' + c + ' ') !== -1;
 
 let NOW = 1000000;
-function makePlugin(root) {
+function makePlugin(root, hash) {
     const sandbox = {
         console: { log() {}, warn() {}, error() {} },
         localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -203,7 +194,7 @@ function makePlugin(root) {
         },
         window: {
             innerHeight: 900, innerWidth: 1600,
-            location: { hash: '', pathname: '/web/', href: 'https://x/web/', origin: 'https://x' },
+            location: { hash: hash || '', pathname: '/web/', href: 'https://x/web/', origin: 'https://x' },
             addEventListener() {}, removeEventListener() {}, PointerEvent: function () {}
         },
         history: { pushState() {}, replaceState() {} },
@@ -218,9 +209,8 @@ function makePlugin(root) {
 
 /* ── Fixtures ──────────────────────────────────────────────────────────────────── */
 
-/// What jellyfin-web actually renders on the modern layout: the legacy header, populated
-/// by libraryMenu.js, inside the display:none wrapper AppHeader.tsx puts it in — plus the
-/// MUI toolbar that is the real one.
+/// What jellyfin-web renders on the modern layout: the legacy header populated by
+/// libraryMenu.js inside AppHeader.tsx's display:none wrapper, plus the real MUI toolbar.
 function modernLayout() {
     const hiddenWrapper = el({ laidOut: false, children: [
         el({ className: 'skinHeader focuscontainer-x', children: [
@@ -232,8 +222,8 @@ function modernLayout() {
         ] })
     ] });
 
-    // The account button is the last child of its own Box, exactly as
-    // components/toolbar/AppToolbar.tsx renders it.
+    // The account button is the last child of its own Box, as in
+    // components/toolbar/AppToolbar.tsx.
     const userBox = el({ className: 'MuiBox-root', rect: rect(1500, 8, 40, 40), children: [
         el({ tag: 'button', className: 'MuiIconButton-root',
              attrs: { 'aria-controls': 'app-user-menu' }, rect: rect(1500, 8, 40, 40) })
@@ -283,17 +273,15 @@ console.log('── Modern layout: the legacy header is present but hidden ─�
     ok('whatever is returned is laid out',
         found === null || found.getClientRects().length > 0);
 
-    // And it is named, not guessed: the account button carries
-    // aria-controls="app-user-menu" in both 10.11 and 12.0, so the switcher lands beside
-    // the avatar rather than wherever React had got to when the search ran.
+    // Named, not guessed: the account button carries aria-controls="app-user-menu" in both
+    // 10.11 and 12.0, so the switcher lands beside the avatar.
     ok('the modern toolbar account button supplies the container',
         !!found && found.className === 'MuiBox-root',
         found ? '.' + found.className : 'null');
 
-    // Inserting marks it, so it can be sized against the 40px MUI avatar next to it.
-    // Guarded: pointed at a build with no named strategy for this toolbar, `found` is
-    // null and calling through would throw a stack trace instead of reporting, which
-    // would stop this file before the sections below it ever ran.
+    // Inserting marks it, so it can be sized against the 40px MUI avatar. Guarded: against a
+    // build with no named strategy `found` is null, and calling through would throw and stop
+    // this file before the later sections ran.
     const bubble = el({ tag: 'button', id: 'profiles-floating-bubble' });
     if (found) {
         PP._insertBeforeUserBtn(found, bubble);
@@ -324,18 +312,17 @@ console.log('── Legacy layout: unchanged ───────────�
 console.log();
 console.log('── A hidden header and a visible one together ─────────────────');
 {
-    // A theme that builds its own bar while the stock one sits hidden. The stock
-    // .skinHeader comes first in document order, so querySelector would return the one
-    // that cannot work. Its buttons carry no class this fixture matches on, so the
-    // cluster search inside .topBar is what has to answer.
+    // A theme that builds its own bar while the stock one sits hidden. The stock .skinHeader
+    // comes first in document order, so querySelector would return the one that cannot work.
+    // Its buttons carry no class this fixture matches, so the cluster search in .topBar must answer.
     const themeBar = el({ className: 'topBar', rect: rect(0, 0, 1600, 56), children: [
         el({ className: 'topBar-actions', rect: rect(1300, 8, 260, 40), children: [
             el({ tag: 'button', rect: rect(1400, 8, 40, 40) }),
             el({ tag: 'button', rect: rect(1450, 8, 40, 40) })
         ] })
     ] });
-    // No modern toolbar in this one: Strategy A2 would answer first and this is about
-    // the .skinHeader search underneath it.
+    // No modern toolbar here: Strategy A2 would answer first, and this is about the
+    // .skinHeader search underneath it.
     const root = el({ children: [
         el({ laidOut: false, children: [
             el({ className: 'skinHeader focuscontainer-x', children: [
@@ -348,10 +335,9 @@ console.log('── A hidden header and a visible one together ─────�
     ] });
 
     const PP = makePlugin(root);
-    // Strategy C is skipped while a named anchor may still be arriving — it ends in two
-    // attribute-substring selectors that walk the whole document, and running those every
-    // tick is what the route-tick budget forbids. So the grace is retired first: this is
-    // about what the search finds, not about when it is allowed to look.
+    // Strategy C is skipped while a named anchor may still be arriving: it ends in two
+    // attribute-substring selectors that walk the whole document, which the route-tick budget
+    // forbids every tick. Retire the grace first; this tests what the search finds, not when.
     PP._findHeaderContainer();
     PP._headerAnchorWaitFrom = 0;
     PP._headerContainer = null;
@@ -397,8 +383,8 @@ console.log('── The cache notices a layout switch ────────�
     const first = PP._findHeaderContainer();
     ok('found while the legacy layout is on', !!first && first.className === 'headerRight');
 
-    // Someone changes layout in Display settings: React hides the wrapper. The element
-    // stays in the document, so document.contains() alone would keep handing it back.
+    // A layout change in Display settings makes React hide the wrapper. The element stays in
+    // the document, so document.contains() alone would keep returning it.
     const wrapper = root.children[0];
     wrapper._ownLaidOut = false;
 
@@ -414,10 +400,9 @@ console.log('── The cache notices a layout switch ────────�
 console.log();
 console.log('── The section on the Jellyfin profile page ───────────────────');
 {
-    // userprofile.tsx puts both the avatar block and the password form inside
-    // .padded-left .padded-right, and centres them. .padded-left is 3.3% padding, so that
-    // container is very nearly full width — a plain block-level section dropped into it
-    // lands hard against the left edge while the page's own content floats in the middle.
+    // userprofile.tsx puts the avatar block and the password form inside
+    // .padded-left .padded-right, which is nearly full width (3.3% padding), so a plain block
+    // section dropped into it sits against the left edge while the page content floats in the middle.
     const padded = el({ className: 'padded-left padded-right padded-bottom-page', children: [
         el({ className: 'readOnlyContent' }),
         el({ tag: 'form', className: 'updatePasswordForm passwordSection' })
@@ -434,20 +419,43 @@ console.log('── The section on the Jellyfin profile page ──────�
     ok('as a sibling of the avatar block and the form, after both',
         !!section && padded.children.indexOf(section) === 2);
 
-    // The alignment itself is a stylesheet rule, so it is asserted there rather than by
-    // reading back an inline style that no longer exists.
+    // The heading carried an empty .material-icons span named for the flame glyph; with no
+    // text the font drew nothing. The mark is the svg bonfireMark() builds, as on the
+    // picker's household headings.
+    const heading = section ? section.innerHTML : '';
+    ok('the heading draws Bonfire\'s mark as an svg',
+        /<h2[^>]*>\s*<svg class="jpf-mark /.test(heading), heading.slice(0, 200));
+    ok('and no empty Material flame span is left in it',
+        !/material-icons[^"]*local_fire_department/.test(heading), heading.slice(0, 200));
+
+    // The alignment is a stylesheet rule, so it is asserted there, not by reading back an
+    // inline style that no longer exists.
     const CSS = L.extractCss(L.readSourceAndStyles(fs.readFileSync(SRC_PATH, 'utf8')));
     ok('it carries the class the stylesheet aligns',
         !!section && (' ' + section.className + ' ').indexOf(' jpf-userprofile-section ') !== -1,
         section ? section.className : 'no section');
     ok('and that class centres it the way .readOnlyContent centres itself',
         /\.jpf-userprofile-section\s*\{[^}]*margin:\s*2em\s+auto/.test(CSS));
+    // R-1250: #/userprofile?userId=... is an administrator editing someone else. Our section
+    // switches the signed-in person's profile, so it does not belong there.
+    const otherPadded = el({ className: 'padded-left padded-right padded-bottom-page', children: [
+        el({ className: 'readOnlyContent' })
+    ] });
+    const otherRoot = el({ children: [el({ id: 'userProfilePage', className: 'page', children: [otherPadded] })] });
+    const OTHER = makePlugin(otherRoot, '#/userprofile?userId=abc123');
+    OTHER.getCachedActiveProfile = () => ({ name: 'Bard', color: '#00A4DC', initial: 'B', profileImage: null });
+    OTHER.injectProfilePageSection();
+    ok('no section on another user\'s profile page (?userId=)',
+        !otherPadded.children.some(c => c.id === 'profiles-userprofile-section'),
+        'section added to the page of someone else');
+
     ok('and caps it at the 54em jellyfin-web caps the siblings at',
-        /min-width:\s*50em[^{]*\{\s*\.jpf-userprofile-section\s*\{[^}]*max-width:\s*54em/.test(CSS));
-    // Comments out first. Written as a plain indexOf over the whole sheet, this went red
-    // on the comment that explains the 44em is gone — prose, not a declaration. That is
-    // the same failure themetest.js had this week and the navMenu substring bug before
-    // it: ask about the declarations, not about the characters.
+        // The cap starts at the sheet's 900px tablet breakpoint, not upstream's 50em; this
+        // pins the 54em and that it is a min-width rule (tests/js/breakpoints.js).
+        /min-width:\s*900px[^{]*\{\s*\.jpf-userprofile-section\s*\{[^}]*max-width:\s*54em/.test(CSS));
+    // Comments out first: a plain indexOf over the whole sheet went red on the comment
+    // explaining the 44em was gone, which is prose, not a declaration (same failure as
+    // themetest.js and the navMenu substring bug). Ask about declarations, not characters.
     const declarations = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
     ok('no declaration still carries the arbitrary 44em',
         declarations.indexOf('44em') === -1);

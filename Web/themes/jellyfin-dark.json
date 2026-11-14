@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "id": "jellyfin-dark",
+  "revision": 2,
+  "scheme": "dark",
+  "name": {
+    "key": "theme.jellyfin-dark"
+  },
+  "aliases": [],
+  "colors": {
+    "accent": "#00a4dc",
+    "accentFocus": "#33b9e6",
+    "onAccent": "#0b0b0b",
+    "text1": "#ffffffcc",
+    "text2": "#ffffff99",
+    "text3": "#ffffff76",
+    "surface1": "#ffffff08",
+    "surface2": "#ffffff0f",
+    "surface3": "#ffffff1c",
+    "border1": "#ffffff14",
+    "border2": "#ffffff26",
+    "border3": "#ffffff42",
+    "panel": "#202020",
+    "ring": "#00a4dc",
+    "name": "#ffffffde",
+    "nameFocus": "#ffffff",
+    "shadow": "#000000",
+    "danger": "#ff6b6b",
+    "warning": "#ff9900"
+  },
+  "background": {
+    "fill": "#101010",
+    "layers": []
+  },
+  "shape": {
+    "radius": {
+      "small": 3,
+      "medium": 6,
+      "large": 8
+    },
+    "avatar": {
+      "kind": "square",
+      "radius": 4
+    },
+    "ringWidth": 3,
+    "button": {
+      "kind": "rounded",
+      "radius": 4
+    },
+    "input": {
+      "radius": 4
+    }
+  },
+  "type": {
+    "font": {
+      "family": "Noto Sans",
+      "fallback": "sans-serif"
+    },
+    "title": {
+      "weight": 500,
+      "spacing": 0,
+      "scale": 1
+    },
+    "name": {
+      "weight": 400,
+      "scale": 1,
+      "opacity": 1
+    },
+    "button": {
+      "case": "none",
+      "spacing": 0,
+      "weight": 500
+    }
+  },
+  "depth": {
+    "avatar": {
+      "x": 0,
+      "y": 4,
+      "blur": 12,
+      "opacity": 0.4
+    },
+    "title": null,
+    "sheet": null
+  },
+  "focus": {
+    "scale": 1.04,
+    "glow": null
+  },
+  "parts": {
+    "button2": {
+      "fill": "#ffffff14",
+      "text": "#ffffffde",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#ffffff1f"
+      },
+      "focus": {
+        "fill": "#00a4dc",
+        "text": "#0b0b0b",
+        "border": {
+          "width": 1,
+          "style": "solid",
+          "color": "#00a4dc"
+        },
+        "glow": null
+      }
+    },
+    "addTile": {
+      "fill": "#ffffff0a",
+      "border": {
+        "width": 2,
+        "style": "dashed",
+        "color": "#ffffff4d"
+      },
+      "text": "#ffffffb3",
+      "focusFill": "#00a4dc29"
+    },
+    "card": {
+      "fill": "#202020",
+      "line": "#ffffff14"
+    },
+    "sheet": {
+      "fill": "#00000000",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#00000000"
+      }
+    },
+    "input": {
+      "fill": "#292929",
+      "line": "#ffffff26"
+    }
+  },
+  "layout": {
+    "households": "open",
+    "profiles": "tiles",
+    "align": "center",
+    "size": "medium",
+    "logo": "top-right"
+  },
+  "decorations": []
+}

@@ -4,18 +4,16 @@
  * It used to GET the entire PluginConfiguration through Jellyfin's generic plugin API,
  * change six fields on the copy in the browser, and PUT the whole document back. Every
  * profile mapping, known device, Bonfire group, avatar library entry and the emergency
- * disable hash rode along. Anything that changed between the GET and the PUT — a profile
- * someone created while the administrator had the page open — was overwritten with the
- * state from before it existed. No error, nothing in the log, and the window is as wide
- * as the page has been open.
+ * disable hash rode along, so anything that changed between the GET and the PUT (a profile
+ * created while the administrator had the page open) was overwritten with the earlier
+ * state. No error, nothing in the log, and the window is as wide as the page has been open.
  *
- * This harness runs the real saveConfiguration out of the dashboard against a stubbed
- * ApiClient and looks at what it actually sends. Reading the function and checking it
- * mentions the right URL would pass just as happily against a version that also still
- * called getPluginConfiguration.
+ * Runs the real saveConfiguration out of the dashboard against a stubbed ApiClient and
+ * looks at what it sends. Checking that the function mentions the right URL would pass
+ * against a version that also still called getPluginConfiguration.
  *
- * Point it at an older dashboard to watch it fail (argv[3], because argv[2] is the
- * client script every other harness takes):
+ * To watch it fail on an older dashboard use argv[3] (argv[2] is the client script every
+ * other harness takes):
  *
  *     node tests/js/adminsave.js "" /path/to/old/profilesDashboard.html
  */
@@ -31,8 +29,13 @@ function ok(name, cond) {
 }
 
 const script = L.dashboardScript(L.readDashboard());
-const source = L.extractFunction(script, 'normalizeImageQuality') + '\n'
+const source = L.dashboardI18n(script)
+    + L.extractFunction(script, 'normalizeImageQuality') + '\n'
     + L.extractFunction(script, 'normalizeTheme') + '\n'
+    // Save clears the "unsaved changes" note; it is not what this harness is about.
+    + (script.indexOf('function setUnsaved') !== -1 ? L.extractFunction(script, 'setUnsaved') + '\n' : '')
+    // Save reads the trusted-address rows (2.0); before they're drawn it sends what was loaded.
+    + (script.indexOf('function collectTrusted') !== -1 ? L.extractFunction(script, 'collectTrusted') + '\n' : '')
     + L.extractFunction(script, 'saveConfiguration');
 
 // ── the stub server ──────────────────────────────────────────────────────────
@@ -40,11 +43,9 @@ const source = L.extractFunction(script, 'normalizeImageQuality') + '\n'
 // seen — created after the settings page was opened. If saving can lose it, it will.
 const serverConfig = {
     MaxProfilesPerUser: 5,
-    RequireMasterPinForCreation: true,
     DisallowCustomAvatarUploads: false,
     DefaultAskOnStartup: true,
     DefaultSwitcherLocation: 'button',
-    IndexInjectionMode: 'middleware',
     Mappings: [{ ProfileUserId: 'created-while-the-page-was-open' }],
     KnownDevices: [{ DeviceId: 'living-room-tv' }],
     BonfireGroups: [{ OwnerUserId: 'someone' }],
@@ -57,22 +58,38 @@ async function run(fieldValues) {
 
     const fields = Object.assign({
         maxProfiles: '5',
-        requireMasterPin: true,
+        pinGuessesPerDay: '20',
+        requireMainPin: false,
+        enablePinResetByEmail: false,
         disallowCustomAvatars: false,
         enableStarterAvatars: true,
         defaultAskOnStartup: true,
         defaultSwitcherLocation: 'button',
         defaultTheme: 'bonfire',
         allowProfileThemes: true,
-        indexInjectionMode: 'middleware',
-        // Both default off. A missing id throws in the stub below, so adding a control to
-        // the form without adding it here is a failure rather than a silent omission —
-        // which is the whole reason this list is written out by hand.
+        richThemeMotion: false,
+        defaultTimeZone: '',
+        // Both default off. A missing id throws in the stub below, so a control added to the
+        // form without being added here fails instead of being silently omitted. That is why
+        // this list is written out by hand.
         enableClientPinLogin: false,
         enableClientProfileList: false,
+        clientPinLoginFromAnywhere: false,
         skipQuickConnectOnKnownDevices: false,
-        profileImageQuality: 'standard'
+        profileImageQuality: 'standard',
+        onboardingEnabled: false
     }, fieldValues || {});
+
+    // The profile picker's apps: one checkbox each, found by class. Ticked ones listed here.
+    const proxyTicked = (fieldValues && fieldValues.proxyTicked) || [];
+    delete fields.proxyTicked;
+    // What the server held when the page loaded (R-1234): ids the form has no box for.
+    const proxyLoaded = (fieldValues && fieldValues.proxyLoaded) || null;
+    delete fields.proxyLoaded;
+
+    const proxyBoxes = ['moonfin'].map(function (key) {
+        return { checked: proxyTicked.indexOf(key) !== -1, getAttribute: function () { return key; } };
+    });
 
     // One fake element per id. `value` and `checked` both present, so whichever the
     // function reads works, and writes back (the clamp does) are visible afterwards.
@@ -88,10 +105,16 @@ async function run(fieldValues) {
         // Set by loadConfiguration once the settings have been read; adminload.js covers the
         // refusal. This harness is about what a save sends.
         _configLoaded: true,
+        _proxyClientsLoaded: proxyLoaded,
         querySelector: function (sel) {
             const el = elements[sel.replace('#', '')];
             if (!el) throw new Error('the page has no ' + sel);
             return el;
+        },
+        querySelectorAll: function (sel) {
+            if (sel === '.jpf-unsaved') return [];   // the note beside each Save; none in this stub
+            if (sel !== '.jpfProxyClient') throw new Error('the page has no ' + sel);
+            return proxyBoxes;
         }
     };
 
@@ -123,13 +146,15 @@ async function run(fieldValues) {
     // The avatar grid is redrawn after a save, because the starter-avatar switch changes
     // what it shows. Counted, so the redraw is asserted rather than merely survived.
     const loadAvatarLibrary = function () { calls.libraryReloads++; };
-    const factory = new Function('ApiClient', 'Dashboard', 'pluginId', 'loadAvatarLibrary',
+    // The Status checklist is ticked from what was saved; recorded, not run.
+    const noteSavedSettings = function (p, body) { calls.noted = body; };
+    const factory = new Function('ApiClient', 'Dashboard', 'pluginId', 'loadAvatarLibrary', 'noteSavedSettings',
         source + '; return saveConfiguration;');
-    factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9', loadAvatarLibrary)(page);
+    factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9', loadAvatarLibrary, noteSavedSettings)(page);
 
-    // The old version did its work inside `getPluginConfiguration().then(...)`, so its
-    // PUT lands a microtask later than the call that starts it. Drain the queue before
-    // looking, or the round-trip this harness exists to catch goes uncounted.
+    // The old version worked inside `getPluginConfiguration().then(...)`, so its PUT lands a
+    // microtask after the call that starts it. Drain the queue before looking, or the round
+    // trip this harness exists to catch goes uncounted.
     for (let i = 0; i < 5; i++) await new Promise(function (r) { setImmediate(r); });
 
     return { calls: calls, elements: elements };
@@ -142,8 +167,8 @@ function sent(result) {
     try { return JSON.parse(req.data); } catch (e) { return {}; }
 }
 
-// Wrapped rather than using top-level await: run.sh discovers tests/js/*.js and runs
-// them as CommonJS, where Node will not accept it.
+// Wrapped rather than top-level await: run.sh runs tests/js/*.js as CommonJS, where Node
+// rejects it.
 main();
 async function main() {
 
@@ -175,23 +200,31 @@ console.log('\n── It sends the six settings and nothing else ─────
 
 const expected = [
     'maxProfilesPerUser',
-    'requireMasterPinForCreation',
+    'pinGuessesPerDay',
+    'requireMainPin',
+    'enablePinResetByEmail',
     'disallowCustomAvatarUploads',
     'enableStarterAvatars',
     'defaultAskOnStartup',
     'defaultSwitcherLocation',
     'defaultTheme',
     'allowProfileThemes',
-    'indexInjectionMode',
+    'richThemeMotion',
+    'defaultTimeZone',
     'enableClientPinLogin',
     'enableClientProfileList',
+    'clientPinLoginFromAnywhere',
     'skipQuickConnectOnKnownDevices',
-    'profileImageQuality'
+    'proxyClients',
+    'profileImageQuality',
+    'onboardingEnabled',
+    // Trusted addresses (2.0, issue #42): address entries with the accounts each is for.
+    'trustedAddressEntries'
 ];
 
 if (body) {
-    // Enumerated both ways rather than compared as a count. A count says something is
-    // wrong without saying which field, and a missing key and an extra key cancel out.
+    // Enumerated both ways, not compared as a count: a count does not say which field, and a
+    // missing key and an extra key cancel out.
     expected.forEach(function (k) {
         ok('sends ' + k, Object.prototype.hasOwnProperty.call(body, k));
     });
@@ -199,14 +232,28 @@ if (body) {
         ok(k + ' is one of the ' + expected.length + ' this page owns', expected.indexOf(k) !== -1);
     });
 
-    // The named collections are the ones that were being silently reverted. Listed
-    // explicitly, because this is the actual bug and it deserves its own line.
+    // The named collections are the ones that were being silently reverted; listed
+    // explicitly because this is the actual bug.
     ['Mappings', 'KnownDevices', 'BonfireGroups', 'AvatarLibrary', 'PanicCodeHash']
         .forEach(function (k) {
             ok('does not carry ' + k + ' — nothing there can be lost by saving settings',
                !Object.prototype.hasOwnProperty.call(body, k));
         });
 }
+
+console.log('\n── The profile picker\'s apps ──────────────────────────────────');
+
+ok('no app ticked sends an empty list, which turns the picker off',
+   Array.isArray(body && body.proxyClients) && body.proxyClients.length === 0);
+const moon = await run({ proxyTicked: ['moonfin'] });
+ok('a ticked app is sent by its key', JSON.stringify(sent(moon).proxyClients) === '["moonfin"]');
+// R-1234: an id the form has no box for (set by the API, a backup, a newer build) must survive.
+const unk = await run({ proxyTicked: ['moonfin'], proxyLoaded: ['moonfin', 'futureapp'] });
+ok('a proxy client id with no checkbox is kept on save',
+   JSON.stringify(sent(unk).proxyClients) === '["moonfin","futureapp"]', JSON.stringify(sent(unk).proxyClients));
+const unk2 = await run({ proxyTicked: [], proxyLoaded: ['moonfin', 'futureapp'] });
+ok('unticking the box still removes it, and keeps the unknown one',
+   JSON.stringify(sent(unk2).proxyClients) === '["futureapp"]', JSON.stringify(sent(unk2).proxyClients));
 
 console.log('\n── The starter-avatar switch (issue #32) ───────────────────────');
 
@@ -219,10 +266,22 @@ ok('the saved message is the success one, not the failure one ("'
    + (alertText(base.calls.alert) || 'no alert') + '")',
    !!base.calls.alert && /saved/i.test(alertText(base.calls.alert)));
 // A toast, as Jellyfin confirms its own settings pages. The dialog form always carries a
-// title, which jellyfin-web draws off the centre line of the text under it.
+// title, which jellyfin-web draws off the center line of the text under it.
 ok('and it is a toast, not a dialog', typeof base.calls.alert === 'string');
 ok('and the avatar grid is redrawn, since the switch changes what it shows',
    base.calls.libraryReloads === 1);
+
+console.log('\n── First-time setup ────────────────────────────────────────────');
+
+// Saving this tab used to send a step list built from the Show boxes. resetEmail had no
+// box, so every save dropped the email step. The list is gone, and the bug with it: every
+// step is always offered, so a save sends no list and no welcome text.
+ok('no step list is sent', body && !('onboardingSteps' in body));
+ok('and no welcome text', body && !('onboardingWelcomeText' in body));
+ok('the switch is sent as it stands', body && body.onboardingEnabled === false);
+const ob = sent(await run({ onboardingEnabled: true }));
+ok('on is sent as on', ob.onboardingEnabled === true);
+ok('the Status checklist is told what was saved', base.calls.noted && base.calls.noted.requireMainPin === false);
 
 console.log('\n── The profile limit is clamped, not passed through ───────────');
 
@@ -242,6 +301,14 @@ const emptyBody = sent(empty);
 ok('an empty box falls back to 5 (sent ' + emptyBody.maxProfilesPerUser + ')',
    emptyBody.maxProfilesPerUser === 5);
 
+// PIN tries a day: lower only, so anything above 20 is sent as 20 (R-1002).
+const tooMany = sent(await run({ pinGuessesPerDay: '50' }));
+ok('PIN tries a day above 20 is sent as 20 (sent ' + tooMany.pinGuessesPerDay + ')', tooMany.pinGuessesPerDay === 20);
+const fewer = sent(await run({ pinGuessesPerDay: '3' }));
+ok('and a lower figure is sent as typed (sent ' + fewer.pinGuessesPerDay + ')', fewer.pinGuessesPerDay === 3);
+const noTries = sent(await run({ pinGuessesPerDay: '' }));
+ok('an empty box is twenty (sent ' + noTries.pinGuessesPerDay + ')', noTries.pinGuessesPerDay === 20);
+
 ok('the clamped value is written back to the box, so it shows what was saved '
    + '(box reads ' + negative.elements.maxProfiles.value + ')',
    String(negative.elements.maxProfiles.value) === '1');
@@ -249,28 +316,30 @@ ok('the clamped value is written back to the box, so it shows what was saved '
 console.log('\n── The other five are read from the page ──────────────────────');
 
 const flipped = await run({
-    requireMasterPin: false,
+    requireMainPin: true,
+    enablePinResetByEmail: true,
     disallowCustomAvatars: true,
     defaultAskOnStartup: false,
     defaultSwitcherLocation: 'menu',
-    indexInjectionMode: 'both'
+    defaultTimeZone: 'Europe/London'
 });
 const flippedBody = sent(flipped);
-ok('requireMasterPinForCreation follows the checkbox', flippedBody.requireMasterPinForCreation === false);
+ok('requireMainPin follows the checkbox', flippedBody.requireMainPin === true && sent(await run({})).requireMainPin === false);
+ok('enablePinResetByEmail follows the checkbox', flippedBody.enablePinResetByEmail === true && sent(await run({})).enablePinResetByEmail === false);
 ok('disallowCustomAvatarUploads follows the checkbox', flippedBody.disallowCustomAvatarUploads === true);
 ok('defaultAskOnStartup follows the checkbox', flippedBody.defaultAskOnStartup === false);
 ok('defaultSwitcherLocation follows the select', flippedBody.defaultSwitcherLocation === 'menu');
-ok('indexInjectionMode follows the select', flippedBody.indexInjectionMode === 'both');
+ok('defaultTimeZone follows the select, empty for the server\'s own', flippedBody.defaultTimeZone === 'Europe/London' && sent(await run({})).defaultTimeZone === '');
 
 // The picture quality select: its three values go through, anything else is sent as
 // standard, which is the server's own fallback and never a refusal.
 const higher = await run({ profileImageQuality: 'high' });
 ok('profileImageQuality follows the select', sent(higher).profileImageQuality === 'high');
-const unknownQuality = await run({ profileImageQuality: 'ultra' });
+const unknownQuality = await run({ profileImageQuality: 'enormous' });
 ok('an unknown picture quality is sent as standard', sent(unknownQuality).profileImageQuality === 'standard');
 
-// Anything unrecognised in the location select becomes 'button' rather than being sent
-// on: the server rejects what it does not know, and this is a two-option select.
+// Anything unrecognized in the location select becomes 'button' instead of being sent: the
+// server rejects what it does not know, and this is a two-option select.
 const odd = await run({ defaultSwitcherLocation: 'somewhere-else' });
 ok('an unknown switcher location is sent as button',
    sent(odd).defaultSwitcherLocation === 'button');

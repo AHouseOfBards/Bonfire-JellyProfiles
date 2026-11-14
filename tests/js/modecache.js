@@ -70,9 +70,8 @@ function check(name, actual, expected) {
 function reset(currentUserId, cache, masterState, deviceGate) {
     sandbox.localStorage.clear();
     PP._switcherPrefs = null;
-    // The per-device answer is cached in memory too, because it is read from the 500 ms
-    // route poll. Left set, it would carry between cases and every result here would be
-    // whatever the previous case happened to store.
+    // 1.7.1 cached its per-device answer in memory. Cleared so that, run against that
+    // build, each case reads what it stored rather than the previous case's answer.
     PP._deviceGateLoaded = false;
     PP._deviceGate = null;
     sandbox.ApiClient = { getCurrentUserId: () => currentUserId, accessToken: () => 'tok', getUrl: p => p };
@@ -147,128 +146,64 @@ PP._switcherPrefs = null;
 check('cache write -> persisted', PP.getSwitcherPrefs(), { askOnStartup: true, location: 'menu' });
 check('ask+menu is reachable (issue #14)', [PP.shouldAskOnStartup(), PP.isMenuLocation()], [true, true]);
 
-// ── One device keeping its own answer ────────────────────────────────────────────
+// ── One answer per account ───────────────────────────────────────────────────────
 //
-// askOnStartup is a household setting, which is wrong for the home where the living-room
-// TV should always ask and the tablet one person uses never should. Unchecking "use the
-// same answer on all my devices" takes this machine out of the household answer without
-// touching the others; re-checking it pushes this machine's answer back up.
+// 1.6 to 1.7.1 had "Use the same answer on all my devices": unticked, a device kept its own
+// answer to the startup question in localStorage, outranking the account's. 1.7.2 cut it:
+// ask-on-startup is one answer per account. A TV upgraded from 1.7.1 still carries the old
+// entry, so nothing may honour it, it must be cleared, and the dialog must offer no way to
+// make one.
 //
-// Every case below is red against 1.6.1, which has no such thing.
+// Every case below is red against 1.7.1, where the entry decided.
 
 console.log('');
-console.log('One device keeping its own answer');
-console.log('---------------------------------');
+console.log('One answer per account');
+console.log('----------------------');
 
-const HAS_DEVICE_GATE = typeof PP.setDeviceGate === 'function'
-    && typeof PP.isGateSynced === 'function'
-    && typeof PP.getDeviceGatePref === 'function';
+const own = (id, ask) => ({ [id.toLowerCase().replace(/[^a-z0-9]/g, '')]: { synced: false, askOnStartup: ask } });
+const HOUSEHOLD = { askOnStartup: true, location: 'button', masterUserId: MASTER };
+const QUIET = { askOnStartup: false, location: 'button', masterUserId: MASTER };
 
-// Named rather than assumed, so an older build reports one clear failure here instead of
-// throwing partway through and leaving the rest of the section unrun and unaccounted for.
-check('the client can be told to keep a per-device answer', HAS_DEVICE_GATE, true);
+reset(MASTER, HOUSEHOLD, null, own(MASTER, false));
+check('household asks, leftover device entry says no -> the gate is still asked for',
+    PP.shouldAskOnStartup(), true);
 
-if (HAS_DEVICE_GATE) {
-    const HOUSEHOLD = { askOnStartup: true, location: 'button', masterUserId: MASTER };
-    const own = (id, ask) => ({ [id.toLowerCase().replace(/[^a-z0-9]/g, '')]: { synced: false, askOnStartup: ask } });
+reset(MASTER, QUIET, null, own(MASTER, true));
+check('household does not ask, leftover entry says ask -> no gate', PP.shouldAskOnStartup(), false);
 
-    // The default. Every device that has never been told otherwise still follows the
-    // household, which is the whole of the old behaviour and must not have moved.
-    reset(MASTER, HOUSEHOLD, null);
-    check('by default a device is synced', PP.isGateSynced(), true);
-    check('by default it has no answer of its own', PP.getDeviceGatePref(), null);
-    check('so the household answer still decides', PP.shouldAskOnStartup(), true);
+// 1.7.1 answered this from the device entry alone, before the account was known.
+reset(MASTER, null, null, own(MASTER, true));
+check('a leftover entry with nothing else known does not raise the gate', PP.shouldAskOnStartup(), false);
 
-    // The point of the feature: the device overrules the household, both ways round.
-    reset(MASTER, HOUSEHOLD, null, own(MASTER, false));
-    check('an unsynced device is reported unsynced', PP.isGateSynced(), false);
-    check('household says ask, device says no -> no gate', PP.shouldAskOnStartup(), false);
+reset(SUB, HOUSEHOLD, { masterUserId: MASTER, masterToken: 't' }, own(MASTER, false));
+check('nor does it decide for a profile of that account', PP.shouldAskOnStartup(), true);
 
-    reset(MASTER, { askOnStartup: false, location: 'menu', masterUserId: MASTER }, null, own(MASTER, true));
-    check('household says no, device says ask -> gate', PP.shouldAskOnStartup(), true);
+console.log('');
+console.log('The leftover is cleared, once');
+console.log('-----------------------------');
 
-    // Only the startup question is per-device. The location decides whether the floating
-    // button exists at all, and a household with no consistent answer to that has no
-    // consistent place to reach the switcher.
-    check('the location is untouched by the device answer', PP.isMenuLocation(), true);
-    check('and the household answer is still readable underneath',
-        PP.getSwitcherPrefs(), { askOnStartup: false, location: 'menu' });
+// Read from the source because init does more than this harness can stand up. The key must
+// be cleared at startup and not touched by the route poll, which runs twice a second forever.
+{
+    const s = L.readProfiles();
+    const initAt = s.indexOf('        init: function ()');
+    const initBody = initAt === -1 ? '' : s.slice(initAt, s.indexOf('\n        },', initAt));
+    check('init removes the stored device answer',
+        /localStorage\.removeItem\(this\.config\.deviceGateKey\)/.test(initBody), true);
+    const crAt = s.indexOf('        checkRoute: function');
+    const crBody = crAt === -1 ? '' : s.slice(crAt, s.indexOf('\n        },', crAt));
+    check('and checkRoute never mentions it', crAt !== -1 && crBody.indexOf('deviceGate') === -1, true);
+}
 
-    // A device that knows its own answer does not need the server to raise the gate, so
-    // this settles on the first paint instead of after the preferences request.
-    reset(MASTER, null, null, own(MASTER, true));
-    check('a device answer needs no household cache', PP.shouldAskOnStartup(), true);
-    check('even though the household is still unknown', PP.getSwitcherPrefs(), null);
-
+(async () => {
     console.log('');
-    console.log('The device answer is filed per account');
-    console.log('--------------------------------------');
+    console.log('The dialog');
+    console.log('----------');
 
-    // Same rule the preferences cache follows. An entry left by whoever used this browser
-    // last must never decide anything for the person using it now.
-    // Given its own household cache, so this shows the entry being ignored rather than
-    // the account simply having nothing to read — the preferences cache is account-scoped
-    // too, and would have rejected itself and produced the same answer for a different
-    // reason. The two answers are opposites, so only one of them can be the one reported.
-    reset(OTHER, { askOnStartup: true, location: 'button', masterUserId: OTHER }, null, own(MASTER, false));
-    check('another account\'s entry is ignored', PP.getDeviceGatePref(), null);
-    check('and that account gets its own household answer', PP.shouldAskOnStartup(), true);
-
-    // One answer per device for the whole household, not one per profile: a child landing
-    // on the TV must get the same treatment the TV was set up with.
-    reset(SUB, HOUSEHOLD, { masterUserId: MASTER, masterToken: 't' }, own(MASTER, false));
-    check('a sub-profile reads the master\'s device answer', PP.getDeviceGatePref(), false);
-
-    reset('{' + MASTER.toUpperCase() + '}', HOUSEHOLD, null, own(MASTER, false));
-    check('guid formatting differences tolerated', PP.getDeviceGatePref(), false);
-
-    reset(MASTER, HOUSEHOLD, null);
-    sandbox.localStorage.setItem(PP.config.deviceGateKey, '{not json');
-    check('a corrupt entry falls back to the household, no throw', PP.shouldAskOnStartup(), true);
-
-    console.log('');
-    console.log('Leaving and rejoining the household');
-    console.log('-----------------------------------');
-
-    reset(MASTER, HOUSEHOLD, null);
-    PP.setDeviceGate(false, true);
-    check('leaving records the answer it was given', PP.getDeviceGatePref(), true);
-    PP._deviceGateLoaded = false;
-    check('and it survives being re-read from storage', PP.getDeviceGatePref(), true);
-
-    PP.setDeviceGate(false, false);
-    check('the device answer can then be changed on its own', PP.getDeviceGatePref(), false);
-    check('without disturbing the household answer',
-        PP.getSwitcherPrefs(), { askOnStartup: true, location: 'button' });
-
-    PP.setDeviceGate(true);
-    check('rejoining clears the device answer', PP.getDeviceGatePref(), null);
-    check('and the device is synced again', PP.isGateSynced(), true);
-    check('so the household answer decides once more', PP.shouldAskOnStartup(), true);
-    check('and nothing is left behind in storage',
-        sandbox.localStorage.getItem(PP.config.deviceGateKey), null);
-
-    // Rejoining is what carries this device's answer to the rest of the house, so the
-    // request has to go out before the local entry is cleared — otherwise a server that
-    // refuses drops the device onto a household answer nobody asked for. Read from the
-    // source because it is the ordering inside one handler, which no stub can observe.
-    const src = L.readProfiles();
-    const handler = src.slice(src.indexOf("syncCb.addEventListener('change'"),
-                              src.indexOf("syncCb.addEventListener('change'") + 1400);
-    check('rejoining posts before it clears',
-        handler.indexOf('save(') !== -1
-        && handler.indexOf('save(') < handler.indexOf('setDeviceGate(true)'), true);
-    check('and stays unsynced if the server refuses',
-        /if\s*\(!applied\)\s*\{\s*syncCb\.checked = false;\s*return;/.test(handler), true);
-
-    console.log('');
-    console.log('The dialog that sets it');
-    console.log('-----------------------');
-
-    // Nothing else in the suite runs showSwitcherModeModal, and "it parses" is not "it
-    // runs" — that distinction shipped 1.5.2 and 1.5.3-beta dead on arrival. Render it for
-    // real and read the markup back.
+    // Nothing else in the suite runs showSwitcherModeModal, and "it parses" is not "it runs"
+    // (1.5.2 and 1.5.3-beta shipped dead that way). Render it and read the markup back.
     const boxChecked = (html, id) => new RegExp('id="' + id + '"\\s+checked\\s').test(html);
+    const posts = [];
 
     function renderSwitcherModal() {
         const nodes = {};
@@ -291,76 +226,52 @@ if (HAS_DEVICE_GATE) {
         sandbox.document.querySelector = sel =>
             (sel === '.profiles-modal-content' ? content : null);
 
+        posts.length = 0;
+        sandbox.fetch = (url, init) => {
+            const body = init && init.body ? JSON.parse(init.body) : null;
+            posts.push({ url: String(url), body: body });
+            return Promise.resolve({ ok: true, json: () => Promise.resolve(body || {}) });
+        };
+
         let threw = null;
         try { PP.showSwitcherModeModal(); } catch (e) { threw = e; }
 
-        // A browser sets .checked from the rendered attribute, and the handlers read
-        // .checked. Without this the stub reports every box unticked no matter what was
-        // drawn, and a handler that read the wrong box would still look right here.
-        ['switcher-ask-startup', 'switcher-sync-devices'].forEach(id => {
-            if (nodes[id]) nodes[id].checked = boxChecked(content.innerHTML, id);
-        });
-
+        // A browser sets .checked from the rendered attribute, and the handlers read it.
+        if (nodes['switcher-ask-startup']) {
+            nodes['switcher-ask-startup'].checked = boxChecked(content.innerHTML, 'switcher-ask-startup');
+        }
         return { html: content.innerHTML, nodes, listeners, threw };
     }
+    const settle = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 
     const MASTER_STATE = { masterUserId: MASTER, masterToken: 't' };
 
     reset(MASTER, HOUSEHOLD, MASTER_STATE);
     let ui = renderSwitcherModal();
-    check('the dialog renders without throwing',
-        ui.threw === null || ui.threw.message, true);
-    check('and puts the sync box on screen',
-        ui.html.indexOf('id="switcher-sync-devices"') !== -1, true);
-    check('a synced device shows the box ticked', boxChecked(ui.html, 'switcher-sync-devices'), true);
-    check('and the startup box shows the household answer',
-        boxChecked(ui.html, 'switcher-ask-startup'), true);
-    check('both boxes are wired to something',
-        !!(ui.listeners['switcher-ask-startup'] && ui.listeners['switcher-ask-startup'].change
-           && ui.listeners['switcher-sync-devices'] && ui.listeners['switcher-sync-devices'].change), true);
+    check('the dialog renders without throwing', ui.threw === null || ui.threw.message, true);
+    check('and has no "same answer on all my devices" box',
+        ui.html.indexOf('switcher-sync-devices') === -1, true);
+    check('the startup box shows the account\'s answer', boxChecked(ui.html, 'switcher-ask-startup'), true);
 
-    // The box has to show what the device will actually do, not what the household holds,
-    // or somebody reads "ask on startup" off a screen that will never ask.
+    // The box shows what the device will do, and a leftover entry no longer changes that.
     reset(MASTER, HOUSEHOLD, MASTER_STATE, own(MASTER, false));
     ui = renderSwitcherModal();
-    check('an unsynced device shows the box unticked',
-        boxChecked(ui.html, 'switcher-sync-devices'), false);
-    check('and the startup box shows the device answer, not the household one',
-        boxChecked(ui.html, 'switcher-ask-startup'), false);
+    check('a leftover device entry does not change what the box shows',
+        boxChecked(ui.html, 'switcher-ask-startup'), true);
 
-    // Unticking is the one path that touches no network at all: it takes the answer
-    // already on screen so that leaving the household changes nothing by itself.
+    // Changing the box always goes to the account.
     reset(MASTER, HOUSEHOLD, MASTER_STATE);
     ui = renderSwitcherModal();
-    ui.nodes['switcher-sync-devices'].checked = false;
-    ui.listeners['switcher-sync-devices'].change();
-    check('unticking it records the answer already on screen', PP.getDeviceGatePref(), true);
-    check('and leaves the household answer alone',
-        PP.getSwitcherPrefs(), { askOnStartup: true, location: 'button' });
-
-    // And once unsynced, changing the startup box stays local.
     ui.nodes['switcher-ask-startup'].checked = false;
     ui.listeners['switcher-ask-startup'].change();
-    check('the startup box then writes only to this device', PP.getDeviceGatePref(), false);
-    check('still without moving the household answer',
-        PP.getSwitcherPrefs(), { askOnStartup: true, location: 'button' });
+    await settle();
+    const prefPosts = posts.filter(p => /plugins\/profiles\/preferences/.test(p.url));
+    check('unticking it saves to the account', prefPosts.length === 1 && prefPosts[0].body.askOnStartup, false);
+    check('and the account\'s answer follows', PP.shouldAskOnStartup(), false);
+    check('nothing is stored on the device',
+        sandbox.localStorage.getItem(PP.config.deviceGateKey), null);
 
     console.log('');
-    console.log('What a sign-out does to it');
-    console.log('--------------------------');
-
-    // The one Bonfire key that outlives a sign-out. A TV told to ignore the household
-    // answer must not quietly rejoin it because somebody signed out on it, and the
-    // per-account filing above is what makes leaving it there safe.
-    const signOut = L.readProfiles();
-    const block = signOut.slice(signOut.indexOf("document.addEventListener('usersignedout'"),
-                                signOut.indexOf("document.addEventListener('usersignedout'") + 1400);
-    check('sign-out does not remove the stored device answer',
-        block.indexOf('removeItem(this.config.deviceGateKey)') === -1, true);
-    check('but it does drop the in-memory copy',
-        /_deviceGateLoaded = false/.test(block), true);
-}
-
-console.log('');
-console.log(`${pass} passed, ${fail} failed`);
-process.exit(fail === 0 ? 0 : 1);
+    console.log(`${pass} passed, ${fail} failed`);
+    process.exit(fail === 0 ? 0 : 1);
+})().catch(e => { console.error(e); process.exit(1); });

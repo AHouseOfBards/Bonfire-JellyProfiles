@@ -35,8 +35,8 @@ const INJECTION_FNS = [
     'syncUserMenuEntry', 'syncPreferencesMenuEntry',
     'injectProfilePageSection', '_findHeaderContainer', '_searchForHeaderContainer',
     '_findGeometricHeaderAnchor',
-    '_insertBeforeUserBtn', 'closeUserMenu', 'monitorAndHideShadowProfiles',
-    'applyUsersHide',
+    '_insertBeforeUserBtn', 'closeUserMenu', 'syncHiddenProfiles',
+    '_applyHiddenProfiles',
     // checkRoute was missed when this list was written, on the reading that it only
     // classifies the route. It also runs the playback-OSD query — four selectors aimed
     // squarely at jellyfin-web, in the hottest path in the client, with nothing tracking
@@ -107,7 +107,7 @@ function note(sel, fn) {
  */
 function queryArguments(body) {
     const out = [];
-    const call = /(?:querySelector(?:All)?|closest|matches)\(\s*/g;
+    const call = /(?:querySelector(?:All)?|closest|matches)\s*\(\s*/g;
     let m;
     while ((m = call.exec(body)) !== null) {
         let i = m.index + m[0].length;
@@ -134,13 +134,34 @@ function queryArguments(body) {
 
 for (const fn of INJECTION_FNS) {
     const body = methodBody(fn);
-    if (body === null) continue;   // deleted, e.g. by P3-2
+    // Was `continue`, silently: rename a listed function and every selector in it stopped
+    // being checked while this stayed green. A function that goes away, or is renamed, now
+    // has to be taken off the list (or put on it under its new name) on purpose.
+    ok(body !== null, 'injection function ' + fn + ' is still where this list expects it',
+        'rename or remove it in INJECTION_FNS, or its selectors go unchecked');
+    if (body === null) continue;
+    // A selector the extractor cannot read is a selector nobody checked: a variable, a
+    // template literal, a concatenation that starts with one. The only non-literal
+    // argument accepted is a named selector constant, which constRe below reads.
+    const nonLiteral = /(?:querySelector(?:All)?|closest|matches)\s*\(\s*([^'"\s)][^)\n]*)/g;
+    let nl;
+    while ((nl = nonLiteral.exec(body)) !== null) {
+        ok(/^this\.(USER_MENU_SELECTOR|TRAP_SURFACE_SELECTOR|USERS_CARD_SELECTOR)\b/.test(nl[1]),
+            fn + ' passes a selector the ledger check cannot read',
+            nl[0].trim() + ' - write it as a string literal, or as one of the named selector constants');
+    }
     queryArguments(body).forEach(arg => {
         splitSelectorList(arg).forEach(s => note(s, fn));
     });
+    // getElementsByClassName names classes, not a selector; the ledger writes them as one.
+    const byClass = /getElementsByClassName\s*\(\s*(['"])([^'"]+)\1/g;
+    let bc;
+    while ((bc = byClass.exec(body)) !== null) {
+        bc[2].split(/\s+/).filter(Boolean).forEach(c => note('.' + c, fn));
+    }
 }
 // Selector constants used by the same code.
-const constRe = /(?:USER_MENU_SELECTOR|TRAP_SURFACE_SELECTOR):\s*(['"])([\s\S]*?)\1/g;
+const constRe = /(?:USER_MENU_SELECTOR|TRAP_SURFACE_SELECTOR|USERS_CARD_SELECTOR):\s*(['"])([\s\S]*?)\1/g;
 let cm;
 while ((cm = constRe.exec(src)) !== null) {
     splitSelectorList(cm[2]).forEach(s => note(s, 'selector constant'));
@@ -149,6 +170,40 @@ while ((cm = constRe.exec(src)) !== null) {
 // ── the ledger ──────────────────────────────────────────────────────────────
 const ledger = JSON.parse(fs.readFileSync(LEDGER, 'utf8'));
 const known = new Map(ledger.selectors.map(e => [e.selector, e]));
+
+// ── selectors outside the listed functions ─────────────────────────────────
+//
+// INJECTION_FNS is a list somebody has to remember to extend. A query added to any other
+// function that reaches into jellyfin-web was invisible here. So every literal query in the
+// whole file is read, and a class or id in it must be one of ours: written somewhere in the
+// script outside a query call (markup, a className), or defined in styles.css. One that is
+// neither is aimed at somebody else's page and belongs in the ledger, in a listed function.
+{
+    const css = L.stylesOnly();
+    const queryLiteral = /(?:querySelector(?:All)?|closest|matches)\s*\(\s*(['"])((?:\\.|(?!\1).)*)\1/g;
+    const outsideQueries = src.replace(queryLiteral, 'Q()');
+    const owned = name => new RegExp('(?<![\\w-])' + name.replace(/[-]/g, '\\-') + '(?![\\w-])').test(outsideQueries)
+        || new RegExp('(?<![\\w-])' + name.replace(/[-]/g, '\\-') + '(?![\\w-])').test(css);
+    const foreign = [];
+    let cur = '(top)';
+    lines.forEach((l, i) => {
+        const mm = /^\s{8}([a-zA-Z_$][\w$]*): (async )?function/.exec(l);
+        if (mm) cur = mm[1];
+        if (INJECTION_FNS.indexOf(cur) !== -1) return;
+        let q;
+        queryLiteral.lastIndex = 0;
+        while ((q = queryLiteral.exec(l)) !== null) {
+            splitSelectorList(q[2]).forEach(sel => {
+                if (known.has(sel)) return;
+                (sel.match(/[.#][A-Za-z_][\w-]*/g) || []).forEach(tok => {
+                    if (!owned(tok.slice(1))) foreign.push(tok + ' in ' + cur + ' (line ' + (i + 1) + ')');
+                });
+            });
+        }
+    });
+    ok(foreign.length === 0, 'no function outside INJECTION_FNS queries a class or id that is not ours',
+        foreign.join('\n      ') + '\n      Add the function to INJECTION_FNS and record the selector in the ledger.');
+}
 
 ok(used.size > 20, 'the extractor actually found selectors',
     'only found ' + used.size + ' — has the injection code moved?');
@@ -216,4 +271,4 @@ if (failures.length) {
     console.log('');
     process.exit(1);
 }
-console.log('  OK');
+console.log('  ' + passed + ' passed, 0 failed');

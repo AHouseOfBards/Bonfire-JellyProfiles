@@ -13,33 +13,30 @@ using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Users;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ProfilePolicySync.ApplyAsync, run for real (R-1286).
 //
-// This is the clamp behind "a profile never gets more than its main account". It runs
-// from the web switch and from every sign-in on every client, and until this harness no
-// test executed it: tests/cs/switchpolicy reads source text and replays the arithmetic on
-// local values. A clamp nobody runs can be deleted with every check still green.
+// This is the clamp behind "a profile never gets more than its main account". It runs from
+// the web switch and every sign-in on every client, and until this harness no test executed
+// it: tests/cs/switchpolicy reads source text and replays the arithmetic. A clamp nobody
+// runs can be deleted with every check still green.
 //
-// Here the real ApplyAsync is called against a modelled Jellyfin — a user manager that
-// stores each account's policy and records every write, and a library manager with three
-// libraries — and the policy it writes is read back. What it is held to:
-//
+// The real ApplyAsync runs against a modelled Jellyfin (a user manager that stores each
+// account's policy and records writes, a library manager with three libraries) and the
+// written policy is read back. Held to:
 //   - a profile can't gain a library, tag, rating or schedule its main account lacks;
 //   - what the main account lost, the profile loses;
 //   - where the profile was narrower, it stays narrower;
 //   - a main account's own row is never touched, and an account already right is not
 //     rewritten (this runs twice on every sign-in);
-//   - a library an administrator adds or removes in Dashboard -> Users stays that way,
-//     and a reset is still repaired (R-1042: removals used to come back, because the
-//     stored list won). Red against 6e74bac: 12 fail.
+//   - a library added or removed in Dashboard -> Users stays that way and a reset is still
+//     repaired (R-1042: removals used to come back, because the stored list won).
+//     Red against 6e74bac: 12 fail.
 //
-// Shown able to go red by deleting the line in ApplyCoreAsync that intersects the
-// profile's libraries with the main account's (`authorityFolders = authorityFolders
-// .Where(id => masterAccessible.Contains(id))`): the library assertions fail.
+// Shown red by deleting the line in ApplyCoreAsync that intersects the profile's libraries
+// with the main account's (`authorityFolders = authorityFolders.Where(id =>
+// masterAccessible.Contains(id))`): the library assertions fail.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();
@@ -77,6 +74,9 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-policysync-" + Guid.NewG
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 
 var L1 = Guid.NewGuid(); var L2 = Guid.NewGuid(); var L3 = Guid.NewGuid();
@@ -175,10 +175,9 @@ Console.WriteLine("── Libraries ──────────────�
 }
 
 // ── Libraries changed in Dashboard -> Users (R-1042) ────────────────────────
-// A library an administrator took off a profile's account came back at the next sign-in:
-// the stored list won, because a removal and a reset looked the same. Bonfire now records
-// what it last wrote, so a change on the account is adopted both ways and a reset is
-// still repaired.
+// A library an administrator took off a profile's account came back at the next sign-in,
+// because a removal and a reset looked the same. Bonfire now records what it last wrote, so
+// a change on the account is adopted both ways and a reset is still repaired.
 Console.WriteLine();
 Console.WriteLine("── Libraries changed in Dashboard -> Users (R-1042) ────────────");
 {
@@ -345,6 +344,69 @@ Console.WriteLine("── Rating ───────────────�
        world.Written(p)?.MaxParentalSubRating == 1);
 }
 
+// A main account set to PG for an evening used to leave every profile at PG for good: the
+// profile's rating was whatever was on its account, mostly what Bonfire wrote last time
+// (R-1045). Same fix as InheritedLimits: remember what Bonfire last wrote, and read a
+// different value as somebody's own choice.
+Console.WriteLine();
+Console.WriteLine("── Rating, after the main account relaxes (R-1045) ─────────────");
+{
+    var ownProp = mapType.GetProperty("OwnRating");
+    var lastProp = mapType.GetProperty("LastAppliedRating");
+    Ok("the mapping records the rating Bonfire last wrote and the profile's own", ownProp != null && lastProp != null);
+    object RowOf(Guid id) => mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == id);
+    int? Score(object rating) => rating == null ? null : (int?)rating.GetType().GetProperty("Score").GetValue(rating);
+    void MasterSets(Guid profile, int? rating) =>
+        world.Policies[world.Masters[profile]] = Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = rating; });
+    void AdminSets(Guid profile, int? rating)
+    {
+        var pol = World.Copy(world.Policies[profile]);
+        pol.MaxParentalRating = rating;
+        world.Policies[profile] = pol;
+    }
+    int? Now(Guid profile) => world.Policies[profile].MaxParentalRating;
+
+    // No rating of its own: it follows the main account both ways.
+    var p = Household(Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 17; }),
+                      Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = null; }), all: true);
+    Apply(p);
+    MasterSets(p, 7); Apply(p);
+    Ok("the profile follows the main account down (" + Now(p) + ")", Now(p) == 7);
+    MasterSets(p, 17); Apply(p);
+    Ok("and back up when it relaxes (" + Now(p) + ")", Now(p) == 17);
+    MasterSets(p, null); Apply(p);
+    Ok("and to no limit when the main account has none (" + Now(p) + ")", Now(p) == null);
+
+    // A rating of its own: kept through the evening, never above the main account's.
+    p = Household(Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 17; }),
+                  Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 10; }), all: true);
+    Apply(p);
+    MasterSets(p, 7); Apply(p);
+    Ok("a profile's own rating yields to a stricter main account (" + Now(p) + ")", Now(p) == 7);
+    MasterSets(p, 17); Apply(p);
+    Ok("and returns to its own, not the main account's, once that relaxes (" + Now(p) + ")", Now(p) == 10);
+    Ok("the record holds its own rating (" + Score(ownProp?.GetValue(RowOf(p))) + ")", Score(ownProp?.GetValue(RowOf(p))) == 10);
+
+    // A rating an administrator sets in Dashboard -> Users is the profile's own from then on.
+    AdminSets(p, 13); Apply(p);
+    Ok("a rating set on the account is adopted (" + Now(p) + ")", Now(p) == 13);
+    MasterSets(p, 7); Apply(p);
+    MasterSets(p, 17); Apply(p);
+    Ok("and kept through the same evening (" + Now(p) + ")", Now(p) == 13);
+    AdminSets(p, 20); Apply(p);
+    Ok("but never above the main account's (" + Now(p) + ")", Now(p) == 17);
+    AdminSets(p, null); Apply(p);
+    Ok("and removing it on the account hands the profile back to the main account's (" + Now(p) + ")", Now(p) == 17);
+
+    // A configuration from before the record: today's reading once, then recorded.
+    p = Household(Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 17; }),
+                  Policy(u => { u.EnableAllFolders = true; u.MaxParentalRating = 10; }), all: true);
+    Ok("a profile from before it has no record", ownProp != null && ownProp.GetValue(RowOf(p)) == null && lastProp.GetValue(RowOf(p)) == null);
+    Apply(p);
+    Ok("it keeps the narrower rating on the account (" + Now(p) + ")", Now(p) == 10);
+    Ok("and is recorded", Score(lastProp?.GetValue(RowOf(p))) == 10);
+}
+
 // ── Schedules, limits, permissions ───────────────────────────────────────────
 Console.WriteLine();
 Console.WriteLine("── Schedules, limits and permissions ───────────────────────────");
@@ -366,6 +428,100 @@ Console.WriteLine("── Schedules, limits and permissions ──────�
     w = world.Written(p);
     Ok("narrowing the main account's hours narrows the profile's",
        w?.AccessSchedules?.Length == 1 && w.AccessSchedules[0].StartHour == 9 && w.AccessSchedules[0].EndHour == 17);
+
+    // ── Hours changed in Dashboard -> Users (R-1345) ────────────────────────
+    // Every sign-in used to replace the profile's hours with its main account's, losing a
+    // narrower schedule set on the profile. Bonfire now records what it last wrote, as for libraries.
+    Console.WriteLine("  -- hours changed in Dashboard -> Users (R-1345) --");
+    var schedLast = mapType.GetProperty("LastAppliedSchedules");
+    var schedOwn = mapType.GetProperty("OwnSchedules");
+    object SRow(Guid id) => mappings.Cast<object>().First(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == id);
+    string Hours(Guid id) => string.Join(",", (world.Policies[id].AccessSchedules ?? Array.Empty<AccessSchedule>())
+        .Select(s => (int)s.DayOfWeek + ":" + s.StartHour + "-" + s.EndHour).OrderBy(x => x));
+    void AdminHours(Guid id, params (int start, int end)[] windows)
+    {
+        var pol = World.Copy(world.Policies[id]);
+        pol.AccessSchedules = windows.Select(x => Sched(id, x.start, x.end)).ToArray();
+        world.Policies[id] = pol;
+    }
+    void MasterHours(Guid profile, params (int start, int end)[] windows)
+    {
+        var pol = World.Copy(world.Policies[world.Masters[profile]]);
+        pol.AccessSchedules = windows.Select(x => Sched(world.Masters[profile], x.start, x.end)).ToArray();
+        world.Policies[world.Masters[profile]] = pol;
+    }
+
+    Ok("the mapping records the hours Bonfire last applied, and the profile's own", schedLast != null && schedOwn != null);
+    var hp = Household(Policy(u => { u.EnableAllFolders = true; u.AccessSchedules = new[] { Sched(mid, 8, 20) }; }),
+                       Policy(u => u.EnableAllFolders = true), all: true);
+    Apply(hp);
+    Ok("the first sign-in records what it applied (" + string.Join(",", schedLast?.GetValue(SRow(hp)) as List<string> ?? new()) + ")",
+       schedLast != null && ((schedLast.GetValue(SRow(hp)) as List<string>)?.Count ?? 0) == 1);
+
+    AdminHours(hp, (10, 18));
+    Apply(hp);
+    Ok("a narrower schedule an administrator set holds (" + Hours(hp) + ")", Hours(hp) == "7:10-18");
+    Apply(hp);
+    Ok("and holds at the sign-in after (" + Hours(hp) + ")", Hours(hp) == "7:10-18");
+
+    MasterHours(hp, (9, 17));
+    Apply(hp);
+    Ok("while the main account tightening still reaches it: never wider than the main account's (" + Hours(hp) + ")", Hours(hp) == "7:10-17");
+
+    AdminHours(hp, (6, 22));
+    Apply(hp);
+    Ok("an administrator can't widen it past the main account's (" + Hours(hp) + ")", Hours(hp) == "7:9-17");
+
+    // A reset: Jellyfin's default is no schedule at all.
+    var rp = Household(Policy(u => { u.EnableAllFolders = true; u.AccessSchedules = new[] { Sched(mid, 8, 20) }; }),
+                       Policy(u => u.EnableAllFolders = true), all: true);
+    Apply(rp);
+    AdminHours(rp);
+    Apply(rp);
+    Ok("a reset account is repaired to the main account's hours (" + Hours(rp) + ")", Hours(rp) == "7:8-20");
+    AdminHours(rp, (10, 18)); Apply(rp);
+    AdminHours(rp);
+    Apply(rp);
+    Ok("and a profile with hours of its own keeps them through a reset (" + Hours(rp) + ")", Hours(rp) == "7:10-18");
+
+    // A main account that has no hours: the administrator's are the only ones.
+    var np = Household(Policy(u => u.EnableAllFolders = true), Policy(u => u.EnableAllFolders = true), all: true);
+    Apply(np);
+    AdminHours(np, (15, 19));
+    Apply(np);
+    Ok("with a main account that has none, the administrator's hold (" + Hours(np) + ")", Hours(np) == "7:15-19");
+
+    // An old configuration: no record. Today's rule once, then recorded.
+    var op = Household(Policy(u => { u.EnableAllFolders = true; u.AccessSchedules = new[] { Sched(mid, 8, 20) }; }),
+                       Policy(u => { u.EnableAllFolders = true; u.AccessSchedules = new[] { Sched(Guid.Empty, 10, 18) }; }), all: true);
+    schedLast?.SetValue(SRow(op), null);
+    Apply(op);
+    Ok("an old configuration with no record keeps today's behaviour once (" + Hours(op) + ")", Hours(op) == "7:8-20");
+    Ok("and is recorded", schedLast != null && (schedLast.GetValue(SRow(op)) as List<string>)?.Count == 1);
+    AdminHours(op, (10, 18));
+    Apply(op);
+    Ok("after which an administrator's schedule holds there too (" + Hours(op) + ")", Hours(op) == "7:10-18");
+
+    var sx = new System.Xml.Serialization.XmlSerializer(cfgType);
+    var scfg = Activator.CreateInstance(cfgType);
+    var srow = Activator.CreateInstance(mapType);
+    mapType.GetProperty("ProfileUserId").SetValue(srow, Guid.NewGuid());
+    schedLast?.SetValue(srow, new List<string> { "7:8-20" });
+    schedOwn?.SetValue(srow, new List<string> { "7:10-18" });
+    ((IList)cfgType.GetProperty("Mappings").GetValue(scfg)).Add(srow);
+    var ssw = new StringWriter();
+    sx.Serialize(ssw, scfg);
+    var sback = ((IList)cfgType.GetProperty("Mappings").GetValue(sx.Deserialize(new StringReader(ssw.ToString()))))[0];
+    Ok("both survive a save and a load", schedLast != null && (schedLast.GetValue(sback) as List<string>)?.SequenceEqual(new[] { "7:8-20" }) == true
+       && (schedOwn.GetValue(sback) as List<string>)?.SequenceEqual(new[] { "7:10-18" }) == true);
+    var sold = System.Text.RegularExpressions.Regex.Replace(ssw.ToString(), @"<(LastAppliedSchedules|OwnSchedules)>.*?</\1>", "",
+        System.Text.RegularExpressions.RegexOptions.Singleline);
+    object soldBack = null;
+    try { soldBack = sx.Deserialize(new StringReader(sold)); } catch (Exception ex) { Console.WriteLine("    " + ex.Message); }
+    var soldRow = soldBack == null ? null : ((IList)cfgType.GetProperty("Mappings").GetValue(soldBack))[0];
+    Ok("a configuration saved before they existed loads", soldRow != null && !sold.Contains("Schedules>"));
+    Ok("and arrives with no record (XmlSerializer gives an empty list, which must read as none)",
+       soldRow != null && ((schedLast?.GetValue(soldRow) as List<string>)?.Count ?? 0) == 0);
 
     p = Household(Policy(u => { u.EnableAllFolders = true; u.RemoteClientBitrateLimit = 8_000_000; u.MaxActiveSessions = 3; }),
                   Policy(u => { u.EnableAllFolders = true; u.RemoteClientBitrateLimit = 0; u.MaxActiveSessions = 1; }), all: true);
@@ -421,8 +577,8 @@ return 0;
 public class World
 {
     public Dictionary<Guid, User> Users = new();
-    // Each account's policy as Jellyfin holds it. GetUserDto hands out a copy, the way the
-    // real one builds a fresh DTO: a change only lands through UpdatePolicyAsync.
+    // Each account's policy as Jellyfin holds it. GetUserDto hands out a copy, as the real one
+    // builds a fresh DTO: a change only lands through UpdatePolicyAsync.
     public Dictionary<Guid, UserPolicy> Policies = new();
     public Dictionary<Guid, Guid> Masters = new();
     public List<Guid> Libraries = new();

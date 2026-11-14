@@ -145,6 +145,11 @@ const UA = {
         + 'Version/17.0 Safari/605.1.15',
     android: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) '
         + 'Chrome/119.0.0.0 Mobile Safari/537.36',
+    // Both from upstream's browser.test.ts (12.x).
+    tizen8: 'Mozilla/5.0 (SMART-TV; Linux; Tizen 8.0) AppleWebKit/537.36 (KHTML, like Gecko) '
+        + 'SamsungBrowser/7.0 Chrome/108.0.5359.1 TV Safari/537.36',
+    samsungPhone: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) '
+        + 'SamsungBrowser/24.0 Chrome/117.0.0.0 Mobile Safari/537.36',
     oculus: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '
         + 'OculusBrowser/23.0 SamsungBrowser/4.0 Chrome/104.0.0.0 VR Safari/537.36',
 };
@@ -162,6 +167,8 @@ if (typeof P._uaLooksLikeTv === 'function') {
     ok('desktop Chrome is not', P._uaLooksLikeTv(UA.desktop) === false);
     ok('Safari on a Mac is not', P._uaLooksLikeTv(UA.mac) === false);
     ok('an Android phone is not', P._uaLooksLikeTv(UA.android) === false);
+    ok('Samsung Internet on an Android phone is not (upstream 12.x)', P._uaLooksLikeTv(UA.samsungPhone) === false);
+    ok('a 2024 Samsung set, which also says SamsungBrowser, still is', P._uaLooksLikeTv(UA.tizen8) === true);
     // Upstream's one explicit exclusion: the Oculus browser carries samsungbrowser.
     ok('the Oculus browser is excluded despite samsungbrowser',
         P._uaLooksLikeTv(UA.oculus) === false);
@@ -323,8 +330,8 @@ function overrides(tvSelector, baseSelector, prop) {
 
 // P4-2: cards sized for a screen across a room, in plain px because the TV
 // baselines drop clamp().
-overrides('.jpf-tv .profile-card', '.profile-card', 'width');
-const tvCard = ruleAt('.jpf-tv .profile-card');
+overrides('.jpf-tv .jpf-profile-card', '.jpf-profile-card', 'width');
+const tvCard = ruleAt('.jpf-tv .jpf-profile-card');
 ok('the TV card is around 300px', !!tvCard && /width:\s*300px/.test(tvCard.body));
 ok('and is not itself written with clamp()',
     !!tvCard && !/clamp\s*\(/.test(tvCard.body));
@@ -340,22 +347,38 @@ const tokenSelector = /([^{}]*)\{[^}]*--jpf-gap\s*:\s*20px/.exec(bare);
 ok('the TV token rule names body as well as the root element',
     !!tokenSelector && /\.jpf-tv\s+body/.test(tokenSelector[1]));
 overrides('.jpf-tv .profiles-title', '.profiles-title', 'font-size');
-overrides('.jpf-tv .profile-name', '.profile-name', 'font-size');
+overrides('.jpf-tv .jpf-profile-name', '.jpf-profile-name', 'font-size');
 
 // P4-4: a focus ring findable from three metres.
-const tvFocus = ruleAt('.jpf-tv .profile-section :focus-visible');
+const tvFocus = ruleAt('.jpf-tv .jpf-profile-section :focus-visible');
 ok('TV focus ring is thicker', !!tvFocus && /outline:\s*4px/.test(tvFocus.body));
 // And it must be alone: one unparseable selector invalidates a whole comma list,
 // which would delete the ring on exactly the browsers it is for.
 ok('the TV :focus-visible rule is not folded into a selector list',
-    bare.indexOf('.jpf-tv .profile-section :focus-visible,') === -1);
+    bare.indexOf('.jpf-tv .jpf-profile-section :focus-visible,') === -1);
 
 console.log();
 console.log('── Save stays reachable without a scrollbar (P4-14) ───────────');
 
-const sticky = ruleAt('.create-profile-container > .profile-dialog-actions');
+const sticky = ruleAt('.jpf-create-profile-container > .jpf-profile-dialog-actions');
 ok('the dialog actions are sticky', !!sticky && /position:\s*sticky/.test(sticky.body));
-ok('pinned to the bottom', !!sticky && /bottom:\s*0/.test(sticky.body));
+// Pinned to the bottom of the *container*, which for sticky means its padding edge: an
+// offset of 0 left the container's own padding showing under the bar (P2-503). So the
+// offset has to be the padding, negated, not just any value.
+const stickyContainer = ruleAt('.jpf-create-profile-container');
+// The padding is the variable --jpf-form-pad (so a short screen can change it in one place):
+// the container's padding must be that variable, whose declared size is in rem, and the
+// offset must be that same variable negated. Still the same pairing, resolved by name.
+const padVar = stickyContainer && /(^|[;\s])padding:\s*var\((--[\w-]+)\)/.exec(stickyContainer.body);
+const padSize = padVar && new RegExp('(^|[;\\s])' + padVar[2] + ':\\s*([\\d.]+)rem').exec(stickyContainer.body);
+const stickyBottom = sticky && /(^|[;\s])bottom:\s*calc\(var\((--[\w-]+)\)\s*\*\s*-1\)/.exec(sticky.body);
+ok('pinned to the bottom, past the container\'s own padding',
+    !!padVar && !!padSize && parseFloat(padSize[2]) > 0 && !!stickyBottom && stickyBottom[2] === padVar[2]);
+// It bleeds out through the padding with negative side margins, so its width has to be
+// worked out from them: width: 100% plus padding made it 4rem wider than the column.
+// .jpf-profile-dialog-actions says width: 100%, and this rule is the more specific of the two.
+ok('and takes its width from the bleed (width: auto), not from the base rule\'s 100%',
+    !!sticky && /(^|[;\s])width:\s*auto/.test(sticky.body));
 // A translucent bar lets the form scroll through the buttons.
 // It reads --jpf-panel since themes arrived, so "opaque" is a question about every value
 // that token takes, one at a time: a single translucent theme is enough to bring the
@@ -374,7 +397,7 @@ if (stickyValue === 'var(--jpf-panel)') {
 }
 // Scoped to the scrolling container: sticky resolves against the nearest scrolling
 // ancestor, and this row only ever renders inside that one.
-const scroller = ruleAt('.create-profile-container');
+const scroller = ruleAt('.jpf-create-profile-container');
 ok('and its container really is the scrolling one',
     !!scroller && /overflow-y:\s*auto/.test(scroller.body));
 

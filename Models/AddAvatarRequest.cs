@@ -15,18 +15,4 @@ namespace Jellyfin.Profiles.Models
         /// <summary>Label shown under the image. Trimmed to 60 characters.</summary>
         public string? DisplayName { get; set; }
     }
-
-    public class AvatarSettingsRequest
-    {
-        /// <summary>
-        /// When true, profile pictures may only be chosen from the library. Null leaves the
-        /// setting unchanged.
-        /// </summary>
-        public bool? DisallowCustomAvatarUploads { get; set; }
-
-        /// <summary>
-        /// Whether the built-in starter avatars are offered. Null leaves the setting unchanged.
-        /// </summary>
-        public bool? EnableStarterAvatars { get; set; }
-    }
 }

@@ -1,10 +1,9 @@
-// Exercises the 1.4.2 navigation work: the ticket that stops a slow form drawing
-// itself over the screen you actually asked for, and the cache that stops four of
-// every five requests being made at all.
+// Exercises the 1.4.2 navigation work: the ticket that stops a slow form drawing itself
+// over the screen you asked for, and the cache that stops four of every five requests.
 //
-// This is a race, so most of it is about interleaving: the assertions below run
-// the *reported* sequence — click one screen, click another before the first has
-// returned, then let the first return — and check the second one survives.
+// This is a race, so the assertions run the reported sequence: click one screen, click
+// another before the first has returned, then let the first return, and check the second
+// survives.
 
 const fs = require('fs');
 const vm = require('vm');
@@ -31,7 +30,8 @@ function makeStorage() {
 const noopEl = {
     style: { removeProperty() {}, setProperty() {}, getPropertyValue: () => '' },
     classList: { add() {}, remove() {}, contains: () => false },
-    appendChild() {}, addEventListener() {}, removeEventListener() {}, remove() {}
+    appendChild() {}, addEventListener() {}, removeEventListener() {}, remove() {},
+    setAttribute() {}, removeAttribute() {}, getAttribute: () => null
 };
 
 // Every request the code makes, in order, so we can count what a second open costs.
@@ -95,8 +95,8 @@ console.log('── A ticket is claimed by every screen change ─────�
     check('later ticket wins', PP.navIsCurrent(b), true);
     check('earlier ticket is stale', PP.navIsCurrent(a), false);
 
-    // The synchronous renders are the ones a slow form loses the race to, so they
-    // must claim the screen too — that is the whole reported bug.
+    // The synchronous renders are the ones a slow form loses the race to, so they must claim
+    // the screen too; that is the whole reported bug.
     const before = PP._navTicket;
     PP.renderOverlayContent({
         innerHTML: '',
@@ -132,6 +132,13 @@ console.log('── Four of five requests stop happening ───────�
     check('the first open fetches the shared data', firstCount > 0, true);
     check('it returns all four parts',
         ['libraries', 'devices', 'libraryTags', 'avatarLibrary'].every(k => k in first), true);
+    // 2.0: the libraries, ratings, avatars and time zones are one request, so the shared
+    // half of the form is that, the devices and the library tags.
+    const formReads = requests.filter(u => /plugins\/profiles\/form-options/.test(u));
+    const oldReads = requests.filter(u => /plugins\/profiles\/(libraries|ratings|timezones|avatars)(\?|$)/.test(u));
+    check('the profile form reads form-options once', formReads.length, 1);
+    check('and none of the four routes it replaced', oldReads.length, 0);
+    check('three requests in all, where it was five', firstCount, 3);
 
     requests.length = 0;
     const second = await PP.fetchSharedFormData(sandbox.ApiClient, masterState);

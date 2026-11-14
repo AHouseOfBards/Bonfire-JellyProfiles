@@ -1,8 +1,8 @@
 // Issues #22, #23 and #24, against the real profiles.js.
 //
-// Run against the shipped 1.5.0 file first: every assertion here must FAIL there, or it
-// is not testing the fix. Same technique as busy.js and session.js — evaluate the file
-// with init() swapped for an export, so these are the methods that ship.
+// Run against the shipped 1.5.0 file first: every assertion must FAIL there. Same technique
+// as busy.js and session.js: evaluate the file with init() swapped for an export, so these
+// are the methods that ship.
 //
 //   node issues151.js                 # the working tree
 //   node issues151.js path/to/old.js  # a checkout of 1.5.0, expected to fail
@@ -120,9 +120,8 @@ function at(loc) {
     return calls;
 }
 
-// The reason #22 could not simply reuse the old test: on a path-routed 10.11 build the
-// hash is empty on every page, and `hash === ''` was the first clause — so checkRoute
-// believed every page was home there.
+// Why #22 could not reuse the old test: on a path-routed 10.11 build the hash is empty on
+// every page, and `hash === ''` was the first clause, so checkRoute believed every page was home.
 if (typeof P.isHomeRoute === 'function') {
     at({ pathname: '/web/mypreferencesmenu' });
     ok('a path route that is not home is not home', P.isHomeRoute() === false);
@@ -206,7 +205,8 @@ function countOutsideHelper(needle) {
     return src.split(needle).length - 1;
 }
 ok('the switch calls reloadAtHome',
-    /localStorage\.setItem\(this\.config\.switchingKey, '1'\);\s*\r?\n\s*this\.reloadAtHome\(\);/.test(src));
+    // The write may sit in its own try (R-1212: blocked storage threw past the reload).
+    /localStorage\.setItem\(this\.config\.switchingKey, '1'\);(?:\s*\}\s*catch\s*\(\w+\)\s*\{[^}]*\})?\s*\r?\n\s*this\.reloadAtHome\(\);/.test(src));
 // There was a second reload site, the revert-to-master path. It is gone with the master
 // token it put back (see tests/js/mastertoken.js), so the switch is the one site left.
 ok('and it is the only reload site left', countOutsideHelper('this.reloadAtHome();') === 1);
@@ -219,7 +219,7 @@ ok('"Watching now" is gone from the catalogue', env.i18n.en['gate.watchingNow'] 
 ok('the badge resolves to Signed in',
     env.i18n.t('gate.signedIn') === 'Signed in');
 ok('and the gate renders it through the catalogue, not a literal',
-    /profile-current-badge">\$\{t\('gate\.signedIn'\)\}/.test(src));
+    /jpf-profile-current-badge">\$\{t\('gate\.signedIn'\)\}/.test(src));
 
 // ── #23: cut-out pictures ───────────────────────────────────────────────────
 console.log();
@@ -294,8 +294,11 @@ if (typeof P._alphaProfile !== 'function') {
 console.log();
 console.log('── #23  Wiring ────────────────────────────────────────────────');
 
+// The crop error fix moved the call out of the try block, so the result is built first and
+// handed over after the dialog closes. Either shape must carry the cutout to onDone.
 ok('the crop dialog reports what it detected',
-    src.indexOf('onDone({ image: image, thumb: thumb, cutout: cutout });') !== -1);
+    src.indexOf('onDone({ image: image, thumb: thumb, cutout: cutout });') !== -1 ||
+    /result = \{ image: image, thumb: thumb, cutout: cutout \};[\s\S]{0,400}?onDone\(result\);/.test(src));
 ok('detection reads the cropped result, not the source',
     /const cutout = this\._alphaProfile\(thumbCanvas\)\.cutout;/.test(src));
 ok('the picker exposes the choice', /transparent: state\.transparent/.test(src));
@@ -313,8 +316,8 @@ ok('the libart dialog does not get the row',
     src.indexOf('renderTransparentToggle') !== -1
     && src.indexOf('host.innerHTML = this.renderAvatarPicker("libart"') !== -1);
 
-// Follow-up on #23: the toggle governs the avatar COLOUR, so it belongs beside the
-// swatches, not below the picture panel with the whole picture row in between.
+// Follow-up on #23: the toggle governs the avatar color, so it belongs beside the swatches,
+// not below the picture panel with the whole picture row in between.
 console.log();
 console.log('── #23  Follow-up: placement, wording, rings ──────────────────');
 
@@ -331,24 +334,37 @@ function orderIn(haystack, a, b) {
     const ia = haystack.indexOf(a), ib = haystack.indexOf(b);
     return ia !== -1 && ib !== -1 && ia < ib;
 }
-const createForm = src.slice(src.indexOf('const createAppearance = `'), src.indexOf('// ── Section 2: getting into this profile'));
-ok('create: name, then the toggle, then the colour swatches',
-    orderIn(createForm, 'create-name-input', "renderTransparentToggle('create'")
-    && orderIn(createForm, "renderTransparentToggle('create'", 'create-color-group'));
+// 1.7.2 moved it into the picture picker (settings review): it is a property of the
+// picture. It still sits beside the swatches, since both forms put the swatches straight
+// after the picker. So the order is name, picture (with the toggle), color, and the
+// library-artwork picker, which passes no transparency, must never draw it.
+const createForm = src.slice(src.indexOf('const createAppearance = `'), src.indexOf('const createSecurity'));
+ok('create: name, then the picture with its toggle, then the colour swatches',
+    orderIn(createForm, 'create-name-input', "renderAvatarPicker('create'")
+    && orderIn(createForm, "renderAvatarPicker('create'", 'create-color-group')
+    && createForm.indexOf('renderTransparentToggle') === -1);
 const editForm = src.slice(src.indexOf('const appearanceBody = `'), src.indexOf('const securityBody'));
 ok('edit: same order',
-    orderIn(editForm, 'edit-name-input', "renderTransparentToggle('edit'")
-    && orderIn(editForm, "renderTransparentToggle('edit'", 'edit-color-group'));
-ok('the picture panel no longer carries the row',
-    src.slice(src.indexOf('renderAvatarPicker: function'), src.indexOf('initAvatarPicker: function'))
-       .indexOf('transparent-row') === -1);
+    orderIn(editForm, 'edit-name-input', "renderAvatarPicker('edit'")
+    && orderIn(editForm, "renderAvatarPicker('edit'", 'edit-color-group')
+    && editForm.indexOf('renderTransparentToggle') === -1);
+{
+    const lib = { allowCustomUploads: true, avatars: [] };
+    const withChoice = P.renderAvatarPicker('edit', lib, 'data:image/png;base64,AA', '#123456', { enabled: true });
+    const rowAt = withChoice.indexOf('id="edit-transparent-row"');
+    ok('the picture panel carries the row, under the preview and its buttons',
+        rowAt !== -1 && withChoice.indexOf('id="edit-clear-profile-image-btn"') < rowAt
+        && rowAt < withChoice.indexOf('id="edit-picture-sources"'));
+    ok('ticked as stored', /id="edit-transparent-toggle" checked/.test(withChoice));
+    ok('a picker offered no transparency draws no row',
+        P.renderAvatarPicker('libart', lib, null, '#123456').indexOf('transparent-row') === -1);
+}
 
-// The header avatar and the gate badge read who-is-active from two different places. This
-// used to check that the revert-to-master path cleared the cached active profile before
-// reloading, so the header stopped naming the profile being left. There is no revert any
-// more: the session in use stays in use (tests/js/mastertoken.js). What remains of the
-// concern is the lock and the switcher button, which both drop the marker before the gate
-// opens so nothing on screen claims a profile is still active.
+// The header avatar and the gate badge read who-is-active from two places. This used to
+// check that the revert-to-master path cleared the cached active profile before reloading.
+// There is no revert any more: the session in use stays in use (tests/js/mastertoken.js).
+// What remains is the lock and the switcher button, which both drop the marker before the
+// gate opens so nothing on screen claims a profile is still active.
 (function () {
     function bodyOf(name) {
         const at = src.indexOf(name + ': function');
@@ -369,20 +385,16 @@ ok('the gate card can go transparent',
 ok('and stops clipping so the outline can show',
     /p\.profileImage && p\.transparentAvatar \? 'visible' : 'hidden'/.test(src));
 
-// The CSS lives in one big template string. Resolve the cascade the way the browser
-// would rather than merely asserting a rule is present — uitest.js was green for
-// three releases on rules that were being overridden.
+// Resolve the cascade as the browser would instead of asserting a rule is present;
+// uitest.js was green for three releases on rules that were being overridden.
 function ruleBody(selector) {
-    // Anchored on a line start plus any indentation, rather than on exactly sixteen
-    // spaces. The stylesheet used to live inside a template literal, so every rule
-    // carried the indentation of the JavaScript around it; it is Web/styles.css now
-    // and carries none. A locator that encodes formatting stops working the moment
-    // the formatting moves, and it fails by finding nothing — which reads as "the
-    // rule is missing" rather than "the locator is wrong".
+    // Anchored on a line start plus any indentation, not exactly sixteen spaces. The
+    // stylesheet used to sit in a template literal, so every rule carried the JavaScript's
+    // indentation; it is Web/styles.css now with none. A locator that encodes formatting
+    // fails by finding nothing, which reads as "the rule is missing", not "the locator is wrong".
     //
-    // It also reads the CSS itself rather than `src`. In the bundle the stylesheet is
-    // a JSON-encoded string, so its newlines are the two characters backslash-n and a
-    // search for a real line break finds nothing. A CSS lookup belongs in the CSS.
+    // It also reads the CSS itself, not `src`: in the bundle the stylesheet is a JSON-encoded
+    // string whose newlines are backslash-n, so a search for a real line break finds nothing.
     const css = L.extractCss(src);
     const needle = '\n' + selector + ' {';
     let i = css.indexOf(needle);
@@ -396,8 +408,8 @@ function ruleBody(selector) {
     return css.slice(start + 1, end);
 }
 
-const transparentRule = ruleBody('.profile-avatar.is-transparent');
-ok('.profile-avatar.is-transparent exists', transparentRule !== null);
+const transparentRule = ruleBody('.jpf-profile-avatar.is-transparent');
+ok('.jpf-profile-avatar.is-transparent exists', transparentRule !== null);
 if (transparentRule) {
     ok('it paints no colour', /background-color:\s*transparent/.test(transparentRule));
     ok('it draws no square ring', /border-color:\s*transparent/.test(transparentRule));
@@ -405,37 +417,35 @@ if (transparentRule) {
     ok('it lets the outline spread', /overflow:\s*visible/.test(transparentRule));
 }
 
-// The hover block sets box-shadow and border-color on .profile-avatar and sits later
+// The hover block sets box-shadow and border-color on .jpf-profile-avatar and sits later
 // in the sheet, so the transparent variant must be more specific or it loses.
-const hoverIdx = src.indexOf('.profile-card:hover .profile-avatar,');
-const overrideIdx = src.indexOf('.profile-card:hover .profile-avatar.is-transparent,');
+const hoverIdx = src.indexOf('.jpf-profile-card:hover .jpf-profile-avatar,');
+const overrideIdx = src.indexOf('.jpf-profile-card:hover .jpf-profile-avatar.is-transparent,');
 ok('the transparent variant outranks the hover block',
     overrideIdx !== -1 && hoverIdx !== -1 && overrideIdx < hoverIdx);
 
 ok('the current-profile ring follows the silhouette',
-    /\.profile-card\.is-current \.profile-avatar\.is-transparent img/.test(src)
+    /\.jpf-profile-card\.is-current \.jpf-profile-avatar\.is-transparent img/.test(src)
     && /drop-shadow\(3px 0 0 var\(--jpf-accent\)\)/.test(src));
 
-// The bug the first pass missed: `.profile-card.is-current .profile-avatar` is three
-// classes and `.profile-avatar.is-transparent` is two, so the accent border won and drew
-// a rounded square around a circular picture while the silhouette drew a second ring
-// inside it. Checking the hover override alone did not catch it, so resolve the cascade
-// for every state that touches border-color or box-shadow on .profile-avatar.
-// A guard has to answer the SAME state. An earlier version of this check only compared
-// specificity totals, so the high-specificity hover guard counted as cover for the
-// is-current rule and the check passed against the build that actually had the bug —
-// the exact false green this file is supposed to make impossible.
+// The bug the first pass missed: `.jpf-profile-card.is-current .jpf-profile-avatar` is three
+// classes and `.jpf-profile-avatar.is-transparent` is two, so the accent border won and drew
+// a rounded square around a circular picture while the silhouette drew a second ring inside
+// it. Checking the hover override alone missed it, so resolve the cascade for every state
+// that touches border-color or box-shadow on .jpf-profile-avatar. A guard has to answer the
+// SAME state: an earlier version compared specificity totals, so the high-specificity hover
+// guard counted as cover for the is-current rule and passed against the build with the bug.
 function selectorsTouching(prop) {
     const out = [];
     const re = /\n {16}([^\n{]+)\{([^}]*)\}/g;
     let m;
     while ((m = re.exec(src)) !== null) {
         const selList = m[1].trim();
-        if (!/\.profile-avatar/.test(selList)) continue;
+        if (!/\.jpf-profile-avatar/.test(selList)) continue;
         if (!new RegExp('(^|;|\\s)' + prop + '\\s*:').test(m[2])) continue;
         selList.split(',').forEach(s => {
             const sel = s.trim().replace(/\s+/g, ' ');
-            if (sel && /\.profile-avatar/.test(sel)) out.push(sel);
+            if (sel && /\.jpf-profile-avatar/.test(sel)) out.push(sel);
         });
     }
     return out;
@@ -443,32 +453,53 @@ function selectorsTouching(prop) {
 ['border-color', 'box-shadow'].forEach(prop => {
     const sels = selectorsTouching(prop);
     const guards = new Set(sels.filter(s => s.includes('.is-transparent')));
-    // The bare base rule is answered by the bare `.profile-avatar.is-transparent` rule,
+    // The bare base rule is answered by the bare `.jpf-profile-avatar.is-transparent` rule,
     // which is one class more specific and later in the sheet.
-    const plain = sels.filter(s => !s.includes('.is-transparent') && s !== '.profile-avatar');
+    const plain = sels.filter(s => !s.includes('.is-transparent') && s !== '.jpf-profile-avatar');
 
     const unguarded = plain.filter(s => {
         // The state this rule targets, restated for a cut-out avatar.
-        const wanted = s.replace(/\.profile-avatar(?![\w-])/, '.profile-avatar.is-transparent');
+        const wanted = s.replace(/\.jpf-profile-avatar(?![\w-])/, '.jpf-profile-avatar.is-transparent');
         return !guards.has(wanted);
     });
 
-    ok('every ' + prop + ' state on .profile-avatar is answered for cut-outs '
+    ok('every ' + prop + ' state on .jpf-profile-avatar is answered for cut-outs '
         + '(' + plain.length + ' states, ' + guards.size + ' guards)',
         unguarded.length === 0);
     if (unguarded.length) unguarded.forEach(u => console.log('        unguarded: ' + u));
 });
 
 ok('the current-profile square ring is off for cut-outs',
-    /\.profile-card\.is-current \.profile-avatar\.is-transparent \{/.test(src));
+    /\.jpf-profile-card\.is-current \.jpf-profile-avatar\.is-transparent \{/.test(src));
 ok('manage mode does not drop a square scrim on a cut-out',
-    /\.profile-avatar\.is-transparent \.profile-avatar-overlay-wrap \{[^}]*background:\s*transparent/.test(src));
+    /\.jpf-profile-avatar\.is-transparent \.jpf-profile-avatar-overlay-wrap \{[^}]*background:\s*transparent/.test(src));
 
 // Every custom property used must be declared somewhere, or the whole declaration is
 // invalid at computed-value time and silently does nothing.
 const used = new Set((src.match(/var\((--jpf-[a-z0-9-]+)\)/g) || [])
     .map(m => m.replace(/^var\(|\)$/g, '')));
-const declared = new Set((src.match(/(--jpf-[a-z0-9-]+)\s*:/g) || [])
+// Declared in the bundle, or in what themeCss writes from the theme files when the script
+// runs, which since 1.7.2 is where every theme token is. Taken from running the generator,
+// not its source, so a token it stops writing is undeclared here.
+const CSS_ALL = L.extractCss(fs.readFileSync(SRC_PATH, 'utf8'));
+// No built-in theme has a second pattern or an opacity under 1, so the tokens those write
+// (--jpf-deco2, --jpf-deco2-size, --jpf-deco2-opacity) would never be seen above. Run the
+// generator on a theme that has both. Taken from its output, not allowlisted: remove the
+// vars.push that writes them and the tokens are undeclared again.
+let SECOND_PATTERN_CSS = '';
+{
+    const gen = L.themeGenerator(fs.readFileSync(SRC_PATH, 'utf8'));
+    if (typeof gen.themeCss === 'function') {
+        const payload = L.themesPayload();
+        const names = Object.keys(payload.patterns || {});
+        const theme = JSON.parse(fs.readFileSync(path.join(L.themesDir(), 'bloom.json'), 'utf8'));
+        theme.decorations = (theme.decorations || []).filter(d => d.name !== 'pattern' && d.name !== 'pattern2');
+        theme.decorations.push({ name: 'pattern', image: names[0], size: 120, drift: 'none' },
+            { name: 'pattern2', image: names[1], size: 96, drift: 'none', opacity: 0.4 });
+        SECOND_PATTERN_CSS = gen.themeCss(theme, payload.patterns);
+    }
+}
+const declared = new Set(((src + '\n' + CSS_ALL + '\n' + SECOND_PATTERN_CSS).match(/(--jpf-[a-z0-9-]+)\s*:/g) || [])
     .map(m => m.replace(/\s*:$/, '')));
 const undeclared = [...used].filter(v => !declared.has(v));
 ok('every --jpf- custom property used is declared (' + used.size + ' used)',
@@ -480,7 +511,8 @@ const animNames = new Set((src.match(/animation:\s*([a-zA-Z][\w-]*)/g) || [])
     .map(m => m.replace(/animation:\s*/, '')));
 const keyframes = new Set((src.match(/@keyframes\s+([a-zA-Z][\w-]*)/g) || [])
     .map(m => m.replace(/@keyframes\s+/, '')));
-const missingKf = [...animNames].filter(n => !keyframes.has(n));
+// "none" is the keyword for no animation (the reduced-motion block), not a name.
+const missingKf = [...animNames].filter(n => n !== 'none' && !keyframes.has(n));
 ok('every animation names a keyframe that exists', missingKf.length === 0);
 if (missingKf.length) console.log('        missing: ' + missingKf.join(', '));
 
@@ -490,7 +522,7 @@ console.log('── #23  The hint that caused the issue ────────
 ok('the colour picker no longer claims to be unused behind a picture',
     src.indexOf('Not used while a picture is set.') === -1);
 ok('it says where the colour actually shows',
-    src.indexOf('Shows behind the picture, wherever it is transparent.') !== -1);
+    src.indexOf('Shows through transparent parts of the avatar.') !== -1);
 ok('and dims only when the colour is genuinely dead',
     /const unused = !!hasPicture && !!isTransparent;/.test(src));
 ok('the picker owns that state, so the two forms cannot race it',
@@ -523,17 +555,17 @@ ok('the sub-profile DTO carries it', /m\.TransparentAvatar,/.test(ctrl));
 console.log();
 console.log('── Remote navigation and 10-foot legibility ───────────────────');
 
-// initTVCheckboxes binds tabindex and Enter/Space to .library-check-label. A new
+// initTVCheckboxes binds tabindex and Enter/Space to .jpf-library-check-label. A new
 // checkbox that does not carry that class is invisible to a remote: no focus, no way
 // to tick it, and nothing on screen saying so.
 const toggleBlock = src.slice(src.indexOf('renderTransparentToggle: function'),
                               src.indexOf('renderAvatarPicker: function'));
-ok('the No background toggle is a .library-check-label, so a remote can focus it',
-    /class="library-check-label picture-transparent-toggle"/.test(toggleBlock));
+ok('the No background toggle is a .jpf-library-check-label, so a remote can focus it',
+    /class="jpf-library-check-label jpf-picture-transparent-toggle"/.test(toggleBlock));
 ok('and Enter/Space reaches it through initTVCheckboxes',
-    /container\.querySelectorAll\('\.library-check-label'\)/.test(src));
+    /container\.querySelectorAll\('\.jpf-library-check-label'\)/.test(src));
 ok('that class has a visible focus state',
-    /\.library-check-label:focus[^{]*\{[^}]*background:/.test(src));
+    /\.jpf-library-check-label:focus[^{]*\{[^}]*background:/.test(src));
 
 // Hidden rows must not be focus stops. display:none is what keeps it out of the
 // tab order while there is no picture to describe.
@@ -551,7 +583,7 @@ function filterOf(selector) {
     const m = body.match(/filter:\s*([^;]+);/);
     return m ? m[1] : null;
 }
-const focusFilter = filterOf('.profile-card:focus-within .profile-avatar.is-transparent img');
+const focusFilter = filterOf('.jpf-profile-card:focus-within .jpf-profile-avatar.is-transparent img');
 ok('the cut-out focus indicator exists', focusFilter !== null);
 if (focusFilter) {
     const widths = (focusFilter.match(/drop-shadow\((-?\d+)px \d+px 0|drop-shadow\(\d+ (-?\d+)px 0/g) || []);
@@ -563,14 +595,14 @@ if (focusFilter) {
     ok('and it keeps a wide accent glow, since box-shadow is off for cut-outs',
         /drop-shadow\(0 \d+px \d\dpx var\(--jpf-accent\)\)/.test(focusFilter));
 }
-const currentFilter = filterOf('.profile-card.is-current .profile-avatar.is-transparent img');
+const currentFilter = filterOf('.jpf-profile-card.is-current .jpf-profile-avatar.is-transparent img');
 ok('the current-profile ring is 3px too, matching the border elsewhere',
     currentFilter !== null && /drop-shadow\(3px 0 0 var\(--jpf-accent\)\)/.test(currentFilter));
 
 // A translated label must wrap inside its card, not widen it. The card floor is 140px
 // and "PIN Protected" becomes "Protégé par code PIN" in French — half again as long.
 const nameRule = filterOf === null ? '' : (() => {
-    const i = src.indexOf('.profile-name {');
+    const i = src.indexOf('.jpf-profile-name {');
     return i === -1 ? '' : src.slice(src.indexOf('{', i) + 1, src.indexOf('}', i));
 })();
 ok('the name block cannot grow wider than its card', /max-width:\s*100%/.test(nameRule));
@@ -578,28 +610,27 @@ ok('and a long word breaks rather than overflowing',
     /overflow-wrap:\s*break-word/.test(nameRule));
 
 const badgeRule = (() => {
-    const i = src.indexOf('.profile-pin-badge {');
+    const i = src.indexOf('.jpf-profile-pin-badge {');
     return i === -1 ? '' : src.slice(src.indexOf('{', i) + 1, src.indexOf('}', i));
 })();
 ok('the PIN badge is bounded by the card too', /max-width:\s*100%/.test(badgeRule));
 
 // Manage mode: taking the scrim away also took away what the white pencil was legible
-// against. On a pale cut-out it would otherwise vanish.
-// Resolved, not spelled: P6 moved that literal onto --jpf-scrim, and matching the
-// spelling would fail for a token holding exactly the right colour while passing for
-// one redefined to transparent. What has to be true is that the backing is dark and
+// against; on a pale cut-out it would vanish. Resolved, not spelled: P6 moved that literal
+// onto --jpf-scrim, and matching the spelling would fail for a token holding the right
+// color and pass for one redefined to transparent. The backing has to be dark and
 // substantially opaque, whatever it is written as.
-ok('the manage-mode pencil keeps a backing it can be seen against', (() => {
-    const m = /\.profile-avatar\.is-transparent \.profile-avatar-overlay-svg \{([^}]*)\}/.exec(src);
+ok('the jpf-manage-mode pencil keeps a backing it can be seen against', (() => {
+    const m = /\.jpf-profile-avatar\.is-transparent \.jpf-profile-avatar-overlay-svg \{([^}]*)\}/.exec(src);
     if (!m) return false;
     const bg = /background:\s*([^;]+);/.exec(m[1]);
     if (!bg) return false;
-    const value = L.resolveCssValue(src, bg[1].trim());
+    const value = L.resolveCssValue(CSS_ALL, bg[1].trim());
     return /rgba?\(\s*(?:0|1?\d|2[0-5])\s*,\s*(?:0|1?\d|2[0-5])\s*,/.test(value)
         && L.alphaOf(value) >= 0.5;
 })());
 ok('and that backing is round, not the square that was removed',
-    /\.profile-avatar\.is-transparent \.profile-avatar-overlay-svg \{[^}]*border-radius:\s*50%/.test(src));
+    /\.jpf-profile-avatar\.is-transparent \.jpf-profile-avatar-overlay-svg \{[^}]*border-radius:\s*50%/.test(src));
 
 // ── #25: updated on a running server ────────────────────────────────────────
 console.log();
@@ -624,29 +655,21 @@ ok('the mechanism payload carries it',
 ok('unpatching no longer reports success merely because the plugin loaded',
     boot.indexOf('InjectionSucceeded = ProfilesIndexMiddleware.IsRegistered;') === -1);
 
-ok('the stale comment claiming a Both fallback is gone',
-    !/Falls back to[\s\S]{0,40}IndexInjectionModes\.Both/.test(boot));
-
 ok('the dashboard has a restart banner', dash.indexOf('id="restartRequiredContainer"') !== -1);
 ok('it suppresses the failure banner rather than stacking with it',
     /const failed = !restartRequired && \(succeeded === false\);/.test(dash));
-ok('and the green "all good" banner too',
-    /okContainer\.style\.display = \(!restartRequired && !failed && !stale\)/.test(dash));
-ok('the chown block is hidden when the mode does not touch the file',
-    /const hideFileFix = failed && !patchesFile;/.test(dash));
-ok('the failure headline changes with the mode',
+// The green "all good" banner it also suppressed is gone: Status says that (owner, 1.9.0.4).
+ok('and there is no green "all good" banner to stack with it',
+    dash.indexOf('injectionOkContainer') === -1);
+// Was: hidden whenever the failure banner showed. Now the panels are gone, so nothing can
+// bring the chown advice back for a file that is never touched.
+ok('there is no chown block to show: the file is never touched',
+    !/injectionFileFix|linuxChownCmd|dockerChownCmd|hideFileFix/.test(dash));
+ok('the failure headline says index.html is not involved',
     dash.indexOf('id="injectionFailureHeadline"') !== -1
-    && dash.indexOf('index.html is not involved') !== -1);
-ok('the account row cannot be re-shown after being hidden',
-    dash.indexOf('#injectionFailureAccountRow') !== -1
-    && dash.indexOf('if (failAccountRow && hideFileFix)') !== -1);
-
-// The gating must run after the block that fills in the commands, or that block's own
-// show/hide wins and the chown row comes back.
-const gateIdx = dash.indexOf('const hideFileFix');
-const fillIdx = dash.indexOf("page.querySelectorAll('.detectedAccountRow')");
-ok('gating runs after the command-filling block, not before',
-    gateIdx !== -1 && fillIdx !== -1 && gateIdx > fillIdx);
+    && dash.indexOf("index.html isn\\'t the cause") !== -1);
+ok('and no account row or command-filling block is left to re-show one',
+    !/injectionFailureAccountRow|detectedAccountRow|windowsFixCmd/.test(dash));
 
 // ── Result ──────────────────────────────────────────────────────────────────
 console.log();

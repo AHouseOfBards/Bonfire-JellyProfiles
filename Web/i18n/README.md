@@ -49,8 +49,8 @@ It needs only Node, and reports missing keys, unknown keys, empty values, and br
 placeholders or HTML. It also checks two things in the code rather than your file, so a
 failure isn't always yours.
 
-**4. Try it.** Build the plugin, pick the language in Jellyfin under Settings → Display →
-Display language, and open the profile screen.
+**4. Try it.** Build the plugin, pick the language in Jellyfin under **Settings → Display →
+Display language**, and open the profile screen.
 
 **5. List it** in the table above and in the README's Features list.
 `tests/js/languagelist.js` fails until both name it.
@@ -71,11 +71,18 @@ Display language, and open the profile screen.
 - **Watch the length.** Many strings sit on buttons that also have to work on a TV. If a
   translation is much longer than the English, check it in a narrow window.
 
+## The admin settings page
+
+Keys starting `admin.` are the administrator's settings page. They go in the same file as
+everything else. The server sends them only to that page, so they cost a TV nothing. The
+English for them is in `Web/profilesDashboard.html`. Words on the page carry a
+`data-i18n="admin.…"` key. Words the script writes are in `ADMIN_EN`. The validator reads
+both.
+
 ## What isn't translated
 
-The admin settings page is English only. It's read by whoever runs the server, changes
-often, and is mostly settings and diagnostics. Everything a household member sees is
-translated.
+The bug report on the settings page stays in English, because it's for whoever fixes
+the bug.
 
 Theme names (Crimson, Snowfall and the rest) are proper names, like Bonfire, and stay as
 they are in every language.
@@ -84,8 +91,8 @@ they are in every language.
 
 Most likely first:
 
-- **Jellyfin isn't set to it.** Bonfire uses Jellyfin's Display language (Settings →
-  Display), which is per user and per device. On Auto, that's the device's language.
+- **Jellyfin isn't set to it.** Bonfire uses Jellyfin's Display language (**Settings →
+  Display**), which is per user and per device. On Auto, that's the device's language.
 - **The plugin wasn't rebuilt.** Files are built into the plugin.
 - **Jellyfin wasn't restarted.**
 - **The file isn't valid JSON.** The validator will say so. A trailing comma is the usual

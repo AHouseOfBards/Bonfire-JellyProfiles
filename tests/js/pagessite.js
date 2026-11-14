@@ -1,20 +1,18 @@
 #!/usr/bin/env node
 /*
- * The documentation site and the update feed share one GitHub Pages site.
+ * The docs site and the update feed share one GitHub Pages site.
  *
- * Pages builds the root of main with Jekyll, and that same build is what serves
- * manifest.json, which every Jellyfin install polls for updates, and llms.txt. Turning the
- * docs into a site gave Jekyll a _config.yml, and with it three ways to break the feed
- * without breaking anything a test of the plugin would notice:
+ * Pages builds the root of main with Jekyll, and that build also serves manifest.json
+ * (polled by every install) and llms.txt. The site's _config.yml opened three ways to
+ * break the feed without failing any plugin test:
  *
- *   - manifest.json named in `exclude`: the site builds green and every install gets 404.
- *   - front matter at the top of manifest.json or llms.txt: Jekyll renders it as a page,
- *     and the file served is no longer the file committed.
- *   - Liquid ({{ or {%) anywhere in a Markdown page, code blocks included: the Pages build
- *     fails, and the site, the feed with it, stays on the last good build.
+ *   - manifest.json in `exclude`: the site builds green and every install gets 404.
+ *   - front matter in manifest.json or llms.txt: Jekyll renders a page, not the file.
+ *   - Liquid ({{ or {%) in any Markdown page, code blocks included: the build fails and
+ *     the feed stays on the last good build.
  *
- * And one way to lose a page quietly: a doc renamed or added without a defaults entry
- * drops out of the navigation, or keeps an entry for a path that no longer exists.
+ * Also a quiet one: a doc renamed or added without a defaults entry drops out of the
+ * navigation, or an entry outlives its path.
  *
  * Usage: node tests/js/pagessite.js [path/to/_config.yml]
  */
@@ -35,7 +33,7 @@ const CONFIG_PATH = process.argv[2] || path.join(L.ROOT, '_config.yml');
 const CONFIG = fs.existsSync(CONFIG_PATH) ? fs.readFileSync(CONFIG_PATH, 'utf8').replace(/\r\n/g, '\n') : '';
 ok('the site has a _config.yml', CONFIG.length > 0, CONFIG_PATH);
 
-// The block under a top-level key, as its lines.
+// The block under a top-level key, as lines.
 function block(key) {
     const m = new RegExp('^' + key + ':\\s*\\n((?:[ \\t]+.*\\n|\\s*\\n)*)', 'm').exec(CONFIG + '\n');
     return m ? m[1] : '';
@@ -44,8 +42,8 @@ const excluded = block('exclude').split('\n').map(l => (/^\s*-\s*(.+?)\s*$/.exec
     .map(s => s.replace(/^["']|["']$/g, ''));
 
 console.log('\n── The update feed survives the docs site ─────────────────────');
-// What must be served exactly as committed. An exclude entry covers a path if it names it,
-// a folder above it, or a pattern that matches it.
+// What must be served as committed. An exclude entry covers a path if it names it,
+// a folder above it, or a matching pattern.
 const MUST_SERVE = ['manifest.json', 'llms.txt', 'images/icon.jpg', 'README.md', 'docs/'];
 const covers = (entry, p) => {
     const e = entry.replace(/\/$/, '');
@@ -68,8 +66,8 @@ ok('the theme is pinned to a release, so a theme update cannot change the build 
    /^remote_theme:\s*\S+@v\d+\.\d+\.\d+\s*$/m.test(CONFIG));
 
 console.log('\n── Every Markdown page builds ─────────────────────────────────');
-// The Markdown files Jekyll turns into pages: tracked, not under a dot or underscore
-// folder, not excluded.
+// Markdown files Jekyll turns into pages: tracked, not under a dot or underscore folder,
+// not excluded.
 function walk(dir, out) {
     fs.readdirSync(dir, { withFileTypes: true }).forEach(d => {
         if (d.name.startsWith('.') || d.name.startsWith('_') || d.name === 'node_modules') return;
@@ -91,6 +89,30 @@ pages.forEach(p => {
     ok(p + ' has no Liquid, which would fail the whole Pages build' + (bad.length ? ' (line ' + bad.join(', ') + ')' : ''),
        bad.length === 0);
 });
+
+console.log('\n── Source is not served, and what pages link to is ────────────');
+// Tracked C# files and projects are source, not pages. New folders (Mail/, Campground.Shared/)
+// were being published.
+const tracked = require('child_process').execFileSync('git', ['ls-files'], { cwd: L.ROOT, encoding: 'utf8' })
+    .split('\n').filter(Boolean);
+const servedSource = tracked.filter(p => /\.(cs|csproj|proj|sln)$/i.test(p) && !excluded.some(e => covers(e, p)));
+const servedDirs = Array.from(new Set(servedSource.map(p => p.split('/')[0])));
+ok('no C# source is on the site' + (servedDirs.length ? ' (served: ' + servedDirs.join(', ') + ')' : ''),
+   servedSource.length === 0);
+// A relative link to a non-Markdown file is served as that file, so excluding its folder
+// 404s it on the site while it works on GitHub.
+const deadLinks = [];
+pages.forEach(p => {
+    const text = fs.readFileSync(path.join(L.ROOT, p), 'utf8');
+    text.replace(/\]\(([^)\s#]+)(?:#[^)]*)?\)/g, (m, href) => {
+        if (/^[a-z]+:|^\/|\.md$/i.test(href)) return m;
+        const target = path.posix.normalize(path.posix.join(path.posix.dirname(p), href)).replace(/\/$/, '');
+        if (excluded.some(e => covers(e, target))) deadLinks.push(p + ' -> ' + href);
+        return m;
+    });
+});
+ok('every file a page links to is served' + (deadLinks.length ? ' (excluded: ' + deadLinks.join('; ') + ')' : ''),
+   deadLinks.length === 0);
 
 console.log('\n── Every page is in the navigation, and nothing else is ───────');
 const scoped = [];

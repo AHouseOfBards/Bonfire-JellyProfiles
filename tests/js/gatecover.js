@@ -1,37 +1,32 @@
 /*
- * The home screen must not be on view in the two moments around the gate.
+ * The home screen must not show in the two moments around the gate.
  *
- * Reported as: "when loaded on any app that loads our switcher, there's a brief flash of
- * the dashboard before our switcher pops up on screen. The same thing happens when
- * selecting a profile". Under half a second, on web, Android and the televisions.
+ * Reported as a brief flash of the dashboard before the switcher appears, and again when
+ * picking a profile. Under half a second, on web, Android and the televisions.
  *
- *  1. Cold start with "Ask on startup" on. Nothing covered the page: jellyfin-web drew
- *     home as soon as it had a user, while the gate waited for the first route check, the
- *     profile list, and then faded in from opacity 0 over the top of it.
- *  2. Picking a profile from the switcher anywhere but home. executeProfileSwitch marks
- *     the new profile active before it reloads, and checkRoute's "overlay stuck off home"
- *     cleanup matched exactly that, so the next 500 ms tick took the opaque gate down and
- *     showed the old profile's page until the navigation landed.
+ *  1. Cold start with "Ask on startup" on. Nothing covered the page: jellyfin-web drew home
+ *     once it had a user, while the gate waited for the first route check and the profile
+ *     list, then faded in from opacity 0 over it.
+ *  2. Picking a profile away from home. executeProfileSwitch marks the new profile active
+ *     before it reloads, and checkRoute's "overlay stuck off home" cleanup matched exactly
+ *     that, so the next 500 ms tick took the opaque gate down and showed the old profile's
+ *     page until the navigation landed.
  *
- * This runs the real thing on a clock it controls: the inline head script reassembled
- * from WebInjection.cs, then profiles.js with init() swapped for an export, against a
- * page where jellyfin-web paints home at a chosen moment and the server answers after a
- * chosen delay. "Home is visible" is asked every 10 ms of that timeline, and means: home
- * has been painted, and none of these is on top of it —
+ * Runs the real code on a controlled clock: the inline head script reassembled from
+ * WebInjection.cs, then profiles.js with init() swapped for an export, against a page where
+ * jellyfin-web paints home at a chosen moment and the server answers after a chosen delay.
+ * Every 10 ms it asks whether home is painted and none of these is on top of it:
  *
  *   - the startup cover (html[data-jpf-cover] with its rule in the document),
- *   - the gate, opaque: in the document, its inline opacity cleared, and its 220 ms fade
- *     finished,
+ *   - the opaque gate (in the document, inline opacity cleared, 220 ms fade finished),
  *   - the head script's switch hide (opacity 0 on <html>).
  *
- * Then the other half, which matters more: every way the cover can be left up by
- * mistake has to bring it down, because a screen that stays blank is far worse than a
- * flash.
+ * Every way the cover can be left up by mistake must bring it down too: a blank screen is
+ * worse than a flash.
  *
  *     node tests/js/gatecover.js [profiles.js] [WebInjection.cs]
  *
- * Both arguments point at another checkout, which is how this was shown to fail against
- * the build carrying the bug:
+ * Both arguments can point at another checkout, which is how it was shown to fail:
  *
  *     git show HEAD~1:Web/profiles.js > old.js; git show HEAD~1:Injection/WebInjection.cs > old.cs
  *     node tests/js/gatecover.js old.js old.cs
@@ -111,8 +106,8 @@ function makePage(opts) {
     const navigations = [];
 
     function schedule(fn, ms, repeat) {
-        // At least 1 ms, as a browser clamps it: a zero-delay timer that re-arms itself
-        // would otherwise never let this clock move.
+        // At least 1 ms, as a browser clamps it; a zero-delay timer that re-arms itself would
+        // stall this clock.
         const t = { id: ++seq, fn, at: now + Math.max(1, ms || 0), every: repeat ? Math.max(1, ms || 0) : 0 };
         timers.push(t);
         return t.id;
@@ -122,8 +117,7 @@ function makePage(opts) {
         if (i !== -1) timers.splice(i, 1);
     }
 
-    // Elements: just enough of the DOM for the code paths that run here, with ids that
-    // resolve, attributes that stick, and removal that actually removes.
+    // Just enough DOM for the code that runs here: ids resolve, attributes stick, removal removes.
     const byId = Object.create(null);
     function register(el) { if (el && el.id) byId[el.id] = el; }
     function makeEl(tag) {
@@ -193,8 +187,7 @@ function makePage(opts) {
         replace(url) { navigations.push({ kind: 'replace', url }); }
     };
 
-    // The server. Each route answers after the delay given for it; a missing delay
-    // means the request never comes back.
+    // Each route answers after its configured delay; no delay means it never answers.
     const server = Object.assign({ list: 300, preferences: 250, switch: 100 }, opts.server || {});
     function respond(body, status) {
         return {
@@ -215,6 +208,10 @@ function makePage(opts) {
         }
         if (/plugins\/profiles\/switch/.test(url)) {
             return ['switch', respond({ activeProfileToken: 'kid-token', jellyfinUserId: KID })];
+        }
+        // The administrator's own themes, with their own delay when a test gives one.
+        if (/plugins\/profiles\/themes\?part=custom/.test(url) && opts.customThemes) {
+            return ['custom', respond(opts.customThemes)];
         }
         return [null, respond({})];
     }
@@ -308,8 +305,7 @@ function makePage(opts) {
         },
 
         covered() {
-            // The gate's fade is tracked first and on every sample, whatever else is on
-            // top: the fade runs whether or not anything can see it.
+            // The gate's fade is tracked first, on every sample, whether or not anything covers it.
             const ov = byId['profiles-gate-overlay'];
             let gateOpaque = false;
             if (ov && ov.style.opacity !== '0') {
@@ -327,8 +323,8 @@ function makePage(opts) {
         },
         homeVisible() { return page.homeAt !== null && !page.covered(); },
 
-        /// Runs the clock forward, firing each timer at its moment and draining promise
-        /// callbacks after each, and sampling every 10 ms in between.
+        /// Runs the clock forward, firing timers in order, draining promise callbacks after each
+        /// and sampling every 10 ms.
         async advance(ms, onSample) {
             const until = now + ms;
             const drain = () => new Promise(r => setImmediate(r));
@@ -355,15 +351,25 @@ function makePage(opts) {
 }
 
 /// The standard cold start: head script while <head> parses, profiles.js at defer time,
-/// DOMContentLoaded, then jellyfin-web's own boot — ApiClient, then home.
+/// DOMContentLoaded, then jellyfin-web's boot (ApiClient, then home).
 async function coldStart(opts) {
     opts = opts || {};
     const page = makePage(opts);
-    const seen = { visibleAt: [], coverMaxMs: 0, coverFrom: null, everCovered: false };
+    const seen = { visibleAt: [], coverMaxMs: 0, coverFrom: null, everCovered: false, coverThemes: [],
+                   gateShownAt: null, gateShownWithoutThemes: false };
     const sample = t => {
         if (page.homeVisible()) seen.visibleAt.push(t);
+        // The gate on screen (inline opacity cleared) before the custom themes' block is in.
+        const gate = page.byId['profiles-gate-overlay'];
+        if (gate && gate.style.opacity !== '0') {
+            if (seen.gateShownAt === null) seen.gateShownAt = t;
+            if (opts.customThemes && !page.byId['jpf-themes-custom']) seen.gateShownWithoutThemes = true;
+        }
         const c = page.html.getAttribute('data-jpf-cover') !== null;
         if (c) {
+            // Every theme the cover wore while it was up, in order, without repeats.
+            const th = page.html.getAttribute('data-jpf-theme');
+            if (seen.coverThemes[seen.coverThemes.length - 1] !== th) seen.coverThemes.push(th);
             seen.everCovered = true;
             if (seen.coverFrom === null) seen.coverFrom = t;
             seen.coverMaxMs = Math.max(seen.coverMaxMs, t - seen.coverFrom);
@@ -430,29 +436,30 @@ console.log('\n── 1. Cold start with "Ask on startup" on ──────�
         'gate=' + !!page.byId['profiles-gate-overlay'] + ', home visible at ' + span(seen.visibleAt));
 }
 {
-    // Home painted before profiles.js has even started. Seen on 10.11 web when the home
-    // chunk is cached and profiles.js is not.
+    // Home painted before profiles.js starts. Seen on 10.11 web when the home chunk is
+    // cached and profiles.js is not.
     const { page, seen } = await coldStart({ storage: baseStorage(), apiAt: 500, homeAt: 200 });
     ok('when home paints before init', !!page.byId['profiles-gate-overlay'] && seen.visibleAt.length === 0,
         'home visible at ' + span(seen.visibleAt));
 }
 {
-    // The Tizen package: no head script in its index.html, profiles.js pulled in by the
-    // loader after the app has already drawn home.
+    // The Tizen package: no head script, profiles.js loaded after the app has drawn home.
     const { page, seen } = await coldStart({ storage: baseStorage(), head: false, apiAt: 700, homeAt: 300 });
     const after = seen.visibleAt.filter(t => t > 700);
     ok('without a head script, home is covered from init until the gate',
         !!page.byId['profiles-gate-overlay'] && after.length === 0, 'home visible after init at ' + span(after));
 }
 {
-    // A device keeping its own answer, against the household's.
+    // A per-device answer left by 1.6-1.7.1. 1.7.2 made the account's answer decide on every
+    // device and init discards the leftover. Red against 1.7.1.
     const dev = ask => JSON.stringify({ [MASTER.replace(/-/g, '')]: { synced: false, askOnStartup: ask } });
     const r1 = await coldStart({ storage: baseStorage({
         jellyfin_profiles_switcher_mode: JSON.stringify({ askOnStartup: false, location: 'button', masterUserId: MASTER }),
         jellyfin_profiles_device_gate: dev(true) }), serverPrefs: { askOnStartup: false } });
-    ok('a device that asks, in a household that does not, is covered until its gate',
-        !!r1.page.byId['profiles-gate-overlay'] && r1.seen.visibleAt.length === 0,
-        'home visible at ' + span(r1.seen.visibleAt));
+    ok('a leftover per-device "ask" in a household that does not ask: no gate, home never covered',
+        !r1.page.byId['profiles-gate-overlay'] && !r1.seen.everCovered,
+        'gate ' + !!r1.page.byId['profiles-gate-overlay'] + ', covered ' + r1.seen.everCovered);
+    ok('and init removes the leftover', !('jellyfin_profiles_device_gate' in r1.page.store));
 }
 
 console.log('\n── 2. Picking a profile from the switcher off home ─────────────');
@@ -475,8 +482,8 @@ for (const where of [{ label: 'a details page', pathname: '/web/details', hash: 
     ok('the switcher is open on ' + where.label, !!before);
 
     page.plugin.executeProfileSwitch(KID, null);
-    // The navigation is in flight and has not landed. The ladder's first escalation is
-    // at 1200 ms; this watches the whole stretch before it.
+    // Navigation in flight, not landed. The ladder escalates at 1200 ms; this watches the
+    // stretch before that.
     const gone = [];
     let reloaded = false;
     await page.advance(1150, t => {
@@ -497,11 +504,10 @@ for (const where of [{ label: 'a details page', pathname: '/web/details', hash: 
         'the gate was gone at ' + span(gone));
 }
 {
-    // Reported after the startup cover shipped: the cold start was fixed, but picking a
-    // profile still flashed home before the reload. Nothing in our code takes the gate
-    // down on home during a switch, so this asks the question that does not depend on
-    // knowing what did: with the gate gone mid-switch, is home still covered until the
-    // navigation lands?
+    // Reported after the startup cover shipped: picking a profile still flashed home before
+    // the reload. Nothing in our code drops the gate on home during a switch, so this asks the
+    // question that does not depend on knowing what did: with the gate gone mid-switch, is
+    // home still covered until the navigation lands?
     const { page } = await coldStart({ storage: baseStorage() });
     page.plugin.executeProfileSwitch(KID, null);
     await page.advance(150);
@@ -518,8 +524,6 @@ console.log('\n── 3. Nothing is covered when the gate is not coming ──�
 const noCover = [
     ['the household does not ask', { jellyfin_profiles_switcher_mode:
         JSON.stringify({ askOnStartup: false, location: 'button', masterUserId: MASTER }) }, {}],
-    ['this device keeps its own answer, and it is no', { jellyfin_profiles_device_gate:
-        JSON.stringify({ [MASTER.replace(/-/g, '')]: { synced: false, askOnStartup: false } }) }, {}],
     ['the cached answer belongs to somebody else', { jellyfin_profiles_switcher_mode:
         JSON.stringify({ askOnStartup: true, location: 'button', masterUserId: 'ffffffff-0000-0000-0000-000000000000' }),
         jellyfin_profiles_master_state: null }, {}],
@@ -588,6 +592,56 @@ console.log('\n── 4. The cover always comes down ─────────
         seen.everCovered && seen.coverMaxMs < 1000, 'up for ' + seen.coverMaxMs + ' ms');
 }
 {
+    // Reported on 1.9.0.4-beta: the cover showed an empty Bonfire before the household's own
+    // theme. The head script caches an administrator's theme, but its block arrives with
+    // themes?part=custom and the preferences naming it answered first, so applyTheme turned
+    // the unknown name into Bonfire.
+    const mine = JSON.parse(fs.readFileSync(path.join(L.ROOT, 'Web', 'themes', 'harvest.json'), 'utf8'));
+    mine.id = 'mine';
+    mine.name = { text: 'Mine' };
+    const storage = baseStorage({ jellyfin_profiles_theme: JSON.stringify({
+        last: 'mine', users: { [MASTER.replace(/-/g, '')]: 'mine' },
+        bg: { mine: 'linear-gradient(180deg, #203040 0%, #203040 100%)' } }) });
+    const { seen } = await coldStart({ storage, serverPrefs: { theme: 'mine', defaultTheme: 'bonfire' },
+        customThemes: { themes: [mine], fonts: [], hidden: [] },
+        server: { preferences: 50, custom: 700, list: 1200 }, runFor: 2000 });
+    ok('a theme an administrator made is on the cover from the first frame to the last, never Bonfire',
+        seen.everCovered && seen.coverThemes.length === 1 && seen.coverThemes[0] === 'mine',
+        'the cover wore: ' + seen.coverThemes.join(' -> '));
+}
+{
+    // The profile list comes back before the custom themes. The gate used to fade in at once
+    // in Bonfire's colors without the household's block; it now waits for that answer.
+    const mine = JSON.parse(fs.readFileSync(path.join(L.ROOT, 'Web', 'themes', 'harvest.json'), 'utf8'));
+    mine.id = 'mine';
+    mine.name = { text: 'Mine' };
+    const storage = baseStorage({ jellyfin_profiles_theme: JSON.stringify({
+        last: 'mine', users: { [MASTER.replace(/-/g, '')]: 'mine' },
+        bg: { mine: 'linear-gradient(180deg, #203040 0%, #203040 100%)' } }) });
+    const base = { storage, serverPrefs: { theme: 'mine', defaultTheme: 'bonfire' }, runFor: 3200 };
+    const answered = await coldStart(Object.assign({}, base, {
+        customThemes: { themes: [mine], fonts: [], hidden: [] },
+        server: { preferences: 50, custom: 900, list: 300 } }));
+    ok('the gate is not drawn before the household\'s custom theme has arrived',
+        answered.seen.gateShownAt !== null && !answered.seen.gateShownWithoutThemes,
+        'gate shown at ' + answered.seen.gateShownAt + ' ms, before the themes: ' + answered.seen.gateShownWithoutThemes);
+    ok('and it appears once the theme answer is in', answered.seen.gateShownAt !== null && answered.seen.gateShownAt >= 900 && answered.seen.gateShownAt < 1200,
+        'gate shown at ' + answered.seen.gateShownAt);
+
+    // The themes request never answers: Bonfire, after a short wait, not a blank screen.
+    const hung = await coldStart(Object.assign({}, base, {
+        customThemes: { themes: [mine], fonts: [], hidden: [] },
+        server: { preferences: 50, custom: null, list: 300 } }));
+    ok('a themes request that never answers still shows the gate, within the cover\'s own limit',
+        hung.seen.gateShownAt !== null && hung.seen.gateShownAt < 2600,
+        'gate shown at ' + hung.seen.gateShownAt);
+
+    // No custom theme: no wait.
+    const plain = await coldStart({ storage: baseStorage(), server: { preferences: 50, list: 300 }, runFor: 1500 });
+    ok('a household on a built-in theme gets its gate with no added delay',
+        plain.seen.gateShownAt !== null && plain.seen.gateShownAt < 700, 'gate shown at ' + plain.seen.gateShownAt);
+}
+{
     // Token expired: jellyfin-web goes to the sign-in page instead of home.
     const { page, seen } = await coldStart({ storage: baseStorage(), user: null, homeAt: 1e9, runFor: 1500,
         events: [{ at: 300, run: p => { p.location.pathname = '/web/login.html'; p.sandbox.history.pushState(); p.plugin.checkRoute(); } }] });
@@ -618,18 +672,22 @@ console.log('\n── 5. One rule, in the gate\'s colour ───────�
 
     const css = L.extractCss(js);
     const gate = (/#profiles-gate-overlay\s*\{[^}]*?background:\s*([^;]+);/.exec(css) || [])[1] || '';
-    const fallback = (/var\(--jpf-gate-bg,(radial-gradient\([^;]*\))\)/.exec(headRule) || [])[1] || '';
-    // Since themes, the gate reads --jpf-gate-bg, and Bonfire's value for it lives in the
-    // block every theme starts from rather than the first token block resolveCssValue
-    // reads. The cover's fallback must be that value: it is what shows before any theme.
-    const bonfireBg = (/:root, body, \[data-jpf-theme="bonfire"\]\s*\{[^}]*?--jpf-gate-bg:\s*([^;]+);/.exec(css) || [])[1];
-    const squash = s => L.resolveCssValue(css, s)
-        .replace(/^var\(--jpf-gate-bg\)$/, bonfireBg || 'var(--jpf-gate-bg)')
-        .replace(/\s+/g, '').replace(/^var\(--jpf-gate-bg,(.*)\)$/, '$1');
-    ok('and its colour is the gate\'s background, so dropping it under the gate shows nothing',
-        !!fallback && squash(gate) === squash(fallback),
-        'gate: ' + gate + '\n          cover: ' + fallback);
-    ok('through --jpf-gate-bg, so a theme can set both in one place', /var\(--jpf-gate-bg,/.test(headRule));
+    // Two rules. With a theme on the page the cover is its --jpf-gate-bg, which is what the
+    // gate draws, so dropping the cover shows nothing. With none it is jellyfin-web's plain
+    // page color; until 1.9.0.4 it was Bonfire's gradient, which a household with another
+    // theme saw, empty, before its own.
+    const rules = headRule.split('}').filter(Boolean).map(r => {
+        const at = r.indexOf('{');
+        return { sel: r.slice(0, at), body: r.slice(at + 1) };
+    });
+    const themed = rules.filter(r => r.sel === 'html[data-jpf-cover][data-jpf-theme]::before')[0];
+    const plain = rules.filter(r => r.sel === 'html[data-jpf-cover]::before')[0];
+    ok('and with a theme on, its colour is the gate\'s background, so dropping it under the gate shows nothing',
+        !!themed && gate.trim() === 'var(--jpf-gate-bg)' && /^background:var\(--jpf-gate-bg,#101010\)$/.test(themed.body),
+        'gate: ' + gate + '\n          cover: ' + (themed ? themed.body : 'no themed rule'));
+    ok('with none, jellyfin-web\'s plain #101010 and no theme\'s colours',
+        !!plain && /background:#101010;/.test(plain.body) && (plain.body.match(/background:/g) || []).length === 1
+        && !/gradient|var\(/.test(plain.body), plain ? plain.body : 'no plain rule');
 }
 
 console.log('');

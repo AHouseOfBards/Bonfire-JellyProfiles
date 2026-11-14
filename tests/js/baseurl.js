@@ -4,21 +4,21 @@
  *
  * The server hands back the plugin's own picture addresses as "/plugins/profiles/..." and
  * stores them that way. Under a Base URL the browser resolves that against the origin, not
- * the Base URL, so the request lands outside Jellyfin and every avatar-library tile and
- * every picture in the missing-pictures check came up as missing. ApiClient.getUrl knows
- * the Base URL; profiles.js routes through it with pluginUrl(), and the dashboard did not.
+ * the Base URL, so the request landed outside Jellyfin and every avatar-library tile and
+ * every picture in the missing-pictures check showed as missing. ApiClient.getUrl knows the
+ * Base URL; profiles.js goes through it with pluginUrl(), and the dashboard did not.
  *
  * Two kinds of check, because they fail differently:
  *
- *   - Behaviour. The real render functions run against a getUrl that adds "/jellyfin/", and
- *     what they put in the page must start with it. This is the question that matters.
- *   - A sweep, so the next root-relative address goes red when it is written. It reads
- *     every line that makes an address (an img src, a background image) or spells a plugin
- *     path in a string, and fails any that is neither routed through getUrl/pluginUrl nor
- *     listed below with the reason it is safe. A listed line that disappears fails too, so
- *     the list cannot rot into permission.
+ *   - Behavior. The real render functions run against a getUrl that adds "/jellyfin/", and
+ *     what they put in the page must start with it.
+ *   - A sweep, so the next root-relative address goes red when it is written. It reads every
+ *     line that makes an address (an img src, a background image) or spells a plugin path in
+ *     a string, and fails any that is neither routed through getUrl/pluginUrl nor listed
+ *     below with the reason it is safe. A listed line that disappears fails too, so the list
+ *     cannot rot into permission.
  *
- * Point it at older files to watch it fail (argv[2] client script, argv[3] dashboard):
+ * To watch it fail on older files (argv[2] client script, argv[3] dashboard):
  *
  *     node tests/js/baseurl.js /old/profiles.js /old/profilesDashboard.html
  */
@@ -37,7 +37,7 @@ const PREFIX = '/jellyfin/';
 const dash = L.readDashboard();
 const script = L.dashboardScript(dash);
 
-// ── Behaviour: the dashboard ─────────────────────────────────────────────────
+// ── Behavior: the dashboard ─────────────────────────────────────────────────
 
 console.log('\n── The dashboard under a Base URL ──────────────────────────────');
 
@@ -58,8 +58,8 @@ function optional(name) {
     const ApiClient = {
         getUrl: (p, q) => PREFIX + p + (q ? '?' + Object.keys(q).map(k => k + '=' + q[k]).join('&') : ''),
         ajax: opts => Promise.resolve(
-            /\/avatars$/.test(opts.url)
-                ? { avatars: thumbs.map((u, i) => ({ id: 'id' + i, displayName: 'A' + i, thumbUrl: u, isStarter: false })) }
+            /\/form-options$/.test(opts.url)
+                ? { avatars: { avatars: thumbs.map((u, i) => ({ id: 'id' + i, displayName: 'A' + i, thumbUrl: u, isStarter: false })) } }
                 : {
                     masterUsers: [{ profileName: 'Mum', profileImage: stored }],
                     subProfiles: [{ profileName: 'Kid', profileImage: remote }],
@@ -78,8 +78,9 @@ function optional(name) {
     const healthPage = {};
     let reported = null;
 
-    const names = ['escapeHtml', 'field', 'loadAvatarLibrary', 'loadAvatarHealth'];
-    const body = optional('pluginAsset') + '\n'
+    const names = ['escapeHtml', 'namedAria', 'field', 'loadAvatarLibrary', 'loadAvatarHealth'];
+    const body = L.dashboardI18n(script)
+        + optional('pluginAsset') + '\n'
         + names.map(n => L.extractFunction(script, n)).join('\n')
         + '\nreturn { loadAvatarLibrary, loadAvatarHealth };';
     const renderAvatarHealth = (p, missing) => { reported = missing; };
@@ -128,6 +129,12 @@ function optional(name) {
         ['Web/profiles.js', 'img.src = resolved;', 'resolved by pluginUrl() two lines up'],
         ['Web/profiles.js', '`<img src="${resolved}" alt="" onerror="this.remove()" ` +', 'resolved by safeImageSrc, which routes through pluginUrl()'],
         ['Web/profiles.js', "thumb.style.backgroundImage = preview ? (\"url(\\\"\" + preview + \"\\\")\") : \"\";", 'preview comes from _libraryArtUrl, which routes through pluginUrl()'],
+        ['Web/profiles.js', "['--jpf-deco', patternImage ? 'url(\"' + patternImage + '\")' : 'none'],", 'patternImage comes from patternPicture(): an inline data: URL from the theme table, or pluginUrl() for an uploaded file'],
+        ['Web/profiles.js', "vars.push(['--jpf-deco2', 'url(\"' + pattern2Image + '\")'],", 'pattern2Image comes from patternPicture(), the same as patternImage: an inline data: URL or pluginUrl()'],
+        ['Web/profiles.js', "const chevron = 'url(\"data:image/svg+xml,", 'an inline SVG data: URL drawn in the theme text colour (R-1269)'],
+        ['Web/profiles.js', "src: url(\"' + url + '\") format(\"woff2\");", 'url is urlFor(), which is pluginUrl()'],
+        ['Web/profiles.js', "return 'linear-gradient(' + veil + ', ' + veil + '), url(\"' + url + '\") center / cover no-repeat, ' + gateBg;", 'url is pluginUrl(), on the line above'],
+        ['Web/profilesDashboard.html', "src: url(\"' + url + '\") format(\"", 'url is themeFontUrl(), which is ApiClient.getUrl()'],
         ['Web/profiles.js', '<img src="${safeImageSrc(a.thumbUrl)}"', 'safeImageSrc routes through pluginUrl()'],
         ['Web/profiles.js', "css += selector + '{background-image:url(\"' + url + '\")!important;' +", 'url is _libraryArtUrl(), which routes through pluginUrl()'],
     ];

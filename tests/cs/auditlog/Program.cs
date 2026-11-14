@@ -1,0 +1,282 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.Serialization;
+using System.Text.Json;
+using System.Threading;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The audit log file (audit_log.json).
+//
+// R-1120: RecordAuditLog copied the list under the lock and wrote the copy later, on a
+//   background task. Two switches close together meant two writes, and the one that took
+//   the lock last won, which could be the older copy, so the newest entry was missing until
+//   the next switch.
+// R-1121: a file that would not parse was read as empty, and the next switch wrote a
+//   one-entry log over it. A damaged log is evidence: it is moved aside, not replaced.
+//
+// Both drive the real methods against a real file.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static string RepoRoot()
+{
+    var d = new DirectoryInfo(AppContext.BaseDirectory);
+    while (d != null && !File.Exists(Path.Combine(d.FullName, "Jellyfin.Profiles.csproj")))
+        d = d.Parent;
+    if (d == null) throw new InvalidOperationException("Could not find the repository root.");
+    return d.FullName;
+}
+
+int pass = 0;
+var fails = new List<string>();
+void Ok(string name, bool cond)
+{
+    if (cond) { pass++; Console.WriteLine("  PASS  " + name); }
+    else { fails.Add(name); Console.WriteLine("  FAIL  " + name); }
+}
+
+var tfm = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
+    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
+var asm = Assembly.LoadFrom(Path.Combine(RepoRoot(), "bin", "Release", tfm, "Jellyfin.Profiles.dll"));
+var ctrlType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
+var baseType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true);
+
+const BindingFlags Any = BindingFlags.Static | BindingFlags.Instance
+                       | BindingFlags.NonPublic | BindingFlags.Public;
+
+var pathField = baseType.GetField("AuditLogPath", Any);
+var cacheField = baseType.GetField("_auditCache", Any);
+var record = baseType.GetMethod("RecordAuditLog", Any);
+var read = baseType.GetMethod("ReadAuditLogs", Any);
+Ok("the audit log members are where the harness expects",
+   pathField != null && cacheField != null && record != null && read != null);
+var lockObj = baseType.GetField("AuditLogLock", Any).GetValue(null);
+
+ControllerBase NewController()
+{
+    var c = (ControllerBase)FormatterServices.GetUninitializedObject(ctrlType);
+    baseType.GetField("_logger", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(c, NullLogger.Instance);
+    c.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+    return c;
+}
+
+int Count(string path)
+{
+    try
+    {
+        var entries = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(File.ReadAllText(path));
+        return entries == null ? -1 : entries.Count;
+    }
+    catch { return -1; }
+}
+
+var dir = Path.Combine(Path.GetTempPath(), "bonfire-audit-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(dir);
+try
+{
+    Console.WriteLine();
+    Console.WriteLine("── The file ends up holding the newest entry (R-1120) ──────────");
+
+    // Two entries recorded while the lock is held, so both background writes queue behind it and
+    // are released together. The old code wrote each one's own copy, so about one run in two left
+    // the one-entry copy on disk.
+    var bad = 0;
+    for (var i = 0; i < 80 && bad < 3; i++)
+    {
+        var path = Path.Combine(dir, "log" + i + ".json");
+        pathField.SetValue(null, path);
+        cacheField.SetValue(null, null);
+        var c = NewController();
+        lock (lockObj)
+        {
+            record.Invoke(c, new object[] { "main", "first" });
+            record.Invoke(c, new object[] { "main", "second" });
+        }
+        for (var w = 0; w < 40 && Count(path) != 2; w++) Thread.Sleep(10);
+        Thread.Sleep(30); // a write still in flight lands here
+        if (Count(path) != 2) bad++;
+    }
+    Ok("every run leaves both entries on disk (" + bad + " runs lost one)", bad == 0);
+
+    Console.WriteLine();
+    Console.WriteLine("── A log that will not parse is kept (R-1121) ──────────────────");
+
+    var damaged = Path.Combine(dir, "damaged.json");
+    File.WriteAllText(damaged, "[{\"Timestamp\": \"2026-01-01T00:00:00Z\", \"MasterUser");
+    pathField.SetValue(null, damaged);
+    cacheField.SetValue(null, null);
+    var rc = NewController();
+    var got = (System.Collections.IList)read.Invoke(rc, null);
+    Ok("it reads as empty", got != null && got.Count == 0);
+    Ok("the damaged file is kept as .bad", File.Exists(damaged + ".bad")
+        && File.ReadAllText(damaged + ".bad").Contains("MasterUser"));
+    Ok("and is no longer where the next write would replace it", !File.Exists(damaged));
+
+    var good = Path.Combine(dir, "good.json");
+    File.WriteAllText(good, "[]");
+    pathField.SetValue(null, good);
+    read.Invoke(rc, null);
+    Ok("a log that parses is left alone", File.Exists(good) && !File.Exists(good + ".bad"));
+
+    Console.WriteLine();
+    Console.WriteLine("── Entries age out, and an administrator can clear the log (R-1313) ──");
+
+    // The log names accounts, devices and addresses. Newest-1000 alone kept a quiet server's
+    // entries for years, so each also expires by age. Every case starts from a fresh cache.
+    var snapshot = baseType.GetMethod("GetAuditLogSnapshot", Any);
+    var clear = baseType.GetMethod("ClearAuditLog", Any);
+    var maxAgeField = baseType.GetField("AuditLogMaxAge", Any);
+    Ok("the age limit and the clear method are where the harness expects",
+       snapshot != null && clear != null && maxAgeField != null);
+    var maxAge = maxAgeField != null ? (TimeSpan)maxAgeField.GetValue(null) : TimeSpan.FromDays(90);
+    Ok("the age limit is a quarter, not forever", maxAge >= TimeSpan.FromDays(30) && maxAge <= TimeSpan.FromDays(366));
+
+    string Entry(string who, DateTime at) =>
+        "{\"Timestamp\":\"" + at.ToString("o") + "\",\"MasterUsername\":\"" + who
+        + "\",\"TargetUsername\":\"kid\",\"DeviceName\":\"TV\",\"Client\":\"Web\",\"IpAddress\":\"192.0.2.1\"}";
+    int Shown(ControllerBase c) =>
+        snapshot == null ? -1 : ((System.Collections.IEnumerable)snapshot.Invoke(c, null)).Cast<object>().Count();
+
+    var aged = Path.Combine(dir, "aged.json");
+    File.WriteAllText(aged, "[" + Entry("stale", DateTime.UtcNow - maxAge - TimeSpan.FromDays(10)) + ","
+        + Entry("fresh", DateTime.UtcNow - TimeSpan.FromDays(1)) + "]");
+    pathField.SetValue(null, aged);
+    cacheField.SetValue(null, null);
+    var ac = NewController();
+    Ok("an entry past the age limit is not shown", Shown(ac) == 1);
+
+    // Recording prunes too, so the file itself shrinks, not just the view.
+    record.Invoke(ac, new object[] { "main", "next" });
+    // The write is off-thread. One second was not enough under the full gate's load (net10 pass,
+    // 2026-11-11); a log that never prunes still fails after the wait.
+    for (var w = 0; w < 500 && Count(aged) != 2; w++) Thread.Sleep(10);
+    Ok("and the file loses it the next time it is written", Count(aged) == 2);
+
+    // The pruning write can still hold the file briefly after its contents are on disk (full
+    // gate, 2026-11-13: "being used by another process"). Wait for it to let go; this changes when
+    // the harness writes, not what it checks.
+    for (var w = 0; ; w++)
+    {
+        try { File.WriteAllText(aged, "[" + Entry("a", DateTime.UtcNow) + "," + Entry("b", DateTime.UtcNow) + "]"); break; }
+        catch (IOException) when (w < 500) { Thread.Sleep(10); }
+    }
+    cacheField.SetValue(null, null);
+    Shown(ac);
+    if (clear != null) clear.Invoke(ac, null);
+    Ok("clearing empties what the dashboard sees", clear != null && Shown(ac) == 0);
+    Ok("and the file, at once", clear != null && Count(aged) == 0);
+
+    Console.WriteLine();
+    Console.WriteLine("── A failed read is not cached and never overwritten (r2-08-02) ──");
+
+    // A file another process holds open fails to read with an IOException, not a JsonException.
+    // That read as empty, was cached, and the next switch wrote a one-entry log over the file.
+    var locked = Path.Combine(dir, "locked.json");
+    var original = "[" + Entry("keep", DateTime.UtcNow) + "," + Entry("keep2", DateTime.UtcNow) + "]";
+    File.WriteAllText(locked, original);
+    pathField.SetValue(null, locked);
+    cacheField.SetValue(null, null);
+    var lc = NewController();
+    using (var hold = new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+    {
+        record.Invoke(lc, new object[] { "main", "during" });
+        Thread.Sleep(300);
+    }
+    Thread.Sleep(100);
+    Ok("a failed read does not overwrite the log", File.ReadAllText(locked) == original);
+    Ok("and is not cached as an empty log", cacheField.GetValue(null) == null);
+    Ok("the next read, once the file is free, sees the real entries", Shown(lc) == 2);
+
+    Console.WriteLine();
+    Console.WriteLine("── A write is atomic and Clear sees a failure (r2-08-03) ──────");
+
+    var roDir = Path.Combine(dir, "blocked");
+    Directory.CreateDirectory(roDir);
+    var roPath = Path.Combine(roDir, "audit_log.json");
+    File.WriteAllText(roPath, original);
+    pathField.SetValue(null, roPath);
+    cacheField.SetValue(null, null);
+    var cc = NewController();
+    Shown(cc);
+    // On Windows the destination is a held-open file, so replacing it fails. Linux has no
+    // mandatory locks, so a rename goes straight over an open file and the same hold let the write
+    // succeed: these checks failed on CI only (v1.9.0.5 release run). There the directory is made
+    // read-only instead, which stops the temp file being created. A runner as root ignores that,
+    // so it is checked.
+    object clearResult;
+    if (OperatingSystem.IsWindows())
+    {
+        using (var hold = new FileStream(roPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            clearResult = clear.Invoke(cc, null);
+        }
+    }
+    else
+    {
+        var was = File.GetUnixFileMode(roDir);
+        File.SetUnixFileMode(roDir, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        var probe = Path.Combine(roDir, "probe");
+        var blocked = false;
+        try { File.WriteAllText(probe, ""); File.Delete(probe); } catch (UnauthorizedAccessException) { blocked = true; } catch (IOException) { blocked = true; }
+        Ok("the read-only directory really refuses a new file (not running as root)", blocked);
+        try { clearResult = clear.Invoke(cc, null); }
+        finally { File.SetUnixFileMode(roDir, was); }
+    }
+    Ok("Clear reports failure when the file could not be written", clearResult is bool b && !b);
+    Ok("the file is untouched, with no partial or temp file left", File.ReadAllText(roPath) == original
+        && Directory.GetFiles(roDir).Length == 1);
+    Ok("and the dashboard still shows the entries it could not delete", Shown(cc) == 2);
+    clearResult = clear.Invoke(cc, null);
+    Ok("Clear reports success when it worked", clearResult is bool ok2 && ok2 && Count(roPath) == 0);
+
+    // A file already at the old fixed temp name, held open, stopped every later write.
+    var tmpDir = Path.Combine(dir, "tmpname");
+    Directory.CreateDirectory(tmpDir);
+    var tmpPath = Path.Combine(tmpDir, "audit_log.json");
+    File.WriteAllText(tmpPath, original);
+    pathField.SetValue(null, tmpPath);
+    cacheField.SetValue(null, null);
+    var tc = NewController();
+    Shown(tc);
+    object tmpClear;
+    using (var hold = new FileStream(tmpPath + ".tmp", FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+    {
+        tmpClear = clear.Invoke(tc, null);
+    }
+    Ok("a write lands although <file>.tmp is already there and held open", tmpClear is bool tb && tb && Count(tmpPath) == 0);
+    Ok("and the pre-existing <file>.tmp is left alone", File.Exists(tmpPath + ".tmp"));
+    File.Delete(tmpPath + ".tmp");
+    Ok("and no other temp file is left beside it", Directory.GetFiles(tmpDir).Length == 1);
+
+    // With no plugin instance there is no data folder. The log used to go to the system temp
+    // folder, a copy of usernames and addresses nobody would look for.
+    var fallback = Path.Combine(Path.GetTempPath(), "bonfire_audit_log_fallback.json");
+    try { File.Delete(fallback); } catch { }
+    pathField.SetValue(null, null);
+    cacheField.SetValue(null, null);
+    record.Invoke(NewController(), new object[] { "main", "nowhere" });
+    Thread.Sleep(300);
+    Ok("with no data folder nothing is written to the temp folder", !File.Exists(fallback));
+}
+finally
+{
+    pathField.SetValue(null, null);
+    Thread.Sleep(100);
+    try { Directory.Delete(dir, true); } catch { }
+}
+
+Console.WriteLine();
+if (fails.Count > 0)
+{
+    Console.WriteLine("  Failures:");
+    foreach (var f in fails) Console.WriteLine("   - " + f);
+    Console.WriteLine(pass + " passed, " + fails.Count + " failed");
+    return 1;
+}
+Console.WriteLine(pass + " passed, 0 failed");
+return 0;

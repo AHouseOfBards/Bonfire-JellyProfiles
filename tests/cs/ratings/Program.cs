@@ -106,6 +106,11 @@ var none = (List<Jellyfin.Profiles.RatingChoice>)forCountry.Invoke(null, new obj
 Ok("no tables found means an empty list, not an error", none != null && none.Count == 0);
 var blank = (List<Jellyfin.Profiles.RatingChoice>)forCountry.Invoke(null, new object[] { asm, "", null });
 Ok("and so does no country", blank != null && blank.Count == 0);
+// R-1132: the cache must not hand out its own list, or one caller's edit reaches the next.
+var first = (List<Jellyfin.Profiles.RatingChoice>)forCountry.Invoke(null, new object[] { asm, "ZZ", null });
+first.Add(new Jellyfin.Profiles.RatingChoice());
+var again = (List<Jellyfin.Profiles.RatingChoice>)forCountry.Invoke(null, new object[] { asm, "ZZ", null });
+Ok("a caller changing the list it got does not change the cached one", again.Count == 0, "second call returned " + again.Count + " item(s)");
 
 Console.WriteLine();
 if (fails.Count > 0)

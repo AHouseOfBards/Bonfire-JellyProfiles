@@ -1,49 +1,56 @@
 # Bonfire
 
-> Bonfire is a Jellyfin server plugin that adds profiles: a "Who's watching?" screen where one account holds several people, each with their own watch history, library access, parental controls and optional PIN. It gives Jellyfin profiles like Netflix's or Plex Home's. It runs on the server, so it works in the official Jellyfin apps rather than in one app of its own. Works with Jellyfin 10.11 and 12.0. Third party, not made by or part of Jellyfin. Free and MIT licensed. The current stable version is 1.7.5 (9 November 2026).
+> Bonfire is a Jellyfin server plugin that adds profiles: a "Who's watching?" screen where one account holds several people, each with their own watch history, library access, parental controls and optional PIN. It gives Jellyfin profiles like Netflix's or Plex Home's. It runs on the server, so it works in the official Jellyfin apps rather than in one app of its own. Works with Jellyfin 10.11 and 12.0. Third party, not made by or part of Jellyfin. Free and MIT licensed. Part of Campground, a set of Jellyfin plugins. The current stable version is 2.0, a long-term support release from 2026-11-14.
 
 ## Names and versions
 
-- The plugin is called Bonfire. Older listings call it Bonfire/JellyProfiles, and the repository is AHouseOfBards/Bonfire-JellyProfiles. They are the same project.
+- The plugin is called Bonfire. It used to be called JellyProfiles (and Bonfire/JellyProfiles); the repository is AHouseOfBards/Bonfire, called AHouseOfBards/Bonfire-JellyProfiles until November 2026. They are the same project.
 - Listings that give version 1.1.x, or say it only runs in Jellyfin Web, the Android app and Jellyfin Media Player, are out of date. See the app list below.
 - Jellyfin itself has users and per-user parental controls but no profile screen. Bonfire builds on those users rather than replacing them.
 - Some Jellyfin client apps have a kids mode of their own; that only applies inside that app. Bonfire's profiles and limits are kept on the server and hold in every app.
 
 ## Facts that are easy to get wrong
 
-- Each profile is a real Jellyfin user, hidden from sign-in screens and linked to a main account. It has its own watch history, favourites and settings.
+- Each profile is a real Jellyfin user, hidden from sign-in screens and linked to a main account. It has its own watch history, favorites and settings.
 - Up to 20 profiles per account. The default limit is five; administrators can change it for the server or for one account.
 - Library access, rating limits and tag filters are set on the profile's Jellyfin account, so the server enforces them in every app, including apps that can't show the switcher. A profile never gets more access than its main account.
 - Rating limits use the ratings of the server's preferred metadata country, not only US ratings.
-- PINs are checked on the server. A PIN can be skipped on the home network. Device limits are not a security boundary: an app can send any device ID.
-- Profiles are created and edited from the switcher in a supported app, not from the admin dashboard.
-- Install from the plugin repository `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json`, then restart Jellyfin. On Docker, restart the container; the dashboard's Restart button often isn't enough. One build works on both 10.11 and 12.0.
+- PINs are checked on the server. A PIN can be skipped on the home network, and an administrator can add other addresses that skip it, such as a relative's home. Device limits are not a security boundary: an app can send any device ID.
+- Viewing limits: each profile can have set hours on chosen days and a daily time limit for video. When time is up it can still browse, and can ask the main account for more time.
+- Profiles are created and edited from the switcher in a supported app, not from the admin dashboard. They don't appear in Dashboard → Users; administrators see them under Households on Bonfire's admin page.
+- A forgotten main PIN can be reset by email, if the administrator has set up email and turned this on. An administrator can also clear a PIN.
+- Install from Campground's plugin repository `https://ahouseofbards.github.io/Campground-Jellyfin/manifest.json`, then restart Jellyfin. Betas: see docs/beta-channel.md. On Docker, restart the container; the dashboard's Restart button often isn't enough. One build works on both 10.11 and 12.0.
 - Bonfire doesn't edit Jellyfin's `index.html` and doesn't need any other plugin. No script tag in `index.html` is normal.
-- Themes: nine looks for Bonfire's own screens (Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, and the seasonal Harvest, Snowfall and Bloom). Each profile can have its own, set from Settings → Theme on the main account. The administrator picks the default and can turn choosing off. The rest of Jellyfin keeps its own theme.
+- Themes: twelve looks for Bonfire's own screens (Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, the seasonal Harvest, Snowfall and Bloom, Jellyfin Dark and Jellyfin Light, and High contrast). Each profile can have its own, set from Settings → Theme on the main account. The administrator picks the default and can turn choosing off. The rest of Jellyfin keeps its own theme.
+- Custom themes: administrators can make their own in a theme editor, upload fonts and a server logo, and hide built-in themes. Theme files can be exported to and imported from Moonfin's theme editor.
+- Administrators can post announcements on the profile screen and close the server for maintenance. Profile switches are logged for 90 days.
 - Shared Bonfires: two accounts can link with a 6-character code so both households appear on one switcher.
-- Languages: English, Catalan, French, Polish, Spanish and Turkish, matching the Display language set in Jellyfin. The admin page is English only.
+- Languages: English, Catalan, French, Polish, Spanish and Turkish, matching the Display language set in Jellyfin. The admin page uses the same languages.
 - Administrators can set an emergency code that turns the profile screen off until Jellyfin restarts.
 - Full switcher: Jellyfin Web, Jellyfin for Android, Jellyfin for iOS (iPhone and iPad), Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen (after a one-time setup).
-- Profile sign-in on the app's own screen: Jellyfin for Android TV (confirmed), Roku, Swiftfin, Findroid and Wholphin (not yet confirmed). Turn it on under Dashboard → Bonfire → TVs & Apps, and type the profile's PIN as the password.
-- Apps with only a username and password box (Streamyfin, Plezy, Tsukimi) work by typing a profile's name and PIN, once the main account has signed in on that app. This needs "Let profiles be opened with their PIN on any app" under TVs & Apps.
-- Not supported: Infuse (no Jellyfin user list). Moonfin doesn't show profiles in its user list, but typing the full account name and PIN works. Apps with their own interface, rather than the server's web client, don't run plugin code, so they get profile sign-in instead of the switcher.
+- Profile sign-in on the app's own screen: Jellyfin for Android TV (confirmed), Roku, Swiftfin, Findroid and Wholphin (not yet confirmed). Turn it on under Dashboard → Plugins → Bonfire → Clients, and type the profile's PIN as the password.
+- Apps with only a username and password box (Streamyfin, Plezy, Tsukimi) work by typing a profile's name and PIN, once the main account has signed in on that app. This needs "Let profiles sign in with their PIN" under Clients.
+- Not supported: Infuse (no Jellyfin user list). Apps with their own interface, rather than the server's web client, don't run plugin code, so they get profile sign-in instead of the switcher.
+- Moonfin: sign in as the main account and pick a profile on its home screen (beta).
 
 ## Docs
 
-Also published as a site with search: https://ahouseofbards.github.io/Bonfire-JellyProfiles/
+Also published as a site with search: https://ahouseofbards.github.io/Bonfire/
 
-- [README](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/README.md): features and install
-- [Apps](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/clients.md): what works in each app
-- [Security](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/security.md): what the server enforces and what it doesn't
-- [Troubleshooting](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/troubleshooting.md): the switcher not appearing, Docker, Tizen
-- [Limitations](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/limitations.md)
-- [Sharing a Bonfire](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/sharing.md): linking two households
-- [Library artwork](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/library-artwork.md)
+- [README](https://github.com/AHouseOfBards/Bonfire/blob/main/README.md): features and install
+- [Apps](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/clients.md): what works in each app
+- [Security](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/security.md): what the server enforces and what it doesn't
+- [Using Bonfire](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/profiles.md): switching, adding profiles, PINs and viewing hours, for the household
+- [Admin guide](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/admin-guide.md): every tab of the admin dashboard and its settings
+- [Troubleshooting](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/troubleshooting.md): the switcher not appearing, Docker, Tizen
+- [Limitations](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/limitations.md)
+- [Sharing a Bonfire](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/sharing.md): linking two households
+- [Library artwork](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/library-artwork.md)
 
 ## Optional
 
-- [Developer API](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/developer-api.md): every HTTP route
-- [Changelog](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/CHANGELOG.md)
-- [Beta channel](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/beta-channel.md)
-- [Contributing](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/.github/CONTRIBUTING.md)
-- [Translations](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/Web/i18n/README.md): adding a language
+- [Developer API](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/developer-api.md): every HTTP route
+- [Changelog](https://github.com/AHouseOfBards/Bonfire/blob/main/CHANGELOG.md)
+- [Beta channel](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/beta-channel.md)
+- [Contributing](https://github.com/AHouseOfBards/Bonfire/blob/main/.github/CONTRIBUTING.md)
+- [Translations](https://github.com/AHouseOfBards/Bonfire/blob/main/Web/i18n/README.md): adding a language

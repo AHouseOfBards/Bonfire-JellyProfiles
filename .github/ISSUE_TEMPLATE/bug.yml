@@ -5,22 +5,21 @@ body:
   - type: markdown
     attributes:
       value: |
-        Two quick things first — they answer most reports before anyone has to ask.
+        Check these first.
 
-        **The switcher is not appearing at all?** Check **Dashboard → Plugins → Bonfire →
-        Advanced → Client script** first. If it says a restart is pending: on Docker the
+        **The switcher is not appearing at all?** Open **Dashboard → Plugins → Bonfire →
+        Troubleshoot → Advanced → Client script**. If it says a restart is pending: on Docker the
         dashboard's Restart button often does not restart the process. Restart the
         container.
 
-        **The page says nothing about `index.html`?** That is correct. Since 1.5 Bonfire
-        adds its script as the page is served and leaves `index.html` alone. A file with
-        no Bonfire tags in it is healthy.
+        **No Bonfire tags in `index.html`?** That is normal. Bonfire adds its script as the
+        page is served and leaves `index.html` alone.
 
   - type: input
     id: version
     attributes:
       label: Bonfire version
-      description: Dashboard → Plugins → Bonfire, top right. Include `-beta` if it is there.
+      description: Top right of **Dashboard → Plugins → Bonfire**. Include `-beta` if it is there.
       placeholder: "1.5.4-beta"
     validations:
       required: true
@@ -30,10 +29,9 @@ body:
     attributes:
       label: Client script status
       description: >
-        Dashboard → Plugins → Bonfire → Advanced → Client script. Copy the status line
-        and the delivery method. This says whether the plugin is reaching the browser at
-        all, which decides whether anything else in the report is even possible.
-      placeholder: "Serving live · 412 pages served · no errors"
+        **Dashboard → Plugins → Bonfire → Troubleshoot → Advanced → Client script**. Copy the status line
+        and the delivery method. It shows whether the plugin reaches the browser.
+      placeholder: "The script is working: 412 pages served."
     validations:
       required: true
 
@@ -58,9 +56,8 @@ body:
     attributes:
       label: Where you saw it
       description: >
-        The app and the device. On a television, say which — Bonfire runs inside your
-        server's web client, and the browser engine on a 2020 TV is years behind a desktop
-        one, so this changes what is even possible.
+        The app and the device. On a TV, give the model. Old TV browsers limit what
+        Bonfire can do.
       placeholder: "LG webOS (CX, 2020) / Firefox on Windows / Jellyfin Android app"
     validations:
       required: true
@@ -78,8 +75,7 @@ body:
     attributes:
       label: Screenshot or photo
       description: >
-        Optional, and worth more than any description for anything visual. A phone photo
-        of a television is completely fine — two reports in a row were diagnosed from one.
+        Optional. A phone photo of a TV is fine.
     validations:
       required: false
 
@@ -88,7 +84,7 @@ body:
     attributes:
       label: Browser console errors
       description: >
-        Optional. On desktop, F12 → Console, and copy anything red mentioning
+        Optional. On desktop, press F12, open Console, and copy anything red mentioning
         `ProfilesPlugin` or `profiles.js`. Skip this on a TV.
       render: text
     validations:

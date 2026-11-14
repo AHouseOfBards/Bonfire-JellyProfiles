@@ -1,18 +1,17 @@
 /*
  * Nothing the server hands back may be rendered as markup.
  *
- * The admin dashboard runs with the administrator's token. Its audit log printed the
- * device and client name of every profile switch straight into innerHTML, and those two
- * values are copied from the Authorization header of whoever switched, URL-decoded on the
- * way in. Any account on the server can switch into itself, so any account could name its
- * device <img src=x onerror=…> and have that script run as the administrator the next time
- * the Bonfire settings page was opened. The audit log loads with the page, so the
- * administrator did not have to click anything. The sessions list and the orphan list had
- * the same shape.
+ * The admin dashboard runs with the administrator's token. Its audit log printed the device
+ * and client name of every profile switch straight into innerHTML, and those values are
+ * copied from the Authorization header of whoever switched, URL-decoded on the way in. Any
+ * account can switch into itself, so any account could name its device <img src=x
+ * onerror=...> and have that script run as the administrator the next time the settings page
+ * opened. The audit log loads with the page, so no click was needed. The sessions list and
+ * the orphan list had the same shape.
  *
- * This runs the real render functions against hostile values and looks at what they
- * produce. Reading the source for "escapeHtml" would pass a version that escapes one field
- * and forgets the next, which is how this happened.
+ * This runs the real render functions against hostile values and looks at what they produce.
+ * Reading the source for "escapeHtml" would pass a version that escapes one field and forgets
+ * the next, which is how this happened.
  *
  * Point it at older files to watch it fail (argv[2] is the client script, argv[3] the
  * dashboard):
@@ -46,14 +45,27 @@ function live(html) {
 const script = L.dashboardScript(L.readDashboard());
 
 /** Builds one callable out of the named dashboard functions, or null if any is missing. */
-function dashboardFns(names, entry) {
+function dashboardFns(names, entry, pre) {
     let src;
     try {
-        src = names.map(n => L.extractFunction(script, n)).join('\n');
+        src = L.dashboardI18n(script) + names.map(n => L.extractFunction(script, n)).join('\n');
     } catch (e) {
         return null;
     }
-    return new Function('arg1', 'arg2', 'let auditEntries = arg2 || [];\n' + src + '\nreturn ' + entry + ';');
+    return new Function('arg1', 'arg2', 'let auditEntries = arg2 || [];\n' + (pre || '') + src + '\nreturn ' + entry + ';');
+}
+
+/** A stand-in element: records the markup written to it, ignores everything else. */
+function fakeEl() {
+    const el = {
+        innerHTML: '', textContent: '', value: '', style: {}, dataset: {}, checked: false,
+        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+        addEventListener() {}, setAttribute() {}, getAttribute: () => null,
+        appendChild() {}, remove() {}, focus() {},
+        insertAdjacentHTML(where, h) { el.innerHTML += h; },
+        querySelector: () => fakeEl(), querySelectorAll: () => []
+    };
+    return el;
 }
 
 function fakePage(extra) {
@@ -87,7 +99,7 @@ console.log('\n── The audit log, which loads with the page ─────�
 
 console.log('\n── The signed-in sessions list ─────────────────────────────────');
 {
-    const rows = dashboardFns(['escapeHtml', 'sessionRowsHtml'], 'sessionRowsHtml(arg1)');
+    const rows = dashboardFns(['escapeHtml', 'namedAria', 'sessionRowsHtml'], 'sessionRowsHtml(arg1)');
     ok('the rows are built by a function a test can run', rows !== null);
     if (rows) {
         const hostile = {
@@ -104,7 +116,7 @@ console.log('\n── The signed-in sessions list ──────────
 
 console.log('\n── The orphan scan ─────────────────────────────────────────────');
 {
-    const render = dashboardFns(['escapeHtml', 'renderOrphans'], 'renderOrphans(arg1, arg2)');
+    const render = dashboardFns(['escapeHtml', 'orphanReasonText', 'renderOrphans'], 'renderOrphans(arg1, arg2)');
     ok('renderOrphans can be run', render !== null);
     if (render) {
         // renderOrphans binds its apply button after rendering.
@@ -124,6 +136,102 @@ console.log('\n── The orphan scan ──────────────
     }
 }
 
+// R-1280: the household list, the avatar grid and the theme rows are built from names the
+// server hands back (a profile's name, an avatar's file name, a theme's name) and had no
+// hostile-value run. The household and avatar renderers live inside a fetch callback, so the
+// real function is run against a fake ApiClient that answers with the payload.
+console.log('\n── The household list ──────────────────────────────────────────');
+{
+    // Stubs only for what is not markup: the status rows, the first-run checklist, the
+    // trusted-address editor and the injection status. Every HTML builder is the real one.
+    const pre = 'var __result = null, __ajax = null;\n'
+        + 'var Dashboard = { showLoadingMsg() {}, hideLoadingMsg() {}, alert() {}, confirm() {} };\n'
+        + 'var ApiClient = { getUrl: function (u) { return "/" + u; },\n'
+        + '  serverVersion: function () { return "10.11.0"; },\n'
+        + '  getJSON: function () { return { then: function (f) { f(__result); return { catch: function () {} }; } }; } };\n'
+        + 'function setStatus() {} function pinStatusRows() { return []; } function renderGettingStarted() {}\n'
+        + 'function renderTrusted() {} function renderInjectionStatus() {}\n'
+        + 'function bindStandaloneForms() {} function bindAccountExtras() {}\n'
+        + 'function pluginAsset(u) { return "/" + u; }\n';
+    const make = dashboardFns(['escapeHtml', 'namedAria', 'field', 'normId', 'collectTrusted', 'loadMappings'],
+        '(function (res, page) { __result = res; loadMappings(page); })', pre);
+    ok('loadMappings can be run against a fake server', make !== null);
+    if (make) {
+        const run = make();
+        const master = { profileName: EVIL, profileUserId: EVIL_ATTR, requiresPin: true,
+                         maxProfiles: 5, limitOverride: 3 };
+        const sub = { profileName: EVIL, profileUserId: EVIL_ATTR, masterUserId: EVIL_ATTR,
+                      requiresPin: true };
+        const orphan = { profileName: EVIL, profileUserId: EVIL_ATTR, masterUserId: 'nobody',
+                         requiresPin: true };
+        const list = fakeEl();
+        const page = fakeEl();
+        page.dataset = {};
+        page.querySelector = s => s === '#masterUsersList' ? list : fakeEl();
+        let threw = null;
+        try { run({ MasterUsers: [master], SubProfiles: [sub, orphan] }, page); }
+        catch (e) { threw = e; }
+        ok('it renders without throwing' + (threw ? ' — ' + threw.message : ''), threw === null);
+        ok('the list has rows, with the hostile name shown as text',
+           list.innerHTML.indexOf('&lt;img src=x') !== -1);
+        ok('no part of the household list is markup (names, ids, reasons)', !live(list.innerHTML));
+    }
+}
+
+console.log('\n── The avatar library ──────────────────────────────────────────');
+{
+    const pre = 'var ApiClient = { getUrl: function (u) { return "/" + u; },\n'
+        + '  ajax: function () { return { then: function (f) { f(__data); return { catch: function () {} }; } }; } };\n'
+        + 'var __data = null; function pluginAsset(u) { return "/" + u; }\n';
+    const make = dashboardFns(['escapeHtml', 'namedAria', 'field', 'loadAvatarLibrary'],
+        '(function (d, page) { __data = d; loadAvatarLibrary(page); })', pre);
+    ok('loadAvatarLibrary can be run against a fake server', make !== null);
+    if (make) {
+        const grid = fakeEl();
+        const page = fakeEl();
+        page.querySelector = s => s === '#avatarLibraryGrid' ? grid : fakeEl();
+        let threw = null;
+        try {
+            make()({ avatars: { avatars: [{ id: EVIL_ATTR, displayName: EVIL, thumbUrl: EVIL_ATTR, isStarter: false }] } },
+                   page);
+        } catch (e) { threw = e; }
+        ok('it renders without throwing' + (threw ? ' — ' + threw.message : ''), threw === null);
+        ok('the avatar name is shown as text', grid.innerHTML.indexOf('&lt;img src=x') !== -1);
+        ok('no part of the avatar grid is markup (name, id, thumbnail)', !live(grid.innerHTML));
+    }
+}
+
+console.log('\n── The theme rows ──────────────────────────────────────────────');
+{
+    const build = (fn, a, b) => {
+        const f = dashboardFns(['escapeHtml', 'namedAria', 'themePreviewCardHtml', 'themeShortName', 'getThemePath',
+                                'themeDisplayName', 'themeFontCssName', fn], fn + '(arg1, arg2)');
+        return f ? f(a, b) : null;
+    };
+    // The shapes the server sends: a built-in is { id, hidden }, a custom theme carries its
+    // own name in theme.name.text, a font is { family, file, usedBy, weights, fallback }.
+    const data = {
+        'default': EVIL_ATTR,
+        builtIn: [{ id: EVIL_ATTR, hidden: false }, { id: EVIL, hidden: true }],
+        builtInNames: { [EVIL_ATTR]: EVIL, [EVIL]: EVIL },
+        custom: [{ id: EVIL_ATTR, problems: [{ code: EVIL }], theme: { name: { text: EVIL } } }],
+        fonts: [{ family: EVIL, file: EVIL_ATTR, usedBy: [EVIL_ATTR], weightMin: 400, weightMax: 700,
+                  fallback: 'serif' }]
+    };
+    const previews = { [EVIL_ATTR]: EVIL_ATTR, [EVIL]: EVIL };
+    [['builtInThemeRowsHtml', data, previews], ['customThemeRowsHtml', data],
+     ['fontRowsHtml', data]].forEach(args => {
+        let html = null, threw = null;
+        try { html = build(args[0], args[1], args[2]); } catch (e) { threw = e; }
+        ok(args[0] + ' runs' + (threw ? ' — ' + threw.message : ''), threw === null && typeof html === 'string');
+        if (typeof html === 'string') {
+            ok(args[0] + ' shows the hostile name as text', html.indexOf('&lt;img src=x') !== -1
+               || html.indexOf('&quot; onmouseover') !== -1);
+            ok(args[0] + ' renders nothing as markup', !live(html));
+        }
+    });
+}
+
 console.log('\n── The import summary ──────────────────────────────────────────');
 {
     const summary = dashboardFns(['importSummary'], 'importSummary(arg1)');
@@ -131,9 +239,27 @@ console.log('\n── The import summary ─────────────
     if (summary) {
         const text = summary({ mappings: 1, devices: 0, bonfires: 0, droppedMappings: [EVIL] });
         ok('it names the skipped profiles', text.indexOf(EVIL) !== -1);
+        // The export leaves the emergency code out. The summary says which of the two
+        // happened: the server kept its own, or there is none and it needs setting.
+        const base = { mappings: 1, devices: 0, bonfires: 0, droppedMappings: [] };
+        const kept = summary(Object.assign({}, base, { emergencyCodeIncluded: false, emergencyCodeSet: true }));
+        const unset = summary(Object.assign({}, base, { emergencyCodeIncluded: false, emergencyCodeSet: false }));
+        const had = summary(Object.assign({}, base, { emergencyCodeIncluded: true, emergencyCodeSet: true }));
+        ok('a file without the emergency code says the server kept its own',
+           /emergency code/i.test(kept) && /kept/i.test(kept), kept);
+        ok('and with none on the server, says to set it', /emergency code/i.test(unset) && /set it/i.test(unset), unset);
+        ok('a file with the code says nothing about it', !/emergency code/i.test(had), had);
     }
-    ok('and the page escapes that text before it becomes markup',
-       /innerHTML\s*=\s*'<span class="jpf-dim">'\s*\+\s*escapeHtml\(importSummary\(res\)\)/.test(script));
+    // R-1280: was a regex over the source for one spelling of the call. The markup the page
+    // writes is built by a function now, and this runs it.
+    const markup = dashboardFns(['escapeHtml', 'importSummary', 'importResultHtml'], 'importResultHtml(arg1)');
+    ok('the markup under the import button is built by a function a test can run', markup !== null);
+    if (markup) {
+        const html = markup({ mappings: 1, devices: 0, bonfires: 0, droppedMappings: [EVIL] });
+        ok('and the skipped profile is text in it, not markup', html.indexOf('&lt;img src=x') !== -1 && !live(html));
+    }
+    ok('and the page writes that function\'s result, nothing else, to the box',
+       script.indexOf('box.innerHTML = importResultHtml(res);') !== -1);
 }
 
 console.log('\n── escapeHtml itself ───────────────────────────────────────────');
@@ -145,6 +271,7 @@ console.log('\n── escapeHtml itself ─────────────�
 
 // ── The client ───────────────────────────────────────────────────────────────
 
+let pending = null;
 console.log('\n── The Bonfire panel names other people ────────────────────────');
 {
     let src = fs.readFileSync(L.profilesPath(), 'utf8');
@@ -161,6 +288,7 @@ console.log('\n── The Bonfire panel names other people ───────
         sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
         navigator: { userAgent: 'Mozilla/5.0', language: 'en' },
         setTimeout() {}, clearTimeout() {}, setInterval() {}, clearInterval() {},
+        requestAnimationFrame() {},
         fetch: () => Promise.resolve({ ok: true, text: () => Promise.resolve('') }),
         document: {
             addEventListener() {}, removeEventListener() {},
@@ -198,11 +326,72 @@ console.log('\n── The Bonfire panel names other people ───────
     const joined = render({ isOwner: false, isMember: true, joinedOwnerName: EVIL, joinedOwnerId: 'x' });
     ok('the owner of a Bonfire you joined is text', joined.indexOf('&lt;img src=x') !== -1 && !live(joined));
 
-    // showAlert renders its message as markup because translations carry tags. What goes
-    // into it from a server response must therefore be escaped at the call site.
-    const client = fs.readFileSync(L.profilesPath(), 'utf8');
-    ok('no server error message is interpolated raw', client.indexOf('{ message: err.message }') === -1);
+    // showAlert renders its message as markup because translations carry tags, so what goes
+    // into it from a server response must be escaped at the call site.
+    //
+    // R-1280: this used to look for one spelling of the mistake in the source, which a
+    // different spelling walks past. The three screens that show a refusal from the time-limit
+    // routes are driven instead: the server's answer is a hostile message, and what reaches
+    // showAlert is what is checked.
+    const alerts = [];
+    // r2-24-03: the dialog now escapes what it is given, so what is checked is what the real
+    // showAlert writes into the page, not what the caller handed it.
+    const realAlert = plugin.showAlert;
+    plugin.showAlert = function (title, message, onClose, asHtml) {
+        let written = '';
+        const el = { style: {}, classList: { add() {}, remove() {}, contains: () => false },
+            set innerHTML(v) { written = v; }, get innerHTML() { return written; },
+            addEventListener() {}, setAttribute() {}, getAttribute: () => null, appendChild() {}, remove() {}, focus() {},
+            querySelector: () => ({ addEventListener() {}, focus() {}, setAttribute() {}, getAttribute: () => null, style: {} }),
+            querySelectorAll: () => [] };
+        const was = sandbox.document.createElement;
+        sandbox.document.createElement = () => el;
+        try { realAlert.call(plugin, title, message, onClose, asHtml); } finally { sandbox.document.createElement = was; }
+        alerts.push(written);
+    };
+    // r3-05-02: the dialogs had an opt-out from escaping that nothing used. A trailing true, the
+    // way it was asked for, must still give text.
+    plugin.showAlert(EVIL, EVIL, null, true);
+    ok('an alert asked for markup still shows text', alerts.length === 1 && !live(alerts[0]) && alerts[0].indexOf('&lt;img') !== -1, alerts[0]);
+    {
+        let written = '';
+        const el = { style: {}, classList: { add() {}, remove() {}, contains: () => false },
+            set innerHTML(v) { written = v; }, get innerHTML() { return written; },
+            addEventListener() {}, setAttribute() {}, getAttribute: () => null, appendChild() {}, remove() {}, focus() {},
+            querySelector: () => ({ addEventListener() {}, focus() {}, setAttribute() {}, getAttribute: () => null, style: {} }),
+            querySelectorAll: () => [] };
+        const was = sandbox.document.createElement;
+        sandbox.document.createElement = () => el;
+        try { plugin.showConfirmDialog(EVIL, EVIL, function () {}, null, true); } catch (e) { /* only what it wrote matters */ }
+        finally { sandbox.document.createElement = was; }
+        ok('a confirm asked for markup still shows text', written !== '' && !live(written) && written.indexOf('&lt;img') !== -1, written.slice(0, 200));
+    }
+    alerts.length = 0;
+    plugin._limitsCall = function () { return Promise.reject(new Error(EVIL)); };
+    const dialogs = [];
+    plugin.showActionsDialog = function (title, body, actions) { dialogs.push(actions); };
+    plugin.showSelectDialog = function (title, body, options, cb) { cb('15'); };
+    const kid = { profileName: 'Kid', profileUserId: 'u1', profileId: 'u1', viewing: { reason: 'limit' } };
+    const none = function () {};
+    function drive(fn) {
+        const before = dialogs.length;
+        try { fn(); } catch (e) { /* only what reaches showAlert matters */ }
+        dialogs.slice(before).forEach(function (actions) {
+            actions.forEach(function (a) { try { if (a.run) a.run(); } catch (e) { /* ditto */ } });
+        });
+    }
+    drive(() => plugin.showTimeUp(kid, none));
+    drive(() => plugin.chooseMoreTime(kid, none));
+    drive(() => plugin.answerTimeRequest({ profileName: 'Kid', profileId: 'u1', grantMinutesLeft: 60 }, none));
+    pending = new Promise(r => setTimeout(r, 20)).then(() => {
+        ok('the three time-limit screens each showed the refusal (' + alerts.length + ' alerts)',
+           alerts.length >= 3);
+        ok('a refusal from the server is shown as text, never as markup',
+           alerts.length > 0 && alerts.every(a => !live(a)) && alerts.some(a => a.indexOf('&lt;img') !== -1));
+    });
 }
 
-console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
-if (fails.length) process.exit(1);
+Promise.resolve(pending).then(function () {
+    console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
+    if (fails.length) process.exit(1);
+});

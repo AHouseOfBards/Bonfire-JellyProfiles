@@ -1,0 +1,168 @@
+{
+  "schema": 1,
+  "id": "harbor",
+  "revision": 3,
+  "scheme": "dark",
+  "name": {
+    "key": "theme.harbor"
+  },
+  "aliases": [],
+  "colors": {
+    "accent": "#4fd1c5",
+    "accentFocus": "#79ded5",
+    "onAccent": "#06201d",
+    "text1": "#effcfaeb",
+    "text2": "#effcfab0",
+    "text3": "#effcfa82",
+    "surface1": "#bff3ec08",
+    "surface2": "#bff3ec0f",
+    "surface3": "#bff3ec1c",
+    "border1": "#bff3ec14",
+    "border2": "#bff3ec26",
+    "border3": "#bff3ec42",
+    "panel": "#132b33",
+    "ring": "#bff3ec",
+    "name": "#ecfbf8",
+    "nameFocus": "#ffffff",
+    "shadow": "#000000",
+    "danger": "#ff6b6b",
+    "warning": "#ffa31a"
+  },
+  "background": {
+    "fill": "#0b1a20",
+    "layers": [
+      {
+        "type": "linear",
+        "angle": 180,
+        "stops": [
+          {
+            "color": "#11303a",
+            "at": 0
+          },
+          {
+            "color": "#0e222a",
+            "at": 55
+          },
+          {
+            "color": "#0b1a20",
+            "at": 100
+          }
+        ]
+      }
+    ]
+  },
+  "shape": {
+    "radius": {
+      "small": 4,
+      "medium": 8,
+      "large": 12
+    },
+    "avatar": {
+      "kind": "rounded",
+      "radius": 18
+    },
+    "ringWidth": 3,
+    "button": {
+      "kind": "rounded",
+      "radius": 6
+    },
+    "input": {
+      "radius": 6
+    }
+  },
+  "type": {
+    "font": {
+      "family": "Montserrat",
+      "fallback": "sans-serif"
+    },
+    "title": {
+      "weight": 800,
+      "spacing": 0.02,
+      "scale": 1.05
+    },
+    "name": {
+      "weight": 700,
+      "scale": 0.95,
+      "opacity": 1
+    },
+    "button": {
+      "case": "upper",
+      "spacing": 0.08,
+      "weight": 700
+    }
+  },
+  "depth": {
+    "avatar": {
+      "x": 0,
+      "y": 8,
+      "blur": 20,
+      "opacity": 0.45
+    },
+    "title": null,
+    "sheet": null
+  },
+  "focus": {
+    "scale": 1.05,
+    "glow": {
+      "x": 0,
+      "y": 8,
+      "blur": 24,
+      "color": "#4fd1c54d"
+    }
+  },
+  "parts": {
+    "button2": {
+      "fill": "#bff3ec12",
+      "text": "#ecfbf8",
+      "border": {
+        "width": 2,
+        "style": "solid",
+        "color": "#bff3ec2e"
+      },
+      "focus": {
+        "fill": "#4fd1c5",
+        "text": "#06201d",
+        "border": {
+          "width": 2,
+          "style": "solid",
+          "color": "#4fd1c5"
+        },
+        "glow": null
+      }
+    },
+    "addTile": {
+      "fill": "#bff3ec0a",
+      "border": {
+        "width": 2,
+        "style": "dashed",
+        "color": "#bff3ec47"
+      },
+      "text": "#9fe8de",
+      "focusFill": "#4fd1c524"
+    },
+    "card": {
+      "fill": "#bff3ec08",
+      "line": "#bff3ec1a"
+    },
+    "sheet": {
+      "fill": "#00000000",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#00000000"
+      }
+    },
+    "input": {
+      "fill": "#11272e",
+      "line": "#bff3ec33"
+    }
+  },
+  "layout": {
+    "households": "open",
+    "profiles": "tiles",
+    "align": "center",
+    "size": "medium",
+    "logo": "top-right"
+  },
+  "decorations": []
+}

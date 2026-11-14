@@ -1,20 +1,17 @@
 /*
  * The Bonfire settings toggles must not keep a state the server never accepted.
  *
- * A failed save used to be a console.error and nothing else. The checkbox stayed where
- * the user put it while the server still held the old value, and nothing on screen said
- * so. One of the three is allowHouseholdLanBypass, which decides whether anyone in your
- * Bonfire can open your account on your home network without your PIN — so the panel
- * could read "allowed" when it is not, or "not allowed" when it is. Either way the
- * person believes a security setting that is not true, and the only way to find out is
- * to reopen the panel.
+ * A failed save used to be a console.error and nothing else. The checkbox stayed where the
+ * user put it while the server held the old value. One of the three is
+ * allowHouseholdLanBypass, which decides whether anyone in your Bonfire can open your
+ * account on your home network without your PIN, so the panel could show "allowed" when it
+ * is not, or the reverse, and the only way to find out was to reopen it.
  *
  * Same technique as busy.js and session.js: evaluate the shipped file with init() swapped
- * for an export, then give renderBonfireStatus only as much DOM as it touches. The point
- * is to run the real handler against a real 500, not to read the source and check it
- * mentions the word "revert".
+ * for an export, and give renderBonfireStatus only the DOM it touches. It runs the real
+ * handler against a real 500 instead of reading the source for the word "revert".
  *
- * Point it at an older client to watch it fail:
+ * To watch it fail on an older client:
  *
  *     node tests/js/bonfiretoggle.js /path/to/old/profiles.js
  */
@@ -54,9 +51,9 @@ const IDS = [
 function build(respond, initial) {
     initial = initial || { hideMine: false, hideOthers: false, lanBypass: false };
 
-    // Controllable timers. The save is debounced 300ms, so a no-op setTimeout — which is
-    // what the other harnesses install — would mean nothing was ever sent and every
-    // assertion below would be about a request that never happened.
+    // Controllable timers. The save is debounced 300ms, so a no-op setTimeout (which the
+    // other harnesses install) would mean nothing was ever sent and every assertion below
+    // would be about a request that never happened.
     const timers = [];
     function setTimeoutStub(fn, ms) { timers.push({ fn: fn, ms: ms }); return timers.length; }
     function clearTimeoutStub(id) { if (timers[id - 1]) timers[id - 1].cancelled = true; }
@@ -191,6 +188,18 @@ ok('announced to a screen reader without moving focus',
    /id="bonfire-settings-status"[^>]*aria-live/.test(env.rendered()));
 ok('and it starts hidden', /id="bonfire-settings-status"[\s\S]{0,200}display:\s*none/.test(env.rendered()));
 
+{
+    // The LAN switch is under a closed More fold; the two hide boxes are not.
+    const html = env.rendered();
+    const foldAt = html.indexOf('<details');
+    const foldEnd = html.indexOf('</details>', foldAt);
+    const at = html.indexOf('id="bonfire-lan-bypass-checkbox"');
+    ok('the network switch is under a closed More fold',
+       foldAt !== -1 && at > foldAt && at < foldEnd && !/^<details[^>]*\sopen/.test(html.slice(foldAt, html.indexOf('>', foldAt) + 1)));
+    ok('and the two hide boxes are not',
+       html.indexOf('id="bonfire-hide-mine-checkbox"') < foldAt && html.indexOf('id="bonfire-hide-others-checkbox"') < foldAt);
+}
+
 console.log('\n── A successful save is confirmed ──────────────────────────────');
 
 const good = build('ok');
@@ -277,6 +286,24 @@ lanOff.runTimers();
 await lanOff.settle();
 ok('and saves straight away', lanOff.requests.length === 1);
 ok('sending false', lanOff.requests[0].body.allowHouseholdLanBypass === false);
+
+console.log('\n── The LAN confirm cannot be skipped by another box saving (R-1243) ──');
+
+// The dialog is open with the box ticked and nothing confirmed. A debounced save from one
+// of the other boxes must not carry the unconfirmed tick to the server, and Cancel must
+// then revert to a state that is still the server's.
+const skip = build('ok', { hideMine: false, hideOthers: false, lanBypass: false });
+skip.els['#bonfire-lan-bypass-checkbox'].checked = true;
+skip.els['#bonfire-lan-bypass-checkbox'].fire('change');
+skip.els['#bonfire-hide-mine-checkbox'].checked = true;
+skip.els['#bonfire-hide-mine-checkbox'].fire('change');
+skip.runTimers();
+await skip.settle();
+ok('another box saved while the dialog was open', skip.requests.length === 1);
+ok('and did not send the unconfirmed LAN bypass as on',
+   skip.requests.length === 1 && skip.requests[0].body.allowHouseholdLanBypass !== true);
+skip.confirm().cancel();
+ok('Cancel puts the LAN box back to off', skip.els['#bonfire-lan-bypass-checkbox'].checked === false);
 
 console.log('\n── A second failure reverts to the server state, not the first attempt ──');
 

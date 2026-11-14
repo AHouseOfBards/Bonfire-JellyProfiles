@@ -1,0 +1,463 @@
+{
+  "schema": 1,
+  "subsets": {
+    "latin": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+    "latin-ext": "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF"
+  },
+  "fonts": [
+    {
+      "family": "Noto Sans",
+      "fallback": "sans-serif",
+      "local": [
+        "Noto Sans"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "noto-sans-latin.woff2",
+        "latin-ext": "noto-sans-latin-ext.woff2"
+      },
+      "licence": "noto-sans-OFL.txt"
+    },
+    {
+      "family": "Outfit",
+      "fallback": "sans-serif",
+      "local": [
+        "Outfit"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "outfit-latin.woff2",
+        "latin-ext": "outfit-latin-ext.woff2"
+      },
+      "licence": "outfit-OFL.txt"
+    },
+    {
+      "family": "Inter",
+      "fallback": "sans-serif",
+      "local": [
+        "Inter"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "inter-latin.woff2",
+        "latin-ext": "inter-latin-ext.woff2"
+      },
+      "licence": "inter-OFL.txt"
+    },
+    {
+      "family": "Nunito",
+      "fallback": "rounded",
+      "local": [
+        "Nunito"
+      ],
+      "weight": [
+        200,
+        1000
+      ],
+      "files": {
+        "latin": "nunito-latin.woff2",
+        "latin-ext": "nunito-latin-ext.woff2"
+      },
+      "licence": "nunito-OFL.txt"
+    },
+    {
+      "family": "Montserrat",
+      "fallback": "sans-serif",
+      "local": [
+        "Montserrat"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "montserrat-latin.woff2",
+        "latin-ext": "montserrat-latin-ext.woff2"
+      },
+      "licence": "montserrat-OFL.txt"
+    },
+    {
+      "family": "DM Sans",
+      "fallback": "sans-serif",
+      "local": [
+        "DM Sans"
+      ],
+      "weight": [
+        100,
+        1000
+      ],
+      "files": {
+        "latin": "dm-sans-latin.woff2",
+        "latin-ext": "dm-sans-latin-ext.woff2"
+      },
+      "licence": "dm-sans-OFL.txt"
+    },
+    {
+      "family": "Atkinson Hyperlegible Next",
+      "fallback": "sans-serif",
+      "local": [
+        "Atkinson Hyperlegible Next",
+        "Atkinson Hyperlegible"
+      ],
+      "weight": [
+        200,
+        800
+      ],
+      "files": {
+        "latin": "atkinson-hyperlegible-next-latin.woff2",
+        "latin-ext": "atkinson-hyperlegible-next-latin-ext.woff2"
+      },
+      "licence": "atkinson-hyperlegible-next-OFL.txt"
+    },
+    {
+      "family": "Lora",
+      "fallback": "serif",
+      "local": [
+        "Lora"
+      ],
+      "weight": [
+        400,
+        700
+      ],
+      "files": {
+        "latin": "lora-latin.woff2",
+        "latin-ext": "lora-latin-ext.woff2"
+      },
+      "licence": "lora-OFL.txt"
+    },
+    {
+      "family": "Playfair Display",
+      "fallback": "serif",
+      "local": [
+        "Playfair Display"
+      ],
+      "weight": [
+        400,
+        900
+      ],
+      "files": {
+        "latin": "playfair-display-latin.woff2",
+        "latin-ext": "playfair-display-latin-ext.woff2"
+      },
+      "licence": "playfair-display-OFL.txt"
+    },
+    {
+      "family": "Quicksand",
+      "fallback": "rounded",
+      "local": [
+        "Quicksand"
+      ],
+      "weight": [
+        300,
+        700
+      ],
+      "files": {
+        "latin": "quicksand-latin.woff2",
+        "latin-ext": "quicksand-latin-ext.woff2"
+      },
+      "licence": "quicksand-OFL.txt"
+    },
+    {
+      "family": "Comfortaa",
+      "fallback": "rounded",
+      "local": [
+        "Comfortaa"
+      ],
+      "weight": [
+        300,
+        700
+      ],
+      "files": {
+        "latin": "comfortaa-latin.woff2",
+        "latin-ext": "comfortaa-latin-ext.woff2"
+      },
+      "licence": "comfortaa-OFL.txt"
+    },
+    {
+      "family": "Baloo 2",
+      "fallback": "rounded",
+      "local": [
+        "Baloo 2"
+      ],
+      "weight": [
+        400,
+        800
+      ],
+      "files": {
+        "latin": "baloo-2-latin.woff2",
+        "latin-ext": "baloo-2-latin-ext.woff2"
+      },
+      "licence": "baloo-2-OFL.txt"
+    },
+    {
+      "family": "Manrope",
+      "fallback": "sans-serif",
+      "local": [
+        "Manrope"
+      ],
+      "weight": [
+        200,
+        800
+      ],
+      "files": {
+        "latin": "manrope-latin.woff2",
+        "latin-ext": "manrope-latin-ext.woff2"
+      },
+      "licence": "manrope-OFL.txt"
+    },
+    {
+      "family": "Figtree",
+      "fallback": "sans-serif",
+      "local": [
+        "Figtree"
+      ],
+      "weight": [
+        300,
+        900
+      ],
+      "files": {
+        "latin": "figtree-latin.woff2",
+        "latin-ext": "figtree-latin-ext.woff2"
+      },
+      "licence": "figtree-OFL.txt"
+    },
+    {
+      "family": "Plus Jakarta Sans",
+      "fallback": "sans-serif",
+      "local": [
+        "Plus Jakarta Sans"
+      ],
+      "weight": [
+        200,
+        800
+      ],
+      "files": {
+        "latin": "plus-jakarta-sans-latin.woff2",
+        "latin-ext": "plus-jakarta-sans-latin-ext.woff2"
+      },
+      "licence": "plus-jakarta-sans-OFL.txt"
+    },
+    {
+      "family": "Lexend",
+      "fallback": "sans-serif",
+      "local": [
+        "Lexend"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "lexend-latin.woff2",
+        "latin-ext": "lexend-latin-ext.woff2"
+      },
+      "licence": "lexend-OFL.txt"
+    },
+    {
+      "family": "Oswald",
+      "fallback": "sans-serif",
+      "local": [
+        "Oswald"
+      ],
+      "weight": [
+        200,
+        700
+      ],
+      "files": {
+        "latin": "oswald-latin.woff2",
+        "latin-ext": "oswald-latin-ext.woff2"
+      },
+      "licence": "oswald-OFL.txt"
+    },
+    {
+      "family": "Bebas Neue",
+      "fallback": "sans-serif",
+      "local": [
+        "Bebas Neue"
+      ],
+      "weight": [
+        400,
+        400
+      ],
+      "files": {
+        "latin": "bebas-neue-latin.woff2",
+        "latin-ext": "bebas-neue-latin-ext.woff2"
+      },
+      "licence": "bebas-neue-OFL.txt"
+    },
+    {
+      "family": "Righteous",
+      "fallback": "sans-serif",
+      "local": [
+        "Righteous"
+      ],
+      "weight": [
+        400,
+        400
+      ],
+      "files": {
+        "latin": "righteous-latin.woff2",
+        "latin-ext": "righteous-latin-ext.woff2"
+      },
+      "licence": "righteous-OFL.txt"
+    },
+    {
+      "family": "Cinzel",
+      "fallback": "serif",
+      "local": [
+        "Cinzel"
+      ],
+      "weight": [
+        400,
+        900
+      ],
+      "files": {
+        "latin": "cinzel-latin.woff2",
+        "latin-ext": "cinzel-latin-ext.woff2"
+      },
+      "licence": "cinzel-OFL.txt"
+    },
+    {
+      "family": "Merriweather",
+      "fallback": "serif",
+      "local": [
+        "Merriweather"
+      ],
+      "weight": [
+        300,
+        900
+      ],
+      "files": {
+        "latin": "merriweather-latin.woff2",
+        "latin-ext": "merriweather-latin-ext.woff2"
+      },
+      "licence": "merriweather-OFL.txt"
+    },
+    {
+      "family": "Fraunces",
+      "fallback": "serif",
+      "local": [
+        "Fraunces"
+      ],
+      "weight": [
+        100,
+        900
+      ],
+      "files": {
+        "latin": "fraunces-latin.woff2",
+        "latin-ext": "fraunces-latin-ext.woff2"
+      },
+      "licence": "fraunces-OFL.txt"
+    },
+    {
+      "family": "JetBrains Mono",
+      "fallback": "sans-serif",
+      "local": [
+        "JetBrains Mono"
+      ],
+      "weight": [
+        100,
+        800
+      ],
+      "files": {
+        "latin": "jetbrains-mono-latin.woff2",
+        "latin-ext": "jetbrains-mono-latin-ext.woff2"
+      },
+      "licence": "jetbrains-mono-OFL.txt"
+    },
+    {
+      "family": "Press Start 2P",
+      "fallback": "sans-serif",
+      "local": [
+        "Press Start 2P"
+      ],
+      "weight": [
+        400,
+        400
+      ],
+      "files": {
+        "latin": "press-start-2p-latin.woff2",
+        "latin-ext": "press-start-2p-latin-ext.woff2"
+      },
+      "licence": "press-start-2p-OFL.txt"
+    },
+    {
+      "family": "Helvetica Neue",
+      "local": [
+        "Helvetica Neue",
+        "Helvetica",
+        "Arial"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "Avenir Next",
+      "local": [
+        "Avenir Next",
+        "Avenir",
+        "Nunito Sans",
+        "Segoe UI",
+        "Roboto"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "Segoe UI",
+      "local": [
+        "Segoe UI",
+        "Roboto",
+        "Helvetica Neue",
+        "Arial"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "System UI",
+      "local": [
+        "-apple-system",
+        "BlinkMacSystemFont",
+        "Helvetica Neue",
+        "Helvetica",
+        "Arial"
+      ],
+      "fallback": "sans-serif"
+    },
+    {
+      "family": "Georgia",
+      "local": [
+        "Georgia",
+        "Iowan Old Style",
+        "Palatino Linotype"
+      ],
+      "fallback": "serif"
+    },
+    {
+      "family": "Palatino Linotype",
+      "local": [
+        "Palatino Linotype",
+        "Palatino",
+        "Book Antiqua",
+        "Georgia"
+      ],
+      "fallback": "serif"
+    },
+    {
+      "family": "Trebuchet MS",
+      "local": [
+        "Trebuchet MS",
+        "Segoe UI",
+        "Helvetica Neue"
+      ],
+      "fallback": "sans-serif"
+    }
+  ]
+}

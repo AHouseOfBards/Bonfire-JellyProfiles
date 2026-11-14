@@ -1,181 +1,181 @@
 [
-  {
-    "category": "General",
-    "guid": "b1462fca-774b-4b13-8d02-e2d4f2bc18b9",
-    "name": "Bonfire",
-    "description": "Adds multi-user profile switching to Jellyfin. A single account can have up to five isolated profiles — each with its own watch history, parental controls, and library access.",
-    "overview": "Multi-user profile switching for Jellyfin.",
-    "owner": "AHouseOfBards",
-    "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/main/images/icon.jpg",
-    "versions": [
-      {
-        "version": "1.7.5.0",
-        "changelog": "**Fixed**\n\n- If the settings page failed to load, Save could overwrite your settings with the defaults. Save now waits until they load, and the page offers Try again.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.5/Jellyfin.Profiles.zip",
-        "checksum": "99aeb880febabd8538e7d582e42a39c8",
-        "timestamp": "2026-11-09T00:00:00Z"
-      },
-      {
-        "version": "1.7.4.0",
-        "changelog": "**Fixed**\n\n- A second household's PIN was refused on a device two households share.\n- Security and privacy fixes. Updating is recommended.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.4/Jellyfin.Profiles.zip",
-        "checksum": "51f4a895b1873941547dd9cc20a26a0c",
-        "timestamp": "2026-11-09T00:00:00Z"
-      },
-      {
-        "version": "1.7.3.0",
-        "changelog": "**Fixed**\n\n- Wholphin and Android TV couldn't load the profile list. (#43)\n- OK did nothing on Reset PIN, signing a device out, or importing a backup. (#44)\n- Changing the main PIN in Manage Profiles made later saves fail as an incorrect PIN. (#44)",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.3/Jellyfin.Profiles.zip",
-        "checksum": "133ab0572ca4392903ede648ebeed7b4",
-        "timestamp": "2026-11-08T00:00:00Z"
-      },
-      {
-        "version": "1.7.2.0",
-        "changelog": "**Fixed**\n\n- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)\n- A Roku opened a profile without asking for its PIN. (#40)\n- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with \"Require HTTPS\" on.\n- A configuration file that couldn't be read wiped every household.\n- Typing a long PIN used up its tries before it was finished.\n- A PIN typed after \"Clear PIN\" was dropped.\n- A rejected profile picture deleted the one the profile had.\n- A library removed from a profile in Dashboard → Users came back at its next sign-in.\n- Security and privacy fixes. Updating is recommended.\n\n**Changed**\n\n- On other apps, PIN sign-in is limited to devices your household uses.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.2/Jellyfin.Profiles.zip",
-        "checksum": "9d289fd2d72ae1b686e6adeaa7a9c95b",
-        "timestamp": "2026-11-07T00:00:00Z"
-      },
-      {
-        "version": "1.7.1.0",
-        "changelog": "**Added**\n\n- Catalan and Spanish.\n\n**Changed**\n\n- Bonfire now uses the language set in Jellyfin (Settings → Display), not the browser's.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.1/Jellyfin.Profiles.zip",
-        "checksum": "a577079562251040249d52362afde82f",
-        "timestamp": "2026-11-02T00:01:15Z"
-      },
-      {
-        "version": "1.7.0.0",
-        "changelog": "**Added**\n\n- Themes for Bonfire's screens: nine looks, three of them seasonal. The server owner picks the default and whether each profile can choose its own.\n- Settings → Theme, where the main account sets each profile's theme.\n- Parental rating choices use your server's country instead of US ratings only.\n\n**Changed**\n\n- A theme change shows straight away, without reloading.\n- The way out of every screen is in the same place, bottom left.\n\n**Fixed**\n\n- Jellyfin's home screen flashed briefly before the profile picker, and after picking a profile.\n- A profile could go missing from a TV's sign-in screen.\n- Saving a profile could remove its rating limit or its allowed devices.\n- Switching into a disabled profile turned it back on.\n- Some translations failed to load on clients that ask for them in lowercase, such as pt-br.\n- \"Settings saved.\" on the admin page showed its title off-centre.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.0/Jellyfin.Profiles.zip",
-        "checksum": "61c3bf676a3e6ba74b6197c1fde897bf",
-        "timestamp": "2026-11-01T18:00:00Z"
-      },
-      {
-        "version": "1.6.6.0",
-        "changelog": "**Fixed**\n\n- Switching profiles reset a profile's audio and subtitle language to the main account's. [#36]\n\n**Added**\n\n- Turkish translation. [#35]",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.6/Jellyfin.Profiles.zip",
-        "checksum": "d6ba06d5f2dba50bd0e0bf56049c2cf5",
-        "timestamp": "2026-10-28T00:00:00Z"
-      },
-      {
-        "version": "1.6.5.0",
-        "changelog": "**Fixed**\n\n- On 2019 LG TVs (webOS 4.5), Bonfire did not start at all. [#34]\n- With \"Ask who's watching on startup\" off, there was no Switch Profile button and no way to switch.\n- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.\n- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.\n- The profile picture in the header was drawn zoomed in and blurry.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.5/Jellyfin.Profiles.zip",
-        "checksum": "67ccec055b315fdfe0923b0f6b9c64cb",
-        "timestamp": "2026-10-13T16:33:00Z"
-      },
-      {
-        "version": "1.6.4.0",
-        "changelog": "**Fixed**\n\n- Security: any account could run script in an administrator's browser through the Bonfire settings page. Please update.\n- Security: a PIN typed into a TV or app sign-in screen could be guessed with no limit.\n- Security: someone using a profile in a browser could take over the main account behind it.\n- On Android TV, Roku and other TV apps, choosing a profile and entering its PIN was refused.\n- A profile limited to one TV could be missing from that TV's sign-in screen.\n- Skipping Quick Connect on known TVs also removed it for other people with the same TV model.\n- Signing in on a TV could occasionally fail with a server error.\n- Creating a profile could fail with \"The supplied value is invalid\". [#33]\n- The profile picker ran off the bottom of the screen on a TV. [#31]\n- A profile kept its old rating after its account's rating was lowered.\n- Clearing your PIN, or using the emergency disable code, could stop your password working.\n- An account with a PIN could not change its Jellyfin password.\n- Creating two profiles at once could go over the profile limit.\n- The Signed-in devices list in the dashboard could fail to load.\n- The create form showed only four libraries at a time.\n\n**Changed**\n\n- A profile keeps every restriction set on its account, such as remote access, schedules and bitrate.\n- Profiles in another household's Bonfire need a PIN, unless their owner allows switching on the home network.\n- Hidden Bonfire profiles can no longer be opened.\n- Removing someone from your Bonfire changes its code, so they cannot rejoin with the old one.\n- Reopening the app keeps the profile you were using. Going back to your main profile asks for its PIN.\n- Manage Profiles needs your main profile open.\n\n**Added**\n\n- Thirty starter avatars to pick from, on by default. Turn them off in Dashboard -> Bonfire -> Avatar Library. [#32]\n- Picture quality for profile pictures and avatars: Dashboard -> Bonfire -> Picture quality.\n- A New code button for your Bonfire.\n- A loader for the Samsung Tizen app, so Bonfire updates reach the TV without rebuilding the app. [#16]",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.4/Jellyfin.Profiles.zip",
-        "checksum": "733a34b1ecf21bfb25fcf6c4d4d3d62b",
-        "timestamp": "2026-10-03T03:00:00Z"
-      },
-      {
-        "version": "1.6.3.0",
-        "changelog": "**Fixed**\n\n- Giving a profile a new library in Dashboard -> Users was undone the next time anyone entered that profile. Grants made there are now kept. To take a library away from a profile, edit the profile. [#30]\n- Turning on \"Skip Quick Connect on known devices\" took Quick Connect away from apps that already have a password screen. It now applies only to Android TV, which is the one that needs it.\n\n**Added**\n\n- Profiles can appear on the sign-in screens of Jellyfin for Roku, Swiftfin, Findroid and Wholphin, the same as Android TV. Turn off automatic sign in on the app, or it goes straight into the last account.\n- Apps that have no user list of their own can enter a profile by typing the profile's name and its PIN.\n\n**Changed**\n\n- The README is shorter. Library artwork, Bonfire sharing and known limitations now have their own pages under docs/.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.3/Jellyfin.Profiles.zip",
-        "checksum": "4861d6f862de5dc3c150150efba903c8",
-        "timestamp": "2026-09-13T19:32:19Z"
-      },
-      {
-        "version": "1.6.2.0",
-        "changelog": "**Added**\n\n- Profiles can now appear on the sign-in screen of apps that never load the web client, such as Android TV, and be opened with their PIN. New settings under Dashboard -> Bonfire -> TVs & Apps, all off until you turn them on.\n- On those screens a profile shows the name you gave it, not the full account name.\n- An account that owns profiles can sign in with its PIN as well as its password.\n- Apps can be sent straight to the password field instead of a Quick Connect code.\n- \"Who's watching?\" on startup can be set per device instead of everywhere at once.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.2/Jellyfin.Profiles.zip",
-        "checksum": "c68ceee0ceb81d87e726f52f1e973e0e",
-        "timestamp": "2026-09-10T21:30:00Z"
-      },
-      {
-        "version": "1.6.1.0",
-        "changelog": "**Works on Jellyfin 12.0.** The same build serves 10.11 and 12.0 — there is nothing extra to install.\n\n**Fixed**\n\n- On Jellyfin 12.0 the Switch Profile button was missing from the header. Its default layout keeps the old header in the page but hides it, and Bonfire was adding the button there.\n- In the profile form, text boxes would not take a click and dropdowns would not open — the page jumped to the top instead. Jellyfin's account menu was being left open, and its focus handling and Bonfire's fought each other.\n- The Switch Profile button could appear beside the wrong icon at the wrong size, then move a second or two later. It now appears once, beside your account icon.\n- Importing avatars from a folder failed on Jellyfin 12.0, and on any server where an administrator had turned legacy authorization off.\n- The Bonfire section on your profile page sat against the left edge while the rest of the page was centred.\n- The rename and merge buttons in the device list were unstyled, and drew as empty boxes on televisions without an emoji font.\n\n**Changed**\n\n- Bonfire follows your theme's accent colour on Jellyfin 12.0, which publishes that colour under a new name.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1/Jellyfin.Profiles.zip",
-        "checksum": "f919e6ed7f4f6aac46ef37499b1f05c1",
-        "timestamp": "2026-09-09T00:00:00Z"
-      },
-      {
-        "version": "1.6.0.0",
-        "changelog": "**Fixed**\n\n- Switching to someone's main profile wiped that person's library access, and their sub-profiles' access with it. If this has happened to you, re-tick their libraries in Jellyfin's user settings after updating. [#27]\n- Switching into an administrator's account quietly removed their admin rights and hid them from the login screen. [#27]\n- Restricting a profile to specific devices could lock it out of every device, including the ones you picked. [#16]\n- On a TV, picking a profile changed the name at the top but left you in your main account — same libraries, same Continue Watching, same Next Up. [#16]\n- On a TV, moving off the first profile jumped straight to Manage Profiles and no other profile could be reached. [#16]\n- On a TV the profile cards had no size and the focus outline never appeared, so nothing looked selectable. Save could also sit below the bottom of the profile form with no way to reach it on a remote. [#16]\n- The profile switcher said you were signed in as your main profile even while a sub-profile was in use.\n- A profile, device or Bonfire group you had just saved could silently not be there.\n- Anything added while the plugin's settings page was open was undone when an administrator pressed Save.\n- One computer could appear several times in the device list, and devices that sent no name all read as \"Unknown Device\".\n- Forgetting a profile's only allowed device silently made that profile available everywhere. It is refused now, and says which profiles are in the way.\n- \"Try again in 15 minutes\" after too many wrong PINs. It now tells you the wait it is actually enforcing, which is usually far less.\n- Device \"last seen\" dates reset every time Jellyfin restarted, and the device list never dropped hardware nobody uses any more.\n- A language could stop loading until Jellyfin was restarted, dropping everyone back to English.\n- Switching profiles on a light theme flashed a black screen, and a switch that went wrong left the screen blank for four seconds.\n- The profile screen re-downloaded every profile picture on every page load. Your browser keeps them now.\n\n**Added**\n\n- Bonfire knows when it is on a television, and makes the profile pictures, text and focus outline large enough to use from across a room.\n- Rename a device, or tell Bonfire that two entries are the same machine. \"Tidy up duplicates\" folds together the several devices one browser makes — a profile allowed on any of them stays allowed.\n- A list of everyone signed in, with the household each profile belongs to, and a way to sign one device out.\n- Export and import the plugin's configuration, so there is a copy of your profiles and PINs somewhere other than one file.\n- The audit log can be filtered by name and date, and downloaded.\n- Polish, contributed by danis101. [#26]\n- TROUBLESHOOTING.md, which answers the most common report first: Bonfire does not edit index.html by default, so a file with no plugin tags in it is a healthy install.\n\n**Changed**\n\n- The Switch Profile button now sits next to your account icon in the header, instead of at the end of the row.\n- The interface reads correctly on light Jellyfin themes, where separators and muted text used to be invisible.\n- Bonfire does far less work in the background — most noticeable on a TV, and it steps back further while something is playing.\n- The \"restart to finish updating\" notice now names the version running and the version waiting, so you can tell whether your restart worked. [#25]",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.0/Jellyfin.Profiles.zip",
-        "checksum": "9046caab72aa3c4811c859566c2fa490",
-        "timestamp": "2026-09-01T00:00:00Z"
-      },
-      {
-        "version": "1.5.0.0",
-        "changelog": "**New**\n\n- Bonfire no longer edits Jellyfin's `index.html`. The client script is added to the page as it is served, so there is nothing to re-apply after a Jellyfin update and no file permissions to grant. Patching the file stays available as a legacy option under **Advanced → Client script**. (#17, #11, #3)\n- The switcher follows your theme's accent colour instead of always drawing Jellyfin blue.\n- Profile screens use the whole window on a desktop instead of one phone-width column.\n- The picker shows which profile you are currently watching as.\n\n**Fixed**\n\n- On Android, picking a profile could bring the picker straight back, over and over, and a PIN-protected profile could drop you at the account login.\n- Picking a profile showed nothing at all for the second or two it takes, so the tap read as missed. The profile you picked now shows a spinner, and the screen no longer goes black while it loads.\n- Opening a profile took several seconds and could drop you back on a screen you had already left.\n- Bonfire rewrote `index.html` on startup even when set never to touch it.\n- The settings page reported the client script as installed whenever the plugin was loaded at all, including on servers where nothing was reaching the page.\n- Add Profile was missing from the Manage Profiles screen.\n- Library names were cut off to \"3D Movi…\" when choosing artwork.\n- **Upload avatars** and **Upload a folder** were unstyled text instead of buttons.\n- \"PIN Protected\" showed in red and \"No PIN\" in green — the wrong way round.\n- The audit log ran the time into the address as \"12:09:28 PMIP\".\n\n**Changed**\n\n- The plugin is called **Bonfire** in the Jellyfin sidebar.\n- Plugin settings are split into tabs — General, Avatars, Accounts, Activity and Advanced — instead of one page five screens tall.\n- Switcher Style and Your Bonfire move out of the profile grid into their own **Settings** screen. Bonfire Grouping is now called Your Bonfire.\n- Add Profile appears on Manage Profiles only. The \"Who's watching?\" screen is people to pick from.\n- Setting a profile picture is one panel rather than six controls. The paste-a-URL box is gone: a linked picture could not be cropped, was never stored on your server, and disappeared without warning when the link died.\n- Libraries and their artwork are one list, with the artwork controls behind a switch.\n- Delete is no longer as prominent as Save.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.0/Jellyfin.Profiles.zip",
-        "checksum": "778f4a3c9923f696f0314be4e6002a9d",
-        "timestamp": "2026-08-25T00:00:00Z"
-      },
-      {
-        "version": "1.4.0.0",
-        "changelog": "**New**\n\n- Library artwork can be set per profile. Jellyfin builds a library tile from the items inside it, so a Kids profile could see a poster from a film it cannot open; each profile can now be given its own picture for a library, or none at all. (#19)\n- Administrators can set the switcher defaults for the whole server, under Dashboard → Plugins → Bonfire. Anyone who has already chosen keeps their own setting. (#14)\n- Avatars can be uploaded several at a time, or a whole folder at once. Administrators with a prepared set already on the server can point at its folder and import it. (#14)\n- The profile picker has a Cancel button when you opened it yourself, so you can go back to what you were watching.\n\n**Fixed**\n\n- Switching a profile failed with \"Invalid username or password\" on Jellyfin 10.11.11, and signed the master account out. (#15)\n- On Samsung Tizen, picking a profile changed the avatar but left you in the original account. (#15, #16)\n- On a TV, the remote could steer the Jellyfin page hidden behind the Bonfire screen. (#16)\n- The TV Back button raised Samsung’s \"exit application?\" prompt behind the Bonfire screen. Back now steps back one screen instead. (#15)\n- \"Switch Profile\" now appears on the Settings page, not only in the header dropdown. (#14)\n- Profile pictures could be zoomed but not dragged.\n- Save and Cancel are scrolled into view when a remote reaches them, so long profile forms no longer look frozen. (#15)\n- Pictures now load in clients that bundle their own web client, such as Samsung Tizen.\n- A missing script tag in index.html now says which of the three causes it is. (#17)\n\n**Changed**\n\n- The emergency disable link appears only once an administrator has set a code.\n- Error messages, hints and warnings cut down throughout.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.0/Jellyfin.Profiles.zip",
-        "checksum": "ce10d93d6ebcff0ded66a054d37a4895",
-        "timestamp": "2026-08-21T00:00:00Z"
-      },
-      {
-        "version": "1.3.0.0",
-        "changelog": "First stable release of the 1.3 line, consolidating the 1.2.x pre-releases. ■ NEW — Tag-based content filtering. Each sub-profile can block or allow content by Jellyfin tag (for example \"adults\", \"teens\", \"kids\"), alongside the existing parental rating limit. Tags are inherited, so tagging a series or a whole library applies to everything inside it, and enforcement happens server-side — meaning it holds on every client, including ones that cannot show the profile switcher at all. Blocked tags are additive with the master account's, and an allow-list can only narrow the master's, so a sub-profile can never see more than its parent. ■ NEW — Reorganised profile editor. Creating and editing a profile is now grouped into four titled sections: Profile (name, colour, picture), Security (PIN, LAN bypass, auto-lock), Libraries, and Content & Device Restrictions. Previously every field sat in one flat list in the order features had been added. Sections are plain blocks rather than collapsible panels so D-pad focus order on TV stays predictable, and the layout adapts to phone widths. ■ NEW — The settings page now lists master accounts with their sub-profiles nested underneath, instead of two separate tables. ■ SECURITY — Fixed a stored cross-site scripting flaw in profile avatar images and colours. Because Bonfire groups render profiles from linked households on each other's switcher screens, a crafted value could run script in another user's browser and steal their session token. Values are now validated on the server and escaped on render. ■ SECURITY — Profile PINs are now stored as salted PBKDF2-SHA256 hashes rather than unsalted SHA-256, under which a 4-8 digit PIN was recoverable almost instantly from the configuration file. Existing PINs keep working and are upgraded automatically the next time they are entered. ■ SECURITY — An account with no PIN can no longer be switched into from a shared Bonfire, and the local-network PIN bypass no longer applies when stepping into another household's account. Also removed an open redirect on the profile image endpoint. ■ FIX — The dashboard's client-script warnings are now accurate. They re-check index.html on every page load rather than reporting server-startup state, a \"Re-check Now\" button re-runs the injection without a Jellyfin restart, and the message names the specific cause — including whether Jellyfin can write the file at all. The advisory notice can be dismissed on installs where the file is not writable without elevating. ■ FIX — Permission-fix commands are generated for the account Jellyfin actually runs as, rather than covering every possibility at once. ■ FIX — Editing a profile no longer erases device whitelist entries for devices that are switched off, and the device picker is correctly scoped to your own household. ■ FIX — A saved PIN no longer displays as \"No PIN\" on your own network, and profile changes appear immediately instead of requiring a page reload. ■ PERFORMANCE — Profile switching no longer rewrites the entire audit log on the request, the client script is served with revalidation so browsers pick up updates on their own, and a listener leak that made the interface progressively less responsive over a session has been fixed.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.3.0/Jellyfin.Profiles.zip",
-        "checksum": "6f1ca070a6e8802608c9385dacf07330",
-        "timestamp": "2026-08-05T00:00:00Z"
-      },
-      {
-        "version": "1.2.12.0",
-        "changelog": "⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ Settings page: master accounts and sub-profiles were listed as two separate tables, so working out which profiles belonged to which account meant reading the \"Master Account\" column on every row. There is now a single list of master accounts, each with its sub-profiles collapsed underneath it behind a \"2 sub-profiles\" toggle. PIN status and Reset PIN are available at both levels as before. Any sub-profile whose master account no longer exists — normally the residue of a partially failed deletion — is listed separately under \"Unlinked sub-profiles\" rather than disappearing, so it can still be found and managed. ▸ The permission-fix commands are now generated for the account Jellyfin is actually running as, and the page states which account that is. Previously they had to cover every possibility at once: on Windows, Jellyfin runs either as a service (NT AUTHORITY\\NetworkService) or as the signed-in user when installed as a tray/desktop app, so the icacls command granted Modify to ALL local users in order to work in both cases. It now grants access to exactly one account — the real one — which is both less to type and a considerably narrower permission on a file inside Program Files. ▸ The same applies to the Linux and Docker chown commands, which previously assumed the service account was named \"jellyfin\". That is the convention but not a guarantee, and the commands silently did nothing useful when it was not. If the account cannot be determined, the page falls back to the previous broader commands, so nothing is lost on unusual setups.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.12/Jellyfin.Profiles.zip",
-        "checksum": "0cf92287bd55652938889cf0007e7cf7",
-        "timestamp": "2026-08-05T00:00:00Z"
-      },
-      {
-        "version": "1.2.0.0",
-        "changelog": "New: Tag-based content filtering for sub-profiles. Each profile can now block or allow content by Jellyfin tag (e.g. 'adults', 'teens', 'kids'), matching Jellyfin's own parental-control tag feature. Tags are inherited, so tagging a series or an entire library applies to everything inside it, and enforcement is server-side so it holds on every client. Blocked tags are additive with the master account's and an allow-list can only narrow the master's, so a sub-profile can never see more than its parent. Security: fixed a stored XSS in profile avatar images and colours — these are rendered on other households' switcher screens via Bonfire groups, so a crafted value could steal another user's session token; values are now validated server-side and escaped on render. Security: profile PINs are now stored as salted PBKDF2-SHA256 hashes instead of unsalted SHA-256 (a 4-8 digit PIN was trivially recoverable from the config file); existing PINs keep working and upgrade automatically on next entry. Security: an account with no PIN can no longer be switched into from a shared Bonfire, and the LAN PIN bypass no longer applies across accounts. Security: removed an open redirect on the profile image endpoint. Fix: the client-script injection now verifies the script is actually present before reporting success — previously an index.html without the expected anchors reported success while the switcher silently never loaded, and the dashboard's failure banner could never appear. Fix: index.html is now written atomically so an interrupted write cannot corrupt the Jellyfin web client. Fix: audit log entries no longer reverse order when trimmed.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.0/Jellyfin.Profiles.zip",
-        "checksum": "2074adfa6a269edf46e93ab838a6b417",
-        "timestamp": "2026-08-04T00:00:00Z"
-      },
-      {
-        "version": "1.1.13.0",
-        "changelog": "Fix: Plugin now loads correctly on Jellyfin 10.11.5. The previous release was compiled against 10.11.6, which caused a loader-level assembly version mismatch (FileNotFoundException on MediaBrowser.Common/Controller/Model) on servers running 10.11.5. Compile target downgraded to 10.11.5 — the plugin remains fully compatible with 10.11.6 and later patch releases.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.13/Jellyfin.Profiles.zip",
-        "checksum": "dc0ae7f7bf93122af4e2563481a5579e",
-        "timestamp": "2026-07-30T20:15:00Z"
-      },
-      {
-        "version": "1.1.0.0",
-        "changelog": "Release 1.1.0: Codebase cleanup, optimization, documentation updates, and developer API reference alignment.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1/Jellyfin.Profiles.zip",
-        "checksum": "91686f53f8a192d625e361daa4a5b688",
-        "timestamp": "2026-06-14T00:50:00Z"
-      },
-      {
-        "version": "1.0.0.0",
-        "changelog": "Initial release.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.0.0/Jellyfin.Profiles.zip",
-        "checksum": "4d60f997f3a2b9ce7494c3a737777f00",
-        "timestamp": "2026-06-11T00:00:00Z"
-      }
-    ]
-  }
+    {
+        "category": "General",
+        "guid": "b1462fca-774b-4b13-8d02-e2d4f2bc18b9",
+        "name": "Bonfire",
+        "description": "Profiles for Jellyfin. One account holds several people, each with their own watch history, library access and parental controls.",
+        "overview": "Multi-user profile switching for Jellyfin.",
+        "owner": "AHouseOfBards",
+        "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire/main/images/icon.jpg",
+        "versions": [
+            {
+                "version": "1.7.5.0",
+                "changelog": "**Fixed**\n\n- If the settings page failed to load, Save could overwrite your settings with the defaults. Save now waits until they load, and the page offers Try again.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.5/Jellyfin.Profiles.zip",
+                "checksum": "99aeb880febabd8538e7d582e42a39c8",
+                "timestamp": "2026-11-09T00:00:00Z"
+            },
+            {
+                "version": "1.7.4.0",
+                "changelog": "**Fixed**\n\n- A second household's PIN was refused on a device two households share.\n- Security and privacy fixes. Updating is recommended.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.4/Jellyfin.Profiles.zip",
+                "checksum": "51f4a895b1873941547dd9cc20a26a0c",
+                "timestamp": "2026-11-09T00:00:00Z"
+            },
+            {
+                "version": "1.7.3.0",
+                "changelog": "**Fixed**\n\n- Wholphin and Android TV couldn't load the profile list. (#43)\n- OK did nothing on Reset PIN, signing a device out, or importing a backup. (#44)\n- Changing the main PIN in Manage Profiles made later saves fail as an incorrect PIN. (#44)",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.3/Jellyfin.Profiles.zip",
+                "checksum": "133ab0572ca4392903ede648ebeed7b4",
+                "timestamp": "2026-11-08T00:00:00Z"
+            },
+            {
+                "version": "1.7.2.0",
+                "changelog": "**Fixed**\n\n- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)\n- A Roku opened a profile without asking for its PIN. (#40)\n- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with \"Require HTTPS\" on.\n- A configuration file that couldn't be read wiped every household.\n- Typing a long PIN used up its tries before it was finished.\n- A PIN typed after \"Clear PIN\" was dropped.\n- A rejected profile picture deleted the one the profile had.\n- A library removed from a profile in Dashboard → Users came back at its next sign-in.\n- Security and privacy fixes. Updating is recommended.\n\n**Changed**\n\n- On other apps, PIN sign-in is limited to devices your household uses.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.2/Jellyfin.Profiles.zip",
+                "checksum": "9d289fd2d72ae1b686e6adeaa7a9c95b",
+                "timestamp": "2026-11-07T00:00:00Z"
+            },
+            {
+                "version": "1.7.1.0",
+                "changelog": "**Added**\n\n- Catalan and Spanish.\n\n**Changed**\n\n- Bonfire now uses the language set in Jellyfin (Settings → Display), not the browser's.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.1/Jellyfin.Profiles.zip",
+                "checksum": "a577079562251040249d52362afde82f",
+                "timestamp": "2026-11-02T00:01:15Z"
+            },
+            {
+                "version": "1.7.0.0",
+                "changelog": "**Added**\n\n- Themes for Bonfire's screens: nine looks, three of them seasonal. The server owner picks the default and whether each profile can choose its own.\n- Settings → Theme, where the main account sets each profile's theme.\n- Parental rating choices use your server's country instead of US ratings only.\n\n**Changed**\n\n- A theme change shows straight away, without reloading.\n- The way out of every screen is in the same place, bottom left.\n\n**Fixed**\n\n- Jellyfin's home screen flashed briefly before the profile picker, and after picking a profile.\n- A profile could go missing from a TV's sign-in screen.\n- Saving a profile could remove its rating limit or its allowed devices.\n- Switching into a disabled profile turned it back on.\n- Some translations failed to load on clients that ask for them in lowercase, such as pt-br.\n- \"Settings saved.\" on the admin page showed its title off-centre.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.7.0/Jellyfin.Profiles.zip",
+                "checksum": "61c3bf676a3e6ba74b6197c1fde897bf",
+                "timestamp": "2026-11-01T18:00:00Z"
+            },
+            {
+                "version": "1.6.6.0",
+                "changelog": "**Fixed**\n\n- Switching profiles reset a profile's audio and subtitle language to the main account's. [#36]\n\n**Added**\n\n- Turkish translation. [#35]",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.6/Jellyfin.Profiles.zip",
+                "checksum": "d6ba06d5f2dba50bd0e0bf56049c2cf5",
+                "timestamp": "2026-10-28T00:00:00Z"
+            },
+            {
+                "version": "1.6.5.0",
+                "changelog": "**Fixed**\n\n- On 2019 LG TVs (webOS 4.5), Bonfire did not start at all. [#34]\n- With \"Ask who's watching on startup\" off, there was no Switch Profile button and no way to switch.\n- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.\n- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.\n- The profile picture in the header was drawn zoomed in and blurry.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.5/Jellyfin.Profiles.zip",
+                "checksum": "67ccec055b315fdfe0923b0f6b9c64cb",
+                "timestamp": "2026-10-13T16:33:00Z"
+            },
+            {
+                "version": "1.6.4.0",
+                "changelog": "**Fixed**\n\n- Security: any account could run script in an administrator's browser through the Bonfire settings page. Please update.\n- Security: a PIN typed into a TV or app sign-in screen could be guessed with no limit.\n- Security: someone using a profile in a browser could take over the main account behind it.\n- On Android TV, Roku and other TV apps, choosing a profile and entering its PIN was refused.\n- A profile limited to one TV could be missing from that TV's sign-in screen.\n- Skipping Quick Connect on known TVs also removed it for other people with the same TV model.\n- Signing in on a TV could occasionally fail with a server error.\n- Creating a profile could fail with \"The supplied value is invalid\". [#33]\n- The profile picker ran off the bottom of the screen on a TV. [#31]\n- A profile kept its old rating after its account's rating was lowered.\n- Clearing your PIN, or using the emergency disable code, could stop your password working.\n- An account with a PIN could not change its Jellyfin password.\n- Creating two profiles at once could go over the profile limit.\n- The Signed-in devices list in the dashboard could fail to load.\n- The create form showed only four libraries at a time.\n\n**Changed**\n\n- A profile keeps every restriction set on its account, such as remote access, schedules and bitrate.\n- Profiles in another household's Bonfire need a PIN, unless their owner allows switching on the home network.\n- Hidden Bonfire profiles can no longer be opened.\n- Removing someone from your Bonfire changes its code, so they cannot rejoin with the old one.\n- Reopening the app keeps the profile you were using. Going back to your main profile asks for its PIN.\n- Manage Profiles needs your main profile open.\n\n**Added**\n\n- Thirty starter avatars to pick from, on by default. Turn them off in Dashboard -> Bonfire -> Avatar Library. [#32]\n- Picture quality for profile pictures and avatars: Dashboard -> Bonfire -> Picture quality.\n- A New code button for your Bonfire.\n- A loader for the Samsung Tizen app, so Bonfire updates reach the TV without rebuilding the app. [#16]",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.4/Jellyfin.Profiles.zip",
+                "checksum": "733a34b1ecf21bfb25fcf6c4d4d3d62b",
+                "timestamp": "2026-10-03T03:00:00Z"
+            },
+            {
+                "version": "1.6.3.0",
+                "changelog": "**Fixed**\n\n- Giving a profile a new library in Dashboard -> Users was undone the next time anyone entered that profile. Grants made there are now kept. To take a library away from a profile, edit the profile. [#30]\n- Turning on \"Skip Quick Connect on known devices\" took Quick Connect away from apps that already have a password screen. It now applies only to Android TV, which is the one that needs it.\n\n**Added**\n\n- Profiles can appear on the sign-in screens of Jellyfin for Roku, Swiftfin, Findroid and Wholphin, the same as Android TV. Turn off automatic sign in on the app, or it goes straight into the last account.\n- Apps that have no user list of their own can enter a profile by typing the profile's name and its PIN.\n\n**Changed**\n\n- The README is shorter. Library artwork, Bonfire sharing and known limitations now have their own pages under docs/.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.3/Jellyfin.Profiles.zip",
+                "checksum": "4861d6f862de5dc3c150150efba903c8",
+                "timestamp": "2026-09-13T19:32:19Z"
+            },
+            {
+                "version": "1.6.2.0",
+                "changelog": "**Added**\n\n- Profiles can now appear on the sign-in screen of apps that never load the web client, such as Android TV, and be opened with their PIN. New settings under Dashboard -> Bonfire -> TVs & Apps, all off until you turn them on.\n- On those screens a profile shows the name you gave it, not the full account name.\n- An account that owns profiles can sign in with its PIN as well as its password.\n- Apps can be sent straight to the password field instead of a Quick Connect code.\n- \"Who's watching?\" on startup can be set per device instead of everywhere at once.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.2/Jellyfin.Profiles.zip",
+                "checksum": "c68ceee0ceb81d87e726f52f1e973e0e",
+                "timestamp": "2026-09-10T21:30:00Z"
+            },
+            {
+                "version": "1.6.1.0",
+                "changelog": "**Works on Jellyfin 12.0.** The same build serves 10.11 and 12.0 — there is nothing extra to install.\n\n**Fixed**\n\n- On Jellyfin 12.0 the Switch Profile button was missing from the header. Its default layout keeps the old header in the page but hides it, and Bonfire was adding the button there.\n- In the profile form, text boxes would not take a click and dropdowns would not open — the page jumped to the top instead. Jellyfin's account menu was being left open, and its focus handling and Bonfire's fought each other.\n- The Switch Profile button could appear beside the wrong icon at the wrong size, then move a second or two later. It now appears once, beside your account icon.\n- Importing avatars from a folder failed on Jellyfin 12.0, and on any server where an administrator had turned legacy authorization off.\n- The Bonfire section on your profile page sat against the left edge while the rest of the page was centred.\n- The rename and merge buttons in the device list were unstyled, and drew as empty boxes on televisions without an emoji font.\n\n**Changed**\n\n- Bonfire follows your theme's accent colour on Jellyfin 12.0, which publishes that colour under a new name.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.1/Jellyfin.Profiles.zip",
+                "checksum": "f919e6ed7f4f6aac46ef37499b1f05c1",
+                "timestamp": "2026-09-09T00:00:00Z"
+            },
+            {
+                "version": "1.6.0.0",
+                "changelog": "**Fixed**\n\n- Switching to someone's main profile wiped that person's library access, and their sub-profiles' access with it. If this has happened to you, re-tick their libraries in Jellyfin's user settings after updating. [#27]\n- Switching into an administrator's account quietly removed their admin rights and hid them from the login screen. [#27]\n- Restricting a profile to specific devices could lock it out of every device, including the ones you picked. [#16]\n- On a TV, picking a profile changed the name at the top but left you in your main account — same libraries, same Continue Watching, same Next Up. [#16]\n- On a TV, moving off the first profile jumped straight to Manage Profiles and no other profile could be reached. [#16]\n- On a TV the profile cards had no size and the focus outline never appeared, so nothing looked selectable. Save could also sit below the bottom of the profile form with no way to reach it on a remote. [#16]\n- The profile switcher said you were signed in as your main profile even while a sub-profile was in use.\n- A profile, device or Bonfire group you had just saved could silently not be there.\n- Anything added while the plugin's settings page was open was undone when an administrator pressed Save.\n- One computer could appear several times in the device list, and devices that sent no name all read as \"Unknown Device\".\n- Forgetting a profile's only allowed device silently made that profile available everywhere. It is refused now, and says which profiles are in the way.\n- \"Try again in 15 minutes\" after too many wrong PINs. It now tells you the wait it is actually enforcing, which is usually far less.\n- Device \"last seen\" dates reset every time Jellyfin restarted, and the device list never dropped hardware nobody uses any more.\n- A language could stop loading until Jellyfin was restarted, dropping everyone back to English.\n- Switching profiles on a light theme flashed a black screen, and a switch that went wrong left the screen blank for four seconds.\n- The profile screen re-downloaded every profile picture on every page load. Your browser keeps them now.\n\n**Added**\n\n- Bonfire knows when it is on a television, and makes the profile pictures, text and focus outline large enough to use from across a room.\n- Rename a device, or tell Bonfire that two entries are the same machine. \"Tidy up duplicates\" folds together the several devices one browser makes — a profile allowed on any of them stays allowed.\n- A list of everyone signed in, with the household each profile belongs to, and a way to sign one device out.\n- Export and import the plugin's configuration, so there is a copy of your profiles and PINs somewhere other than one file.\n- The audit log can be filtered by name and date, and downloaded.\n- Polish, contributed by danis101. [#26]\n- TROUBLESHOOTING.md, which answers the most common report first: Bonfire does not edit index.html by default, so a file with no plugin tags in it is a healthy install.\n\n**Changed**\n\n- The Switch Profile button now sits next to your account icon in the header, instead of at the end of the row.\n- The interface reads correctly on light Jellyfin themes, where separators and muted text used to be invisible.\n- Bonfire does far less work in the background — most noticeable on a TV, and it steps back further while something is playing.\n- The \"restart to finish updating\" notice now names the version running and the version waiting, so you can tell whether your restart worked. [#25]",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.6.0/Jellyfin.Profiles.zip",
+                "checksum": "9046caab72aa3c4811c859566c2fa490",
+                "timestamp": "2026-09-01T00:00:00Z"
+            },
+            {
+                "version": "1.5.0.0",
+                "changelog": "**New**\n\n- Bonfire no longer edits Jellyfin's `index.html`. The client script is added to the page as it is served, so there is nothing to re-apply after a Jellyfin update and no file permissions to grant. Patching the file stays available as a legacy option under **Advanced → Client script**. (#17, #11, #3)\n- The switcher follows your theme's accent colour instead of always drawing Jellyfin blue.\n- Profile screens use the whole window on a desktop instead of one phone-width column.\n- The picker shows which profile you are currently watching as.\n\n**Fixed**\n\n- On Android, picking a profile could bring the picker straight back, over and over, and a PIN-protected profile could drop you at the account login.\n- Picking a profile showed nothing at all for the second or two it takes, so the tap read as missed. The profile you picked now shows a spinner, and the screen no longer goes black while it loads.\n- Opening a profile took several seconds and could drop you back on a screen you had already left.\n- Bonfire rewrote `index.html` on startup even when set never to touch it.\n- The settings page reported the client script as installed whenever the plugin was loaded at all, including on servers where nothing was reaching the page.\n- Add Profile was missing from the Manage Profiles screen.\n- Library names were cut off to \"3D Movi…\" when choosing artwork.\n- **Upload avatars** and **Upload a folder** were unstyled text instead of buttons.\n- \"PIN Protected\" showed in red and \"No PIN\" in green — the wrong way round.\n- The audit log ran the time into the address as \"12:09:28 PMIP\".\n\n**Changed**\n\n- The plugin is called **Bonfire** in the Jellyfin sidebar.\n- Plugin settings are split into tabs — General, Avatars, Accounts, Activity and Advanced — instead of one page five screens tall.\n- Switcher Style and Your Bonfire move out of the profile grid into their own **Settings** screen. Bonfire Grouping is now called Your Bonfire.\n- Add Profile appears on Manage Profiles only. The \"Who's watching?\" screen is people to pick from.\n- Setting a profile picture is one panel rather than six controls. The paste-a-URL box is gone: a linked picture could not be cropped, was never stored on your server, and disappeared without warning when the link died.\n- Libraries and their artwork are one list, with the artwork controls behind a switch.\n- Delete is no longer as prominent as Save.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.5.0/Jellyfin.Profiles.zip",
+                "checksum": "778f4a3c9923f696f0314be4e6002a9d",
+                "timestamp": "2026-08-25T00:00:00Z"
+            },
+            {
+                "version": "1.4.0.0",
+                "changelog": "**New**\n\n- Library artwork can be set per profile. Jellyfin builds a library tile from the items inside it, so a Kids profile could see a poster from a film it cannot open; each profile can now be given its own picture for a library, or none at all. (#19)\n- Administrators can set the switcher defaults for the whole server, under Dashboard → Plugins → Bonfire. Anyone who has already chosen keeps their own setting. (#14)\n- Avatars can be uploaded several at a time, or a whole folder at once. Administrators with a prepared set already on the server can point at its folder and import it. (#14)\n- The profile picker has a Cancel button when you opened it yourself, so you can go back to what you were watching.\n\n**Fixed**\n\n- Switching a profile failed with \"Invalid username or password\" on Jellyfin 10.11.11, and signed the master account out. (#15)\n- On Samsung Tizen, picking a profile changed the avatar but left you in the original account. (#15, #16)\n- On a TV, the remote could steer the Jellyfin page hidden behind the Bonfire screen. (#16)\n- The TV Back button raised Samsung’s \"exit application?\" prompt behind the Bonfire screen. Back now steps back one screen instead. (#15)\n- \"Switch Profile\" now appears on the Settings page, not only in the header dropdown. (#14)\n- Profile pictures could be zoomed but not dragged.\n- Save and Cancel are scrolled into view when a remote reaches them, so long profile forms no longer look frozen. (#15)\n- Pictures now load in clients that bundle their own web client, such as Samsung Tizen.\n- A missing script tag in index.html now says which of the three causes it is. (#17)\n\n**Changed**\n\n- The emergency disable link appears only once an administrator has set a code.\n- Error messages, hints and warnings cut down throughout.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.4.0/Jellyfin.Profiles.zip",
+                "checksum": "ce10d93d6ebcff0ded66a054d37a4895",
+                "timestamp": "2026-08-21T00:00:00Z"
+            },
+            {
+                "version": "1.3.0.0",
+                "changelog": "First stable release of the 1.3 line, consolidating the 1.2.x pre-releases. ■ NEW — Tag-based content filtering. Each sub-profile can block or allow content by Jellyfin tag (for example \"adults\", \"teens\", \"kids\"), alongside the existing parental rating limit. Tags are inherited, so tagging a series or a whole library applies to everything inside it, and enforcement happens server-side — meaning it holds on every client, including ones that cannot show the profile switcher at all. Blocked tags are additive with the master account's, and an allow-list can only narrow the master's, so a sub-profile can never see more than its parent. ■ NEW — Reorganised profile editor. Creating and editing a profile is now grouped into four titled sections: Profile (name, colour, picture), Security (PIN, LAN bypass, auto-lock), Libraries, and Content & Device Restrictions. Previously every field sat in one flat list in the order features had been added. Sections are plain blocks rather than collapsible panels so D-pad focus order on TV stays predictable, and the layout adapts to phone widths. ■ NEW — The settings page now lists master accounts with their sub-profiles nested underneath, instead of two separate tables. ■ SECURITY — Fixed a stored cross-site scripting flaw in profile avatar images and colours. Because Bonfire groups render profiles from linked households on each other's switcher screens, a crafted value could run script in another user's browser and steal their session token. Values are now validated on the server and escaped on render. ■ SECURITY — Profile PINs are now stored as salted PBKDF2-SHA256 hashes rather than unsalted SHA-256, under which a 4-8 digit PIN was recoverable almost instantly from the configuration file. Existing PINs keep working and are upgraded automatically the next time they are entered. ■ SECURITY — An account with no PIN can no longer be switched into from a shared Bonfire, and the local-network PIN bypass no longer applies when stepping into another household's account. Also removed an open redirect on the profile image endpoint. ■ FIX — The dashboard's client-script warnings are now accurate. They re-check index.html on every page load rather than reporting server-startup state, a \"Re-check Now\" button re-runs the injection without a Jellyfin restart, and the message names the specific cause — including whether Jellyfin can write the file at all. The advisory notice can be dismissed on installs where the file is not writable without elevating. ■ FIX — Permission-fix commands are generated for the account Jellyfin actually runs as, rather than covering every possibility at once. ■ FIX — Editing a profile no longer erases device whitelist entries for devices that are switched off, and the device picker is correctly scoped to your own household. ■ FIX — A saved PIN no longer displays as \"No PIN\" on your own network, and profile changes appear immediately instead of requiring a page reload. ■ PERFORMANCE — Profile switching no longer rewrites the entire audit log on the request, the client script is served with revalidation so browsers pick up updates on their own, and a listener leak that made the interface progressively less responsive over a session has been fixed.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.3.0/Jellyfin.Profiles.zip",
+                "checksum": "6f1ca070a6e8802608c9385dacf07330",
+                "timestamp": "2026-08-05T00:00:00Z"
+            },
+            {
+                "version": "1.2.12.0",
+                "changelog": "⚠️ BETA RELEASE — not a finished release; please report issues on GitHub. ▸ Settings page: master accounts and sub-profiles were listed as two separate tables, so working out which profiles belonged to which account meant reading the \"Master Account\" column on every row. There is now a single list of master accounts, each with its sub-profiles collapsed underneath it behind a \"2 sub-profiles\" toggle. PIN status and Reset PIN are available at both levels as before. Any sub-profile whose master account no longer exists — normally the residue of a partially failed deletion — is listed separately under \"Unlinked sub-profiles\" rather than disappearing, so it can still be found and managed. ▸ The permission-fix commands are now generated for the account Jellyfin is actually running as, and the page states which account that is. Previously they had to cover every possibility at once: on Windows, Jellyfin runs either as a service (NT AUTHORITY\\NetworkService) or as the signed-in user when installed as a tray/desktop app, so the icacls command granted Modify to ALL local users in order to work in both cases. It now grants access to exactly one account — the real one — which is both less to type and a considerably narrower permission on a file inside Program Files. ▸ The same applies to the Linux and Docker chown commands, which previously assumed the service account was named \"jellyfin\". That is the convention but not a guarantee, and the commands silently did nothing useful when it was not. If the account cannot be determined, the page falls back to the previous broader commands, so nothing is lost on unusual setups.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.12/Jellyfin.Profiles.zip",
+                "checksum": "0cf92287bd55652938889cf0007e7cf7",
+                "timestamp": "2026-08-05T00:00:00Z"
+            },
+            {
+                "version": "1.2.0.0",
+                "changelog": "New: Tag-based content filtering for sub-profiles. Each profile can now block or allow content by Jellyfin tag (e.g. 'adults', 'teens', 'kids'), matching Jellyfin's own parental-control tag feature. Tags are inherited, so tagging a series or an entire library applies to everything inside it, and enforcement is server-side so it holds on every client. Blocked tags are additive with the master account's and an allow-list can only narrow the master's, so a sub-profile can never see more than its parent. Security: fixed a stored XSS in profile avatar images and colours — these are rendered on other households' switcher screens via Bonfire groups, so a crafted value could steal another user's session token; values are now validated server-side and escaped on render. Security: profile PINs are now stored as salted PBKDF2-SHA256 hashes instead of unsalted SHA-256 (a 4-8 digit PIN was trivially recoverable from the config file); existing PINs keep working and upgrade automatically on next entry. Security: an account with no PIN can no longer be switched into from a shared Bonfire, and the LAN PIN bypass no longer applies across accounts. Security: removed an open redirect on the profile image endpoint. Fix: the client-script injection now verifies the script is actually present before reporting success — previously an index.html without the expected anchors reported success while the switcher silently never loaded, and the dashboard's failure banner could never appear. Fix: index.html is now written atomically so an interrupted write cannot corrupt the Jellyfin web client. Fix: audit log entries no longer reverse order when trimmed.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.2.0/Jellyfin.Profiles.zip",
+                "checksum": "2074adfa6a269edf46e93ab838a6b417",
+                "timestamp": "2026-08-04T00:00:00Z"
+            },
+            {
+                "version": "1.1.13.0",
+                "changelog": "Fix: Plugin now loads correctly on Jellyfin 10.11.5. The previous release was compiled against 10.11.6, which caused a loader-level assembly version mismatch (FileNotFoundException on MediaBrowser.Common/Controller/Model) on servers running 10.11.5. Compile target downgraded to 10.11.5 — the plugin remains fully compatible with 10.11.6 and later patch releases.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1.13/Jellyfin.Profiles.zip",
+                "checksum": "dc0ae7f7bf93122af4e2563481a5579e",
+                "timestamp": "2026-07-30T20:15:00Z"
+            },
+            {
+                "version": "1.1.0.0",
+                "changelog": "Release 1.1.0: Codebase cleanup, optimization, documentation updates, and developer API reference alignment.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.1/Jellyfin.Profiles.zip",
+                "checksum": "91686f53f8a192d625e361daa4a5b688",
+                "timestamp": "2026-06-14T00:50:00Z"
+            },
+            {
+                "version": "1.0.0.0",
+                "changelog": "Initial release.",
+                "targetAbi": "10.11.0.0",
+                "sourceUrl": "https://github.com/AHouseOfBards/Bonfire-JellyProfiles/releases/download/v1.0.0/Jellyfin.Profiles.zip",
+                "checksum": "4d60f997f3a2b9ce7494c3a737777f00",
+                "timestamp": "2026-06-11T00:00:00Z"
+            }
+        ]
+    }
 ]

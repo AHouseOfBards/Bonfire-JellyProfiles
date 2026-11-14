@@ -17,46 +17,23 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Profiles
 {
     /// <summary>
-    /// Runs once every time the Jellyfin server starts via the IHostedService lifecycle.
-    ///
-    /// Ensures that the Profiles client script tag is present in Jellyfin's index.html
-    /// so the profile gate and switch button load automatically for all users without
-    /// any manual post-installation steps.
-    ///
-    /// The patch is idempotent — if the tag is already present the file is left untouched.
-    /// Because Jellyfin replaces index.html when the web client is updated, running
-    /// this check on every startup keeps the injection self-healing.
-    ///
-    /// If the file cannot be written (admin-locked directory, insufficient permissions)
-    /// a clear, platform-specific warning is written to the Jellyfin log with
-    /// copy-pasteable fix commands for Docker, Linux, and Windows.
+    /// Runs once each time the Jellyfin server starts (IHostedService). The client script is served by
+    /// <see cref="ProfilesIndexMiddleware"/>, so index.html stays as Jellyfin shipped it. This removes
+    /// the tags that releases up to 1.4.x (and the "file" and "both" modes after them) wrote into it,
+    /// once the middleware has served a page, and reports on the dashboard whether the middleware
+    /// works.
     /// </summary>
     public class ProfilesBootstrapTask : IHostedService
     {
-        // The script fragments and the injection logic now live in WebInjection, shared
-        // with the middleware that serves index.html straight from the request pipeline.
-        // These forwarders keep the rest of this file — and the dashboard status it feeds —
-        // reading exactly as before.
+        // The script fragments and injection logic live in WebInjection, shared with the middleware.
+        // These forwarders keep the rest of this file and the dashboard status reading as before.
         internal static string ScriptVersion => WebInjection.ScriptVersion;
 
-        private static string BodyScriptTag => WebInjection.BodyScriptTag;
-
-        /// <summary>Version recorded in index.html’s script tag, or null if absent/unparseable.</summary>
-        private static string? GetInjectedScriptVersion(string html)
-            => WebInjection.GetInjectedScriptVersion(html);
-
-        /// <summary>True when index.html’s script tag already points at this build.</summary>
-        private static bool IsScriptVersionCurrent(string html)
-            => WebInjection.IsScriptVersionCurrent(html);
-
         /// <summary>
-        /// The OS account the Jellyfin process is running under.
-        ///
-        /// Permission instructions otherwise have to guess: on Windows, Jellyfin may run as a
-        /// service (NT AUTHORITY\NetworkService) or as the logged-in user (tray/desktop mode),
-        /// and on Linux the service account is conventionally "jellyfin" but frequently is not.
-        /// Guessing forces a blunderbuss grant to every local user; knowing the account lets the
-        /// dashboard emit one exact command that grants access to precisely that account.
+        /// The OS account the Jellyfin process runs under. Without it the permission instructions have to
+        /// guess: on Windows Jellyfin may be a service (NT AUTHORITY\NetworkService) or the logged-in
+        /// user, and on Linux the account is conventionally "jellyfin" but often is not. Knowing it lets
+        /// the dashboard give one exact command for that account.
         /// </summary>
         internal static string? RunningAccount
         {
@@ -74,38 +51,11 @@ namespace Jellyfin.Profiles
                 }
                 catch
                 {
-                    // Identity lookup is best-effort — the UI falls back to generic guidance.
+                    // Best-effort: the UI falls back to generic guidance.
                     return null;
                 }
             }
         }
-
-        /// <summary>
-        /// Non-destructively probes whether Jellyfin can actually write index.html.
-        ///
-        /// Reporting "the version tag is old" is describing a symptom; the administrator needs
-        /// to know the cause, and the cause is almost always that the file is not writable by
-        /// the Jellyfin process. Opening for write and closing immediately answers that
-        /// definitively instead of inferring it from a failed patch.
-        /// </summary>
-        internal static bool CanWriteIndexHtml(string? path)
-        {
-            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
-            try
-            {
-                using var fs = File.Open(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        // Shared with the middleware — see WebInjection for what these contain and why.
-        private const string BodyMarker = WebInjection.BodyMarker;
-        private const string HeadScript = WebInjection.HeadScript;
-        private const string HeadMarker = WebInjection.HeadMarker;
 
         // Exposed so the dashboard page JS can check whether setup is complete.
         internal static bool InjectionSucceeded { get; private set; }
@@ -113,84 +63,48 @@ namespace Jellyfin.Profiles
         internal static string? IndexPath { get; private set; }
 
         /// <summary>
-        /// True once a write of the script tag has completed without throwing.
-        ///
-        /// Distinguishes the two ways the tag can be missing, which need opposite fixes:
-        /// the write never happened (permissions), or it happened and the tag is still gone
-        /// when the file is read back — which means the file being served is not the file
-        /// being patched. Issue #17 was reported as the first and behaves like the second.
-        /// </summary>
-        private static bool _tagWriteReportedSuccess;
-
-        /// <summary>
-        /// Other jellyfin-web index.html files found on this system, beyond the one being
-        /// patched. Normally empty; anything here is a candidate for what is really being
-        /// served.
-        /// </summary>
-        internal static List<string> OtherIndexPaths { get; private set; } = new();
-
-        /// <summary>
-        /// Human-readable reason the last injection attempt could not complete, or null when
-        /// everything is fine. Surfaced on the dashboard so the banner can say what is actually
-        /// wrong instead of listing every possible fix.
+        /// Why the last injection attempt could not complete, or null when all is well. Shown on the
+        /// dashboard so the banner says what is wrong instead of listing every possible fix.
         /// </summary>
         internal static string? LastFailureReason { get; private set; }
 
-        // These flags used to be computed exactly once, during StartAsync. That made the
-        // dashboard banner a snapshot of server-boot state: a user could run the documented
-        // chmod/icacls command, reload the page, and still see the failure warning, because
-        // nothing re-read index.html until the next full Jellyfin restart. The static
-        // self-reference lets the admin endpoints re-evaluate (and retry) on demand.
+        // These flags used to be computed once, in StartAsync, so the dashboard banner was a snapshot
+        // of boot state: a user could run the documented chmod/icacls command, reload, and still see
+        // the failure until the next full restart. The static self-reference lets the admin endpoints
+        // re-evaluate and retry on demand.
         /// <summary>
-        /// Which mechanism is supposed to be adding the script tags. Falls back to
-        /// <see cref="IndexInjectionModes.Middleware"/> when the plugin instance is not up
-        /// yet, because the fallback must never be a mode that writes to index.html: an
-        /// administrator who has said "do not touch my file" would otherwise have it
-        /// patched during any window where the configuration is unreadable.
-        /// </summary>
-        private static string CurrentInjectionMode =>
-            IndexInjectionModes.Normalize(Plugin.Instance?.Configuration?.IndexInjectionMode);
-
-        /// <summary>
-        /// True when this copy of the plugin was loaded after Jellyfin had already started,
-        /// which is what happens when a plugin is installed or updated on a running server.
+        /// True when this copy of the plugin was loaded after Jellyfin had started, which happens when a
+        /// plugin is installed or updated on a running server.
         /// <para>
-        /// Jellyfin calls <c>RegisterServices</c> on every plugin during host startup, and
-        /// that is the only place the pipeline hook can be added — an
-        /// <see cref="Microsoft.AspNetCore.Hosting.IStartupFilter"/> registered later has
-        /// nothing left to filter. So an assembly that is answering requests while its own
-        /// <see cref="ProfilesIndexMiddleware.IsRegistered"/> is still false was loaded too
-        /// late, and its middleware will not serve anything until the server restarts.
+        /// Jellyfin calls <c>RegisterServices</c> on every plugin during host startup, the only place the
+        /// pipeline hook can be added (an <see cref="Microsoft.AspNetCore.Hosting.IStartupFilter"/>
+        /// registered later has nothing to filter). So an assembly answering requests while its own
+        /// <see cref="ProfilesIndexMiddleware.IsRegistered"/> is false was loaded too late, and its
+        /// middleware serves nothing until the server restarts.
         /// </para>
         /// <para>
-        /// Issue #25: this state looked exactly like a permissions failure. The old build's
-        /// middleware is usually still in the pipeline, so the switcher keeps working while
-        /// the settings page reports that injection failed and tells the administrator to
-        /// chmod a file that has nothing to do with it. The fix is a restart, and only a
-        /// real one — Jellyfin's own Restart button does not restart the process on most
-        /// container images.
+        /// Issue #25: this looked exactly like a permissions failure. The old build's middleware is usually
+        /// still in the pipeline, so the switcher keeps working while the settings page says injection
+        /// failed and tells the administrator to chmod a file that has nothing to do with it. The fix is a
+        /// real restart; Jellyfin's own Restart button does not restart the process on most container
+        /// images.
         /// </para>
         /// </summary>
         internal static bool RestartRequired => !ProfilesIndexMiddleware.IsRegistered;
 
         /// <summary>
-        /// The version of this plugin that is <b>running</b>, and the newest version present
-        /// on disk. They differ exactly when Bonfire has been installed or updated on a
-        /// server that has not restarted since.
+        /// The version of this plugin that is <b>running</b>, and the newest version on disk. They differ
+        /// exactly when Bonfire was installed or updated on a server that has not restarted since.
         /// <para>
-        /// Issue #25: the dashboard said a restart was required and left it there. An
-        /// administrator who has already restarted — or who restarted the wrong thing, which
-        /// on Docker is Jellyfin's own Restart button on most images — has no way to tell a
-        /// stale message from a real one. Two version numbers are checkable: if the running
-        /// version is already the newest installed, the message is wrong and the reader can
-        /// see that for themselves.
+        /// Issue #25: the dashboard said a restart was required and left it there. An administrator who
+        /// already restarted (or pressed Docker's Restart button, which does nothing on most images) could
+        /// not tell a stale message from a real one. Two version numbers are checkable: if the running
+        /// version is already the newest installed, the message is wrong and the reader can see it.
         /// </para>
         /// <para>
-        /// Read off the folder names, because that is where the answer is. Jellyfin installs
-        /// each version into its own <c>{Name}_{Version}</c> directory and loads exactly one
-        /// of them; the rest sit there until it restarts. The prefix is taken from the folder
-        /// this assembly was loaded from rather than hardcoded — the same reasoning as
-        /// CleanupOldDlls, where a hardcoded "Bonfire" would never have matched.
+        /// Read off the folder names: Jellyfin installs each version into its own <c>{Name}_{Version}</c>
+        /// directory and loads one. The prefix comes from the folder this assembly loaded from, not a
+        /// hardcoded name (same reasoning as CleanupOldDlls).
         /// </para>
         /// </summary>
         internal static (string Running, string? NewestInstalled) FindInstalledVersions()
@@ -215,15 +129,13 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
-        /// The highest version among the sibling plugin folders of <paramref name="ownDirectory"/>,
-        /// or null when there is nothing to compare against — which includes being loaded from
-        /// somewhere that is not a plugin folder at all, such as a test harness or a
-        /// single-file publish. That is not an error.
+        /// The highest version among the sibling plugin folders of <paramref name="ownDirectory"/>, or
+        /// null when there is nothing to compare, including when loaded from somewhere that is not a plugin
+        /// folder (a test harness, a single-file publish). That is not an error.
         /// <para>
-        /// Takes the directory rather than reading its own assembly location, so it can be
-        /// driven against a directory laid out on purpose. The interesting cases here — a
-        /// folder that is not ours, a version suffix that will not parse, several versions
-        /// side by side — never occur in the one directory the harness happens to run from.
+        /// Takes the directory instead of reading its own assembly location so a test can use a directory
+        /// laid out on purpose: a folder that is not ours, a version suffix that will not parse, several
+        /// versions side by side.
         /// </para>
         /// </summary>
         internal static string? NewestVersionBeside(string? ownDirectory)
@@ -237,9 +149,8 @@ namespace Jellyfin.Profiles
                 var underscore = here.Name.LastIndexOf('_');
                 if (parent == null || underscore <= 0) return null;
 
-                // "Bonfire_" — taken from the folder we are in rather than hardcoded, the
-                // same reasoning as CleanupOldDlls: a literal "Bonfire" would stop matching
-                // the day the plugin is renamed, and stop matching silently.
+                // "Bonfire_", taken from the folder we are in, as in CleanupOldDlls: a literal "Bonfire"
+                // would silently stop matching if the plugin were renamed.
                 var prefix = here.Name.Substring(0, underscore + 1);
 
                 Version? newest = null;
@@ -259,16 +170,16 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
-        /// True when a newer version than the running one is sitting on disk waiting for a
-        /// restart. Null when the versions cannot be compared, which is not the same as false.
+        /// True when a newer version than the running one is on disk waiting for a restart. Null when the
+        /// versions cannot be compared, which is not the same as false.
         /// </summary>
         internal static bool? NewerVersionInstalled()
         {
             var (running, newest) = FindInstalledVersions();
             if (newest == null) return null;
 
-            // The running version may carry a pre-release label ("1.5.6-beta") while the
-            // folder name never does, so compare on the numeric part only.
+            // The running version may carry a pre-release label ("1.5.6-beta"); the folder name never
+            // does. Compare the numeric part only.
             var dash = running.IndexOf('-');
             var numeric = dash > 0 ? running.Substring(0, dash) : running;
             if (!Version.TryParse(numeric, out var mine) || !Version.TryParse(newest, out var theirs))
@@ -296,46 +207,34 @@ namespace Jellyfin.Profiles
             _current = this;
         }
 
-        // ── Client PIN login ────────────────────────────────────────────────────────
+        // Client PIN login.
         //
-        // A sub-profile is created with Jellyfin's default authentication provider and a
-        // 64-character random password nobody knows, which is why it can only be entered
-        // through Bonfire's own switch. To let a television offer it too, the profile has
-        // to reach BonfirePinAuthenticationProvider, and Jellyfin picks a user's provider
-        // by matching the stored id against each provider's type name:
+        // A sub-profile is created with Jellyfin's default authentication provider and a random
+        // 64-character password nobody knows, so it can only be entered through Bonfire's own switch.
+        // For a television to offer it too, the profile has to reach BonfirePinAuthenticationProvider.
+        // Jellyfin picks a user's provider by matching the stored id against each provider's type name.
         //
-        //     var providers = _authenticationProviders.Where(i => i.IsEnabled).ToList();
-        //     if (!string.IsNullOrEmpty(authenticationProviderId))
-        //         providers = providers.Where(i => /* match on type name */).ToList();
+        // 1.6.1.2 cleared the id instead of setting it, so every provider would be tried and ours
+        // would be one way in among others. That broke the server: the id is read back from the
+        // database on every load, and the User constructor does
+        // ArgumentException.ThrowIfNullOrEmpty(authenticationProviderId). EF Core cannot materialize
+        // a row with an empty id, and UserManager.GetUsers() enumerates every user, so two blanked
+        // sub-profiles took down user lookup for a 40-user server. Every client got HTTP 400 on every
+        // endpoint that lists users, and turning the feature off did not help because the damage was
+        // in the database. Repair needed manual SQL. tests/cs/clientpin proves the constructor
+        // rejects it.
         //
-        // 1.6.1.2 CLEARED the id instead of setting it, so that every provider would be
-        // tried and ours became an additional way in rather than the only one. That
-        // reasoning was sound and the implementation was catastrophic, because the id is
-        // also read back out of the database on every load:
-        //
-        //     public User(string username, string authenticationProviderId, string passwordResetProviderId)
-        //     {
-        //         ArgumentException.ThrowIfNullOrEmpty(authenticationProviderId);
-        //
-        // An empty string means EF Core cannot materialise that row at all — and
-        // UserManager.GetUsers() enumerates EVERY user, so two blanked sub-profiles took
-        // down user lookup for a whole 40-user server. Every client got HTTP 400 on every
-        // endpoint that lists users, and turning the feature off did not help, because the
-        // damage was in the database rather than in the running code. It needed manual SQL
-        // to repair. See tests/cs/clientpin, which now proves the constructor rejects it.
-        //
-        // So the id is SET, never cleared, and the value to restore is taken from the
-        // profile's own master rather than from a hardcoded type name — the master is an
-        // ordinary Jellyfin user whose provider is whatever this server actually uses, so
-        // there is nothing to keep in step with upstream.
+        // So the id is set, never cleared, and the value to restore comes from the profile's master,
+        // an ordinary Jellyfin user whose provider is whatever this server uses, rather than a
+        // hardcoded type name.
         private const string DefaultProviderIdFallback =
             "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider";
 
         /// <summary>
-        /// Re-points accounts after something that changes which provider they belong on:
-        /// the client PIN setting, a master setting or clearing its PIN, a profile being
-        /// deleted or imported. Waiting for the next restart would leave an account bound to
-        /// a provider that no longer wants it, and Jellyfin offers a bound account no other.
+        /// Re-points accounts after something changes which provider they belong on: the client PIN
+        /// setting, a master setting or clearing its PIN, a profile deleted or imported. Waiting for the
+        /// next restart would leave an account bound to a provider that no longer wants it, and Jellyfin
+        /// offers a bound account no other.
         /// </summary>
         internal static void ReconcileAuthProvidersNow()
         {
@@ -355,14 +254,14 @@ namespace Jellyfin.Profiles
         /// <summary>
         /// Points each account at the provider the current settings call for.
         /// <list type="bullet">
-        /// <item><description>A sub-profile: Bonfire's when client PIN login is on, its
-        /// master's own provider when it is off.</description></item>
-        /// <item><description>A master that has a PIN and owns profiles: Bonfire's while the
-        /// feature is on, so its PIN can be reached.</description></item>
-        /// <item><description>Any other master still bound to Bonfire's: back to Jellyfin's
-        /// own. This case is why the method looks at every master rather than only the ones
-        /// with a PIN — a master that cleared its PIN, or deleted its last profile, used to
-        /// stay bound for good, and the provider then refused its real password.</description></item>
+        /// <item><description>A sub-profile: Bonfire's when client PIN login is on, its master's own
+        /// provider when off.</description></item>
+        /// <item><description>A master that has a PIN and owns profiles: Bonfire's while the feature is
+        /// on, so its PIN can be reached.</description></item>
+        /// <item><description>Any other master still bound to Bonfire's: back to Jellyfin's own. This is
+        /// why every master is checked, not only those with a PIN: one that cleared its PIN or deleted its
+        /// last profile used to stay bound, and the provider then refused its real
+        /// password.</description></item>
         /// </list>
         /// <para>
         /// Runs at startup and after each of those changes.
@@ -370,11 +269,52 @@ namespace Jellyfin.Profiles
         /// </summary>
         internal void ReconcileAuthProviders()
         {
+            // One at a time (r2-16-03): startup and a settings save both come here, and a run that read
+            // the configuration earlier but finished later would overwrite the newer run's answer. Each
+            // run reads the configuration only once it holds the gate. A SemaphoreSlim, not a lock: it is
+            // not the configuration object, and the work inside waits on the user manager.
+            ReconcileGate.Wait();
+            try
+            {
+                ReconcileAuthProvidersCore();
+            }
+            finally
+            {
+                ReconcileGate.Release();
+            }
+        }
+
+        private static readonly System.Threading.SemaphoreSlim ReconcileGate = new(1, 1);
+
+        /// <summary>
+        /// Plugin uninstall: puts Jellyfin's own provider back on every account Bonfire bound. An account
+        /// left bound to a provider that is no longer loaded is refused its real password everywhere.
+        /// Never throws; an uninstall must not be stopped by this.
+        /// </summary>
+        internal static void RestoreProvidersForUninstall()
+        {
+            var self = _current;
+            if (self == null) return;
+
+            try
+            {
+                ReconcileGate.Wait();
+                try { self.ReconcileAuthProvidersCore(forceOff: true); }
+                finally { ReconcileGate.Release(); }
+            }
+            catch (Exception ex)
+            {
+                self._logger.LogError(ex, "ProfilesPlugin: could not put Jellyfin's authentication provider back before uninstall.");
+            }
+        }
+
+        private void ReconcileAuthProvidersCore(bool forceOff = false)
+        {
             var config = Plugin.Instance?.Configuration;
             if (config?.Mappings == null) return;
 
             var ours = typeof(BonfirePinAuthenticationProvider).FullName!;
-            var enabled = config.EnableClientPinLogin;
+            var enabled = config.EnableClientPinLogin && !forceOff;
 
             List<ProfileMapping> rows;
             lock (ProfilesBaseController.ConfigLock)
@@ -393,8 +333,8 @@ namespace Jellyfin.Profiles
 
                     var target = choose(user.AuthenticationProviderId);
 
-                    // The whole point of this method's history. Never write an empty or
-                    // null id: it makes the row unreadable rather than merely unusable.
+                    // Never write an empty or null id: it makes the row unreadable, not merely unusable (see
+                    // the Client PIN login note above).
                     if (string.IsNullOrEmpty(target)) return;
                     if (string.Equals(user.AuthenticationProviderId, target, StringComparison.Ordinal)) return;
 
@@ -404,33 +344,32 @@ namespace Jellyfin.Profiles
                 }
                 catch (Exception ex)
                 {
-                    // One bad account must not stop the rest, and must not stop startup.
+                    // One bad account must not stop the rest or startup.
                     _logger.LogError(ex,
                         "ProfilesPlugin: could not set the authentication provider for account {UserId}.",
                         userId);
                 }
             }
 
-            // Sub-profiles. Restored from the master rather than a hardcoded id when the
-            // feature is off; MasterProviderId never answers with ours, so a master that is
-            // itself still bound cannot be copied onto its profiles.
+            // Sub-profiles. Restored from the master, not a hardcoded id, when the feature is off.
+            // MasterProviderId never answers with ours, so a master that is itself still bound cannot be
+            // copied onto its profiles.
             foreach (var m in rows.Where(m => m.MasterUserId != m.ProfileUserId && m.MasterUserId != Guid.Empty))
             {
                 var masterId = m.MasterUserId;
                 Point(m.ProfileUserId, _ => enabled ? ours : MasterProviderId(masterId));
             }
 
-            // Masters. A master that has set a PIN is bound so it can be entered on a
-            // television without its full password; the provider keeps the password working
-            // by delegating to Jellyfin's own (BonfirePinAuthenticationProvider.DelegateToJellyfin).
+            // Masters. A master with a PIN is bound so it can be entered on a television without its full
+            // password; the provider keeps the password working by delegating to Jellyfin's own
+            // (BonfirePinAuthenticationProvider.DelegateToJellyfin).
             //
-            // Only a master on Jellyfin's own provider is ever bound. Delegation goes to that
-            // provider, so binding an account that signs in through LDAP or SSO would swap
-            // its real password check for one that cannot succeed.
+            // Only a master on Jellyfin's own provider is bound. Delegation goes to that provider, so
+            // binding an LDAP or SSO account would swap its real password check for one that cannot
+            // succeed.
             //
-            // Restoring is the literal default provider rather than MasterProviderId, which
-            // for a master would read back whatever it is currently bound to — this provider
-            // — and pin it there permanently.
+            // Restoring uses the literal default provider, not MasterProviderId, which for a master reads
+            // back its current binding (this provider) and would pin it there.
             var belongsHere = new HashSet<Guid>();
             if (enabled)
             {
@@ -440,7 +379,12 @@ namespace Jellyfin.Profiles
 
             foreach (var masterId in rows.Select(m => m.MasterUserId).Where(id => id != Guid.Empty).Distinct())
             {
+                // Never an administrator: if Bonfire is removed or fails to load, a bound account's real
+                // password stops working, and an administrator locked out that way cannot repair anyone
+                // else. An administrator already bound is put back.
+                var isAdmin = IsAdministrator(masterId);
                 var qualifies = enabled
+                    && !isAdmin
                     && rows.Any(m => m.ProfileUserId == masterId && m.MasterUserId == masterId
                                      && !string.IsNullOrEmpty(m.PinHash))
                     && rows.Any(m => m.MasterUserId == masterId && m.ProfileUserId != masterId);
@@ -456,24 +400,27 @@ namespace Jellyfin.Profiles
                             : null;
                     }
 
+                    // An administrator moved back loses the main PIN on a TV's sign-in screen; say so,
+                    // once, as it happens (r3-04-02).
+                    if (boundHere && isAdmin)
+                        _logger.LogInformation("ProfilesPlugin: {User} is an administrator, so it signs in with its password again, not its PIN.", masterId);
                     return boundHere ? DefaultProviderIdFallback : null;
                 });
             }
 
-            // Every other account still bound here (R-1318). The loops above only visit what
-            // the configuration lists, and the configuration can forget: Jellyfin replaces an
-            // unreadable file with defaults, and a rollback drops what an older build can't
-            // read. Such an account is offered no provider but this one, which refuses it -
-            // and with the feature off, offers it nothing at all - so a main account's real
-            // password stopped working. Jellyfin's own provider is right for all of them: a
-            // profile's password is random, so it is simply closed until it is a profile again.
+            // Every other account still bound here (R-1318). The loops above only visit what the
+            // configuration lists, and the configuration can forget: Jellyfin replaces an unreadable file
+            // with defaults, and a rollback drops what an older build can't read. Such an account is
+            // offered no provider but this one, which refuses it (with the feature off, nothing at all),
+            // so a main account's real password stopped working. Jellyfin's own provider is right for all
+            // of them: a profile's password is random, so it stays closed until it is a profile again.
             List<Jellyfin.Database.Implementations.Entities.User> everyone;
             try
             {
-                // By name, never `_userManager.Users`: that property became GetUsers() in
-                // 10.11.7 (and is gone in 12.0), and a direct reference compiles against 10.11.5
-                // and throws MissingMethodException everywhere newer - which this catch then
-                // swallowed, so the safety net below silently never ran. tests/binchk.sh found it.
+                // By name, never `_userManager.Users`: it became GetUsers() in 10.11.7 (gone in 12.0), and a
+                // direct reference compiles against 10.11.5 and throws MissingMethodException on anything
+                // newer. This catch swallowed that, so the safety net below silently never ran. tools/binchk.sh
+                // found it.
                 var type = _userManager.GetType();
                 var method = type.GetMethod("GetUsers", System.Type.EmptyTypes);
                 var listed = method != null
@@ -504,35 +451,42 @@ namespace Jellyfin.Profiles
             }
         }
 
+        private bool IsAdministrator(Guid userId)
+        {
+            try
+            {
+                var user = _userManager.GetUserById(userId);
+                return user != null
+                    && Jellyfin.Data.UserEntityExtensions.HasPermission(user,
+                        Jellyfin.Database.Implementations.Enums.PermissionKind.IsAdministrator);
+            }
+            catch (Exception ex)
+            {
+                // Cannot tell: leave it unbound, the safe side. Said, because it stops the account's
+                // PIN sign-in on TVs and nothing else would show why (r3-04-02).
+                _logger.LogWarning(ex, "ProfilesPlugin: could not tell whether {User} is an administrator, so its PIN sign-in is off until the next start.", userId);
+                return true;
+            }
+        }
+
         /// <summary>
-        /// The provider a master account uses, which is whatever this server's ordinary
-        /// users use. Preferred over a hardcoded type name so nothing has to be kept in
-        /// step with upstream renames; the literal is only a last resort for a master we
-        /// cannot read.
+        /// The provider a master account uses, which is whatever this server's ordinary users use.
+        /// Preferred over a hardcoded type name so nothing has to track upstream renames; the literal is a
+        /// last resort for a master we cannot read.
         /// <para>
-        /// <b>Never this provider.</b> Since masters with a PIN are bound here too, a master
-        /// being retired in the same pass is still bound when a sub-profile reads it — and
-        /// the sub-profile would copy the very id being switched off. A disabled provider is
-        /// filtered out of <c>GetAuthenticationProviders</c>, so the account would match
-        /// nothing, fall through to Jellyfin's <c>InvalidAuthProvider</c>, and be unable to
-        /// authenticate at all. Guarded here rather than by ordering the loop, because the
-        /// next person to touch the loop should not have to know.
+        /// <b>Never this provider.</b> Masters with a PIN are bound here too, so a master retired in the
+        /// same pass is still bound when a sub-profile reads it, and the sub-profile would copy the id
+        /// being switched off. A disabled provider is filtered out of <c>GetAuthenticationProviders</c>,
+        /// so the account would match nothing, fall through to Jellyfin's <c>InvalidAuthProvider</c> and
+        /// be unable to authenticate. Guarded here rather than by loop ordering, which the next person
+        /// to touch the loop should not have to know about.
         /// </para>
         /// </summary>
         private string MasterProviderId(Guid masterId)
         {
             try
             {
-                var master = _userManager.GetUserById(masterId);
-                if (master != null
-                    && !string.IsNullOrEmpty(master.AuthenticationProviderId)
-                    && !string.Equals(
-                        master.AuthenticationProviderId,
-                        typeof(BonfirePinAuthenticationProvider).FullName,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    return master.AuthenticationProviderId;
-                }
+                return StandaloneProvider(_userManager.GetUserById(masterId)?.AuthenticationProviderId);
             }
             catch (Exception ex)
             {
@@ -544,14 +498,39 @@ namespace Jellyfin.Profiles
             return DefaultProviderIdFallback;
         }
 
+        /// <summary>
+        /// The provider an account can sign in with on its own, given its master's: the master's when that
+        /// is Jellyfin's own provider, Jellyfin's own otherwise. Never an LDAP or SSO provider, which has
+        /// never heard of a sub-profile ("could never sign in"), and never this provider. The one rule for
+        /// both the reconciliation here and the controller's made-standalone path (R-1102).
+        /// </summary>
+        internal static string StandaloneProvider(string? masterProviderId)
+            => !string.IsNullOrEmpty(masterProviderId)
+               && masterProviderId.EndsWith(".DefaultAuthenticationProvider", StringComparison.Ordinal)
+                ? masterProviderId
+                : DefaultProviderIdFallback;
+
 
         /// <inheritdoc />
         public Task StartAsync(CancellationToken cancellationToken)
         {
             CleanupOldDlls();
 
-            // Before the reconciliation, which binds accounts by what the configuration lists:
-            // a restored configuration puts them back where they were (R-1127, R-1318).
+            // Staged files from writes the last run never finished. An hour, though nothing writes
+            // before start-up is done, so a clock that jumped cannot take one in flight.
+            try
+            {
+                var swept = Controllers.ProfilesBaseController.SweepStagedFiles(
+                    Path.Combine(_appPaths.DataPath, "plugins", "ProfilesManagement"), TimeSpan.FromHours(1));
+                if (swept > 0) _logger.LogInformation("ProfilesPlugin: removed {Count} unfinished file writes left by the last run.", swept);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: could not look for unfinished file writes.");
+            }
+
+            // Before the reconciliation, which binds accounts by what the configuration lists: a restored
+            // configuration puts them back where they were (R-1127, R-1318).
             _ = Plugin.Instance?.Configuration;
             if (Plugin.RestoredFrom != null)
             {
@@ -561,7 +540,19 @@ namespace Jellyfin.Profiles
                     _logger.LogError("ProfilesPlugin: the configuration file would not read and there was no earlier copy to restore, so Bonfire started empty. The unreadable file is kept at {Path}.", Plugin.RestoredFrom);
             }
 
-            ReconcileAuthProviders();
+            // An exception out of a host's StartAsync stops Jellyfin starting. The same call after a
+            // settings change is already guarded in ReconcileAuthProvidersNow; a bad row must not take the
+            // server down here. (It still waits on UpdateUserAsync for each account it moves, once, for
+            // the accounts that are wrong, and never on a server already settled.)
+            try
+            {
+                ReconcileAuthProviders();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProfilesPlugin: could not reconcile authentication providers at startup; the server starts anyway.");
+            }
+
             lock (PatchLock)
             {
                 TryPatchIndex();
@@ -570,27 +561,23 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
-        /// Re-reads index.html and recomputes the status flags without writing anything.
-        /// Called when the dashboard loads so the banner always reflects the file as it is
-        /// right now, not as it was when the server booted.
+        /// Re-reads index.html and recomputes the status flags without writing anything. Called when the
+        /// dashboard loads so the banner reflects the file as it is now, not as at boot.
         /// </summary>
         internal static void RefreshInjectionStatus()
         {
-            // Loaded after startup: nothing this copy reports about the pipeline can be
-            // true yet, and the flags below would otherwise keep whatever they happened to
-            // hold — for a fresh assembly, the `false` a static bool starts life with.
-            // That false is what raised a permissions warning on servers whose only
-            // problem was a pending restart.
+            // Loaded after startup: nothing this copy reports about the pipeline can be true yet, and the
+            // flags would keep whatever they held (for a fresh assembly, the false a static bool starts
+            // with). That false raised a permissions warning on servers whose only problem was a pending
+            // restart.
             if (RestartRequired)
             {
                 InjectionSucceeded = false;
                 IsVersionStale = false;
 
-                // Named versions rather than "a restart is required" on its own (issue #25).
-                // An administrator who has already restarted, or who pressed Jellyfin's own
-                // Restart button on a Docker image where it does not restart the process,
-                // could not tell a stale message from a live one. "Running 1.5.3, 1.5.4 is
-                // installed" is checkable against what they just did.
+                // Named versions, not just "a restart is required" (issue #25). An administrator who already
+                // restarted, or pressed Docker's Restart button where it does not restart the process, could
+                // not tell a stale message from a live one. "Running 1.5.3, 1.5.4 is installed" is checkable.
                 var (running, newest) = FindInstalledVersions();
                 var versions = newest != null && newest != running
                     ? $"Running {running}. Version {newest} is installed and starts once the "
@@ -613,128 +600,28 @@ namespace Jellyfin.Profiles
             {
                 try
                 {
-                    // Middleware only: index.html is *supposed* to be clean, so reading it
-                    // says nothing about whether the switcher will load. What matters is
-                    // whether the pipeline hook is live.
-                    if (!IndexInjectionModes.PatchesFile(CurrentInjectionMode))
-                    {
-                        IndexPath = IndexPath ?? self.FindIndexHtml();
+                    // index.html is supposed to be clean, so reading it says nothing about whether the switcher
+                    // will load. What matters is whether the pipeline hook is live.
+                    IndexPath = IndexPath ?? self.FindIndexHtml();
 
-                        // Not IsRegistered: PluginServiceRegistrator sets that unconditionally,
-                        // so it is true wherever the plugin runs at all and says nothing about
-                        // whether the hook reached the pipeline. Reporting it as success meant a
-                        // green "installed and up to date" banner on a server where no script was
-                        // reaching the page. The honest signal is a request actually handled —
-                        // and anyone reading this page has already loaded the web client, so one
-                        // has been.
-                        var seen = ProfilesIndexMiddleware.HasSeenIndexRequest;
-                        var lastError = ProfilesIndexMiddleware.LastError;
+                    // Not IsRegistered: PluginServiceRegistrator sets it unconditionally, so it is true wherever
+                    // the plugin runs and says nothing about the pipeline. Reporting it as success showed a green
+                    // "installed and up to date" banner on a server where no script reached the page. The honest
+                    // signal is a request actually handled, and anyone reading this page has loaded the web
+                    // client, so one has been.
+                    var seen = ProfilesIndexMiddleware.HasSeenIndexRequest;
+                    var lastError = ProfilesIndexMiddleware.LastError;
 
-                        InjectionSucceeded = seen && lastError == null;
-                        IsVersionStale = false;
-                        LastFailureReason = InjectionSucceeded
-                            ? null
-                            : seen
-                                ? "Bonfire is in the request pipeline but could not add its script "
-                                  + "to the last page it served: " + lastError
-                                : "Bonfire has not handled a request for Jellyfin's web page, so "
-                                  + "nothing is adding the client script. Switch back to patching "
-                                  + "index.html.";
-                        return;
-                    }
-
-                    var indexPath = IndexPath ?? self.FindIndexHtml();
-                    IndexPath = indexPath;
-
-                    if (indexPath == null || !File.Exists(indexPath))
-                    {
-                        InjectionSucceeded = false;
-                        IsVersionStale = false;
-                        LastFailureReason = "Jellyfin's index.html could not be located on this system.";
-                        return;
-                    }
-
-                    var html = File.ReadAllText(indexPath);
-                    var hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
-                    var hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
-                    var versionCurrent = IsScriptVersionCurrent(html);
-
-                    // In "both" mode the middleware picks up whatever the file patch could
-                    // not do, so an unpatched or stale index.html stops being a failure and
-                    // becomes the fallback working as designed. Gate that on having actually
-                    // seen a request, not merely on being registered — otherwise a filter
-                    // that never got installed would silently suppress the real warning.
-                    bool middlewareCovers = IndexInjectionModes.UsesMiddleware(CurrentInjectionMode)
-                        && ProfilesIndexMiddleware.HasSeenIndexRequest;
-
-                    InjectionSucceeded = hasBody || middlewareCovers;
-                    IsVersionStale = !middlewareCovers && hasBody && (!versionCurrent || !hasHead);
-
-                    if (middlewareCovers)
-                    {
-                        LastFailureReason = null;
-                        return;
-                    }
-
-                    if (!hasBody)
-                    {
-                        // Same symptom, three different fixes. Reporting only "the tag is not
-                        // present" sent issue #17 chasing file permissions that were already
-                        // correct.
-                        if (!CanWriteIndexHtml(indexPath))
-                        {
-                            LastFailureReason =
-                                $"Jellyfin cannot write {indexPath}. Grant write access with the "
-                                + "command below, then click Re-check.";
-                        }
-                        else if (_tagWriteReportedSuccess)
-                        {
-                            LastFailureReason =
-                                $"The tag was written to {indexPath} but is no longer there. "
-                                + "Jellyfin is serving a different copy of jellyfin-web — look for "
-                                + "a bind mount, a second install, or a proxy serving its own files."
-                                + (OtherIndexPaths.Count > 0
-                                    ? " Also found: " + string.Join(", ", OtherIndexPaths) + "."
-                                    : string.Empty);
-                        }
-                        else
-                        {
-                            LastFailureReason =
-                                $"{indexPath} is writable but has no plugin script tag yet. "
-                                + "Click Re-check to add it.";
-                        }
-                    }
-                    else if (!versionCurrent)
-                    {
-                        // Lead with the CAUSE, not the symptom. Saying only "the tag is old"
-                        // gave the administrator nothing to act on — and looked like a
-                        // contradiction next to a correct version badge, which reports the
-                        // plugin's version and says nothing about index.html's contents.
-                        var found = GetInjectedScriptVersion(html);
-                        var describeFound = found == null
-                            ? "no version marker at all (it predates the cache-buster)"
-                            : $"version {found}";
-
-                        LastFailureReason = CanWriteIndexHtml(indexPath)
-                            ? $"index.html's script tag carries {describeFound}, but this build is "
-                              + $"v{ScriptVersion}. The file is writable, so clicking Re-check "
-                              + "should update it."
-                            : $"Jellyfin cannot write {indexPath}, so its script tag still carries "
-                              + $"{describeFound} instead of v{ScriptVersion}. "
-                              + "This does not break anything: the switcher is running, and browsers "
-                              + "pick up new client code by themselves within about five minutes. "
-                              + "Granting write access below only makes updates instant.";
-                    }
-                    else if (!hasHead)
-                    {
-                        LastFailureReason =
-                            "The anti-flicker script is missing from <head>. The switcher works, "
-                            + "but you may see a brief flash of content when switching profiles.";
-                    }
-                    else
-                    {
-                        LastFailureReason = null;
-                    }
+                    InjectionSucceeded = seen && lastError == null;
+                    IsVersionStale = false;
+                    LastFailureReason = InjectionSucceeded
+                        ? null
+                        : seen
+                            ? "Bonfire is in the request pipeline but could not add its script "
+                              + "to the last page it served: " + lastError
+                            : "Bonfire has not handled a request for Jellyfin's web page, so "
+                              + "nothing is adding the client script. Restart Jellyfin; if that "
+                              + "does not help, a proxy may be serving its own copy of the page.";
                 }
                 catch (Exception ex)
                 {
@@ -745,9 +632,8 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
-        /// Re-runs the full injection. Lets an administrator apply a permission fix and click
-        /// "Retry" on the dashboard instead of having to restart the whole Jellyfin server.
-        /// Returns true when the client script is present afterwards.
+        /// Re-runs the full injection, so an administrator can apply a permission fix and click "Retry"
+        /// instead of restarting Jellyfin. Returns true when the client script is present afterwards.
         /// </summary>
         internal static bool RunInjectionNow()
         {
@@ -756,8 +642,8 @@ namespace Jellyfin.Profiles
 
             lock (PatchLock)
             {
-                // Re-resolve from scratch: the previous run may have cached a path from a
-                // location that has since changed (e.g. a Jellyfin web-client update).
+                // Re-resolve from scratch: the previous run may have cached a path that has since changed
+                // (e.g. a Jellyfin web-client update).
                 IndexPath = null;
                 self.TryPatchIndex();
             }
@@ -771,15 +657,14 @@ namespace Jellyfin.Profiles
             => Task.CompletedTask;
 
         /// <summary>
-        /// Removes the ".old" DLLs Jellyfin leaves behind when it cannot delete an in-use
-        /// assembly during a plugin update (common on Windows, where the file stays locked
-        /// until the process exits).
+        /// Removes the ".old" DLLs Jellyfin leaves behind when it cannot delete an in-use assembly during
+        /// a plugin update (common on Windows, where the file stays locked until the process exits).
         /// </summary>
         private void CleanupOldDlls()
         {
-            // Derive the directory from this assembly rather than guessing a name under
-            // PluginsPath: Jellyfin names plugin folders "{Name}_{Version}", so a hardcoded
-            // "Bonfire" never matches and the cleanup silently does nothing.
+            // Derive the directory from this assembly, not a name under PluginsPath: Jellyfin names plugin
+            // folders "{Name}_{Version}", so a hardcoded "Bonfire" never matches and cleanup silently does
+            // nothing.
             string? pluginDir;
             try
             {
@@ -808,7 +693,7 @@ namespace Jellyfin.Profiles
                     }
                     catch (Exception ex)
                     {
-                        // Still locked by another process — it will be retried next startup.
+                        // Still locked by another process; retried next startup.
                         _logger.LogDebug(ex, "ProfilesPlugin: Could not delete stale file {File}.", file);
                     }
                 }
@@ -821,207 +706,18 @@ namespace Jellyfin.Profiles
 
         private void TryPatchIndex()
         {
-            // Middleware only: index.html is not ours to write any more. Take the tags
-            // back out so the file returns to how Jellyfin shipped it, and let the
-            // request pipeline do the work from here.
-            if (!IndexInjectionModes.PatchesFile(CurrentInjectionMode))
-            {
-                TryUnpatchIndex();
-                return;
-            }
-
-            var indexPath = FindIndexHtml();
-            IndexPath = indexPath;
-
-            if (indexPath is null)
-            {
-                _logger.LogWarning(
-                    "ProfilesPlugin: Could not locate index.html in any known Jellyfin web path. " +
-                    "The Profiles client script will not load automatically. " +
-                    "Manually add the following line before </body> in your index.html: {Tag}",
-                    BodyScriptTag);
-                return;
-            }
-
-            try
-            {
-                // Create backup in the plugin data directory (always writable), NOT next to index.html.
-                // Storing the backup beside index.html requires directory write permission on the web
-                // root (e.g. /usr/share/jellyfin/web/) which the jellyfin service user typically does
-                // not have — even after a `chmod 666 index.html` on the file itself.
-                try
-                {
-                    var backupDir = Path.Combine(_appPaths.DataPath, "plugins", "ProfilesManagement");
-                    Directory.CreateDirectory(backupDir);
-                    var backupPath = Path.Combine(backupDir, "index.html.bonfire.bak");
-                    if (!File.Exists(backupPath))
-                    {
-                        File.Copy(indexPath, backupPath, false);
-                        _logger.LogInformation("ProfilesPlugin: Created backup of index.html at {Path}.", backupPath);
-                    }
-                }
-                catch (Exception backupEx)
-                {
-                    // A backup failure is non-fatal — log a warning and continue with the patch.
-                    _logger.LogWarning(backupEx, "ProfilesPlugin: Could not create backup of index.html. Proceeding with injection anyway.");
-                }
-
-                var html = File.ReadAllText(indexPath);
-
-                bool hasBody = html.Contains(BodyMarker, StringComparison.Ordinal);
-                bool hasHead = html.Contains(HeadMarker, StringComparison.Ordinal);
-
-                // Check that the script tag matches the *current* version, not just that
-                // some version is present. After a plugin update the old ?v=1.1.x tag
-                // stays in index.html and the browser keeps serving the cached old JS,
-                // so new features (like tag filtering) silently never appear.
-                bool bodyVersionCurrent = IsScriptVersionCurrent(html);
-
-                if (hasBody && bodyVersionCurrent && hasHead)
-                {
-                    _logger.LogDebug(
-                        "ProfilesPlugin: Scripts already correctly present in {Path} — no changes made.",
-                        indexPath);
-                    InjectionSucceeded = true;
-                    IsVersionStale = false;
-                    return;
-                }
-
-                // If body marker is present, the plugin script is injected and functional — the
-                // profile gate and switcher load fine. Mark as succeeded NOW so the failure banner
-                // never fires. Set IsVersionStale if the cache-buster version or head tag is missing.
-                if (hasBody)
-                {
-                    InjectionSucceeded = true;
-                    IsVersionStale = !bodyVersionCurrent || !hasHead;
-                }
-                else
-                {
-                    InjectionSucceeded = false;
-                    IsVersionStale = false;
-                }
-
-                // Both fragments in one pass, shared with ProfilesIndexMiddleware.
-                bool changed = WebInjection.Inject(html, out html);
-
-                // The body script is what makes the switcher work at all; the head script only
-                // prevents a flash of content. Track them separately so a missing <head> anchor
-                // downgrades to the "stale" banner rather than either claiming full success or
-                // firing the alarming "injection failed" one.
-                bool bodyPresent = html.Contains(BodyMarker, StringComparison.Ordinal);
-                bool headPresent = html.Contains(HeadMarker, StringComparison.Ordinal);
-
-                if (!bodyPresent)
-                {
-                    // Only clear InjectionSucceeded if there was genuinely nothing before.
-                    // (If an old working injection existed, InjectionSucceeded was already
-                    // set true above and should stay that way.)
-                    if (!InjectionSucceeded)
-                    {
-                        LastFailureReason =
-                            $"No </body> tag was found in {indexPath}, so the client script "
-                            + "could not be inserted.";
-                        _logger.LogWarning(
-                            "ProfilesPlugin: Could not find a </body> anchor in {Path}. " +
-                            "The client script was NOT injected. Add the following line before </body> manually: {Tag}",
-                            indexPath, BodyScriptTag);
-                    }
-                    return;
-                }
-
-                if (changed)
-                {
-                    // Throws on failure; the catch blocks below preserve any previously
-                    // working state rather than reporting a hard failure.
-                    WriteFileAtomic(indexPath, html);
-                    _tagWriteReportedSuccess = true;
-                    _logger.LogInformation(
-                        "ProfilesPlugin: Client scripts injected successfully into {Path}.",
-                        indexPath);
-                }
-
-                InjectionSucceeded = true;
-
-                // Re-derive from the document we just wrote instead of assuming success.
-                // Previously this cleared IsVersionStale unconditionally, which hid the case
-                // where the body tag was inserted but the <head> anchor was missing entirely.
-                IsVersionStale = !headPresent;
-                LastFailureReason = headPresent
-                    ? null
-                    : "The anti-flicker script could not be added because index.html has no "
-                      + "<head> tag. The switcher works, but you may see a brief flash of "
-                      + "content when switching profiles.";
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                // If an older version of the injection is already working in index.html,
-                // InjectionSucceeded was set true above. A write failure here only means
-                // we couldn't update the cache-buster version — not that the switcher is
-                // broken. Only log the full permission error when InjectionSucceeded is
-                // still false (i.e. there was no prior injection at all).
-                if (!InjectionSucceeded)
-                {
-                    LastFailureReason =
-                        $"Jellyfin does not have permission to write {indexPath}. "
-                        + "Run the command below for your platform, then click Re-check.";
-                    LogPermissionError(indexPath, ex);
-                }
-                else
-                {
-                    IsVersionStale = true;
-                    LastFailureReason =
-                        $"Jellyfin cannot write {indexPath}, so its script tag still requests an "
-                        + $"older client script than this build (v{ScriptVersion}). The switcher "
-                        + "still works and browsers pick up new code on their next revalidation "
-                        + "(within ~5 minutes) — granting write access just makes it immediate.";
-                    _logger.LogDebug(ex,
-                        "ProfilesPlugin: Could not update script version in {Path} (permission denied). " +
-                        "The existing injection is still functional; users may need a browser hard-refresh " +
-                        "to pick up the latest client script.", indexPath);
-                }
-            }
-            catch (IOException ex)
-            {
-                if (!InjectionSucceeded)
-                {
-                    LastFailureReason =
-                        $"Could not read or write {indexPath}: {ex.Message}";
-                    _logger.LogWarning(
-                        ex,
-                        "ProfilesPlugin: IO error reading/writing {Path}. " +
-                        "Manually add the following line before </body>: {Tag}",
-                        indexPath, BodyScriptTag);
-                }
-                else
-                {
-                    IsVersionStale = true;
-                    LastFailureReason =
-                        $"The script tag in {indexPath} is out of date and could not be updated: {ex.Message}";
-                    _logger.LogDebug(ex,
-                        "ProfilesPlugin: IO error updating script version in {Path}. " +
-                        "The existing injection is still functional.", indexPath);
-                }
-            }
-            catch (Exception ex)
-            {
-                if (!InjectionSucceeded)
-                {
-                    LastFailureReason = "Unexpected error while patching index.html: " + ex.Message;
-                }
-                _logger.LogError(ex,
-                    "ProfilesPlugin: Unexpected error while patching {Path}.", indexPath);
-            }
+            // The middleware is the only way the script is served. index.html is not ours to write: take
+            // the tags back out so the file returns to how Jellyfin shipped it. A server saved in the old
+            // "file" or "both" mode lands here after an upgrade.
+            TryUnpatchIndex();
         }
 
         /// <summary>
         /// Cleans index.html once the middleware has proved it is in the pipeline.
-        ///
         /// <para>
-        /// Called by <see cref="ProfilesIndexMiddleware"/> the first time it handles a
-        /// request. That is the only moment we know the hook is genuinely live — being
-        /// registered in DI does not mean the pipeline ever applies it — and it is
-        /// therefore the only safe moment to remove tags that are currently the thing
-        /// making the switcher work.
+        /// Called by <see cref="ProfilesIndexMiddleware"/> the first time it handles a request. Only then
+        /// do we know the hook is live (being registered in DI does not mean the pipeline applies it), so
+        /// only then is it safe to remove tags that are currently making the switcher work.
         /// </para>
         /// </summary>
         internal static void CleanIndexOnceMiddlewareIsLive()
@@ -1034,9 +730,9 @@ namespace Jellyfin.Profiles
             var self = _current;
             if (self == null) return;
 
-            // Off the request thread: this reads and rewrites a file, and the browser is
-            // waiting on the response that triggered it.
-            System.Threading.Tasks.Task.Run(() =>
+            // Off the request thread: this reads and rewrites a file, and the browser is waiting on the
+            // response that triggered it.
+            _ = BackgroundWork.Run(_ =>
             {
                 lock (PatchLock)
                 {
@@ -1055,24 +751,21 @@ namespace Jellyfin.Profiles
         private static int _cleanedForMiddleware;
 
         /// <summary>
-        /// Takes the script tags back out of index.html, restoring the file to how Jellyfin
-        /// shipped it. Runs when injection is set to middleware only, so that changing the
-        /// setting actually cleans the file up rather than merely stopping further writes.
+        /// Takes the script tags back out of index.html, restoring the file to how Jellyfin shipped it.
+        /// Runs when injection is middleware-only, so changing the setting cleans the file instead of
+        /// merely stopping further writes.
         /// <para>
-        /// Failing here is harmless. The tags stay where they are, the middleware sees a
-        /// document that is already injected and steps aside, and the switcher loads from
-        /// the file exactly as it did before.
+        /// Failing here is harmless: the tags stay, the middleware sees a document already injected and
+        /// steps aside, and the switcher loads from the file as before.
         /// </para>
         /// </summary>
         private void TryUnpatchIndex()
         {
             IndexPath = FindIndexHtml();
-            // Not IsRegistered — RegisterServices sets that unconditionally, so it is true
-            // wherever the plugin loads and says nothing about whether the hook reached the
-            // pipeline. This is the same dishonest signal RefreshInjectionStatus stopped
-            // using in 1.4.8; it was left behind here. At startup nothing has been served
-            // yet, so this is false until the dashboard recomputes — which it always does
-            // before reading it.
+            // Not IsRegistered: RegisterServices sets it unconditionally, so it says nothing about whether
+            // the hook reached the pipeline. RefreshInjectionStatus stopped using it in 1.4.8; this was
+            // left behind. At startup nothing has been served, so this is false until the dashboard
+            // recomputes, which it always does before reading it.
             InjectionSucceeded = ProfilesIndexMiddleware.HasSeenIndexRequest
                 && ProfilesIndexMiddleware.LastError == null;
             IsVersionStale = false;
@@ -1083,14 +776,10 @@ namespace Jellyfin.Profiles
                 return;
             }
 
-            // Registration proves nothing: IsRegistered is set unconditionally by
-            // RegisterServices, so it is always true here. What has to be true before the
-            // tags come out is that the middleware has actually handled a request — and at
-            // startup nothing has. So the file stays patched until the middleware itself
-            // says otherwise, via CleanIndexOnceMiddlewareIsLive below.
-            //
-            // Leaving it patched costs nothing in the meantime: the middleware sees the
-            // tags already present and steps aside.
+            // Registration proves nothing: IsRegistered is always true here. The middleware must have
+            // handled a request before the tags come out, and at startup it has not. So the file stays
+            // patched until the middleware says otherwise via CleanIndexOnceMiddlewareIsLive below.
+            // Meanwhile it costs nothing: the middleware sees the tags present and steps aside.
             if (!ProfilesIndexMiddleware.HasSeenIndexRequest)
             {
                 _logger.LogDebug(
@@ -1121,12 +810,14 @@ namespace Jellyfin.Profiles
         }
 
         /// <summary>
-        /// Writes via a temp file in the same directory then replaces the original, so a
-        /// crash or a full disk mid-write cannot leave Jellyfin with a truncated index.html
-        /// (which would break the entire web client, not just this plugin).
+        /// Writes via a temp file in the same directory, then replaces the original, so a crash or full
+        /// disk mid-write cannot leave Jellyfin a truncated index.html (which would break the whole web
+        /// client).
         ///
-        /// Falls back to a direct write if the atomic replace isn't permitted — some
-        /// container mounts allow writing a file but not creating siblings.
+        /// There is no fallback to writing in place. It existed for mounts that allow writing a file but
+        /// not creating a sibling, but an interrupted truncate-then-write leaves a broken index.html for
+        /// everyone. The only caller, the one-time cleanup of old tags, is harmless when it fails (the
+        /// middleware sees the tags present and steps aside), and gets the exception.
         /// </summary>
         private void WriteFileAtomic(string path, string contents)
         {
@@ -1143,46 +834,41 @@ namespace Jellyfin.Profiles
             }
             catch (Exception ex)
             {
-                // Not fatal: the write below may still succeed, and if it doesn't the caller
-                // reports the real permission error.
+                // Not fatal: the write below may still succeed, and if not the caller reports the real
+                // permission error.
                 _logger.LogDebug(ex, "ProfilesPlugin: Could not clear the read-only attribute on {Path}.", path);
             }
 
-            // NOTE: the temp file is created alongside index.html, so this path needs write
-            // permission on the *directory*, not just the file. The documented fix commands
-            // only grant permission on index.html itself, so on most Linux/Docker installs the
-            // atomic path fails and the in-place fallback below is what actually runs.
+            // The temp file is created beside index.html, so this needs write permission on the
+            // directory, not just the file. Most Linux/Docker installs do not grant it, and the cleanup
+            // then does not happen.
             var tempPath = path + ".bonfire.tmp";
             try
             {
                 File.WriteAllText(tempPath, contents);
                 File.Move(tempPath, path, overwrite: true);
             }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            catch
             {
-                _logger.LogDebug(ex,
-                    "ProfilesPlugin: Atomic replace unavailable for {Path}; writing in place.", path);
                 try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best effort */ }
-                File.WriteAllText(path, contents);
+                throw;
             }
         }
 
-        // ── Path discovery ───────────────────────────────────────────────────────
+        // Path discovery.
 
         /// <summary>
-        /// A key that is the same for two paths pointing at the same file.
-        ///
-        /// The Linux packages ship several of the candidate directories as symlinks to one
-        /// another, so comparing normalised path strings would report a duplicate copy of
-        /// jellyfin-web on a perfectly ordinary install and send the administrator looking
-        /// for a bind mount that does not exist.
+        /// A key that is the same for two paths pointing at the same file. The Linux packages ship several
+        /// candidate directories as symlinks to one another, so comparing normalized path strings would
+        /// report a duplicate jellyfin-web on an ordinary install and send the administrator looking for a
+        /// bind mount that does not exist.
         /// </summary>
         private static string FileIdentity(string path)
         {
             try
             {
-                // The link is usually on the directory (/usr/lib/jellyfin/web →
-                // /usr/share/jellyfin/web), not on index.html, so resolve both.
+                // The link is usually on the directory (/usr/lib/jellyfin/web -> /usr/share/jellyfin/web),
+                // not on index.html, so resolve both.
                 var dir = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir))
                 {
@@ -1195,34 +881,31 @@ namespace Jellyfin.Profiles
             }
             catch
             {
-                // Not a link, or the target cannot be read — the path itself will do.
+                // Not a link, or the target cannot be read: the path itself will do.
             }
             return path;
         }
 
         /// <summary>
-        /// Searches all locations Jellyfin is known to place its web client on every
-        /// supported platform (Windows installer, Linux packages, Docker images,
-        /// portable/Scoop). Returns the full path to index.html or <c>null</c>.
+        /// Searches every location Jellyfin is known to put its web client (Windows installer, Linux
+        /// packages, Docker images, portable/Scoop). Returns the full path to index.html or <c>null</c>.
         /// </summary>
         private string? FindIndexHtml()
         {
             var candidates = new List<string?>();
 
-            // ── 1. Jellyfin's own reported WebPath (highest confidence) ──────────
-            //    IApplicationPaths.WebPath is set by Jellyfin at startup from its
-            //    own config, so this is correct on any properly configured install.
+            // 1. Jellyfin's own reported WebPath (highest confidence). IApplicationPaths.WebPath comes
+            //    from its own config, so it is right on any properly configured install.
             candidates.Add(_appPaths.WebPath);
 
-            // ── 2. Relative to the running executable ────────────────────────────
-            //    Works for Windows portable, Scoop, and some Docker images where
-            //    jellyfin-web is placed next to / near the server binary.
+            // 2. Relative to the running executable: Windows portable, Scoop, and Docker images with
+            //    jellyfin-web next to the server binary.
             var baseDir = AppContext.BaseDirectory;
             candidates.Add(Path.Combine(baseDir, "jellyfin-web"));
             candidates.Add(Path.Combine(baseDir, "..", "jellyfin-web"));
             candidates.Add(Path.Combine(baseDir, "..", "..", "jellyfin-web"));
 
-            // ── 3. Windows — standard installer path ─────────────────────────────
+            // 3. Windows standard installer path.
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
@@ -1230,23 +913,22 @@ namespace Jellyfin.Profiles
                 candidates.Add(Path.Combine(pf, "Jellyfin", "jellyfin-web"));
             }
 
-            // ── 4. Linux — package manager installs (apt/rpm/AUR) ───────────────
+            // 4. Linux package manager installs (apt/rpm/AUR).
             candidates.Add("/usr/share/jellyfin/web");
             candidates.Add("/usr/lib/jellyfin/web");
             candidates.Add("/usr/local/share/jellyfin/web");
             candidates.Add("/opt/jellyfin/web");
 
-            // ── 5. Docker — common image layouts ────────────────────────────────
+            // 5. Docker common image layouts.
             candidates.Add("/jellyfin/jellyfin-web");
             candidates.Add("/jellyfin/web");
             candidates.Add("/app/jellyfin-web");
             candidates.Add("/config/jellyfin-web");
             candidates.Add("/data/jellyfin-web");
 
-            // Every match is collected, not just the first. A second copy of jellyfin-web
-            // is the likeliest explanation for a tag that writes cleanly and then is not
-            // there when the browser loads the page (issue #17), and the administrator
-            // cannot check for one they were never told about.
+            // Every match is collected, not just the first. A second copy of jellyfin-web is the likeliest
+            // reason a tag writes cleanly and is not there when the browser loads (issue #17), and the
+            // administrator cannot check for one they were never told about.
             var found = new List<string>();
             var identities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var dir in candidates)
@@ -1264,21 +946,22 @@ namespace Jellyfin.Profiles
                 }
                 catch (Exception ex)
                 {
-                    // Path may be syntactically invalid on this OS — skip it.
+                    // Path may be syntactically invalid on this OS: skip it.
                     _logger.LogDebug(ex, "ProfilesPlugin: Candidate path '{Dir}' is invalid or inaccessible.", dir);
                 }
             }
 
             if (found.Count == 0) return null;
 
-            OtherIndexPaths = found.Skip(1).ToList();
-            if (OtherIndexPaths.Count > 0)
+            var others = found.Skip(1).ToList();
+            if (others.Count > 0)
             {
+                // The file is only read to take old script tags out; nothing is added.
                 _logger.LogWarning(
                     "ProfilesPlugin: More than one jellyfin-web index.html exists on this system. " +
-                    "Patching {Path}; also found {Others}. If the switcher does not appear, Jellyfin " +
-                    "is serving one of the others.",
-                    found[0], string.Join(", ", OtherIndexPaths));
+                    "Checking {Path} for old script tags; also found {Others}. Old tags in the others " +
+                    "are not removed.",
+                    found[0], string.Join(", ", others));
             }
             else
             {
@@ -1287,53 +970,5 @@ namespace Jellyfin.Profiles
 
             return found[0];
         }
-
-        // ── Error reporting ──────────────────────────────────────────────────────
-
-        private void LogPermissionError(string indexPath, Exception ex)
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "WINDOWS FIX — Grant write access and restart Jellyfin (Run CMD as Administrator):\n" +
-                    "  icacls \"{IndexPath}\" /grant \"NT AUTHORITY\\NetworkService:(M)\"\n\n" +
-                    "Or add the following line before </body> manually (Notepad as Administrator):\n" +
-                    "  {Tag}",
-                    indexPath, indexPath, BodyScriptTag);
-            }
-            else if (IsRunningInDocker())
-            {
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "DOCKER FIX — Set ownership to the Jellyfin service user, then restart:\n" +
-                    "  docker exec -u root <container-name> chown jellyfin:jellyfin {IndexPath}\n" +
-                    "  docker exec -u root <container-name> chmod 664 {IndexPath}\n\n" +
-                    "After Jellyfin restarts and injects the script you can optionally restore\n" +
-                    "read-only permissions: docker exec -u root <container-name> chmod 644 {IndexPath2}",
-                    indexPath, indexPath, indexPath, indexPath);
-            }
-            else
-            {
-                _logger.LogWarning(
-                    ex,
-                    "ProfilesPlugin: Permission denied writing to {Path}.\n\n" +
-                    "LINUX FIX — Set ownership to the Jellyfin service user and grant write access, then restart Jellyfin:\n" +
-                    "  sudo chown jellyfin:jellyfin {IndexPath}\n" +
-                    "  sudo chmod 664 {IndexPath2}\n\n" +
-                    "After Jellyfin restarts and injects the script you can optionally restore\n" +
-                    "read-only permissions: sudo chmod 644 {IndexPath3}",
-                    indexPath, indexPath, indexPath, indexPath);
-            }
-        }
-
-        private static bool IsRunningInDocker() =>
-            File.Exists("/.dockerenv") ||
-            string.Equals(
-                Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
-                "true",
-                StringComparison.OrdinalIgnoreCase);
     }
 }

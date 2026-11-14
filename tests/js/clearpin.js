@@ -70,7 +70,7 @@ async function save(env, steps) {
     let env = setup();
     let sent = await save(env, async (c) => {
         c.querySelector('#edit-clear-pin-btn').click();
-        const input = c.querySelector('#edit-pin-input');
+        const input = c.querySelector('#jpf-edit-pin-input');
         input.value = '1234';
         input.fire('input');
     });
@@ -88,7 +88,7 @@ async function save(env, steps) {
     env = setup();
     sent = await save(env, async (c) => {
         c.querySelector('#edit-clear-pin-btn').click();
-        c.querySelector('#edit-pin-input').value = '12';
+        c.querySelector('#jpf-edit-pin-input').value = '12';
     });
     ok('a 2-digit PIN after a clear is refused, nothing sent', !sent,
        sent ? JSON.stringify(sent.body.pin) : '');
@@ -98,56 +98,6 @@ async function save(env, steps) {
     sent = await save(env, async () => {});
     ok('an untouched PIN field sends null (leave it alone)', !!sent && sent.body.pin === null,
        sent ? JSON.stringify(sent.body.pin) : 'no post');
-
-    // Issue #44. The main PIN typed to open Manage Profiles is sent with every change, so
-    // changing it from the edit form left the old one in memory: each later save in the
-    // same visit was refused as an incorrect main PIN, and each one counted as a wrong try.
-    console.log('\n── The main account changing its own PIN ───────────────────────');
-
-    const MAIN = Object.assign({}, KID, { profileUserId: 'main', profileName: 'Bard', isMaster: true, isBonfire: false });
-    const saveMain = async (env, steps) => {
-        env.PP.showEditProfileModal(Object.assign({}, MAIN));
-        await env.settle();
-        await steps(env.content);
-        env.content.querySelector('#edit-submit-btn').click();
-        await env.settle();
-    };
-
-    env = setup();
-    await saveMain(env, async (c) => {
-        const input = c.querySelector('#edit-pin-input');
-        input.value = '9753';
-        input.fire('input');
-    });
-    ok('the new main PIN is what the next save sends', env.PP.masterPin === '9753', JSON.stringify(env.PP.masterPin));
-
-    env = setup();
-    await saveMain(env, async (c) => { c.querySelector('#edit-clear-pin-btn').click(); });
-    ok('a cleared main PIN is forgotten', env.PP.masterPin === null, JSON.stringify(env.PP.masterPin));
-
-    env = setup();
-    await saveMain(env, async () => {});
-    ok('a save that leaves the PIN alone keeps it', env.PP.masterPin === '2468', JSON.stringify(env.PP.masterPin));
-
-    env = setup();
-    env.setRespond((url) => url === 'plugins/profiles/update' ? { status: 400, body: 'No' }
-        : /^Users\//.test(url) ? { status: 200, body: { Policy: { MaxParentalRating: 14, EnableAllFolders: true } } }
-        : { status: 200, body: {} });
-    await saveMain(env, async (c) => {
-        const input = c.querySelector('#edit-pin-input');
-        input.value = '9753';
-        input.fire('input');
-    });
-    ok('a refused save keeps the PIN that still works', env.PP.masterPin === '2468', JSON.stringify(env.PP.masterPin));
-
-    // A profile's PIN is not the main PIN.
-    env = setup();
-    sent = await save(env, async (c) => {
-        const input = c.querySelector('#edit-pin-input');
-        input.value = '1234';
-        input.fire('input');
-    });
-    ok('changing a profile\'s PIN leaves the main PIN alone', env.PP.masterPin === '2468', JSON.stringify(env.PP.masterPin));
 
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);

@@ -1,14 +1,13 @@
 /*
  * A settings page that could not read the settings must not be able to overwrite them.
  *
- * loadConfiguration's catch only logged. The form stayed at its defaults, the Save button
- * stayed live, and Save posts every setting on the page, so one failed read followed by
- * one click put the defaults over the real configuration. Nothing told the administrator
- * the read had failed, and nothing in the log said a save had overwritten anything.
+ * loadConfiguration's catch only logged. The form stayed at its defaults and Save stayed
+ * live, and Save posts every setting on the page, so one failed read and one click put the
+ * defaults over the real configuration, with nothing shown and nothing logged.
  *
  * Runs the real loadConfiguration and saveConfiguration against a stubbed ApiClient and
- * page. Point it at an older dashboard to watch it fail (argv[3], because argv[2] is the
- * client script every other harness takes):
+ * page. To watch it fail on an older dashboard use argv[3] (argv[2] is the client script
+ * every other harness takes):
  *
  *     node tests/js/adminload.js "" /path/to/old/profilesDashboard.html
  */
@@ -25,17 +24,22 @@ function ok(name, cond) {
 
 const script = L.dashboardScript(L.readDashboard());
 const loadSrc = L.extractFunction(script, 'loadConfiguration');
-// Every function loadConfiguration calls on the page is a loader or a renderer; they are
-// stubbed, because what is under test is what it does with the result of the read.
+// Everything loadConfiguration calls on the page is a loader or a renderer; stubbed, since
+// the test is what it does with the result of the read.
 const stubbed = {};
 (loadSrc.match(/\b(?:load|render|update)[A-Za-z]*\(/g) || []).forEach(function (n) {
     const name = n.slice(0, -1);
     if (name !== 'loadConfiguration') stubbed[name] = true;
 });
 
-const source = L.extractFunction(script, 'normalizeImageQuality') + '\n'
+const source = L.dashboardI18n(script)
+    + L.extractFunction(script, 'normalizeImageQuality') + '\n'
     + L.extractFunction(script, 'normalizeTheme') + '\n'
+    // Loading clears the "unsaved changes" note; it is not what this harness is about.
+    + (script.indexOf('function setUnsaved') !== -1 ? L.extractFunction(script, 'setUnsaved') + '\n' : '')
     + (script.indexOf('function showConfigLoadError') !== -1 ? L.extractFunction(script, 'showConfigLoadError') + '\n' : '')
+    // Save reads the trusted-address rows (2.0); before they're drawn it sends what was loaded.
+    + (script.indexOf('function collectTrusted') !== -1 ? L.extractFunction(script, 'collectTrusted') + '\n' : '')
     + loadSrc + '\n'
     + L.extractFunction(script, 'saveConfiguration');
 

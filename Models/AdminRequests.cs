@@ -32,33 +32,64 @@ namespace Jellyfin.Profiles.Models
     /// <summary>
     /// The six server-wide settings the plugin's settings page owns.
     /// <para>
-    /// Every field is nullable and only the ones actually sent are applied. That is what
-    /// makes this endpoint safe where the old path was not: the page used to GET the whole
-    /// PluginConfiguration, change six fields on the copy, and PUT all of it back — so a
-    /// profile created, a device seen, or an avatar uploaded between the GET and the PUT was
-    /// silently overwritten with the state from before it happened. Sending only what the
-    /// page owns means nothing else can be lost by saving it.
+    /// Every field is nullable and only the ones sent are applied. The page used to GET the whole
+    /// PluginConfiguration, change six fields on the copy and PUT all of it back, so a profile
+    /// created, a device seen or an avatar uploaded between the GET and the PUT was overwritten with
+    /// the state from before it. Sending only what the page owns means saving it loses nothing else.
     /// </para>
     /// </summary>
     public class AdminSettingsRequest
     {
         public int? MaxProfilesPerUser { get; set; }
-        public bool? RequireMasterPinForCreation { get; set; }
+        /// <summary>Wrong PIN tries an account may have in a day, 1 to 20. Null leaves it alone.</summary>
+        public int? PinGuessesPerDay { get; set; }
+        public bool? RequireMainPin { get; set; }
+        /// <summary>The Status tab's "Turn on Bonfire". Null leaves it alone.</summary>
+        public bool? BonfireOn { get; set; }
         public bool? DisallowCustomAvatarUploads { get; set; }
         public bool? EnableStarterAvatars { get; set; }
         public bool? DefaultAskOnStartup { get; set; }
         public string? DefaultSwitcherLocation { get; set; }
         /// <summary>One of the theme ids. Null leaves it alone; anything unknown is refused.</summary>
         public string? DefaultTheme { get; set; }
+        /// <summary>The time zone households read viewing hours in until they pick one. Empty is the server's own.</summary>
+        public string? DefaultTimeZone { get; set; }
         public bool? AllowProfileThemes { get; set; }
-        public string? IndexInjectionMode { get; set; }
+
+        /// <summary>Themes with a special animation may use it. Null leaves it alone.</summary>
+        public bool? RichThemeMotion { get; set; }
         public bool? EnableClientPinLogin { get; set; }
         public bool? EnableClientProfileList { get; set; }
 
+        /// <summary>PIN-less and device-restricted profiles may sign in on other apps from outside the home network. Null leaves it alone.</summary>
+        public bool? ClientPinLoginFromAnywhere { get; set; }
+
         public bool? SkipQuickConnectOnKnownDevices { get; set; }
+
+        /// <summary>Keys from <c>ProxyClients.Catalogue</c>. Unknown keys are dropped. Null leaves it alone.</summary>
+        public System.Collections.Generic.List<string>? ProxyClients { get; set; }
+
+        /// <summary>Addresses and ranges, each with the main accounts whose household opens without a PIN from it: at most 10, nothing wider than /16 or /48, no administrator. Empty turns it off. Null leaves it alone; anything invalid refuses the whole save.</summary>
+        public System.Collections.Generic.List<Jellyfin.Profiles.Configuration.TrustedAddressEntry>? TrustedAddressEntries { get; set; }
 
         /// <summary>See <c>ImageQualities</c>: standard, high or maximum. Null leaves it alone.</summary>
         public string? ProfileImageQuality { get; set; }
+
+        /// <summary>First-time setup on or off. The first time it goes on, accounts that
+        /// already exist are counted as having seen it.</summary>
+        public bool? OnboardingEnabled { get; set; }
+
+        /// <summary>The administrator has answered the new-install question about first-time
+        /// setup. Null leaves it alone.</summary>
+        public bool? OnboardingAsked { get; set; }
+
+        /// <summary>One Getting started item to stop showing, by key. Null leaves the list
+        /// alone; an unknown key is refused.</summary>
+        public string? GettingStartedDismiss { get; set; }
+
+        /// <summary>Main accounts may reset a forgotten PIN by email. Refused while email
+        /// isn't working.</summary>
+        public bool? EnablePinResetByEmail { get; set; }
     }
 
     /// <summary>Identifies one signed-in device belonging to one user.</summary>

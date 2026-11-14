@@ -7,7 +7,8 @@ namespace Jellyfin.Profiles.Models
     {
         public string ProfileName { get; set; } = string.Empty;
         public string? Pin { get; set; }
-        public string AvatarColor { get; set; } = "#1F77B4";
+        /// <summary>Null picks the next colour the household isn't using.</summary>
+        public string? AvatarColor { get; set; }
         /// <summary>
         /// Hides the avatar colour behind the picture. Null = false (paint the colour).
         /// </summary>
@@ -17,15 +18,21 @@ namespace Jellyfin.Profiles.Models
         /// server does not let profiles choose.
         /// </summary>
         public string? Theme { get; set; }
+        /// <summary>A rating score such as "14". Null or "" = no limit of its own.</summary>
         public string? MaxParentalRating { get; set; }
+        /// <summary>
+        /// True gives every library the main account has, including ones added later, the
+        /// same as leaving <see cref="EnabledFolders"/> out on create. Accepted here so a
+        /// client can say it the same way on /create and /update (R-1144).
+        /// </summary>
+        public bool? AllLibraries { get; set; }
         /// <summary>
         /// Library ids, as strings, parsed by the controller (ProfilesBaseController.ParseFolderIds).
         /// <para>
-        /// Typed as Guid this failed the whole request on a single entry that was not one —
-        /// Jellyfin's Guid converter throws a FormatException rather than a JsonException, so
-        /// model binding reported "The supplied value is invalid" against no field at all and
-        /// handed the action a null request (issue #33). A library with no item id, which
-        /// /libraries used to list, put exactly such an entry in the form.
+        /// Typed as Guid, a single entry that was not a Guid failed the whole request: Jellyfin's Guid
+        /// converter throws a FormatException, not a JsonException, so model binding reported "The
+        /// supplied value is invalid" against no field and handed the action a null request (issue #33).
+        /// A library with no item id, which /libraries used to list, put exactly such an entry in the form.
         /// </para>
         /// </summary>
         public List<string>? EnabledFolders { get; set; }
@@ -40,14 +47,14 @@ namespace Jellyfin.Profiles.Models
         public List<string>? AllowedDeviceIds { get; set; }
         public string? ProfileImage { get; set; }
         /// <summary>
-        /// Small rendering of <see cref="ProfileImage"/>, produced by the client. Optional —
-        /// the full-size image is served in its place when absent.
+        /// Small rendering of <see cref="ProfileImage"/>, produced by the client. Optional; the
+        /// full-size image is served in its place when absent.
         /// </summary>
         public string? ProfileImageThumb { get; set; }
         /// <summary>
         /// Id of an avatar from the server's library. When set it wins over
-        /// <see cref="ProfileImage"/> and the file is copied server-side, which is the only
-        /// way to set a picture on a server that has disabled custom avatars.
+        /// <see cref="ProfileImage"/> and the file is copied server-side, the only way to set a picture
+        /// on a server that has disabled custom avatars.
         /// </summary>
         public string? AvatarLibraryId { get; set; }
     }

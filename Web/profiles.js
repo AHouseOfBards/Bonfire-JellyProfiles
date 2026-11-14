@@ -1,15 +1,106 @@
 (function () {
     'use strict';
 
-    // Told to the inline head script, which is the only other piece of the plugin that
-    // runs on a page load. This tag is deferred, so it has finished evaluating before
-    // DOMContentLoaded — meaning the absence of this flag at that point is proof the
-    // script never loaded, and the head script can stop holding the page hidden for
-    // something that is not coming.
+    // BEGIN keyName
+    // e.key is Chromium 51; Tizen 3.0 is Chromium 47, where it is undefined and a handler
+    // that reads only e.key does nothing. Every key comparison goes through keyName/isKey,
+    // which fall back to keyCode and also fold the old IE/Edge names ('Esc', 'Left') into
+    // the standard ones. tests/js/keycodefallback.js fails on any direct e.key comparison.
+    const KEY_BY_CODE = {
+        8: 'Backspace', 9: 'Tab', 13: 'Enter', 27: 'Escape', 32: ' ', 35: 'End', 36: 'Home',
+        37: 'ArrowLeft', 38: 'ArrowUp', 39: 'ArrowRight', 40: 'ArrowDown',
+        107: '+', 109: '-', 187: '=', 189: '-'
+    };
+    const KEY_ALIASES = { Esc: 'Escape', Left: 'ArrowLeft', Up: 'ArrowUp', Right: 'ArrowRight', Down: 'ArrowDown', Spacebar: ' ' };
+    function keyName(e) {
+        if (!e) return '';
+        const k = e.key;
+        if (k && k !== 'Unidentified') return KEY_ALIASES[k] || k;
+        const c = e.keyCode || e.which;
+        if (KEY_BY_CODE[c]) return KEY_BY_CODE[c];
+        if (c >= 65 && c <= 90) return String.fromCharCode(c);
+        return '';
+    }
+    function isKey(e, name) { return keyName(e) === (KEY_ALIASES[name] || name); }
+    // END keyName
+
+    // A second evaluation in the same page (a tag left in index.html beside the injected one,
+    // or a client that loads the script as well as the server) would start everything twice:
+    // the route poll, listeners, history wrap and gate. The first copy runs; the second does
+    // nothing (R-1245). Before the flag below, so the head script still sees one load.
+    try {
+        if (window.__jpBooted) return;
+        window.__jpBooted = 1;
+    } catch (e) { /* no window: reading the file, not running it */ }
+
+    // Told to the inline head script, the only other piece of the plugin that runs on page
+    // load. This tag is deferred, so it has finished before DOMContentLoaded: if the flag is
+    // absent then, the script never loaded and the head script can stop holding the page hidden.
     try { window.__jpLoaded = 1; } catch (e) { /* no window: reading the file, not running it */ }
 
+    /// Makes a drawn dialog a dialog to a screen reader, and returns focus to where it came
+    /// from on close. Call with the markup in place and before the dialog is added to the
+    /// page, the last moment document.activeElement is still what opened it (every dialog then
+    /// focuses one of its own controls).
+    ///
+    /// Closing is `dialog.remove()` at every site, so that is what is wrapped, not eight close
+    /// handlers. Without it focus fell to the page and the next remote key landed on the first
+    /// control of a form taller than a TV, losing the place.
+    function markDialog(dialog) {
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        const heading = dialog.querySelector('h1, h2, h3');
+        if (heading) {
+            if (!heading.id) heading.id = (dialog.id || 'jpf-dialog') + '-title';
+            dialog.setAttribute('aria-labelledby', heading.id);
+        }
+        const opener = document.activeElement;
+        const remove = dialog.remove;
+        dialog.remove = function () {
+            remove.call(dialog);
+            // Not isConnected (Chromium 54): the opener may be gone, redrawn under the dialog.
+            if (opener && opener !== document.body && document.body.contains(opener)
+                && typeof opener.focus === 'function') {
+                opener.focus();
+            }
+        };
+    }
+
+    // The device list's placeholder names arrive in English with a code beside them (nameCode /
+    // clientCode) so they can be said in the viewer's language. A disambiguated name keeps its
+    // " (hint)" tail after the English.
+    var DEVICE_CODE_EN = {
+        unrecognised: ['profileForm.deviceUnrecognised', 'Unrecognised device'],
+        previouslyAllowed: ['profileForm.devicePreviouslyAllowed', 'Previously allowed device'],
+        notSeenRecently: ['profileForm.deviceNotSeenRecently', 'Not seen recently']
+    };
+    function deviceListName(dev) {
+        var name = dev.deviceName || dev.DeviceName;
+        var code = DEVICE_CODE_EN[dev.nameCode || dev.NameCode];
+        if (code && name && name.indexOf(code[1]) === 0) return t(code[0]) + name.slice(code[1].length);
+        return name || t('profileForm.unknownDevice');
+    }
+    function deviceListClient(dev) {
+        var code = DEVICE_CODE_EN[dev.clientCode || dev.ClientCode];
+        if (code) return t(code[0]);
+        return dev.client || dev.Client || t('profileForm.unknownClient');
+    }
+
+    // Bonfire's mark: a flame with a cut-out center over two crossed logs. One color, from
+    // currentColor, so a theme recolors it as it did the Material flame glyph this replaced.
+    // No ids, so any number of copies can share a page. Sized in em (.jpf-mark), so the
+    // font-size rules written for the glyph still size it.
+    function bonfireMark(cls, style) {
+        return '<svg class="jpf-mark ' + cls + '"' + (style ? ' style="' + style + '"' : '') + ' viewBox="14 2 92 120" fill="currentColor" aria-hidden="true" focusable="false">'
+            + '<path fill-rule="evenodd" d="M60 6 C64 24 84 38 88 60 C92 82 78 98 60 98 C42 98 28 84 30 64 C31 52 37 44 43 36 C43 48 47 55 53 58 C49 40 54 22 60 6 Z M60 50 C65 60 73 68 73 79 C73 89 67 95 60 95 C53 95 47 89 47 81 C47 71 55 62 60 50 Z"></path>'
+            + '<rect x="22" y="100" width="76" height="12" rx="6" fill-opacity="0.55" transform="rotate(-14 60 106)"></rect>'
+            + '<rect x="22" y="100" width="76" height="12" rx="6" transform="rotate(14 60 106)"></rect>'
+            + '</svg>';
+    }
+
     function escapeHtml(str) {
-        if (!str) return '';
+        // 0 is a value, not an absence: a count of none must draw as "0" (R-1176).
+        if (!str && str !== 0) return '';
         return String(str)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
@@ -18,42 +109,163 @@
             .replace(/'/g, "&#039;");
     }
 
-    // Avatar colours and profile images are stored server-side and — through Bonfire
-    // groups — rendered on *other* accounts' switcher screens. Both are validated on the
-    // server, but they are re-validated here so a value predating that validation (or
-    // written directly to PluginConfiguration.xml) can never break out of its attribute.
+    // Avatar colors and profile images are stored server-side and rendered on other accounts'
+    // switcher screens (through Bonfire groups). The server validates both, but they are
+    // re-validated here so a value that predates that (or was written straight to
+    // PluginConfiguration.xml) cannot break out of its attribute.
 
     const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
     const DEFAULT_AVATAR_COLOR = '#00A4DC';
+    /// The colors the profile form offers, in order. ProfilesBaseController.AvatarPalette is
+    /// the same list and picks from it the same way for a profile made by another app.
+    const AVATAR_PALETTE = [
+        '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
+        '#F97316', '#06B6D4', '#3B82F6', '#10B981', '#6366F1', '#8B5CF6',
+        '#D946EF', '#F43F5E', '#14B8A6', '#F59E0B', '#84CC16', '#64748B'
+    ];
 
-    /// The looks Bonfire's own screens can take. Must match Themes.All on the server and
-    /// the [data-jpf-theme] blocks in styles.css; tests/js/themes.js holds the three
-    /// together. The names are proper names, like "Bonfire" itself, and are shown as they
-    /// are in every language, so the dashboard and every profile call a theme the same thing.
-    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom'];
-    const THEME_NAMES = {
-        bonfire: 'Bonfire',
-        crimson: 'Crimson',
-        starlight: 'Starlight',
-        harbor: 'Harbor',
-        nightfall: 'Nightfall',
-        glass: 'Glass',
-        harvest: 'Harvest',
-        snowfall: 'Snowfall',
-        bloom: 'Bloom'
-    };
+    /// The looks Bonfire's screens can take. Must match Themes.All on the server and the files
+    /// in Web/themes/; tests/js/themes.js and tests/cs/themes hold the three together. A
+    /// theme's name is the string theme.<id> (themeName) so "High contrast" can be translated;
+    /// proper names (Bonfire, Harvest...) stay as they are in every language file.
+    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
+        'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
 
-    /// GET plugins/profiles/ratings -> [[score, labels], ...], one entry per age.
+    /// First-time setup steps this script can draw (OnboardingSteps on the server). A newer
+    /// server's unknown step is left out, not shown blank.
+    const ONBOARDING_STEPS = ['welcome', 'mainPin', 'resetEmail', 'firstProfile', 'switcher', 'theme'];
+
+    /// The administrator's own themes and fonts, and the built-ins they hid (1.7.2), from GET
+    /// themes?part=custom. Empty until that answers or the copy cached on this device is read
+    /// at startup (restoreCustomThemes). The built-ins are spliced into this file; these
+    /// cannot be, because profiles.js is cached for the life of the server and an
+    /// administrator changes them at any moment.
+    let CUSTOM_THEMES = { themes: [], fonts: [], hidden: [], logo: null };
+
+    /// Caps on what is read, the server's own (ThemeCatalog.MaxCustomThemes, MaxCustomFonts).
+    const MAX_CUSTOM_THEMES = 40;
+    const MAX_CUSTOM_FONTS = 20;
+
+    function customTheme(id) {
+        return CUSTOM_THEMES.themes.filter(c => c.id === id)[0] || null;
+    }
+
+    /// True for a built-in, hidden or not, or a custom theme this script has been told of.
+    function isThemeId(value) {
+        const v = String(value || '').toLowerCase();
+        return THEMES.indexOf(v) !== -1 || !!customTheme(v);
+    }
+
+    /// What the pickers offer: the built-ins less the hidden ones (never Bonfire), then the
+    /// custom themes in the order made. Themes.Offered on the server.
+    function offeredThemes() {
+        return THEMES.filter(id => id === 'bonfire' || CUSTOM_THEMES.hidden.indexOf(id) === -1)
+            .concat(CUSTOM_THEMES.themes.map(c => c.id));
+    }
+
+    /// A stored choice the pickers can tick, lower case, or '' for one they do not offer.
+    function offeredChoice(value) {
+        const v = String(value || '').toLowerCase();
+        return v && offeredThemes().indexOf(v) !== -1 ? v : '';
+    }
+
+    /// A theme's name as text: theme.<id> for a built-in, the administrator's name.text for a
+    /// custom one, which is not markup (see themeName).
+    function themeNameText(id) {
+        const v = normalizeTheme(id);
+        const custom = customTheme(v);
+        if (custom) return custom.name && typeof custom.name.text === 'string' && custom.name.text ? custom.name.text : v;
+        return t('theme.' + v);
+    }
+
+    /// A theme's name for a template that becomes innerHTML. Escaped, because a custom theme's
+    /// name is whatever an administrator typed.
+    function themeName(id) {
+        return escapeHtml(themeNameText(id));
+    }
+
+    /// The server's logo (1.7.2), or null for none: { image, text, alt }. The image only at the
+    /// one address the server gives a logo (a hash and an extension), so nothing in the answer
+    /// can point the switcher at another site. Text is one line; ThemeLogo's limits.
+    function readLogo(logo) {
+        if (!logo || typeof logo !== 'object') return null;
+        const line = (v, max) => (typeof v === 'string' && v.length <= max && !/[\r\n]/.test(v) && v.trim() ? v.trim() : null);
+        const image = typeof logo.image === 'string' && /^\/plugins\/profiles\/themes\/logo\/[0-9a-f]{32}\.(png|jpg|webp)$/.test(logo.image)
+            ? logo.image : null;
+        const text = line(logo.text, 40);
+        if (!image && !text) return null;
+        return { image: image, text: text, alt: line(logo.alt, 100), corners: logo.corners === 'square' ? 'square' : 'rounded' };
+    }
+
+    /// A ?part=custom answer, or the copy cached here, in the shape this script uses. Anything
+    /// malformed is dropped: themeCss forces every value into its type as it writes CSS, and
+    /// this keeps a custom theme from taking a built-in's id, whose block would be drawn twice.
+    function readCustomThemes(answer) {
+        const out = { themes: [], fonts: [], hidden: [], logo: null };
+        if (answer && typeof answer === 'object') out.logo = readLogo(answer.logo);
+        if (!answer || typeof answer !== 'object') return out;
+        (Array.isArray(answer.themes) ? answer.themes : []).forEach(c => {
+            if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(c.id)) return;
+            if (THEMES.indexOf(c.id) !== -1 || out.themes.some(x => x.id === c.id)) return;
+            if (out.themes.length < MAX_CUSTOM_THEMES) out.themes.push(c);
+        });
+        (Array.isArray(answer.fonts) ? answer.fonts : []).forEach(f => {
+            if (!f || f.custom !== true || typeof f.family !== 'string' || !f.family) return;
+            const one = Array.isArray(f.files) ? f.files[0] : null;
+            const url = one && typeof one.url === 'string' ? one.url : '';
+            if (!/^\/plugins\/profiles\/themes\/fonts\/[0-9a-f]{32}\.woff2$/.test(url)) return;
+            const w = one && Array.isArray(one.weight) ? one.weight : [];
+            if (out.fonts.length >= MAX_CUSTOM_FONTS || out.fonts.some(x => x.family === f.family)) return;
+            out.fonts.push({
+                family: f.family,
+                fallback: f.fallback === 'serif' ? 'serif' : 'sans-serif',
+                weight: typeof w[0] === 'number' && typeof w[1] === 'number' ? [w[0], w[1]] : [400, 400],
+                file: url
+            });
+        });
+        (Array.isArray(answer.hidden) ? answer.hidden : []).forEach(id => {
+            if (typeof id === 'string' && id !== 'bonfire' && THEMES.indexOf(id) !== -1 && out.hidden.indexOf(id) === -1) out.hidden.push(id);
+        });
+        return out;
+    }
+
+    /// Jellyfin Dark and Jellyfin Light match a theme in jellyfin-web; no other does. Choosing
+    /// one offers to switch the rest of Jellyfin too and never does it unasked: jellyfin-web's
+    /// theme is the person's, not Bonfire's.
     ///
-    /// The server reads the rating table of its own Preferred metadata country — the one
-    /// Jellyfin scored the library with — so these are that country's ratings and no
-    /// others. Not /Localization/ParentalRatings: Jellyfin pads that list with generic
-    /// ages the country does not have, and a padded "10" cannot be told from France's
-    /// real one. See Configuration/RatingSystems.cs.
+    /// jellyfin-web keeps its theme on the device: userSettings.theme() is set('appTheme', id,
+    /// false) and appSettings stores it in localStorage as "<userId>-appTheme"
+    /// (src/scripts/settings/userSettings.js and appSettings.js, release-10.11.z). Nothing
+    /// stored means "dark". It is re-read on every page change (autoThemes.js, viewbeforeshow),
+    /// so a value written here shows from the next page, with no reload.
+    const JELLYFIN_WEB_THEMES = { 'jellyfin-dark': 'dark', 'jellyfin-light': 'light' };
+
+    /// The localStorage key jellyfin-web reads a user's theme from, or null for anything that
+    /// is not a user id (the server's: 32 hex digits, no dashes).
+    function jellyfinWebThemeKey(userId) {
+        const id = String(userId || '').toLowerCase().replace(/-/g, '');
+        return /^[0-9a-f]{32}$/.test(id) ? id + '-appTheme' : null;
+    }
+
+    /// The jellyfin-web theme to offer when a profile is given `theme`, or null when there is
+    /// nothing to offer: no match, or a match the profile already has here.
+    function jellyfinWebOffer(theme, stored) {
+        const match = JELLYFIN_WEB_THEMES[theme];
+        if (!match) return null;
+        return (stored || 'dark') === match ? null : match;
+    }
+
+    /// GET plugins/profiles/form-options, its ratings part -> [[score, labels], ...], one entry
+    /// per age.
     ///
-    /// A limit is stored as the score alone, so a profile keeps working whichever labels
-    /// are shown. Returns [] for anything unusable, and the caller falls back to the US
-    /// list this form always had.
+    /// The server reads the rating table of its Preferred metadata country (the one Jellyfin
+    /// scored the library with), so these are that country's ratings only. Not
+    /// /Localization/ParentalRatings: Jellyfin pads that list with generic ages the country
+    /// does not have, and a padded "10" cannot be told from France's real one. See
+    /// Configuration/RatingSystems.cs.
+    ///
+    /// A limit is stored as the score alone, so a profile keeps working whichever labels are
+    /// shown. Returns [] for anything unusable and the caller falls back to the US list.
     function ratingChoicesFrom(answer) {
         const list = answer && typeof answer === 'object'
             ? (Array.isArray(answer.ratings) ? answer.ratings : answer.Ratings) : null;
@@ -72,9 +284,12 @@
         }).filter(Boolean).sort((a, b) => a[0] - b[0]);
     }
 
+    /// A theme this script can draw, or Bonfire. A hidden built-in still counts: the server
+    /// resolves a profile on one to the default before saying what to show, and a preview of
+    /// one must not turn into Bonfire. A custom theme counts once it is known.
     function normalizeTheme(value) {
         const v = String(value || '').toLowerCase();
-        return THEMES.indexOf(v) !== -1 ? v : 'bonfire';
+        return isThemeId(v) ? v : 'bonfire';
     }
 
     /// A library or user id as the server writes one: 32 hex digits, dashed or not.
@@ -86,10 +301,34 @@
         return HEX_COLOR_RE.test(color || '') ? color : DEFAULT_AVATAR_COLOR;
     }
 
+    /// The letter on an avatar: white or near-black, whichever reads better on the profile's
+    /// color. White was always used and on half the palette (yellow, lime, the default blue) it
+    /// is under 3:1, which matters because with no picture the initial is the whole face.
+    function onAvatarColor(color) {
+        const h = safeColor(color).replace('#', '');
+        // safeColor only lets six digits through (HEX_COLOR_RE), so there is no short form.
+        const full = h;
+        const lin = i => {
+            const x = parseInt(full.slice(i, i + 2), 16) / 255;
+            return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+        };
+        const L = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
+        const dark = '#111111';
+        const darkL = 0.0056;
+        return 1.05 / (L + 0.05) >= (L + 0.05) / (darkL + 0.05) ? '#ffffff' : dark;
+    }
+
+    /// An avatar preview's colours, set together: the background and the letter on it.
+    function paintAvatar(el, color) {
+        if (!el) return;
+        el.style.backgroundColor = color;
+        el.style.color = color === 'transparent' ? '' : onAvatarColor(color);
+    }
+
     /// Our image endpoints are stored root-relative, which only resolves when the page was
-    /// served by the Jellyfin server. Inside a packaged client — Samsung Tizen bundles the
-    /// web client into the app — the origin is the app itself and those requests 404.
-    /// ApiClient knows the real server address, so route through it whenever we can.
+    /// served by the Jellyfin server. In a packaged client (Samsung Tizen bundles the web
+    /// client) the origin is the app and those requests 404. ApiClient knows the real server
+    /// address, so route through it when we can.
     function pluginUrl(value) {
         try {
             if (typeof ApiClient !== 'undefined' && ApiClient && typeof ApiClient.getUrl === 'function') {
@@ -100,9 +339,8 @@
         return value;
     }
 
-    /// Allows only the three shapes the plugin actually produces: its own image
-    /// endpoint, a data:image payload, and an absolute http(s) URL. Anything else
-    /// resolves to an empty src rather than being trusted.
+    /// Allows only the three shapes the plugin produces: its own image endpoint, a data:image
+    /// payload and an absolute http(s) URL. Anything else resolves to an empty src.
     function safeImageSrc(src) {
         if (!src) return '';
         const value = String(src).trim();
@@ -116,10 +354,9 @@
         return '';
     }
 
-    /// Appends ?size=thumb to one of our own image URLs. Grids and switcher cards ask for
-    /// the small rendering; showing twenty full-size avatars would decode tens of megabytes
-    /// of bitmap, which is enough to stall the TV browsers this plugin supports.
-    /// Remote URLs and data payloads are returned untouched — there is no variant of those.
+    /// Appends ?size=thumb to one of our image URLs. Grids and switcher cards ask for the small
+    /// rendering; twenty full-size avatars would decode tens of megabytes and stall the TV
+    /// browsers this plugin supports. Remote URLs and data payloads are returned untouched.
     function thumbSrc(src) {
         if (!src) return '';
         const value = String(src).trim();
@@ -129,13 +366,12 @@
 
     /// Markup for the inside of an avatar circle.
     ///
-    /// The initial is always rendered, with the picture layered over it. If the image fails
-    /// — the file was deleted, the disk is unreadable, a remote host is down — onerror
-    /// removes the img and the initial is simply revealed underneath. That is the whole
-    /// fallback: no state, no second request, and nothing for a caller to remember to do.
+    /// The initial is always rendered with the picture layered over it. If the image fails
+    /// (file deleted, disk unreadable, remote host down) onerror removes the img and the
+    /// initial shows underneath. No state, no second request, nothing for a caller to remember.
     ///
-    /// The containing element must be position:relative (all of ours already are, or are
-    /// given it inline at the call site).
+    /// The containing element must be position:relative (all of ours are, or are given it
+    /// inline at the call site).
     function avatarInner(src, initial, useThumb) {
         const safeInitial = escapeHtml(initial || '?');
         const resolved = safeImageSrc(useThumb ? thumbSrc(src) : src);
@@ -145,50 +381,776 @@
             `style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />`;
     }
 
-    // The profile gate overlay sits at z-index 99999. Anything that has to appear *over*
-    // it — alerts, confirmations — must beat that number, or it renders behind a full-screen
-    // opaque background and is completely invisible. That produced dead-looking buttons:
-    // clicking Save with an invalid PIN fired a validation alert nobody could see.
+    // The profile gate overlay sits at z-index 99999. Anything that must appear over it (alerts,
+    // confirmations) has to beat that, or it renders behind the opaque background and is
+    // invisible. That produced dead-looking buttons: Save with an invalid PIN fired a
+    // validation alert nobody could see.
     const OVERLAY_Z = 99999;
     const DIALOG_Z = OVERLAY_Z + 10;
+    // How long a request the person is waiting on may take before they get their controls back.
+    // See _fetchTimed.
+    const REQUEST_TIMEOUT_MS = 20000;
 
     // ── Internationalisation ────────────────────────────────────────────────────
-    // English lives inline, as the single dependency-free fallback every client can
-    // render immediately — no fetch, no flash of untranslated text, works even if the
-    // server is briefly unreachable. Every other language is a JSON file the server
-    // hands out from Web/i18n/, fetched only for a user whose Jellyfin Display language
-    // asks for it: nobody pays for a translation they will not read.
+    // English lives inline as the dependency-free fallback every client can render at once: no
+    // fetch, no flash of untranslated text, works if the server is briefly unreachable. Every
+    // other language is a JSON file the server hands out from Web/i18n/, fetched only for a
+    // user whose Jellyfin Display language asks for it.
     //
-    // To add a language: drop Web/i18n/<code>.json next to fr.json, with the same keys
-    // and translated values. That is the whole job — the .csproj takes Web/i18n/*.json
-    // as a wildcard, the server lists what it finds embedded, and the line below is
-    // rewritten with that list as the script is served. Nothing here needs editing.
+    // To add a language, drop Web/i18n/<code>.json next to fr.json with the same keys. The
+    // .csproj takes Web/i18n/*.json as a wildcard, the server lists what it finds embedded, and
+    // the line below is rewritten with that list as the script is served. Nothing here needs
+    // editing. `node Web/i18n/validate.js` checks a file against the catalogue below.
     //
-    // `node Web/i18n/validate.js` checks a file against the catalogue below before you
-    // open the pull request.
-    //
-    // The empty default is what a copy of this file read straight off disk will use, so
-    // reading the raw file always yields English and never a broken fetch.
+    // The empty default is what a copy read straight off disk uses, so the raw file yields
+    // English and never a broken fetch.
     let SUPPORTED_LOCALES = []; // __BONFIRE_LOCALES__
+
+    // True when an administrator has turned Bonfire off (the Status tab). The server rewrites
+    // this exact line as it serves the script (PublishOff); a copy read off disk is on. Off,
+    // init() takes down whatever an earlier copy left and stops, but window.BonfireThemePreview
+    // is still defined below so the settings page keeps its theme preview. That is why this is
+    // not the inert script the emergency code serves.
+    const BONFIRE_OFF = false; // __BONFIRE_OFF__
 
     /*
      * The stylesheet, spliced in by the server from Web/styles.css.
      *
-     * This used to be a 1,400-line template literal right inside injectStyles, and
-     * it cost two releases: a code comment containing two backticks ended the literal
-     * early, the file still parsed, node --check passed, and the script threw at
-     * runtime three calls into startup. 1.5.2 and 1.5.3-beta shipped dead.
+     * It used to be a 1,400-line template literal inside injectStyles, which cost two
+     * releases: a comment containing two backticks ended the literal early, the file still
+     * parsed, node --check passed, and the script threw three calls into startup. 1.5.2 and
+     * 1.5.3-beta shipped dead.
      *
-     * PublishStyles replaces the marker below with the CSS encoded as a JSON string
-     * literal — double-quoted and fully escaped — so nothing in the stylesheet can
-     * terminate anything here. The failure mode is gone rather than guarded.
+     * PublishStyles replaces the marker below with the CSS as a double-quoted, fully escaped
+     * JSON string literal, so nothing in the stylesheet can end anything here.
      *
-     * The default is an empty string, not the real CSS, so this file is never the
-     * place the stylesheet lives. If the marker is ever edited away the replace does
-     * nothing and the plugin renders unstyled, which is loud and immediate — unlike a
-     * silently truncated literal, which is what got us here.
+     * The default is an empty string so this file is never where the stylesheet lives. If the
+     * marker is edited away the replace does nothing and the plugin renders unstyled, which is
+     * loud and immediate, unlike a silently truncated literal.
      */
     let BONFIRE_STYLES = ""; // __BONFIRE_STYLES__
+
+    /*
+     * The themes, spliced in by the server from Web/themes/*.json like the stylesheet:
+     * { themes: [...], patterns: { name: "data:image/svg+xml,..." } }. docs/themes.md describes
+     * a theme file. themeCss turns each into the CSS Bonfire's screens read and injectStyles
+     * puts it after the stylesheet.
+     *
+     * This is the only place a theme becomes CSS. Other apps read the same files and draw their
+     * own way; nothing about a theme is in styles.css.
+     */
+    let BONFIRE_THEMES = { themes: [], patterns: {} }; // __BONFIRE_THEMES__
+
+    /// One theme file as CSS: its tokens on [data-jpf-theme="id"] (and on :root for Bonfire,
+    /// the look before any theme is known), then the rules its layout and decorations need.
+    ///
+    /// Every value is forced into its type on the way out: a color is #rrggbb[aa] or nothing, a
+    /// number is a number, an id is letters, digits and dashes, a font name is letters, digits
+    /// and spaces. An administrator's theme file reaches this, so a value that could close the
+    /// declaration or rule is dropped.
+    ///
+    /// Chromium 53: no object spread, no ?. (this runs on every webOS television).
+    function themeCss(theme, patterns) {
+        if (!theme || typeof theme !== 'object') return '';
+        const id = String(theme.id || '');
+        if (!/^[a-z0-9-]{1,40}$/.test(id)) return '';
+        const g = (o, k) => (o && typeof o === 'object' ? o[k] : undefined);
+        const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+        const hex = v => (/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(String(v || '')) ? String(v) : null);
+        const rgbOf = v => [1, 3, 5].map(i => parseInt(v.slice(i, i + 2), 16));
+        const alphaOf = v => (v.length === 9 ? Math.round(parseInt(v.slice(7), 16) / 255 * 1000) / 1000 : 1);
+        const col = (v, d) => {
+            const h = hex(v);
+            if (!h) return d || 'transparent';
+            if (h.length === 7) return h.toLowerCase();
+            const c = rgbOf(h);
+            return 'rgba(' + c[0] + ', ' + c[1] + ', ' + c[2] + ', ' + alphaOf(h) + ')';
+        };
+        const tint = (v, a) => {
+            const h = hex(v);
+            if (!h) return 'transparent';
+            const c = rgbOf(h);
+            return 'rgba(' + c[0] + ', ' + c[1] + ', ' + c[2] + ', ' + a + ')';
+        };
+        const shadowColour = hex(g(theme.colors, 'shadow')) || '#000000';
+        const shadowCss = (s, text) => {
+            if (!s || typeof s !== 'object') return 'none';
+            const colour = hex(s.color) ? col(s.color) : tint(shadowColour, num(s.opacity, 1));
+            return num(s.x, 0) + 'px ' + num(s.y, 0) + 'px ' + num(s.blur, 0) + 'px '
+                + (!text && num(s.spread, 0) ? num(s.spread, 0) + 'px ' : '') + colour;
+        };
+        const style = v => (['solid', 'dashed', 'dotted'].indexOf(v) !== -1 ? v : 'solid');
+        const borderCss = b => (b && typeof b === 'object'
+            ? num(b.width, 0) + 'px ' + style(b.style) + ' ' + col(b.color) : '0 solid transparent');
+        const fontName = v => String(v || '').replace(/[^A-Za-z0-9 -]/g, '');
+        const quoteFont = v => (/^-|^[A-Za-z]+$/.test(v) ? v : "'" + v + "'");
+
+        const c = theme.colors || {};
+        const shape = theme.shape || {};
+        const type = theme.type || {};
+        const parts = theme.parts || {};
+        const decorations = Array.isArray(theme.decorations) ? theme.decorations : [];
+        const deco = name => decorations.filter(d => d && d.name === name)[0] || null;
+        const light = theme.scheme === 'light';
+        // A theme with no accent writes nothing, so whatever wears it shows Bonfire, whose block is
+        // on :root. Not a stand-in color: everything in a theme is drawn around its accent and a
+        // guessed one would be a theme nobody made.
+        const accent = hex(c.accent);
+        if (!accent) return '';
+        const sel = '[data-jpf-theme="' + id + '"]';
+
+        // The background: each layer as a CSS gradient, first on top; or the plain fill.
+        const bg = theme.background || {};
+        const layers = (Array.isArray(bg.layers) ? bg.layers : []).map(L => {
+            const stops = (Array.isArray(L && L.stops) ? L.stops : [])
+                .map(s => col(s && s.color) + ' ' + num(s && s.at, 0) + '%').join(', ');
+            if (!stops) return null;
+            return L.type === 'radial'
+                ? 'radial-gradient(' + (L.shape === 'circle' ? 'circle' : 'ellipse') + ' at ' + num(L.x, 50) + '% ' + num(L.y, 50) + '%, ' + stops + ')'
+                : 'linear-gradient(' + num(L.angle, 180) + 'deg, ' + stops + ')';
+        }).filter(Boolean);
+        const gateBg = layers.length ? layers.join(', ') : col(bg.fill, '#101010');
+
+        // A custom theme's picture (2.0, ThemeBackground on the server), drawn over all of the above
+        // and filling the screen, under a layer of the theme's own fill at `dim` so text stays
+        // readable. How much dim is the administrator's call: custom themes have no contrast rules
+        // (2026-11-12) and the editor only suggests a start. Only the name is read from the file,
+        // and only one the server could have stored; the address is built here. Written under a
+        // rule that needs the picture loaded (loadThemePhoto marks <html>), so while it loads, or
+        // if it fails, the screen is the theme without it, never the dimming layer over the gradient.
+        const photo = g(bg, 'image');
+        const photoFile = /^[0-9a-f]{32}\.(png|jpg|webp)$/.test(String(g(photo, 'file') || '')) ? String(photo.file) : '';
+        const photoDim = Math.max(0, Math.min(0.95, num(g(photo, 'dim'), 0.95)));
+        const photoFill = hex(bg.fill) ? hex(bg.fill).slice(0, 7) : '#101010';
+        const photoBg = photoFile ? (() => {
+            // pluginUrl is there in the page; a harness that lifts themeCss on its own has none.
+            const path = '/plugins/profiles/themes/backgrounds/' + photoFile, url = String(typeof pluginUrl === 'function' ? pluginUrl(path) : path).replace(/["\\\n\r]/g, '');
+            const veil = tint(photoFill, photoDim);
+            return 'linear-gradient(' + veil + ', ' + veil + '), url("' + url + '") center / cover no-repeat, ' + gateBg;
+        })() : '';
+
+        // The accent drawn as small text ("Forgot PIN?", the "current" badge). A brand color that
+        // carries white button text is dark, too dim to read on a dark panel, and one value cannot
+        // serve both. So the text gets its own: the accent itself when it reads on the panel and on
+        // every color of the background (a see-through stop laid over each solid one, as the contrast
+        // check does), else the accent moved towards the text color a step at a time, keeping the
+        // hue and changing no more than it must.
+        const accentTextOn = withPhoto => {
+            const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+            const lumOf = k => 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
+            const ratio = (p, q) => {
+                const a = lumOf(p), b = lumOf(q);
+                return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+            };
+            // gateColours does the same for the logo; not shared, because the harnesses lift themeCss
+            // out of this file and run it on its own.
+            const seen = (String(gateBg).match(/#[0-9a-fA-F]{6}\b|rgba?\([^)]*\)/g) || []).map(s => {
+                if (s.charAt(0) === '#') return rgbOf(s).concat([1]);
+                const n = s.replace(/^rgba?\(|\)$/g, '').split(',').map(Number);
+                return [n[0], n[1], n[2], n.length > 3 ? n[3] : 1];
+            });
+            const solid = seen.filter(k => k[3] >= 1);
+            const backs = solid.slice();
+            seen.forEach(k => {
+                if (k[3] >= 1) return;
+                solid.forEach(s => backs.push([0, 1, 2].map(i => Math.round(k[i] * k[3] + s[i] * (1 - k[3])))));
+            });
+            const panelHex = hex(c.panel);
+            if (panelHex) backs.push(rgbOf(panelHex));
+            // Under a picture: the two ends of what it could be, a white one and a black one under the
+            // dimming layer, as the server's check holds them. Only in the picture's own rule: until it
+            // loads the screen is the theme without it.
+            if (withPhoto) {
+                const f = rgbOf(photoFill);
+                [255, 0].forEach(end => backs.push(f.map(x => Math.round(x * photoDim + end * (1 - photoDim)))));
+            }
+            const readable = k => backs.every(b => ratio(k, b) >= 4.5);
+            const from = rgbOf(accent);
+            if (!backs.length || readable(from)) return accent.slice(0, 7).toLowerCase();
+            const to = light ? [0, 0, 0] : [255, 255, 255];
+            for (let i = 1; i <= 20; i++) {
+                const k = [0, 1, 2].map(j => Math.round(from[j] + (to[j] - from[j]) * i / 20));
+                if (readable(k)) return '#' + k.map(x => (x < 16 ? '0' : '') + x.toString(16)).join('');
+            }
+            return light ? '#000000' : '#ffffff';
+        };
+        const accentText = accentTextOn(false);
+
+        const av = shape.avatar || {};
+        const avatarR = av.kind === 'circle' ? '50%'
+            : av.kind === 'rounded' ? num(av.radius, 30) + '%'
+            : av.kind === 'leaf' ? '50% ' + num(av.radius, 10) + 'px'
+            : num(av.radius, 0) + 'px';
+        const btn = shape.button || {};
+        const btnR = btn.kind === 'pill' ? '999px' : btn.kind === 'square' ? '0' : num(btn.radius, 8) + 'px';
+        const r = shape.radius || {};
+
+        // The font: the copy Bonfire serves (fontFaceCss), then the names it goes by on devices that
+        // have it installed, then the kind. The served copy has a name of its own, so declaring it
+        // never changes how jellyfin-web draws its own Noto Sans; where it is not declared (an engine
+        // without variable fonts) that first name matches nothing and the next is used.
+        const fontEntry = (BONFIRE_THEMES.fonts || []).concat(CUSTOM_THEMES.fonts)
+            .filter(f => f && f.family === g(type.font, 'family'))[0];
+        const names = (fontEntry && (fontEntry.files || fontEntry.file) ? [servedFontName(fontEntry.family)] : [])
+            .concat([fontName(g(type.font, 'family'))], fontEntry && Array.isArray(fontEntry.local)
+            ? fontEntry.local.map(fontName) : []).filter((n, i, all) => n && all.indexOf(n) === i && n !== 'System UI');
+        const fallback = g(type.font, 'fallback') === 'serif' ? 'serif' : 'sans-serif';
+        const font = names.map(quoteFont).concat([fallback]).join(', ');
+
+        const title = type.title || {}, name = type.name || {}, button = type.button || {};
+        const b2 = parts.button2 || {}, b2f = b2.focus || {};
+        const add = parts.addTile || {}, card = parts.card || {}, sheet = parts.sheet || {}, input = parts.input || {};
+        const em = v => (num(v, 0) === 0 ? 'normal' : num(v, 0) + 'em');
+        const rings = deco('rings');
+        const focusScale = num(g(theme.focus, 'scale'), 1);
+        const panels = g(theme.layout, 'households') === 'panels';
+        const pattern = deco('pattern');
+        // The picture a pattern layer draws, for the first pattern and the second alike.
+        const patternPicture = d => d && typeof d.image === 'string' && patterns
+            && typeof patterns[d.image] === 'string' && /^data:image\/svg\+xml,[^"\\]*$/.test(patterns[d.image])
+            ? patterns[d.image]
+            // An uploaded picture is named by a hash and served; the built-in ones travel inline.
+            : (d && /^[0-9a-f]{32}\.(png|webp)$/.test(String(d.image || ''))
+                ? String(typeof pluginUrl === 'function' ? pluginUrl('/plugins/profiles/themes/pattern-files/' + d.image) : '/plugins/profiles/themes/pattern-files/' + d.image).replace(/["\\\n\r]/g, '')
+                : null);
+        const patternImage = patternPicture(pattern);
+        const patternSize = pattern ? num(pattern.size, 240) : 240;
+        // A second pattern, drawn above the first (::after, where the first is ::before). Only a
+        // theme that has one gets any of its rules or variables, so every other theme is written as
+        // before. It needs the first: the validator says so, and so does this.
+        const pattern2 = patternImage ? deco('pattern2') : null;
+        const pattern2Image = patternPicture(pattern2);
+        const pattern2Size = pattern2Image ? num(pattern2.size, 240) : 240;
+        // 0.1 to 1, and 1 (today's look) writes nothing.
+        const layerOpacity = d => (d && typeof d.opacity === 'number' && d.opacity >= 0.1 && d.opacity < 1 ? d.opacity : 1);
+        const patternOpacity = layerOpacity(pattern);
+        const pattern2Opacity = layerOpacity(pattern2);
+        const ac = rgbOf(accent);
+        // The danger color as a base for tints, and the select's arrow in the text color. The arrow
+        // is a picture so it cannot follow a token: it was one fixed white and vanished on Jellyfin
+        // Light's white fields. Its fill is a plain #rrggbb; the text token's alpha is left off,
+        // which only makes the arrow a little stronger.
+        const dangerHex = hex(c.danger) || (light ? '#e03131' : '#ff6b6b');
+        const arrowFill = (hex(c.text1) || (light ? '#1f1f1f' : '#ffffff')).slice(1, 7);
+        const chevron = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%23'
+            + arrowFill + '\'%3E%3Cpath d=\'M7 10l5 5 5-5H7z\'/%3E%3C/svg%3E")';
+
+        const vars = [
+            ['--jpf-accent', accent.slice(0, 7)],
+            ['--jpf-accent-rgb', ac.join(', ')],
+            ['--jpf-accent-text', accentText],
+            ['--jpf-accent-hover', col(c.accentFocus, accent.slice(0, 7))],
+            ['--jpf-on-accent', col(c.onAccent, '#fff')],
+            ['--jpf-accent-a08', tint(accent, 0.08)], ['--jpf-accent-a18', tint(accent, 0.18)],
+            ['--jpf-accent-a30', tint(accent, 0.3)], ['--jpf-accent-a40', tint(accent, 0.4)],
+            ['--jpf-accent-a45', tint(accent, 0.45)], ['--jpf-accent-a50', tint(accent, 0.5)],
+            ['--jpf-accent-a60', tint(accent, 0.6)],
+            ['--jpf-surface-1', col(c.surface1)], ['--jpf-surface-2', col(c.surface2)], ['--jpf-surface-3', col(c.surface3)],
+            ['--jpf-border-1', col(c.border1)], ['--jpf-border-2', col(c.border2)], ['--jpf-border-3', col(c.border3)],
+            ['--jpf-text-1', col(c.text1)], ['--jpf-text-2', col(c.text2)], ['--jpf-text-3', col(c.text3)],
+            // Shadows keep their own scale and go lighter on a light theme: the same black at the same
+            // alpha reads as a smudge on white.
+            ['--jpf-shadow-1', tint(shadowColour, light ? 0.1 : 0.2)],
+            ['--jpf-shadow-2', tint(shadowColour, light ? 0.16 : 0.4)],
+            ['--jpf-shadow-3', tint(shadowColour, light ? 0.22 : 0.55)],
+            ['--jpf-danger', col(c.danger, light ? '#e03131' : '#ff6b6b')],
+            ['--jpf-danger-a15', tint(dangerHex, 0.15)], ['--jpf-danger-a25', tint(dangerHex, 0.25)],
+            ['--jpf-danger-a40', tint(dangerHex, 0.4)], ['--jpf-chevron', chevron],
+            ['--jpf-danger-quiet', light ? '#f03e3e' : '#ff8787'],
+            ['--jpf-danger-deep', light ? '#c2255c' : '#e64980'],
+            ['--jpf-warn', col(c.warning, light ? '#e8590c' : '#ff9900')],
+            ['--jpf-gate-bg', gateBg],
+            ['--jpf-panel', col(c.panel, '#1b1b28')],
+            ['--jpf-font', font],
+            ['--jpf-r-sm', num(r.small, 6) + 'px'], ['--jpf-r-md', num(r.medium, 12) + 'px'], ['--jpf-r-lg', num(r.large, 20) + 'px'],
+            ['--jpf-avatar-r', avatarR],
+            ['--jpf-avatar-shadow', shadowCss(g(theme.depth, 'avatar'))],
+            ['--jpf-ring', col(c.ring, '#fff')],
+            ['--jpf-ring-w', num(shape.ringWidth, 3) + 'px'],
+            // With rings the frame grows rather than the picture inside it: see below.
+            ['--jpf-hover-scale', rings ? 1 : focusScale],
+            ['--jpf-hover-glow', shadowCss(g(theme.focus, 'glow'))],
+            ['--jpf-title-weight', num(title.weight, 700)],
+            ['--jpf-title-spacing', num(title.spacing, 0) === 0 ? '0' : num(title.spacing, 0) + 'em'],
+            ['--jpf-title-shadow', shadowCss(g(theme.depth, 'title'), true)],
+            ['--jpf-title-scale', num(title.scale, 1)],
+            ['--jpf-name-color', col(c.name, '#fff')],
+            ['--jpf-name-hover', col(c.nameFocus, '#fff')],
+            ['--jpf-name-weight', num(name.weight, 500)],
+            ['--jpf-name-opacity', num(name.opacity, 1)],
+            ['--jpf-name-scale', num(name.scale, 1)],
+            ['--jpf-btn-radius', btnR],
+            ['--jpf-btn2-bg', col(b2.fill)],
+            ['--jpf-btn2-color', col(b2.text, '#fff')],
+            ['--jpf-btn2-border', borderCss(b2.border)],
+            ['--jpf-btn2-case', button.case === 'upper' ? 'uppercase' : 'none'],
+            ['--jpf-btn2-spacing', em(button.spacing)],
+            ['--jpf-btn2-weight', num(button.weight, 600)],
+            ['--jpf-btn2-hover-bg', col(b2f.fill)],
+            ['--jpf-btn2-hover-color', col(b2f.text, '#fff')],
+            ['--jpf-btn2-hover-border', col(g(b2f.border, 'color'))],
+            ['--jpf-btn2-hover-glow', shadowCss(b2f.glow)],
+            ['--jpf-add-bg', col(add.fill)],
+            ['--jpf-add-border', borderCss(add.border)],
+            ['--jpf-add-color', col(add.text, '#fff')],
+            ['--jpf-add-hover-bg', col(add.focusFill)],
+            ['--jpf-section-bg', panels ? 'var(--jpf-surface-1)' : 'transparent'],
+            ['--jpf-section-border', panels ? '1px solid var(--jpf-border-1)' : '0 solid transparent'],
+            ['--jpf-section-shadow', panels ? '0 10px 30px var(--jpf-shadow-1)' : 'none'],
+            ['--jpf-section-pad', panels ? '1.75rem 2rem' : '0'],
+            ['--jpf-section-rule', panels ? '1px solid var(--jpf-border-1)' : '0 solid transparent'],
+            ['--jpf-sheet-bg', col(sheet.fill)],
+            ['--jpf-sheet-border', borderCss(sheet.border)],
+            ['--jpf-sheet-shadow', shadowCss(g(theme.depth, 'sheet'))],
+            ['--jpf-card-bg', col(card.fill)],
+            ['--jpf-card-border', col(card.line)],
+            ['--jpf-input-bg', col(input.fill)],
+            ['--jpf-input-border', col(input.line)],
+            ['--jpf-input-r', num(g(shape.input, 'radius'), 8) + 'px'],
+            ['--jpf-deco', patternImage ? 'url("' + patternImage + '")' : 'none'],
+            ['--jpf-deco-size', patternSize + 'px']
+        ];
+        if (patternImage && patternOpacity < 1) vars.push(['--jpf-deco-opacity', String(patternOpacity)]);
+        if (pattern2Image) {
+            vars.push(['--jpf-deco2', 'url("' + pattern2Image + '")'], ['--jpf-deco2-size', pattern2Size + 'px']);
+            if (pattern2Opacity < 1) vars.push(['--jpf-deco2-opacity', String(pattern2Opacity)]);
+        }
+
+        // On the attribute and on body, because the base tokens are declared on body too and a
+        // declaration on body beats one inherited from html. Bonfire also on :root, which is what
+        // every screen wears before a theme is known.
+        const selectors = (id === 'bonfire' ? [':root', 'body'] : []).concat([sel, sel + ' body']);
+        let css = selectors.join(',\n') + ' {\n' + vars.map(v => '    ' + v[0] + ': ' + v[1] + ';').join('\n') + '\n}\n';
+
+        // The picture, once loaded: on <html> wearing the theme (and its body, which redeclares the
+        // tokens), and on anything inside that wears it, such as a preview.
+        if (photoBg) {
+            const ready = 'html[data-jpf-photos~="' + photoFile + '"]';
+            css += [ready + sel, ready + sel + ' body', ready + ' ' + sel].join(',\n')
+                + ' {\n    --jpf-gate-bg: ' + photoBg + ';\n    --jpf-accent-text: ' + accentTextOn(true) + ';\n}\n';
+        }
+
+        // A pattern is drawn behind the screen and on a phone the content fills the width, so every
+        // ornament lands behind a button, field or card and shows through its translucent fill.
+        // Hiding the ornaments there was tried and the owner wants them kept, so at that width the
+        // fills are made opaque instead: each laid over the theme's plain background, which is how it
+        // looks where no ornament is. A fully clear fill (a sheet with no frame) stays clear.
+        // tests/js/decostack.js measures this against the layer on and off.
+        if (patternImage) {
+            const plain = hex(g(bg, 'fill')) ? rgbOf(hex(g(bg, 'fill'))) : null;
+            const solidOver = v => {
+                const h = hex(v);
+                if (!h || !plain) return null;
+                const a = alphaOf(h);
+                if (a >= 1 || a <= 0) return null;
+                const k = rgbOf(h);
+                return '#' + [0, 1, 2].map(i => {
+                    const x = Math.round(k[i] * a + plain[i] * (1 - a));
+                    return (x < 16 ? '0' : '') + x.toString(16);
+                }).join('');
+            };
+            const fills = [
+                ['--jpf-surface-1', c.surface1], ['--jpf-surface-2', c.surface2], ['--jpf-surface-3', c.surface3],
+                ['--jpf-btn2-bg', b2.fill], ['--jpf-add-bg', add.fill], ['--jpf-add-hover-bg', add.focusFill],
+                ['--jpf-sheet-bg', sheet.fill], ['--jpf-card-bg', card.fill], ['--jpf-input-bg', input.fill]
+            ].map(f => [f[0], solidOver(f[1])]).filter(f => f[1]);
+            if (fills.length) {
+                css += '@media (max-width: 480px) {\n    ' + selectors.join(',\n    ') + ' {\n'
+                    + fills.map(f => '        ' + f[0] + ': ' + f[1] + ';').join('\n') + '\n    }\n}\n';
+            }
+        }
+
+        // Without panels the tiles sit straight on the background, so the layout changes: one row
+        // where one fits, and a quiet heading, gone when there is only one household. The doubled
+        // attribute keeps these at the weight they had as
+        // [data-jpf-theme]:not([data-jpf-theme="bonfire"]), so the fitted gap
+        // (#profiles-gate-overlay ... .jpf-fitted) still outranks the grid rule.
+        if (!panels) {
+            const open = sel + '[data-jpf-theme]';
+            css += open + ':not(.jpf-tv) #profiles-gate-overlay .profiles-modal-content { max-width: 1240px; }\n'
+                + open + ':not(.jpf-tv) .profiles-grid { max-width: none; gap: 2rem; }\n'
+                // The same 2rem for a browser with no flex gap (Chromium 53), which would otherwise keep the
+                // base margins and lose the theme's tighter spacing.
+                + open + ':not(.jpf-tv).jpf-no-flex-gap .profiles-grid > * { margin: 0 1rem 2rem; }\n'
+                + open + ' .profiles-home-header { justify-content: center; padding-bottom: 0; margin-bottom: 1.5rem; }\n'
+                + open + ' .profiles-home-title { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--jpf-text-3); }\n'
+                + open + ' .profiles-home-icon { font-size: 1.1rem; }\n'
+                + open + ' .jpf-one-home .profiles-home-header { display: none; }\n';
+        }
+
+        // The other four layout choices (2.0): tiles or a list, centered or left, three tile sizes,
+        // the logo's corner. Each default writes nothing, so every built-in and every theme saved
+        // before these looks as it did.
+        //
+        // Weights, against the stylesheet (this block comes after it): the size and picture rules
+        // are one id and three classes, under the fitted rules' one id and four, so a crowded gate
+        // still shrinks. The list's own grid and card rules are one id and four, the fitted rules'
+        // weight, and win by coming later: a fitted list stays one column.
+        const lay = theme.layout || {};
+        const asList = lay.profiles === 'list';
+        const toLeft = lay.align === 'left';
+        const k = lay.size === 'small' ? 0.8 : lay.size === 'large' ? 1.25 : 1;
+        const logoAt = ['top-left', 'bottom-left', 'bottom-right'].indexOf(lay.logo) !== -1 ? lay.logo : 'top-right';
+        const px = v => Math.round(v * k) + 'px';
+        const vw = v => Math.round(v * k * 100) / 100;
+        const desk = sel + ':not(.jpf-tv) #profiles-gate-overlay';
+        const tv = sel + '.jpf-tv #profiles-gate-overlay';
+        const pick = sel + ' #profiles-gate-overlay .jpf-picker';
+        if (asList) {
+            // One profile a row, the picture with the name beside it. The pictures are smaller than tiles
+            // (80px, 128px on a TV, at medium) so a household of four fits a screen. Focus is spatial
+            // (_moveOverlayFocus), so Up and Down walk the column with nothing added. Margins stand in for
+            // gap on Chromium 53.
+            css += pick + ' .profiles-grid { flex-direction: column; flex-wrap: nowrap; align-items: '
+                    + (toLeft ? 'flex-start' : 'center') + '; gap: 1rem; max-width: none; }\n'
+                + sel + '.jpf-no-flex-gap #profiles-gate-overlay .jpf-picker .profiles-grid > * { margin: 0 0 1rem; }\n'
+                + pick + ' .profiles-grid .jpf-profile-card { flex-direction: row; align-items: center; width: 100%; max-width: 30rem; }\n'
+                + desk + ' .jpf-profile-avatar-container { width: ' + px(80) + '; height: ' + px(80) + '; margin-top: 0; flex-shrink: 0; }\n'
+                + tv + ' .jpf-profile-avatar-container { width: ' + px(128) + '; height: ' + px(128) + '; margin-top: 0; flex-shrink: 0; }\n'
+                + desk + ' .jpf-profile-avatar:not(.jpf-add-avatar) { font-size: ' + px(31) + '; }\n'
+                + tv + ' .jpf-profile-avatar:not(.jpf-add-avatar) { font-size: ' + px(49) + '; }\n'
+                + sel + ' #profiles-gate-overlay .jpf-profile-name { margin: 0 0 0 1.25rem; align-items: flex-start; text-align: left; min-width: 0; -webkit-box-flex: 1; flex: 1 1 auto; }\n'
+                + pick + ' .profiles-limit-notice { align-self: auto; width: auto; }\n';
+        } else if (k !== 1) {
+            // The tile sizes in the stylesheet, scaled: the plain value first for Chromium 53, which
+            // drops the clamp(). Large's floor is only 10px over medium's: scaled by 1.25 it left one
+            // tile a row on a phone, and fitted down they came out smaller than medium. 150px still puts
+            // two a row on a 360px phone.
+            const lo = v => (k < 1 ? Math.round(v * k) : v + 10) + 'px';
+            css += desk + ' .jpf-profile-card { width: ' + lo(140) + '; width: clamp(' + lo(140) + ', ' + vw(12) + 'vw, ' + px(210) + '); }\n'
+                + desk + ' .jpf-profile-avatar-container { width: ' + lo(130) + '; width: clamp(' + lo(130) + ', ' + vw(11) + 'vw, ' + px(195) + '); '
+                    + 'height: ' + lo(130) + '; height: clamp(' + lo(130) + ', ' + vw(11) + 'vw, ' + px(195) + '); }\n'
+                + tv + ' .jpf-profile-card { width: ' + px(300) + '; }\n'
+                + tv + ' .jpf-profile-avatar-container { width: ' + px(280) + '; height: ' + px(280) + '; }\n'
+                + sel + ' #profiles-gate-overlay .jpf-profile-avatar:not(.jpf-add-avatar) { font-size: ' + 3.5 * k + 'rem; }\n';
+        }
+        if (toLeft) {
+            // The picker's column moves to the left, 5% in (the gutter it has when centered on a phone),
+            // and everything in it lines up on that edge.
+            css += pick + ' { align-items: flex-start; text-align: left; margin-left: 5vw; margin-right: auto; }\n'
+                + pick + ' .profiles-grid { justify-content: flex-start; margin-left: 0; }\n'
+                + pick + ' .profiles-home-header { justify-content: flex-start; }\n'
+                + pick + ' .profiles-footer { justify-content: flex-start; }\n';
+        }
+        if (logoAt !== 'top-right') {
+            const onLeft = logoAt === 'top-left' || logoAt === 'bottom-left';
+            const logo = sel + ' #profiles-logo';
+            if (onLeft) css += logo + ' img { margin-left: 0; }\n';
+            if (logoAt === 'top-left') {
+                css += logo + ' { right: auto; left: 2rem; left: calc(2rem + env(safe-area-inset-left)); }\n'
+                    + sel + '.jpf-tv #profiles-logo { right: auto; left: 5vw; }\n';
+            } else {
+                // A logo pinned to the bottom of the first screen would sit on the tiles of a gate long
+                // enough to scroll. So at the bottom it is in the flow: the gate becomes a column, the
+                // content keeps its auto margins (centered while it fits) and the logo comes after it.
+                // fitGateToScreen measures it with everything else. flex-start, not the overlay's center:
+                // in a column the main axis is the height, and a centered column longer than the screen
+                // spills its top above scroll position 0 where no scrolling reaches the title or first rows
+                // (81px on a phone with four profiles, 861px on a TV list of 21). The auto margins still
+                // center a gate that fits, since they take the free space before justify-content does.
+                css += sel + ' #profiles-gate-overlay.jpf-has-logo { flex-direction: column; justify-content: flex-start; }\n'
+                    + sel + ' #profiles-gate-overlay.jpf-has-logo .profiles-modal-content { padding-top: 0; }\n'
+                    + logo + ' { position: relative; top: auto; right: auto; left: auto; flex-shrink: 0; align-self: '
+                        + (onLeft ? 'flex-start' : 'flex-end') + '; margin: 1rem 2rem 2rem; '
+                        + (onLeft ? 'margin-left: calc(2rem + env(safe-area-inset-left));' : 'margin-right: calc(2rem + env(safe-area-inset-right));') + ' }\n'
+                    + sel + '.jpf-tv #profiles-logo { top: auto; right: auto; margin: 2vh 5vw 0; }\n';
+            }
+        }
+
+        // rings: a gradient cannot be a border color, so each tile's frame is a disc behind it,
+        // painted in two layers: the gradient on the border box and the gap color inside it, which
+        // leaves a ring. Opaque inside so a cut-out picture sits on the dark, not on a gradient disc.
+        // Profile 1 takes the first gradient, profile 2 the second, and round again. Not on the add
+        // tile, which is not a person.
+        if (rings && Array.isArray(rings.gradients) && rings.gradients.length) {
+            const gap = col(rings.gap, '#000000');
+            const w = num(shape.ringWidth, 3);
+            const pair = p => 'linear-gradient(' + gap + ', ' + gap + ') padding-box,\n        linear-gradient(135deg, '
+                + col(p && p[0]) + ' 0%, ' + col(p && p[1]) + ' 100%) border-box';
+            const n = rings.gradients.length;
+            css += sel + ' .jpf-profile-avatar-container::before {\n    content: \'\';\n    position: absolute;\n'
+                + '    top: -' + (w + 4) + 'px;\n    right: -' + (w + 4) + 'px;\n    bottom: -' + (w + 4) + 'px;\n    left: -' + (w + 4) + 'px;\n'
+                + '    border-radius: 50%;\n    border: ' + w + 'px solid transparent;\n'
+                + '    background:\n        ' + pair(rings.gradients[0]) + ';\n    z-index: 0;\n    pointer-events: none;\n}\n';
+            for (let k = 2; k <= n; k++) {
+                css += sel + ' .jpf-profile-card:nth-of-type(' + n + 'n' + (k === n ? '' : '+' + k) + ') .jpf-profile-avatar-container::before {\n'
+                    + '    background:\n        ' + pair(rings.gradients[k - 1]) + ';\n}\n';
+            }
+            css += sel + ' .jpf-profile-card.action-add-profile .jpf-profile-avatar-container::before { display: none; }\n'
+                + sel + ' .jpf-profile-avatar { z-index: 1; box-sizing: border-box; }\n'
+                + sel + ' .jpf-profile-card:hover .jpf-profile-avatar-container,\n'
+                + sel + ' .jpf-profile-card:focus .jpf-profile-avatar-container { transform: scale(' + focusScale + '); }\n'
+                // Its own rule: :focus-within is Chrome 60, and a selector Chromium 53 cannot parse drops
+                // every other selector listed with it.
+                + sel + ' .jpf-profile-card:focus-within .jpf-profile-avatar-container { transform: scale(' + focusScale + '); }\n';
+            // The small preview in the pickers: three tiles, each framed in the color halfway along its
+            // gradient (a box-shadow cannot be a gradient). Written here from the file, not in
+            // styles.css, which used to carry Nightfall's three colors by hand: a custom theme with rings
+            // had none in its preview, and an edit to Nightfall's file left the old ones.
+            const mid = p => {
+                const a = hex(p && p[0]), b = hex(p && p[1]);
+                if (!a || !b) return col(a || b);
+                const x = rgbOf(a), y = rgbOf(b);
+                return '#' + [0, 1, 2].map(i => ('0' + Math.round((x[i] + y[i]) / 2).toString(16)).slice(-2)).join('');
+            };
+            for (let k = 1; k <= 3; k++) {
+                css += '.jpf-theme-preview' + sel + ' .jpf-theme-preview-tile:nth-child(' + k + ') { box-shadow: 0 0 0 2px '
+                    + gap + ', 0 0 0 4px ' + mid(rings.gradients[(k - 1) % n]) + '; }\n';
+            }
+        }
+
+        // frost: backdrop-filter is Chromium 76, so webOS 4.5 and 5 keep the plain see-through
+        // fills, which still read as the theme. Both spellings, since Safari only knows the prefixed
+        // one. Not the Theme page, which draws no sheet: its "backdrop-filter: none" ties with this
+        // on specificity and this comes later (written after the stylesheet), so the page is left
+        // out by name.
+        const frost = deco('frost');
+        if (frost) {
+            const blur = num(frost.blur, 24);
+            const small = Math.round(blur * 2 / 3);
+            css += '@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {\n'
+                + '    ' + sel + ' .jpf-create-profile-container:not(.jpf-theme-page):not(.jpf-sheet-bare) {\n        -webkit-backdrop-filter: blur(' + blur + 'px) saturate(160%);\n        backdrop-filter: blur(' + blur + 'px) saturate(160%);\n    }\n'
+                + '    ' + sel + ' .jpf-btn-secondary {\n        -webkit-backdrop-filter: blur(' + small + 'px) saturate(160%);\n        backdrop-filter: blur(' + small + 'px) saturate(160%);\n    }\n}\n';
+        }
+
+        // The second pattern's layer: the first's rule (styles.css, "Seasonal decoration") on
+        // ::after, for this theme only, with its own picture, size and opacity. z-index -1 in the
+        // same stacking context and later in tree order, so it draws over the first.
+        if (pattern2Image) {
+            const gateAfter = sel + ' #profiles-gate-overlay::after';
+            const previewAfter = '.jpf-theme-preview' + sel + '::after';
+            css += gateAfter + ',\n' + previewAfter + ' {\n    content: \'\';\n    position: absolute;\n'
+                + '    top: 0;\n    right: 0;\n    bottom: 0;\n    left: 0;\n'
+                + '    background-image: var(--jpf-deco2);\n    background-size: var(--jpf-deco2-size) var(--jpf-deco2-size);\n'
+                + '    opacity: var(--jpf-deco2-opacity, 1);\n    pointer-events: none;\n    z-index: -1;\n}\n'
+                + gateAfter + ' {\n    position: fixed;\n}\n'
+                + previewAfter + ' {\n    background-size: calc(var(--jpf-deco2-size) * 0.45) calc(var(--jpf-deco2-size) * 0.45);\n}\n';
+        }
+
+        // A drifting pattern comes down slowly: a transform on a layer one tile taller than the
+        // screen, so the compositor moves it and nothing repaints; one tile a loop, so it joins up.
+        // Not on a flat television (jpf-flat: a TV that cannot afford blur cannot afford this
+        // either), and not for anyone who asked their system for less motion. A TV that can blur
+        // moves it like any other screen; it used to be held off every TV by :not(.jpf-tv).
+        //
+        // And only when the administrator asked for it (Advanced, Look: richer theme motion), which
+        // the client records as .jpf-rich-motion on <html>. Off by default. The setting is the third
+        // condition, never a way around the other two: the media query and :not(.jpf-flat) decide
+        // first. Every moving decoration below writes the same three, and tests/js/a11y.js checks
+        // each rule for them.
+        if (patternImage && pattern.drift === 'down') {
+            const seconds = num(pattern.seconds, 32);
+            // A name, so no '.': a size of 240.5 (the validator allows it) made "jpf-drift-240.5", which
+            // is not an identifier and dropped the animation.
+            const anim = 'jpf-drift-' + String(patternSize).replace(/[^0-9a-z]/gi, '-');
+            css += '@media (prefers-reduced-motion: no-preference) {\n'
+                + '    ' + sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay::before {\n'
+                + '        top: -' + patternSize + 'px;\n        will-change: transform;\n'
+                + '        -webkit-animation: ' + anim + ' ' + seconds + 's linear infinite;\n'
+                + '        animation: ' + anim + ' ' + seconds + 's linear infinite;\n    }\n}\n'
+                + '@-webkit-keyframes ' + anim + ' {\n    from { -webkit-transform: translateY(0); transform: translateY(0); }\n'
+                + '    to { -webkit-transform: translateY(' + patternSize + 'px); transform: translateY(' + patternSize + 'px); }\n}\n'
+                + '@keyframes ' + anim + ' {\n    from { transform: translateY(0); }\n    to { transform: translateY(' + patternSize + 'px); }\n}\n';
+        }
+
+        // The second pattern drifts the same way, on ::after, by its own size and seconds. The
+        // keyframes are named by size, so two layers of one size share one pair.
+        if (pattern2Image && pattern2.drift === 'down') {
+            const seconds2 = num(pattern2.seconds, 32);
+            const anim2 = 'jpf-drift-' + String(pattern2Size).replace(/[^0-9a-z]/gi, '-');
+            css += '@media (prefers-reduced-motion: no-preference) {\n'
+                + '    ' + sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay::after {\n'
+                + '        top: -' + pattern2Size + 'px;\n        will-change: transform;\n'
+                + '        -webkit-animation: ' + anim2 + ' ' + seconds2 + 's linear infinite;\n'
+                + '        animation: ' + anim2 + ' ' + seconds2 + 's linear infinite;\n    }\n}\n'
+                + '@-webkit-keyframes ' + anim2 + ' {\n    from { -webkit-transform: translateY(0); transform: translateY(0); }\n'
+                + '    to { -webkit-transform: translateY(' + pattern2Size + 'px); transform: translateY(' + pattern2Size + 'px); }\n}\n'
+                + '@keyframes ' + anim2 + ' {\n    from { transform: translateY(0); }\n    to { transform: translateY(' + pattern2Size + 'px); }\n}\n';
+        }
+
+        // twinkle: a slow fade of the pattern between two layers, so the stars do not all dim
+        // together. The pattern's layer eases down to 45% and back; a second copy, shifted a third
+        // of a tile so its stars fall elsewhere, rises to 60% and back while the first is lowest.
+        // Opacity only, which the compositor does without repainting. The same three conditions as
+        // the drift. The second layer exists only inside them, so a screen that does not twinkle
+        // has no extra layer to paint.
+        const twinkle = deco('twinkle');
+        if (patternImage && twinkle) {
+            const period = num(twinkle.seconds, 8);
+            const over = sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay';
+            const run = name => '        -webkit-animation: ' + name + ' ' + period + 's ease-in-out infinite;\n'
+                + '        animation: ' + name + ' ' + period + 's ease-in-out infinite;\n';
+            // The layer's own opacity scales both fades, so a faint pattern twinkles from its faintness
+            // and not from full. At 1 every name and number is what it always was. With a second
+            // pattern, ::after is that pattern's layer, so the shifted copy is not drawn and the first
+            // layer's fade is all the twinkle there is.
+            const tag = patternOpacity < 1 ? '-o' + String(patternOpacity).replace(/[^0-9]/g, '') : '';
+            const sc = x => String(Math.round(x * patternOpacity * 1000) / 1000);
+            const nameA = 'jpf-twinkle' + tag, nameB = 'jpf-twinkle-b' + tag;
+            const keyframes = '@-webkit-keyframes ' + nameA + ' {\n    0%, 100% { opacity: ' + sc(1) + '; }\n    50% { opacity: ' + sc(0.45) + '; }\n}\n'
+                + '@keyframes ' + nameA + ' {\n    0%, 100% { opacity: ' + sc(1) + '; }\n    50% { opacity: ' + sc(0.45) + '; }\n}\n';
+            if (pattern2Image) {
+                css += '@media (prefers-reduced-motion: no-preference) {\n'
+                    + '    ' + over + '::before {\n        will-change: opacity;\n' + run(nameA) + '    }\n}\n' + keyframes;
+                return css;
+            }
+            css += '@media (prefers-reduced-motion: no-preference) {\n'
+                + '    ' + over + '::before {\n        will-change: opacity;\n' + run(nameA) + '    }\n'
+                + '    ' + over + '::after {\n        content: \'\';\n        position: fixed;\n'
+                + '        top: 0;\n        right: 0;\n        bottom: 0;\n        left: 0;\n'
+                + '        background-image: var(--jpf-deco);\n        background-size: var(--jpf-deco-size) var(--jpf-deco-size);\n'
+                + '        background-position: calc(var(--jpf-deco-size) / 2) calc(var(--jpf-deco-size) / 3);\n'
+                + '        pointer-events: none;\n        z-index: -1;\n        opacity: 0;\n        will-change: opacity;\n'
+                + run(nameB) + '    }\n}\n' + keyframes
+                + '@-webkit-keyframes ' + nameB + ' {\n    0%, 100% { opacity: 0; }\n    50% { opacity: ' + sc(0.6) + '; }\n}\n'
+                + '@keyframes ' + nameB + ' {\n    0%, 100% { opacity: 0; }\n    50% { opacity: ' + sc(0.6) + '; }\n}\n';
+        }
+        return css;
+    }
+
+    /// Every theme the server sent, as CSS, Bonfire first so each later block wins its ties on
+    /// html.
+    function allThemesCss() {
+        const list = Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes.slice() : [];
+        list.sort((a, b) => (a && a.id === 'bonfire' ? -1 : b && b.id === 'bonfire' ? 1 : 0));
+        return list.map(t => themeCss(t, BONFIRE_THEMES.patterns || {})).join('');
+    }
+
+    /// The name a served font is declared under: its family with Bonfire's prefix, letters,
+    /// digits, spaces and hyphens only, like every font name written into CSS here.
+    function servedFontName(family) {
+        return 'Bonfire ' + String(family || '').replace(/[^A-Za-z0-9 -]/g, '');
+    }
+
+    /// @font-face for every font Bonfire serves, one per subset, each fetched only when a
+    /// character in its unicode-range is drawn in it. `urlFor` turns a file name into the address
+    /// to fetch (pluginUrl, so a packaged client asks the server and not itself).
+    ///
+    /// Each file is a variable font spanning a range of weights. An engine without variable fonts
+    /// (Chromium 62; webOS 4.5 is 53) would draw every weight from the default and fake the bold,
+    /// so injectFonts declares none there and the stack's installed names are used, as every theme
+    /// looked before Bonfire served fonts.
+    function fontFaceCss(urlFor) {
+        const subsets = BONFIRE_THEMES.subsets || {};
+        let css = '';
+        (BONFIRE_THEMES.fonts || []).forEach(f => {
+            if (!f || !f.files || typeof f.files !== 'object') return;
+            const w = Array.isArray(f.weight) ? f.weight : [];
+            const weight = typeof w[0] === 'number' && typeof w[1] === 'number' && isFinite(w[0]) && isFinite(w[1])
+                ? Math.round(w[0]) + ' ' + Math.round(w[1]) : '400';
+            Object.keys(subsets).forEach(sub => {
+                const file = f.files[sub];
+                const range = subsets[sub];
+                if (typeof file !== 'string' || !/^[a-z0-9-]+\.woff2$/.test(file)) return;
+                if (typeof range !== 'string' || !/^[Uu0-9A-Fa-f+, -]+$/.test(range)) return;
+                const url = String(urlFor('/plugins/profiles/themes/fonts/' + file)).replace(/["\\\n\r]/g, '');
+                css += "@font-face {\n    font-family: '" + servedFontName(f.family) + "';\n    font-style: normal;\n"
+                    + '    font-weight: ' + weight + ';\n    font-display: swap;\n'
+                    + '    src: url("' + url + '") format("woff2");\n    unicode-range: ' + range + ';\n}\n';
+            });
+        });
+        return css;
+    }
+
+    /// @font-face for each uploaded font: one file holding every character it has, so no
+    /// unicode-range. A variable one is left out on an engine without variable fonts, as in
+    /// fontFaceCss; a static one is drawn everywhere.
+    function customFontFaceCss(urlFor, variable) {
+        let css = '';
+        CUSTOM_THEMES.fonts.forEach(f => {
+            const lo = Math.round(f.weight[0]), hi = Math.round(f.weight[1]);
+            if (!isFinite(lo) || !isFinite(hi) || (lo !== hi && !variable)) return;
+            const url = String(urlFor(f.file)).replace(/["\\\n\r]/g, '');
+            css += "@font-face {\n    font-family: '" + servedFontName(f.family) + "';\n    font-style: normal;\n"
+                + '    font-weight: ' + (lo === hi ? lo : lo + ' ' + hi) + ';\n    font-display: swap;\n'
+                + '    src: url("' + url + '") format("woff2");\n}\n';
+        });
+        return css;
+    }
+
+    /// Every custom theme as CSS. Their ids are never a built-in's (readCustomThemes), so no
+    /// block here ties with one in the stylesheet's style element.
+    function customThemesCss() {
+        return CUSTOM_THEMES.themes.map(c => themeCss(c, BONFIRE_THEMES.patterns || {})).join('');
+    }
+
+    /// The gate's background for one theme, as themeCss writes it, or '' for a theme this build
+    /// does not have. Read out of themeCss's own output, not worked out again, so the startup
+    /// cover cannot drift from the gate it stands in for.
+    function gateBackground(id) {
+        const theme = (Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])
+            .filter(t => t && t.id === id)[0] || customTheme(id);
+        if (!theme) return '';
+        const m = /--jpf-gate-bg: ([^;]*);/.exec(themeCss(theme, BONFIRE_THEMES.patterns || {}));
+        return m ? m[1] : '';
+    }
+
+    /// The relative luminance of an [r, g, b] color, and the contrast ratio of two, as WCAG
+    /// defines them.
+    function relLum(k) {
+        const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+        return 0.2126 * lin(k[0]) + 0.7152 * lin(k[1]) + 0.0722 * lin(k[2]);
+    }
+    function contrastOf(a, b) {
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    }
+
+    /// The solid colors of a gate background (themeCss's --jpf-gate-bg), as [r, g, b]: what the
+    /// logo's backing is decided against. Not the see-through stops laid over them, as themeCss's
+    /// accent text counts them, because a see-through stop is a glow placed somewhere: Bonfire's
+    /// is orange, at the bottom, and counting it put a backing behind an orange logo at the top
+    /// that read at 6:1 on what was really behind it.
+    function gateColours(gateBg) {
+        return (String(gateBg || '').match(/#[0-9a-fA-F]{6}\b|rgba?\([^)]*\)/g) || []).map(s => {
+            if (s.charAt(0) === '#') return [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)).concat([1]);
+            const n = s.replace(/^rgba?\(|\)$/g, '').split(',').map(Number);
+            return [n[0], n[1], n[2], n.length > 3 ? n[3] : 1];
+        }).filter(k => k[3] >= 1);
+    }
+
+    /// What a custom theme's background picture can put behind the logo, as gateColours does: []
+    /// for a theme without one. The picture is drawn under the fill at its dim, so at a low dim a
+    /// bright or dark photograph shows nearly as itself and gateBackground does not know it is
+    /// there. Taken at its worst, as ThemeValidator takes it: the fill at the dim over white and
+    /// over black.
+    function gatePhotoColours(id) {
+        const theme = customTheme(id);
+        const bg = theme && theme.background;
+        const image = bg && bg.image;
+        if (!image || !image.file) return [];
+        const dim = Number(image.dim);
+        const fill = gateColours(bg.fill)[0];
+        if (!fill || !(dim >= 0 && dim <= 1)) return [];
+        return [255, 0].map(end => [0, 1, 2].map(i => fill[i] * dim + end * (1 - dim)).concat([1]));
+    }
+
+    /// The luminance of each visible pixel of a loaded logo, read off a canvas of at most 64px a
+    /// side, plenty to tell what color a logo is. [] for a solid picture (under 3% see-through):
+    /// it carries its own background and never needs one. null when the canvas cannot be read (a
+    /// picture from another origin, as when the web client is bundled inside a TV app, taints
+    /// it), and then the logo is left as it is.
+    function logoLums(img) {
+        try {
+            const w = img.naturalWidth, h = img.naturalHeight;
+            if (!w || !h) return null;
+            const s = Math.min(1, 64 / Math.max(w, h));
+            const cv = document.createElement('canvas');
+            cv.width = Math.max(1, Math.round(w * s));
+            cv.height = Math.max(1, Math.round(h * s));
+            const g = cv.getContext('2d');
+            g.drawImage(img, 0, 0, cv.width, cv.height);
+            const d = g.getImageData(0, 0, cv.width, cv.height).data;
+            const out = [];
+            let clear = 0;
+            for (let i = 0; i < d.length; i += 4) {
+                if (d[i + 3] < 250) clear++;
+                if (d[i + 3] >= 128) out.push(relLum([d[i], d[i + 1], d[i + 2]]));
+            }
+            return clear / (d.length / 4) < 0.03 ? [] : out;
+        } catch (e) {
+            return null;
+        }
+    }
 
     const EN_STRINGS = {
         'common.cancel': 'Cancel',
@@ -202,88 +1164,111 @@
         'common.selectAll': 'Select all',
         'common.create': 'Create',
         'common.join': 'Join',
-        'common.submit': 'Submit',
-        'common.unlock': 'Unlock',
+        'common.submit': 'Continue',
+        'common.unlock': 'Open',
         'common.settings': 'Settings',
 
-        'gate.whosWatching': "Who's Watching?",
-        'gate.manageProfiles': 'Manage Profiles',
+        'gate.whosWatching': "Who's watching?",
+        'gate.manageProfiles': 'Manage profiles',
         'gate.signedIn': 'Signed in',
-        'gate.pinProtected': 'PIN Protected',
+        'gate.opening': 'Opening {name}',
+        'gate.pinProtected': 'PIN protected',
         'gate.noPin': 'No PIN',
-        'gate.addProfile': 'Add Profile',
-        'gate.yourBonfire': 'Your Bonfire',
+        'gate.manageHint': 'Choose a profile to edit.',
+        'gate.ownProfile': 'Name and avatar',
+        'ownProfile.title': 'Your name and avatar',
+        'gate.addProfile': 'Add profile',
+        'gate.yourBonfire': 'Your household',
         'gate.guest': 'Guest',
-        'gate.bonfireOf': "{name}'s Bonfire",
-        'gate.limitReached': '{count}/{max} profiles — limit reached',
+        'gate.bonfireOf': "{name}'s household",
+        'gate.limitReached': '{count}/{max} profiles. Limit reached.',
         'gate.cantGetPast': "Can't get past this screen?",
-        'gate.bonfireProfile': 'Bonfire Profile',
+        'gate.bonfireProfile': 'Bonfire profile',
+        'gate.addedAccount': 'Added account',
+        'gate.dismiss': 'Dismiss',
 
-        'pin.enterProfilePin': 'Enter Profile PIN',
-        'pin.enterMasterPin': 'Enter Master PIN',
-        'pin.incorrectPin': 'Incorrect PIN. Please try again.',
-        'pin.incorrectMasterPin': 'Incorrect Master PIN. Please try again.',
+        'maintenance.title': 'Closed for maintenance',
+        'maintenance.adminTitle': 'Closed for maintenance. Only administrators can get in.',
+        'maintenance.backBy': 'Back by {time}',
+        'maintenance.signOut': 'Sign out',
+        'maintenance.checkAgain': 'Check again',
+        'maintenance.stillClosed': 'Still closed.',
 
-        'avatar.positionYourPicture': 'Position your picture',
-        'avatar.dragOrArrows': 'Drag or arrows to move, slider to zoom. Press OK when it looks right.',
-        'avatar.usePicture': 'Use picture',
+        'pin.enterProfilePin': 'Enter profile PIN',
+        'pin.numberKeys': 'Use the number keys',
+        'pin.enterMasterPin': 'Enter main PIN',
+        'pin.incorrectPin': 'Wrong PIN. Try again.',
+        'pin.incorrectMasterPin': 'Wrong main PIN. Try again.',
+        'pin.lockedMoment': 'Too many wrong PINs. Try again in a moment.',
+        'pin.lockedSeconds': 'Too many wrong PINs. Try again in {count} seconds.',
+        'pin.lockedMinute': 'Too many wrong PINs. Try again in a minute.',
+        'pin.lockedMinutes': 'Too many wrong PINs. Try again in {count} minutes.',
+
+        'avatar.positionYourPicture': 'Position your avatar',
+        'avatar.dragOrArrows': 'Drag or use arrows to move. Slider zooms. Press OK when done.',
+        'avatar.usePicture': 'Use avatar',
+        'avatar.cropFailed': 'That image can\'t be used. Try another.',
         'avatar.fromThisServer': 'From this server',
         'avatar.fromThisDevice': 'From this device',
-        'avatar.uploadPicture': 'Upload a picture',
-        'avatar.uploadHint': 'JPEG, PNG, WebP or GIF. You can position and zoom it after choosing.',
-        'avatar.adminLimited': 'Your server administrator has limited profile pictures to the set above.',
-        'avatar.profilePicture': 'Profile Picture',
-        'avatar.changePicture': 'Change picture',
-        'avatar.choosePicture': 'Choose a picture',
+        'avatar.uploadPicture': 'Upload an avatar',
+        'avatar.uploadHint': 'JPEG, PNG, WebP or GIF.',
+        'avatar.adminLimited': 'Your administrator allows only the avatars above.',
+        'avatar.profilePicture': 'Avatar',
+        'avatar.changePicture': 'Change avatar',
+        'avatar.choosePicture': 'Choose an avatar',
         'avatar.avatarLabel': 'Avatar',
         'avatar.zoom': 'Zoom',
-        'avatar.chooseFirst': 'Choose a picture first.',
+        'avatar.chooseFirst': 'Choose an avatar first.',
+        'avatar.loadFailed': "Can't load the avatars.",
         'avatar.libraryArtworkTitle': 'Library artwork',
 
         'errors.error': 'Error',
-        'errors.validationError': 'Validation Error',
-        'errors.unauthorized': 'Unauthorized',
-        'errors.failedDeleteDevice': 'Failed to delete device.',
-        'errors.failedRenameDevice': 'Failed to rename device.',
-        'errors.failedMergeDevice': 'Failed to merge devices.',
-        'errors.withMessage': 'Error: {message}',
-        'errors.savingProfile': 'Error saving profile: {message}',
-        'errors.loadProfileDetails': 'Failed to load profile details: {message}',
-        'errors.failedDeleteProfile': 'Failed to delete profile',
-        'errors.deletingProfile': 'Error deleting profile: {message}',
-        'errors.couldNotSaveArtwork': 'Could not save the artwork.',
-        'errors.couldNotSaveThat': 'Could not save that.',
-        'errors.heicUnsupported': "HEIC photos aren't supported. Export the photo as JPEG first.",
+        'errors.validationError': "Can't save yet",
+        'errors.failedDeleteDevice': 'Couldn\'t forget the device.',
+        'errors.failedRenameDevice': "Couldn't rename the device.",
+        'errors.failedMergeDevice': "Couldn't merge the devices.",
+        'errors.generic': 'Something went wrong. Try again.',
+        'errors.savingProfile': "Couldn't save the profile.",
+        'errors.savingHours': "The profile was saved, but not its viewing limits.",
+        'errors.loadProfileDetails': "Couldn't load the profile.",
+        'errors.failedDeleteProfile': "Couldn't delete the profile.",
+        'errors.deletingProfile': "Couldn't delete the profile.",
+        'errors.couldNotSaveArtwork': "Couldn't save the artwork.",
+        'errors.couldNotSaveThat': "Couldn't save that.",
+        'errors.heicUnsupported': "HEIC images aren't supported. Export the image as JPEG first.",
         'errors.svgUnsupported': "SVG images aren't supported. Use a JPEG, PNG, WebP or GIF.",
         'errors.imageTooLarge': 'That image is over 25 MB. Use a smaller one.',
-        'errors.fileUnreadable': 'That file could not be read.',
-        'errors.imageEmpty': 'That image appears to be empty.',
+        'errors.fileUnreadable': "Couldn't read that file. Choose another.",
+        'errors.imageEmpty': 'That image is empty. Choose another.',
         'errors.imageFormatUnsupported': "That image format isn't supported. Save it as a JPEG or PNG first.",
-        'errors.imageLoadFailed': 'That image could not be loaded.',
+        'errors.imageLoadFailed': "Couldn't load that image. Choose another.",
 
-        'profileForm.profileName': 'Profile Name',
+        'profileForm.profileName': 'Profile name',
         'profileForm.namePlaceholder': 'e.g. Kids',
-        'profileForm.masterNameHint': 'The master profile takes its name from your Jellyfin account.',
-        'profileForm.avatarColor': 'Avatar Color',
-        'profileForm.colorHintNoPicture': 'Used as the avatar background when no picture is set.',
-        'profileForm.colorHintHasPicture': 'Shows behind the picture, wherever it is transparent.',
+        'profileForm.masterNameHint': 'The main account takes its name from your Jellyfin account.',
+        'profileForm.avatarColor': 'Avatar color',
+        'profileForm.colorGroup': 'Profile color',
+        'profileForm.colorN': 'Color {n} of {total}',
+        'profileForm.colorHintNoPicture': 'Background when no avatar is set.',
+        'profileForm.colorHintHasPicture': 'Shows through transparent parts of the avatar.',
         'profileForm.colorHintUnused': 'Not used while the background is transparent.',
         'profileForm.noBackground': 'No background',
-        'profileForm.noBackgroundHint': 'For pictures that are cut out rather than rectangular. Leaves the corners clear instead of filling them with the avatar colour. Set automatically when a picture is chosen.',
+        'profileForm.noBackgroundHint': 'For cut-out avatars.',
         'profileForm.pin': 'PIN',
         'profileForm.pinPlaceholderEmpty': 'Leave empty for no PIN',
         'profileForm.pinPlaceholderNew': 'New PIN',
         'profileForm.pinPlaceholderNone': 'No PIN',
         'profileForm.pinPlaceholderUnprotected': 'Unprotected',
         'profileForm.clearPin': 'Clear PIN',
-        'profileForm.pinIsSetHint': '🔒 <strong>A PIN is set.</strong> Leave blank to keep it, type a new one to replace it, or use Clear PIN.',
+        'profileForm.pinIsSetHint': '<strong>A PIN is set.</strong> Leave blank to keep it, or type a new one.',
         'profileForm.pinAdminWarning': 'This account administers the server. Its PIN can sign in on TVs and other apps, so keep it long and private.',
-        'profileForm.noPinSetHint': 'No PIN set. This profile can be opened by anyone who can reach the switcher.',
-        'profileForm.bypassPinLan': 'Bypass PIN on local network (LAN)',
-        'profileForm.bypassPinHint': 'No PIN prompt on your home network.',
-        'profileForm.autoLock': 'Auto-lock after inactivity',
-        'profileForm.autoLockHintCreate': 'Only applies when this profile has a PIN set.',
-        'profileForm.autoLockHintEdit': 'Only applies when a PIN is set on this profile.',
+        'profileForm.noPinSetHint': 'No PIN. Anyone can open this profile.',
+        'profileForm.bypassPinLan': "Skip the PIN on the server's network",
+        'profileForm.askPinToOpen': 'Ask for the PIN to open this account',
+        'profileForm.askPinToOpenHint': 'Settings always need the PIN.',
+        'profileForm.autoLock': 'Auto-lock',
+        'profileForm.autoLockHintCreate': 'Only applies when a PIN is set.',
+        'profileForm.autoLockHintEdit': 'Only applies when a PIN is set.',
         'profileForm.lockoutNever': 'Never',
         'profileForm.lockout1Min': '1 minute',
         'profileForm.lockout5Min': '5 minutes',
@@ -292,9 +1277,9 @@
         'profileForm.lockout20Min': '20 minutes',
         'profileForm.lockout30Min': '30 minutes',
         'profileForm.lockout1Hour': '1 hour',
-        'profileForm.enabledLibraries': 'Enabled Libraries',
+        'profileForm.enabledLibraries': 'Libraries',
         'profileForm.libraries': 'Libraries',
-        'profileForm.librariesInheritHint': 'Tick nothing and this profile sees every library your account does.',
+        'profileForm.librariesInheritHint': 'Check none to allow every library your account has.',
         'profileForm.libraryHeader': 'Library',
         'profileForm.artworkHeader': 'Artwork',
         'profileForm.artworkForAria': 'Artwork for {name}',
@@ -304,19 +1289,21 @@
         'profileForm.artworkHidden': 'Hidden',
         'profileForm.artworkChoose': 'Choose',
         'profileForm.artworkToggleLabel': 'Choose the artwork on each library tile',
-        'profileForm.artworkExplainer': 'A library tile takes its picture from whatever is inside the library — which can be something this profile is not allowed to open. <strong>Picture</strong> puts an image you choose on the tile instead, and <strong>Hidden</strong> leaves just the icon and the name.',
-        'profileForm.allowedDevices': 'Allowed Devices',
-        'profileForm.allDevicesAllowed': 'All Devices Allowed',
-        'profileForm.oneDeviceAllowed': '1 Device Allowed',
-        'profileForm.devicesAllowed': '{count} Devices Allowed',
-        'profileForm.noDevicesYet': 'No devices found for your account yet',
+        'profileForm.artworkExplainer': 'Library tiles show what\'s inside. <strong>Picture</strong> or <strong>Hidden</strong> stops that for this profile.',
+        'profileForm.allowedDevices': 'Allowed devices',
+        'profileForm.allDevicesAllowed': 'All devices allowed',
+        'profileForm.oneDeviceAllowed': '1 device allowed',
+        'profileForm.devicesAllowed': '{count} devices allowed',
+        'profileForm.noDevicesYet': 'No devices yet. A device shows up after it opens Jellyfin.',
         'profileForm.devicesUnavailable': "Couldn't load your devices. Saving won't change this profile's devices.",
         'profileForm.devicesUnchanged': 'Devices unchanged',
-        'profileForm.noDevicesConnected': 'No connected devices found',
-        'profileForm.devicesHint': 'If no devices are selected, this profile can be accessed from any device.',
-        'profileForm.unknownDevice': 'Unknown Device',
-        'profileForm.noTags': 'No tags — this filter is off',
-        'profileForm.unknownClient': 'Unknown Client',
+        'profileForm.devicesHint': 'None selected means any device.',
+        'profileForm.unknownDevice': 'Unknown device',
+        'profileForm.deviceUnrecognised': 'Unrecognized device',
+        'profileForm.devicePreviouslyAllowed': 'Previously allowed device',
+        'profileForm.deviceNotSeenRecently': 'Not seen recently',
+        'profileForm.noTags': 'No tags. This filter is off.',
+        'profileForm.unknownClient': 'Unknown client',
         'profileForm.unknown': 'Unknown',
         'profileForm.deviceLastSeen': '{client} • Last seen {date}',
         'profileForm.forgetDevice': 'Forget this device',
@@ -331,9 +1318,9 @@
         'profileForm.mergeDeviceMessage': 'These two become one device. Any profile allowed on either one stays allowed.',
         'profileForm.tidyDevices': 'Tidy up duplicates',
         'profileForm.tidyNone': 'No duplicates found.',
-        'profileForm.tidyFound': 'Found {count} device(s) that look like duplicates of one you already have. Merge them?',
-        'profileForm.maximumRating': 'Maximum rating',
-        'profileForm.noRestrictions': 'No Restrictions',
+        'profileForm.tidyFound': 'Possible duplicates: {count}. Merge them?',
+        'profileForm.maximumRating': 'Rating limit',
+        'profileForm.noRestrictions': 'No limit',
         'profileForm.ratingG': 'G / TV-G (6+)',
         'profileForm.ratingPG': 'PG / TV-PG (10+)',
         'profileForm.ratingPG13': 'PG-13 / TV-14 (14+)',
@@ -342,33 +1329,37 @@
         'profileForm.ratingAge': '{labels} ({score}+)',
         'profileForm.theme': 'Theme',
         'profileForm.themeDefault': 'Server default ({name})',
-        'profileForm.themeHint': 'How these screens look for this profile.',
         'profileForm.blockedTags': 'Blocked tags',
-        'profileForm.blockedTagsHint': 'Hides anything with these tags. A tag on a series or library covers everything inside it.',
+        'profileForm.blockedTagsHint': 'A tag on a series or library covers everything inside it.',
         'profileForm.allowedTags': 'Allowed tags',
-        'profileForm.allowedTagsHint': '⚠️ Allow-list: if you add any tag here, this profile sees <strong>only</strong> matching items. Untagged content is hidden too.',
+        'profileForm.allowedTagsHint': 'Adding a tag means this profile sees <strong>only</strong> items with these tags. Untagged items are hidden.',
         'profileForm.tagPlaceholderAdults': 'e.g. adults',
         'profileForm.tagPlaceholderKids': 'e.g. kids',
-        'profileForm.createTitle': 'Create Profile',
-        'profileForm.editTitle': 'Edit Profile',
+        'profileForm.createTitle': 'Create profile',
+        'profileForm.editTitle': 'Edit profile',
         'profileForm.sectionProfileTitle': 'Profile',
-        'profileForm.sectionProfileSubtitle': 'Name, colour, and picture',
+        'profileForm.sectionProfileSubtitle': 'Name, color and avatar',
         'profileForm.sectionSecurityTitle': 'Security',
-        'profileForm.sectionSecuritySubtitle': 'PIN protection and automatic locking',
-        'profileForm.sectionLibrariesSubtitle': 'Which libraries this profile can browse',
-        'profileForm.sectionRestrictionsTitle': 'Content & Device Restrictions',
-        'profileForm.sectionRestrictionsSubtitle': 'Limits applied on top of the libraries above',
-        'profileForm.deleteProfile': 'Delete Profile',
+        'profileForm.sectionSecuritySubtitle': 'PIN and auto-lock',
+        'profileForm.sectionRestrictionsTitle': 'Tags',
+        'profileForm.deleteProfile': 'Delete profile',
+        'profileForm.copyTitle': 'Copy rules',
+        'profileForm.copyFrom': 'Copy rules from',
+        'profileForm.copyChoose': 'Choose a profile',
+        'profileForm.copyHint': 'Devices, name, avatar and PIN stay.',
+        'profileForm.copyButton': 'Copy',
+        'profileForm.copyConfirm': 'Replace the rating limit, tags, libraries and viewing limits of {target} with those of {source}?',
         'profileForm.nameRequired': 'Profile name is required.',
         'profileForm.pinMustBeDigits': 'A PIN can only contain digits.',
-        'profileForm.pinLengthCreate': 'PIN must be 4–8 digits.',
-        'profileForm.pinLengthEdit': 'A PIN must be 4-8 digits — you entered {count}.',
-        'profileForm.deleteConfirmMessage': 'Are you sure you want to delete profile "{name}" and its underlying user account? This action is irreversible.',
-        'profileForm.deleteDeviceTitle': 'Delete Device History',
-        'profileForm.deleteDeviceMessage': 'Remove this device? Any access restrictions for it go too.',
+        'profileForm.pinLengthCreate': 'Use 4 to 8 digits.',
+        'profileForm.pinLengthEdit': 'Use 4 to 8 digits. You entered {count}.',
+        'profileForm.deleteConfirmMessage': 'Delete profile "{name}" and its account? This can\'t be undone.',
+        'profileForm.deleteConfirmKept': 'Delete profile "{name}"? Its account is kept. An administrator sets its password in Dashboard → Users.',
+        'profileForm.deleteDeviceTitle': 'Forget device',
+        'profileForm.deleteDeviceMessage': 'Forget this device? Its access restrictions go too.',
 
         'panic.emergencyDisable': 'Emergency disable',
-        'panic.dialogBody': "Enter the code your server administrator set. This shuts the Bonfire switcher off until Jellyfin is restarted — the profile gate disappears and this account is used as-is. It does not unlock anyone else's profile.",
+        'panic.dialogBody': 'Enter the code your administrator set. This turns the switcher off until Jellyfin restarts.',
         'panic.emergencyCodePlaceholder': 'Emergency code',
         'panic.disable': 'Disable',
         'panic.checking': 'Checking…',
@@ -378,139 +1369,412 @@
         'panic.disabledBody': 'The switcher is off until Jellyfin restarts. Reload the page if anything still looks wrong.',
 
         'settings.title': 'Settings',
-        'settings.switcherStyleTitle': 'Switcher Style',
-        'settings.switcherStyleBody': 'Where you reach this screen from, and whether it opens on startup.',
-        'settings.yourBonfireTitle': 'Your Bonfire',
-        'settings.yourBonfireBody': 'Share your profiles with another home, or join theirs.',
+        'settings.needsMain': 'Open {name} first, then choose Settings.',
+        'mainPin.setTitle': 'Set a main PIN',
+        'mainPin.setBody': 'Without one, anyone at the profile screen can change your profiles.',
+        'mainPin.requiredBody': 'Your server needs one before you can change profiles or settings.',
+        'mainPin.notNow': 'Not now',
+        'mainPin.limitsBody': 'Viewing limits need a main PIN.',
+        'mainPin.limitsOff': 'The profile was added, but its viewing limits are off. Set a PIN, then add them.',
+        'mainPin.set': 'Set PIN',
+        'onboarding.welcomeTitle': 'Welcome to Bonfire',
+        'onboarding.welcomeBody': 'Everyone at home can have their own profile. This takes a minute.',
+        'onboarding.start': 'Get started',
+        'onboarding.next': 'Next',
+        'onboarding.skip': 'Skip',
+        'onboarding.step': 'Step {n} of {total}',
+        'onboarding.profileTitle': 'Add a profile',
+        'onboarding.profileBody': 'Make one for someone else at home.',
+        'onboarding.switcherTitle': 'How do you want to switch?',
+        'onboarding.switcherLater': 'You can change this later in Settings.',
+        'onboarding.themeTitle': 'Pick a theme',
+        'onboarding.themeBody': 'You can change it later in Settings.',
+        'onboarding.emailTitle': 'Add your email',
+        'onboarding.emailBody': 'If you forget your PIN, a code can be sent here.',
+        'accountEmail.title': 'Email',
+        'accountEmail.subtitle': 'For a forgotten PIN and notices',
+        'accountEmail.address': 'Email address',
+        'accountEmail.send': 'Send code',
+        'accountEmail.sentTo': 'Enter the code sent to {address}.',
+        'accountEmail.code': 'Code',
+        'accountEmail.confirm': 'Confirm',
+        'accountEmail.otherAddress': 'Use a different address',
+        'accountEmail.change': 'Change',
+        'accountEmail.remove': 'Remove',
+        'accountEmail.saved': 'Email saved.',
+        'accountEmail.removed': 'Email removed.',
+        'accountEmail.resetHint': 'If you forget your PIN, a code can be sent here.',
+        'accountEmail.notifyLockout': 'Email me after too many wrong PINs',
+        'accountEmail.notifyNewDevice': 'Email me when a new device signs in',
+        'accountEmail.notifyTimeAsked': 'Email me when a profile asks for more time',
+        'accountEmail.notifyLimitReached': 'Email me when a profile reaches its daily limit',
+        'accountEmail.moreSummary': 'Which emails you get',
+        'accountEmail.invalid': 'Enter an email address.',
+        'accountEmail.codeInvalid': 'Enter the 6-digit code.',
+        'pinReset.forgot': 'Forgot PIN?',
+        'pinReset.title': 'Reset your PIN',
+        'pinReset.sentTo': 'Enter the code sent to {address}, then a new PIN.',
+        'pinReset.newPin': 'New PIN',
+        'pinReset.sendAgain': 'Send a new code',
+        'settings.accountTitle': 'Your account',
+        'settings.accountBody': "Your main PIN, the server's network and devices.",
+        'settings.switcherTitle': 'Switch button',
+        'settings.switcherStyleBody': 'Where to open the profile screen, and whether to open it on startup.',
+        'settings.sharingTitle': 'Sharing',
+        'settings.yourBonfireBody': 'Host a Bonfire or join one.',
+        'settings.lookTitle': 'Theme',
         'settings.themeTitle': 'Theme',
         'settings.themeBody': "How Bonfire's screens look for each profile.",
+        'account.signInTitle': 'Sign-in',
+        'account.savePin': 'Save PIN',
+        'account.pinLabel': 'Main PIN',
+        'account.pinSetHint': 'A PIN is set. Type a new one to change it.',
+        'account.pinSaved': 'PIN saved.',
+        'account.pinCleared': 'PIN cleared.',
+        'account.saved': 'Saved.',
+        'account.devicesTitle': 'Devices',
+        'account.devicesCount': 'Known devices: {count}',
+        'account.devicesCountSubtitle': 'Which screens use this account',
+        'account.manageDevices': 'Manage devices',
+        'account.moreSummary': "Ask for PIN, server's network, auto-lock and layout",
+        'account.layout': 'Layout on this device',
+        'account.layoutAuto': 'Automatic',
+        'account.layoutTv': 'TV layout',
+        'account.layoutStandard': 'Standard layout',
+        'account.layoutHint': 'Only this device. Larger, for a TV.',
+        'account.emailOff': 'Email isn\'t set up. Ask an administrator to turn it on.',
+        'account.devicesSubtitle': 'Rename, merge or forget them',
+        'account.zoneTitle': 'Time zone',
+        'account.zoneSubtitle': 'For viewing limits',
+        'account.zone': 'Time zone',
+        'account.zoneDefault': 'Server default ({zone})',
+        'viewing.title': 'Viewing limits',
+        'viewing.subtitle': 'When and how long this profile can watch',
+        'viewing.hoursEnabled': 'Only at these times',
+        'viewing.noDays': 'No days checked, so no time is allowed.',
+        'viewing.fromAria': '{day} from',
+        'viewing.toAria': '{day} until',
+        'viewing.midnight': 'Midnight',
+        'viewing.daily': 'Daily limit',
+        'viewing.weekend': 'Weekend limit',
+        'viewing.sameAsWeekdays': 'Same as weekdays',
+        'viewing.noLimit': 'No limit',
+        'viewing.hint': 'Counts video only. Music is never limited.',
+        'viewing.min': '{minutes} min',
+        'viewing.h': '{hours} h',
+        'viewing.hMin': '{hours} h {minutes} min',
+        'viewing.minutesLeft': '{minutes} min left',
+        'viewing.until': 'Until {time}',
+        'viewing.from': 'From {time}',
+        'viewing.timeUp': "Time's up",
+        'viewing.asked': 'Asked for more time',
+        'viewing.canWatch': 'Can watch now',
+        'viewing.usedToday': '{used} of {limit} min used today',
+        'viewing.askedHint': '{name} asked for more time.',
+        'viewing.moreTime': 'More time now',
+        'viewing.decline': 'Decline',
+        'viewing.given': 'Added {duration}.',
+        'viewing.declined': 'Declined.',
+        'viewing.timeUpTitle': "Time's up",
+        'viewing.outsideBody': '{name} can watch again at {time}. You can still browse.',
+        'viewing.limitBody': "{name} has used today's time. You can still browse.",
+        'viewing.notNowBody': "{name} can't watch right now. You can still browse.",
+        'viewing.ask': 'Ask for more time',
+        'viewing.giveTime': 'Parent: add time',
+        'viewing.browse': 'Browse without playing',
+        'viewing.askedTitle': 'Request sent',
+        'viewing.askedBody': 'A parent can answer from Bonfire.',
+        'viewing.alreadyAsked': 'You already asked. Try again in a few minutes.',
+        'viewing.giveTitle': 'More time for {name}',
+        'viewing.giveBody': 'How long?',
+        'viewing.answer': 'Answer',
+        'viewing.capBody': '{name} has already had the 4 hours of extra time allowed today.',
+        'account.devicesHint': 'Each profile chooses which of these it can be opened on.',
+        'profileForm.sectionPinSubtitle': 'A PIN to open this profile',
+        'profileForm.sectionWatchTitle': 'What they can watch',
+        'profileForm.sectionWatchSubtitle': 'Rating limit, libraries and devices',
+        'profileForm.sectionLockingTitle': 'Auto-lock',
+        'profileForm.moreTitle': 'More',
+        'profileForm.moreSummary': 'Auto-lock, tags and theme',
+        'profileForm.kidsPreset': 'Kids profile',
+        'profileForm.kidsPresetHint': 'Sets the rating limit to 10+.',
+        'profileForm.mainSecurityMoved': 'Your PIN and sign-in settings are in Settings → Your account.',
         'themeSettings.default': 'Default',
+        'themeSettings.matchJellyfin': 'Use {name} for the rest of Jellyfin on this device too?',
+        'themeSettings.matchYes': 'Use it',
+        'themeSettings.matchNo': 'No thanks',
+        'themeSettings.matchDone': 'Done. It shows from the next page.',
+        'theme.bonfire': 'Bonfire',
+        'theme.crimson': 'Crimson',
+        'theme.starlight': 'Starlight',
+        'theme.harbor': 'Harbor',
+        'theme.nightfall': 'Nightfall',
+        'theme.glass': 'Glass',
+        'theme.harvest': 'Harvest',
+        'theme.snowfall': 'Snowfall',
+        'theme.bloom': 'Bloom',
+        'theme.jellyfin-dark': 'Jellyfin dark',
+        'theme.jellyfin-light': 'Jellyfin light',
+        'theme.high-contrast': 'High contrast',
 
-        'switcher.title': 'Switcher Style',
-        'switcher.intro': 'How you reach this screen, for everyone using your account.',
+        'switcher.title': 'Switch button',
+        'switcher.intro': 'For everyone using your account.',
         'switcher.askOnStartup': 'Ask "Who\'s watching?" on startup',
-        'switcher.askOnStartupHint': 'Shown once when the app opens — not every time you return to the home screen.',
-        'switcher.syncAskAcrossDevices': 'Use the same answer on all my devices',
-        'switcher.syncAskAcrossDevicesHint': 'Off, each device decides. On, this device sets them all.',
+        'switcher.askOnStartupHint': 'Shown once when the app opens, not each time you return home.',
         'switcher.whereToSwitchFrom': 'Where to switch from',
-        'switcher.bonfireButtonTitle': 'Bonfire button',
-        'switcher.bonfireButtonBody': "A separate switcher button in the header, next to Jellyfin's own profile icon.",
-        'switcher.menuTitle': "Jellyfin's user menu",
-        'switcher.menuBody': 'Adds "Switch Profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.',
-        'switcher.switchProfile': 'Switch Profile',
-        'switcher.reloadFailedTitle': 'Almost there',
+        'switcher.bonfireButtonTitle': 'In the header',
+        'switcher.bonfireButtonBody': "A Switch button next to Jellyfin's own profile icon.",
+        'switcher.menuTitle': "In Jellyfin's user menu",
+        'switcher.menuBody': 'Adds "Switch profile" above Sign out in Jellyfin\'s own menu, and to your profile page. Removes the second header icon.',
+        'switcher.switchProfile': 'Switch profile',
+        'switcher.reloadFailedTitle': 'Switch not finished',
         'switcher.reloadFailedBody': 'Close and reopen the app to finish switching profiles.',
+        'switcher.unreachable': "Can't reach the server. Try again.",
+        'switcher.listFailed': "Can't load profiles right now.",
+        'switcher.failedTitle': "Couldn't switch",
+        'switcher.failedBody': 'Try again.',
         'switcher.notSavedTitle': 'Switch not saved',
-        'switcher.notSavedBody': 'This device would not store the change, so you are still signed in as before.',
-        'switcher.manageTitle': 'Manage Profiles',
-        'switcher.manageNeedsMaster': 'Open {name} first, then choose Manage Profiles.',
+        'switcher.notSavedBody': "This device couldn't save the change. You're still signed in as before.",
+        'switcher.manageTitle': 'Manage profiles',
+        'switcher.manageNeedsMaster': 'Open {name} first, then choose Manage profiles.',
 
-        'bonfire.yourBonfireTitle': 'Your Bonfire',
-        'bonfire.hostedTitle': 'Your Hosted Bonfire',
+        'bonfire.yourBonfireTitle': 'Sharing',
+        'links.title': 'Other accounts on the profile screen',
+        'links.subtitle': 'Their tile opens their own account',
+        'links.none': 'No accounts added yet. Add one below.',
+        'links.username': 'Their username',
+        'links.password': 'Their password',
+        'links.add': 'Add account',
+        'links.needBoth': 'Enter their username and password.',
+        'links.added': '{name} added.',
+        'links.withPin': 'Opens with their PIN',
+        'links.noPin': 'Opens without a PIN',
+        'links.remove': 'Remove',
+        'links.removeAria': 'Remove {name}',
+        'links.removeTitle': 'Remove {name}?',
+        'links.removeBody': 'Their tile leaves the profile screen. Adding it again needs their password.',
+        'links.removed': 'Removed.',
+        'links.shownTitle': 'Your account on other profile screens',
+        'links.leave': 'Leave',
+        'links.leaveAria': "Leave {name}'s profile screen",
+        'links.leaveTitle': "Leave {name}'s profile screen?",
+        'links.leaveBody': 'Your tile leaves their profile screen.',
+        'links.manageBody': "{name}'s own account, added to the profile screen.",
+        'bonfire.hostedTitle': 'Your Bonfire',
         'bonfire.shareCode': 'Share this code to invite someone to your Bonfire:',
         'bonfire.members': 'Members ({count})',
-        'bonfire.kick': 'Kick',
-        'bonfire.noMembersYet': 'No members joined yet.',
-        'bonfire.deleteGroup': 'Delete Group',
+        'bonfire.kick': 'Remove',
+        'bonfire.kickNamed': 'Remove {name}',
+        'bonfire.noMembersYet': 'No one has joined yet. Share the code above.',
+        'bonfire.deleteGroup': 'Delete Bonfire',
         'bonfire.hostTitle': 'Host a Bonfire',
-        'bonfire.hostBody': 'Host your own group to share your sub-profiles with friends.',
-        'bonfire.generateJoinCode': 'Generate Join Code',
-        'bonfire.generating': 'Generating…',
+        'bonfire.hostBody': 'Start a Bonfire and invite others to see your profiles.',
+        'bonfire.generateJoinCode': 'Get an invite code',
+        'bonfire.generating': 'Creating…',
         'bonfire.joinedTitle': 'Joined Bonfire',
-        'bonfire.joinedOwnedBy': 'You have joined a bonfire group owned by:',
-        'bonfire.accessEachOther': "You can access each other's profiles from the switcher grid.",
-        'bonfire.leaveGroup': 'Leave Group',
+        'bonfire.joinedOwnedBy': 'You joined a Bonfire owned by:',
+        'bonfire.accessEachOther': "You can open each other's profiles from the profile screen.",
+        'bonfire.leaveGroup': 'Leave Bonfire',
         'bonfire.joinTitle': 'Join a Bonfire',
-        'bonfire.joinBody': "Enter a friend's Bonfire Code to join their group:",
+        'bonfire.joinBody': 'Enter an invite code to join a Bonfire:',
         'bonfire.joinCodePlaceholder': 'e.g. B7F8XA',
         'bonfire.joining': 'Joining…',
-        'bonfire.pleaseEnterCode': 'Please enter a 6-character code.',
+        'bonfire.pleaseEnterCode': 'Enter a 6-character code.',
         'bonfire.tooManyJoinAttempts': 'Too many failed attempts. Try again in 15 minutes.',
-        'bonfire.failedToJoin': 'Failed to join group.',
+        'bonfire.failedToJoin': "Couldn't join the Bonfire.",
         'bonfire.leaveCurrentTitle': 'Leave your current Bonfire?',
         'bonfire.leaveCurrentBody': 'Joining this Bonfire removes you from your current one.',
-        'bonfire.kickConfirmTitle': 'Kick Member',
-        'bonfire.kickConfirmBody': 'Remove this user from your Bonfire? Your code changes so they can’t rejoin with it.',
+        'bonfire.kickConfirmTitle': 'Remove member',
+        'bonfire.kickConfirmBody': 'Remove this member? Your invite code changes so they can\'t rejoin.',
         'bonfire.newCode': 'New code',
-        'bonfire.newCodeConfirmTitle': 'Replace Code',
+        'bonfire.newCodeConfirmTitle': 'Replace code',
         'bonfire.newCodeConfirmBody': 'The old code stops working. Members already in your Bonfire stay in.',
-        'bonfire.failedNewCode': 'Could not replace the code.',
-        'bonfire.failedKick': 'Failed to kick member.',
-        'bonfire.deleteGroupConfirmTitle': 'Delete Group',
-        'bonfire.deleteGroupConfirmBody': 'Delete your Bonfire? Members are disconnected and drop out of your switcher.',
-        'bonfire.failedDeleteGroup': 'Failed to delete group.',
-        'bonfire.leaveGroupConfirmTitle': 'Leave Group',
-        'bonfire.leaveGroupConfirmBody': 'Leave this Bonfire? You will stop sharing switchers.',
-        'bonfire.failedLeaveGroup': 'Failed to leave group.',
-        'bonfire.failedGenerateCode': 'Failed to generate code: {message}',
-        'bonfire.failedLoadStatus': 'Failed to load Bonfire status: {message}',
-        'bonfire.unknownUser': 'Unknown User',
-        'bonfire.hideMine': 'Hide my sub-profiles from others',
-        'bonfire.hideMineHint': 'Connected homes see only your master profile.',
-        'bonfire.hideOthers': "Hide other people's sub-profiles from me",
-        'bonfire.hideOthersHint': 'You see only the master profiles of connected homes.',
-        'bonfire.lanSwitchLabel': 'Let my Bonfire switch into my account on this network',
-        'bonfire.lanSwitchHint': 'No PIN needed on your home network, for your account or your profiles. Away from home it still is{extra}.',
-        'bonfire.lanSwitchHintExtra': ', and anything without a PIN cannot be opened remotely at all',
+        'bonfire.failedNewCode': "Couldn't replace the code.",
+        'bonfire.failedKick': "Couldn't remove the member.",
+        'bonfire.deleteGroupConfirmTitle': 'Delete Bonfire',
+        'bonfire.deleteGroupConfirmBody': 'Delete your Bonfire? Members stop seeing each other\'s profiles.',
+        'bonfire.failedDeleteGroup': "Couldn't delete the Bonfire.",
+        'bonfire.leaveGroupConfirmTitle': 'Leave Bonfire',
+        'bonfire.leaveGroupConfirmBody': 'Leave this Bonfire? You\'ll stop sharing profiles.',
+        'bonfire.failedLeaveGroup': "Couldn't leave the Bonfire.",
+        'bonfire.failedGenerateCode': "Couldn't create the code. Try again.",
+        'bonfire.failedLoadStatus': "Couldn't load Bonfire. Try again.",
+        'bonfire.unknownUser': 'Unknown user',
+        'bonfire.hideMine': 'Hide my profiles from others',
+        'bonfire.hideMineHint': 'Others see only my main account.',
+        'bonfire.hideOthers': "Hide other people's profiles from me",
+        'bonfire.hideOthersHint': 'You see only their main accounts.',
+        'bonfire.moreSummary': "Switching on the server's network",
+        'bonfire.lanSwitchLabel': "Let Bonfire members open my account on the server's network",
+        'bonfire.lanSwitchHint': 'No PIN needed on the server\'s network, for your account or your profiles. Elsewhere a PIN is still needed{extra}.',
+        'bonfire.lanSwitchHintExtra': ', and anything without a PIN can\'t be opened from elsewhere at all',
         'bonfire.settingsSaved': 'Saved.',
-        'bonfire.settingsSaveFailed': 'Could not save. Nothing was changed.',
-        'bonfire.adminAccountWarning': 'This is an admin account.',
+        'bonfire.settingsSaveFailed': "Couldn't save. Nothing was changed.",
+        'bonfire.adminAccountWarning': 'This is an administrator account.',
         'bonfire.adminAccountWarningBody': 'Whoever switches into it gets your admin rights.',
-        'bonfire.proxyHint': 'Behind a reverse proxy, check Networking → Known Proxies first, or everyone looks local.',
-        'bonfire.allowHouseholdTitle': 'Allow household switching?',
-        'bonfire.allowHouseholdBody': 'Anyone in your Bonfire can open your account on your home network without your PIN.',
+        'bonfire.allowHouseholdTitle': 'Let Bonfire members open your account?',
+        'bonfire.allowHouseholdBody': "Anyone in your Bonfire can open your account on the server's network without your PIN.",
 
-        'profilePage.title': 'Bonfire Profiles',
-        'profilePage.body': 'Currently watching as <strong>{name}</strong>. Switch to another profile in your household without signing out.',
+        'profilePage.title': 'Bonfire profiles',
+        'profilePage.body': 'Watching as <strong>{name}</strong>. Switch profiles without signing out.',
         'profilePage.thisAccount': 'this account',
+
+        // What a refused request says, by the code the server sends in X-Bonfire-Error (see
+        // ERROR_KEYS). The server's own sentence is English and is never shown.
+        'refused.notMain': 'Only the main account can do that.',
+        'refused.adminOnly': 'Ask an administrator to do that.',
+        'refused.notYours': "That profile isn't yours to change.",
+        'refused.themesLocked': "This server doesn't let profiles choose a theme.",
+        'refused.mainPinRequired': 'Set a main PIN first.',
+        'refused.adminPin': 'Set a PIN for the administrator account first.',
+        'refused.pinMissing': 'Enter the main PIN.',
+        'refused.pinWrong': 'Wrong PIN. Try again.',
+        'refused.pinFormat': 'Use 4 to 8 digits.',
+        'refused.pinForBonfire': 'Set a PIN for this profile first. A shared Bonfire needs one.',
+        'refused.codeWrong': "That code isn't right. Check it and try again.",
+        'refused.deviceNotAllowed': "This profile can't be opened on this device. Use another device.",
+        'refused.disabled': 'This account is turned off. Ask an administrator to turn it on.',
+        'refused.tooManySessions': 'This profile is open on too many screens. Close one and try again.',
+        'refused.signInFailed': "Couldn't sign in to that profile. Try again.",
+        'refused.profileLimit': 'The profile limit is reached. Delete a profile first.',
+        'refused.nameTaken': 'That name is taken. Choose another.',
+        'refused.nameInvalid': 'Use up to 32 letters, numbers and spaces.',
+        'refused.mainProtected': "That can't be done to a main account.",
+        'refused.grantCap': "That's past the 4 hours of extra time allowed today.",
+        'refused.bonfireNotOwner': 'You haven\'t started a Bonfire yet. Get an invite code first.',
+        'refused.bonfireNotMember': 'You aren\'t in a Bonfire. Join one with a code.',
+        'refused.bonfireOwn': 'That\'s your own Bonfire\'s code. Enter another one.',
+        'refused.bonfireMember': 'That person is no longer in this Bonfire. Reload and try again.',
+        'refused.passwordRequired': 'Enter a password for the new account.',
+        'refused.profileGone': 'That profile is gone. Reload and try again.',
+        'refused.accountGone': 'That account is gone. Reload and try again.',
+        'refused.libraryGone': 'That library is gone. Reload and try again.',
+        'refused.avatarGone': 'That avatar is gone. Choose another.',
+        'refused.imageInvalid': "That image can't be used. Choose a different one.",
+        'refused.notConfigured': "Bonfire isn't set up yet. Ask an administrator.",
+        'refused.emailUnavailable': "Email isn't set up on this server. Ask an administrator.",
+        'refused.resetUnavailable': "PIN reset by email isn't available. Ask an administrator.",
+        'refused.emailInvalid': 'Enter a valid email address.',
+        'refused.emailMissing': 'Add an email address first.',
+        'refused.codeExpired': 'That code has expired. Send a new one.',
+        'refused.codeMissing': 'Send a code first.',
+        'refused.emailFailed': "The email couldn't be sent. Try again.",
+        'refused.notLimited': 'This profile has no viewing limits to change.',
+        'refused.limitsForProfiles': 'Limits are for profiles, not main accounts.',
+        'refused.limitsInvalid': 'Check the viewing limits, then try again.',
+        'refused.timeZone': 'Choose a time zone from the list.',
+        'refused.credentials': "That username or password isn't right. Try again.",
+        'refused.notLinkable': "That account can't be added. Choose a different main account.",
+        'refused.alreadyLinked': 'That account is already added.',
+        'refused.linkLimit': "You've added as many accounts as allowed. Remove one first.",
+        'refused.linkGone': 'That account is no longer added. Reload and try again.',
+        'refused.notConvertible': "That account can't be made a profile. It may be an administrator, have profiles of its own, or be in a Bonfire.",
+        'refused.deviceInUse': 'That device is the only one allowed for some profiles. Allow another device for them first.',
+        'refused.rateLimited': 'Too many tries. Wait a moment and try again.',
+        'refused.forbidden': "You can't do that here.",
+        'refused.serverError': 'The server had a problem. Try again.',
+        'refused.unavailable': "The server isn't ready. Try again in a moment.",
+        'refused.notFound': 'That no longer exists. Reload and try again.',
+        'refused.signedOut': 'Your session ended. Sign in again.',
     };
 
-    /// The active language's strings. Starts out equal to EN_STRINGS — every lookup
-    /// already resolves correctly before loadLocale() has done anything — and is
-    /// swapped wholesale, never merged, once a translation arrives: a partial file
-    /// would otherwise leave a stale mix of two languages on screen.
+    /// The sentence for each code a Bonfire route can send in X-Bonfire-Error
+    /// (Controllers/ErrorCodes.cs). A code missing here, or a server too old to send one,
+    /// shows the fallback of whatever was being done. Codes only the administrator's page can
+    /// meet are in its own map. invalid_request is left out on purpose: it covers every
+    /// refusal nothing else matched, and "Could not save that." names the action.
+    const ERROR_KEYS = {
+        not_main_account: 'refused.notMain', admin_only: 'refused.adminOnly',
+        not_your_profile: 'refused.notYours', themes_locked: 'refused.themesLocked',
+        main_pin_required: 'refused.mainPinRequired', admin_pin_required: 'refused.adminPin',
+        pin_missing: 'refused.pinMissing', pin_wrong: 'refused.pinWrong', pin_format: 'refused.pinFormat',
+        pin_needed_for_bonfire: 'refused.pinForBonfire',
+        bonfire_code_wrong: 'refused.codeWrong', code_wrong: 'refused.codeWrong',
+        device_not_allowed: 'refused.deviceNotAllowed', profile_disabled: 'refused.disabled',
+        too_many_sessions: 'refused.tooManySessions', sign_in_failed: 'refused.signInFailed',
+        profile_limit: 'refused.profileLimit', name_taken: 'refused.nameTaken', name_invalid: 'refused.nameInvalid',
+        main_account_protected: 'refused.mainProtected', grant_cap: 'refused.grantCap',
+        bonfire_not_owner: 'refused.bonfireNotOwner', bonfire_not_member: 'refused.bonfireNotMember',
+        bonfire_own_group: 'refused.bonfireOwn', bonfire_member_not_found: 'refused.bonfireMember',
+        password_required: 'refused.passwordRequired',
+        profile_not_found: 'refused.profileGone', user_not_found: 'refused.accountGone',
+        library_not_found: 'refused.libraryGone', image_not_found: 'refused.avatarGone',
+        image_invalid: 'refused.imageInvalid', not_configured: 'refused.notConfigured',
+        email_unavailable: 'refused.emailUnavailable', pin_reset_unavailable: 'refused.resetUnavailable',
+        email_invalid: 'refused.emailInvalid', email_missing: 'refused.emailMissing',
+        code_expired: 'refused.codeExpired', code_missing: 'refused.codeMissing',
+        email_send_failed: 'refused.emailFailed',
+        not_limited: 'refused.notLimited', limits_for_profiles: 'refused.limitsForProfiles',
+        limits_invalid: 'refused.limitsInvalid', time_zone_invalid: 'refused.timeZone',
+        credentials_wrong: 'refused.credentials',
+        not_linkable: 'refused.notLinkable', already_linked: 'refused.alreadyLinked',
+        link_limit: 'refused.linkLimit', link_not_found: 'refused.linkGone',
+        not_convertible: 'refused.notConvertible', device_in_use: 'refused.deviceInUse',
+        rate_limited: 'refused.rateLimited', forbidden: 'refused.forbidden',
+        server_error: 'refused.serverError', unavailable: 'refused.unavailable',
+        not_found: 'refused.notFound', unauthenticated: 'refused.signedOut'
+    };
+
+    /// The active language's strings. Starts equal to EN_STRINGS, so lookups resolve before
+    /// loadLocale() runs, and is swapped wholesale, never merged: a partial file would leave
+    /// a stale mix of two languages on screen.
     let activeStrings = EN_STRINGS;
 
-    /// Looks up `key`, filling in `{token}` placeholders from `vars`. Falls back to the
-    /// English string, then to the key itself, so a translation file missing a newer
-    /// key degrades to English rather than showing nothing.
+    /// Looks up `key`, filling `{token}` placeholders from `vars`. Falls back to English,
+    /// then to the key, so a translation missing a newer key degrades to English.
     ///
-    /// `vars` values are interpolated as-is: pass already-escaped HTML for anything
-    /// that ends up in a template destined for innerHTML, exactly as callers already do
-    /// for user-supplied text like profile and device names.
+    /// `vars` values are interpolated as-is: pass already-escaped HTML for anything headed
+    /// for innerHTML.
     function t(key, vars) {
         let str = (activeStrings && activeStrings[key]) || EN_STRINGS[key] || key;
         if (vars) {
-            Object.keys(vars).forEach(k => {
-                str = str.split('{' + k + '}').join(vars[k]);
-            });
+            // One pass over the text. Replacing token by token filled a later token a second time
+            // when a value held one (a profile named "{n}", R-1174).
+            str = str.replace(/\{([^{}]+)\}/g, (whole, k) =>
+                Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : whole);
         }
         return str;
     }
 
-    /// The language Jellyfin is showing this user, as a tag ('fr', 'pt-br'), or '' if
-    /// there is nothing to go on.
+    /// What to tell the person about a refused response, in their language, from the code in
+    /// X-Bonfire-Error. '' when there is no code, the server is too old to send one, or ERROR_KEYS
+    /// has no sentence for it: the caller then shows its own fallback. The body is never shown
+    /// because it is English written for a developer.
+    function refusalText(res) {
+        let code = '';
+        try { code = (res && res.headers && res.headers.get('X-Bonfire-Error')) || ''; } catch (e) { code = ''; }
+        return Object.prototype.hasOwnProperty.call(ERROR_KEYS, code) ? t(ERROR_KEYS[code]) : '';
+    }
+
+    /// An Error to throw for a refused response: the sentence for its code, or `fallback`.
+    /// serverText is set only when the code had a sentence, so _failText can tell an
+    /// understood refusal from a browser error.
+    function refusalError(res, fallback) {
+        const text = refusalText(res);
+        const err = new Error(text || fallback);
+        err.serverText = text;
+        return err;
+    }
+
+    /// The language Jellyfin is showing this user, as a tag ('fr', 'pt-br'), or '' if there
+    /// is nothing to go on.
     ///
-    /// Bonfire sits inside Jellyfin's own pages, so it speaks the language those pages
-    /// do: Settings → Display → Display language. Up to 1.7.0 it used the browser's
-    /// language list instead, so a French browser with Jellyfin set to English got
-    /// French profile screens around an English page, and the setting did nothing.
+    /// Bonfire sits inside Jellyfin's pages, so it uses their language (Settings → Display →
+    /// Display language). Up to 1.7.0 it used the browser's list, so a French browser with
+    /// Jellyfin set to English got French profile screens around an English page.
     ///
-    /// Read in the order jellyfin-web itself decides (src/lib/globalize,
-    /// updateCurrentCulture, verified against release-10.11.z):
-    ///
-    ///   1. The setting. userSettings.language() is stored per device in localStorage
-    ///      as '<userId>-language' (appSettings.#getKey). Read directly because <html
-    ///      lang> lags it: globalize runs once at import, before anyone is signed in, and
-    ///      only catches up on 'localusersignedin', which can land after the gate has
-    ///      drawn.
-    ///   2. <html lang>, which globalize writes from the same setting. Used when there is
-    ///      no user id to read the setting under yet.
-    ///   3. "Auto", which is an empty setting: jellyfin-web's getDefaultLanguage, which is
-    ///      data-culture (set by the native app shells) and then navigator.language. That
-    ///      is the device's language, but only because it is Jellyfin's too. Note it is
-    ///      navigator.language, not the navigator.languages list, so a second preference
-    ///      Jellyfin never shows does not get picked up here either.
+    /// Read in the order jellyfin-web decides (src/lib/globalize, updateCurrentCulture,
+    /// checked against release-10.11.z):
+    ///   1. The setting: userSettings.language(), stored per device in localStorage as
+    ///      '<userId>-language'. Read directly because <html lang> lags it: globalize runs
+    ///      once at import and catches up on 'localusersignedin', which can land after the
+    ///      gate has drawn.
+    ///   2. <html lang>, which globalize writes from the same setting. Used when there is no
+    ///      user id yet.
+    ///   3. "Auto" (an empty setting): jellyfin-web's getDefaultLanguage, which is data-culture
+    ///      (set by native app shells) then navigator.language. That is the device's language
+    ///      only because it is Jellyfin's too. It is navigator.language, not the languages
+    ///      list, so a second preference Jellyfin never shows is not picked up either.
     function jellyfinLanguage() {
         const root = document.documentElement;
         const attr = name => (root && root.getAttribute && root.getAttribute(name)) || '';
@@ -534,27 +1798,23 @@
         return String(lang).replace('_', '-').toLowerCase();
     }
 
-    /// The translation this plugin ships for Jellyfin's language, or null to stay on
-    /// English.
+    /// The translation this plugin ships for Jellyfin's language, or null to stay on English.
     ///
-    /// A full tag wins over its base language, so pt-BR picks the Brazilian file when
-    /// there is one and falls back to pt when there is not. Slicing to two characters —
-    /// which is what this did first — made a regional translation unreachable and would
-    /// have handed a pt-BR reader a pt-PT file without either of them choosing that.
+    /// A full tag wins over its base language, so pt-BR picks the Brazilian file if there is
+    /// one and falls back to pt. Slicing to two characters, as this first did, made a regional
+    /// translation unreachable and could hand a pt-BR reader a pt-PT file.
     function detectLocale() {
         const tag = jellyfinLanguage();
         if (!tag) return null;
 
-        // Locale codes reach a URL below. They come from the server rather than from
-        // anything a visitor controls, but the shape is checked anyway — this is the one
-        // place a bad value could turn into a request for something else.
+        // Locale codes reach a URL below. They come from the server, not a visitor, but the shape
+        // is checked anyway: this is the one place a bad value could request something else.
         const have = SUPPORTED_LOCALES
             .filter(c => typeof c === 'string' && /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(c));
         const lower = have.map(c => c.toLowerCase());
 
-        // Longest match first, dropping one subtag at a time: zh-Hans-CN, then
-        // zh-Hans, then zh. Trying only the full tag and the bare language would
-        // skip straight past a zh-Hans file for a Jellyfin set to zh-Hans-CN.
+        // Longest match first, dropping one subtag at a time (zh-Hans-CN, zh-Hans, zh). Trying only
+        // the full tag and the bare language would skip a zh-Hans file for zh-Hans-CN.
         const parts = tag.split('-');
         for (let n = parts.length; n >= 1; n--) {
             const i = lower.indexOf(parts.slice(0, n).join('-'));
@@ -563,19 +1823,17 @@
         return null;
     }
 
-    /// The locale whose strings are in activeStrings, or null for English. Lets a change
-    /// of language that lands on the same file skip the fetch.
+    /// The locale whose strings are in activeStrings, or null for English. Lets a change of
+    /// language that lands on the same file skip the fetch.
     let activeLocale = null;
-    /// Bumped on every load, so a slow response for a language the user has since moved
-    /// off cannot land on top of the one they moved to.
+    /// Bumped on every load, so a slow response for a language the user has moved off cannot
+    /// land on top of the current one.
     let localeLoadSeq = 0;
 
-    /// Fetches the detected locale's strings and swaps them in. Always resolves —
-    /// nothing here is worth failing startup over. No detected/supported locale, a
-    /// missing file, or a network error all leave English active.
-    ///
-    /// Runs again whenever Jellyfin's language changes (watchJellyfinLanguage), so it
-    /// has to be able to go back to English as well as away from it.
+    /// Fetches the detected locale's strings and swaps them in. Always resolves; no detected
+    /// locale, a missing file or a network error all leave English active. Runs again when
+    /// Jellyfin's language changes (watchJellyfinLanguage), so it must be able to go back to
+    /// English too.
     function loadLocale() {
         const locale = detectLocale();
         const seq = ++localeLoadSeq;
@@ -598,62 +1856,63 @@
             .catch(() => { /* stay on what is showing */ });
     }
 
-    /// Calls `onChange` whenever jellyfin-web rewrites <html lang>: on sign-in, sign-out
-    /// and when the Display language setting is saved, which does not reload the page.
-    /// An attribute observer on one element costs nothing between changes, and nothing
-    /// is added to the route poll (see checkRoute). MutationObserver is Chromium 26, well
-    /// inside webOS 4.5.
+    /// Calls `onChange` whenever jellyfin-web rewrites <html lang>: on sign-in, sign-out and
+    /// when the Display language setting is saved, which does not reload the page. An
+    /// attribute observer on one element is free between changes and adds nothing to the
+    /// route poll (see checkRoute). MutationObserver is Chromium 26, inside webOS 4.5.
     function watchJellyfinLanguage(onChange) {
         if (typeof MutationObserver === 'undefined' || !document.documentElement) return;
         new MutationObserver(onChange)
             .observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
     }
 
-    // The startup cover: the page painted in the gate's background from before the first
-    // frame until the gate is on top of it. Normally raised by the head script in
-    // index.html (WebInjection.HeadScript), which carries this exact rule; this copy is
-    // for a page without it — the Tizen package loads this script from the server long
-    // after its own index.html has run. tests/js/gatecover.js fails if the two differ.
+    // The startup cover: the page painted in the gate's background from before the first frame
+    // until the gate is on top. Normally raised by the head script in index.html
+    // (WebInjection.HeadScript), which carries this exact rule; this copy is for a page without
+    // it (the Tizen package loads this script long after its own index.html has run).
+    // tests/js/gatecover.js fails if the two differ.
     //
-    // The colour is the gate's, through --jpf-gate-bg so a theme can set it in one place.
-    // The plain colour first is for an engine without custom properties, which would
-    // otherwise drop the whole declaration and paint nothing.
-    const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#0d0d12;background:var(--jpf-gate-bg,radial-gradient(circle at 50% 40%,#1e1e2e 0%,#0d0d12 100%));content:""}';
+    // The colour is the gate's, via --jpf-gate-bg so a theme sets it in one place, but only once
+    // a theme is on the page. Before that it is jellyfin-web's plain #101010: the fallback was
+    // Bonfire's gradient, so a household with another theme saw an empty Bonfire before its own
+    // (1.9.0.4-beta). The plain rule is also what an engine without custom properties keeps.
+    const GATE_COVER_CSS = 'html[data-jpf-cover]::before{position:fixed;top:0;left:0;right:0;bottom:0;z-index:99998;background:#101010;content:""}html[data-jpf-cover][data-jpf-theme]::before{background:var(--jpf-gate-bg,#101010)}';
 
-    // How long the cover may stay up without the gate arriving. Each holder (the head
-    // script, and profiles.js once it starts fetching the list) gets this long; a cover
-    // that outlives it comes down and the page shows whatever it has. A flash is the
-    // failure this exists to fix; a screen that stays blank is a much worse one.
+    // How long the cover may stay up without the gate arriving. Each holder (the head script,
+    // and profiles.js once it fetches the list) gets this long; then the cover comes down and
+    // the page shows what it has. A flash is the failure this fixes; a blank screen is worse.
     const GATE_COVER_MS = 3000;
 
     const ProfilesPlugin = {
         config: {
             masterStorageKey: 'jellyfin_profiles_master_state',
             activeSessionKey: 'jellyfin_profiles_active_token',
-            // Key set before window.location.reload() so the early-hide
-            // inline head script can suppress the page flash on the next load.
+            // Set before window.location.reload() so the early-hide head script can suppress the page
+            // flash on the next load.
             switchingKey: 'jpf-sw',
-            // The background colour and colour-scheme of the page being left, written
-            // alongside switchingKey and read by the head script on the next load. See
-            // _captureLeavingBackground.
+            // The background colour and colour-scheme of the page being left, written with
+            // switchingKey and read by the head script on the next load (_captureLeavingBackground).
             backgroundKey: 'jpf-bg',
-            // Set when the emergency disable succeeds. profiles.js is served with a
-            // five-minute cache, so a reload inside that window can re-run this very script
-            // from cache — the marker is what stops it coming back to life.
+            // Set when the emergency disable succeeds. profiles.js is served with a five-minute cache,
+            // so a reload in that window can re-run this script from cache; the marker stops it.
             panicKey: 'jellyfin_profiles_disabled',
-            // Local mirror of the account's gate/native preference, so checkRoute can decide
-            // whether to raise the gate without waiting on a request.
-            // Per-account cache of the library tile artwork rules, applied before the
-            // server answers so the real artwork never gets a frame on screen.
+            // Per-account cache of the library tile artwork rules, applied before the server answers
+            // so the real artwork never gets a frame on screen.
             libraryArtKey: 'jellyfin_profiles_library_art',
+            // Local mirror of the account's gate/native preference, so checkRoute can decide whether
+            // to raise the gate without a request.
             switcherModeKey: 'jellyfin_profiles_switcher_mode',
-            // Set only on a device that has been told to keep its own answer to the
-            // startup question instead of following the household's. Absent on every
-            // device that has never been told otherwise, which is the default.
+            // Retired in 1.7.2. It held a per-device answer to the startup question; ask-on-startup is
+            // now one answer per account. Nothing reads it; init removes it once.
             deviceGateKey: 'jellyfin_profiles_device_gate',
-            // The last theme this browser was told for an account, so the first paint is
-            // already in it rather than switching a moment after the gate appears.
-            themeKey: 'jellyfin_profiles_theme'
+            // The last theme this browser was told for an account, so the first paint is already in it.
+            themeKey: 'jellyfin_profiles_theme',
+            // The last ?part=custom answer, so a profile on a custom theme starts in it until the
+            // server answers.
+            customThemesKey: 'jellyfin_profiles_custom_themes',
+            // This device's answer to "TV layout or standard": 'tv' or 'standard'. Absent is Automatic,
+            // so choosing Automatic removes the key. Per device: one account can be on a phone and a TV.
+            layoutKey: 'jellyfin_profiles_layout'
         },
         pluginId: 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9',
         isManageMode: false,
@@ -666,8 +1925,16 @@
         _switchLock: false,
         _switcherPrefs: null,
         _switcherPrefsLoading: false,
-        // { theme, defaultTheme, allow } from the server, or null until it answers. The
-        // profile form offers a theme picker only once this says choosing is allowed.
+        // How long a request the route poll makes on its own is left alone after it fails. The poll
+        // runs every 500 ms, so a failing server was asked twice a second by every open page.
+        POLL_RETRY_MS: 30000,
+        // /list requests out now, when the oldest left, and when the poll may ask again after a
+        // failure. See _requestList.
+        _listInFlight: 0,
+        _listSentAt: 0,
+        _listRetryAt: 0,
+        // { theme, defaultTheme, allow } from the server, or null until it answers. The profile
+        // form offers a theme picker only once this says choosing is allowed.
         _themeSettings: null,
         _panicDisabled: false,
         // Null until the server answers. Only true reveals the emergency link.
@@ -683,28 +1950,38 @@
             const deviceId = typeof apiClient.deviceId === 'function' ? apiClient.deviceId() : (apiClient.deviceId || apiClient._deviceId || '');
             const version = typeof apiClient.appVersion === 'function' ? apiClient.appVersion() : (apiClient.appVersion || apiClient._appVersion || '');
 
+            // No token, no Token field: null or undefined went out as the text Token="null", which the
+            // server reads as a bad token rather than none (R-1249).
             return {
-                'Authorization': `MediaBrowser Client="${client}", Device="${device}", DeviceId="${deviceId}", Version="${version}", Token="${token}"`
+                'Authorization': `MediaBrowser Client="${client}", Device="${device}", DeviceId="${deviceId}", Version="${version}"` +
+                    (token ? `, Token="${token}"` : '')
             };
         },
 
-        /// Object.assign rather than object spread: spread is Chromium 60, and webOS 4.5
-        /// (Chromium 53) rejects the whole file over it.
+        /// Object.assign, not object spread: spread is Chromium 60 and webOS 4.5 (Chromium 53)
+        /// rejects the whole file over it.
         jsonHeaders: function (token) {
             return Object.assign({ 'Content-Type': 'application/json' }, this.getAuthHeaders(token));
         },
 
-        /// A one-field dialog. Used where a value has to be typed rather than chosen, which
-        /// so far is renaming a device.
+        /// Headers for a call that changes the household: devices, sharing, switcher settings. The
+        /// server checks the main PIN on every one and most have no body for it, so it goes in a
+        /// header once Manage Profiles or Settings has asked. Pass json false for a call with no body.
+        manageHeaders: function (token, json) {
+            const headers = json === false ? this.getAuthHeaders(token) : this.jsonHeaders(token);
+            if (this.masterPin) headers['X-Bonfire-Master-Pin'] = this.masterPin;
+            return headers;
+        },
+
+        /// A one-field dialog, for a value that has to be typed (so far, renaming a device).
         ///
-        /// Not window.prompt(): it is blocked in several of the environments this runs in
-        /// (and silently returns null in a WebView), it cannot be reached with a D-pad on a
-        /// television, and it renders outside the focus trap the rest of the overlay lives
-        /// inside. The input is focused and selected on open so a rename is type-and-enter.
+        /// Not window.prompt(): it is blocked in several environments this runs in (a WebView
+        /// silently returns null), a D-pad cannot reach it, and it sits outside the overlay's focus
+        /// trap. The input is focused and selected on open so a rename is type-and-enter.
         showPromptDialog: function (title, label, initialValue, onSubmit) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-prompt-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -718,29 +1995,27 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
 
             dialog.innerHTML = `
-                <div class="prompt-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                <div class="jpf-prompt-dialog-content" style="
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 420px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
-                    <label for="profiles-prompt-input" style="display: block; color: rgba(255,255,255,0.7); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <label for="profiles-prompt-input" style="display: block; color: var(--jpf-text-2); font-size: 0.85rem; margin-bottom: 6px;">${escapeHtml(label)}</label>
                     <input id="profiles-prompt-input" type="text" maxlength="64" value="${escapeHtml(initialValue || '')}" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;" />
                     <div class="jpf-actions">
+                        <button id="prompt-save-btn" type="button" class="profiles-btn jpf-btn-primary">${t('common.save')}</button>
                         <button id="prompt-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
-                        <button id="prompt-save-btn" type="button" class="profiles-btn btn-primary">${t('common.save')}</button>
                     </div>
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 dialog.style.opacity = '1';
@@ -752,32 +2027,45 @@
             };
 
             const input = dialog.querySelector('#profiles-prompt-input');
+            let submitted = false;
             const submit = () => {
                 const value = (input.value || '').trim();
-                if (!value) return;
+                // Said, not swallowed: a screen reader hears the box is invalid and focus returns to it.
+                // Before, Save and Enter did nothing.
+                if (!value) { input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+                // Once: the dialog stays up for the 160 ms fade, and a second Enter or tap in that time
+                // called onSubmit again.
+                if (submitted) return;
+                submitted = true;
                 close();
                 if (typeof onSubmit === 'function') onSubmit(value);
             };
+            input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
 
             dialog.querySelector('#prompt-cancel-btn').addEventListener('click', close);
             dialog.querySelector('#prompt-save-btn').addEventListener('click', submit);
 
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') { e.preventDefault(); close(); }
-                else if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
+                else if (isKey(e, 'Enter')) {
+                    // Enter on a button is that button's own press (a remote's OK on Cancel must cancel), and
+                    // Enter ending an IME composition is not a request to save (keyCode 229 on old Chromium).
+                    if (e.target !== input || e.isComposing || e.keyCode === 229) return;
+                    e.preventDefault();
+                    submit();
+                }
             });
 
             input.focus();
             input.select();
         },
 
-        /// A dialog that asks which one. `options` is [{ id, name }]; the chosen id is
-        /// handed back. Built on a real <select> so a television's D-pad and a phone's
-        /// native picker both work without any focus handling of our own.
-        showSelectDialog: function (title, message, options, onSubmit) {
+        /// A dialog that asks which one. `options` is [{ id, name }]; the chosen id is handed back.
+        /// Built on a real <select> so a TV's D-pad and a phone's native picker both work.
+        showSelectDialog: function (title, message, options, onSubmit, onCancel) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-select-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -791,34 +2079,32 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
 
             const choices = options.map(o =>
-                `<option value="${escapeHtml(o.id)}">${escapeHtml(o.name)}</option>`).join('');
+                `<option value="${escapeHtml(o.id)}">${escapeHtml(o.label || o.name)}</option>`).join('');
 
             dialog.innerHTML = `
-                <div class="select-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                <div class="jpf-select-dialog-content" style="
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 420px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
-                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 16px;">${escapeHtml(message)}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 16px;">${escapeHtml(message)}</p>
                     <select id="profiles-select-input" style="width: 100%; box-sizing: border-box; margin-bottom: 20px;">
                         ${choices}
                     </select>
                     <div class="jpf-actions">
+                        <button id="select-confirm-btn" type="button" class="profiles-btn jpf-btn-primary">${t('common.ok')}</button>
                         <button id="select-cancel-btn" type="button" class="profiles-btn">${t('common.cancel')}</button>
-                        <button id="select-confirm-btn" type="button" class="profiles-btn btn-primary">${t('common.ok')}</button>
                     </div>
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 dialog.style.opacity = '1';
@@ -830,24 +2116,35 @@
             };
 
             const select = dialog.querySelector('#profiles-select-input');
-            dialog.querySelector('#select-cancel-btn').addEventListener('click', close);
+            let picked = false;
+            const cancel = () => {
+                if (picked) return;
+                picked = true;
+                close();
+                if (typeof onCancel === 'function') onCancel();
+            };
+            dialog.querySelector('#select-cancel-btn').addEventListener('click', cancel);
             dialog.querySelector('#select-confirm-btn').addEventListener('click', () => {
                 const value = select.value;
+                if (picked) return;
+                picked = true;
                 close();
                 if (value && typeof onSubmit === 'function') onSubmit(value);
             });
 
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') { e.preventDefault(); close(); }
+                if (isKey(e, 'Escape')) { e.preventDefault(); cancel(); }
             });
 
             select.focus();
         },
 
+        /// Title and message are text and always escaped here (r2-24-03). There was an opt-out for
+        /// markup; nothing used it, so it went (r3-05-02).
         showConfirmDialog: function (title, message, onConfirm, onCancel) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-confirm-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -861,29 +2158,27 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
 
             dialog.innerHTML = `
-                <div class="confirm-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                <div class="jpf-confirm-dialog-content" style="
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 420px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
-                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
                     <div class="jpf-actions">
-                        <button id="dialog-cancel-btn" class="profiles-btn btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
-                        <button id="dialog-confirm-btn" class="profiles-btn btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
+                        <button id="dialog-confirm-btn" class="profiles-btn jpf-btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
+                        <button id="dialog-cancel-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
             
             requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -898,12 +2193,17 @@
             const confirmBtn = dialog.querySelector('#dialog-confirm-btn');
             const cancelBtn = dialog.querySelector('#dialog-cancel-btn');
 
+            let answered = false;
             confirmBtn.addEventListener('click', () => {
+                if (answered) return;
+                answered = true;
                 closeDialog();
                 if (typeof onConfirm === 'function') onConfirm();
             });
 
             cancelBtn.addEventListener('click', () => {
+                if (answered) return;
+                answered = true;
                 closeDialog();
                 if (typeof onCancel === 'function') onCancel();
             });
@@ -911,7 +2211,7 @@
             cancelBtn.focus();
             
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                if (isKey(e, 'ArrowLeft') || isKey(e, 'ArrowRight')) {
                     e.preventDefault();
                     if (document.activeElement === confirmBtn) {
                         cancelBtn.focus();
@@ -919,17 +2219,20 @@
                         confirmBtn.focus();
                     }
                 }
-                if (e.key === 'Escape') {
+                if (isKey(e, 'Escape')) {
                     e.preventDefault();
                     cancelBtn.click();
                 }
             });
         },
 
+        /// Escapes title and message like showConfirmDialog. The OK
+        /// button answers once: Enter held down or a second click during the fade ran onClose
+        /// twice (r2-24-02).
         showAlert: function (title, message, onClose) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-alert-dialog';
-            dialog.classList.add('jpf-trap-surface');
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
             dialog.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -943,28 +2246,26 @@
                 justify-content: center;
                 z-index: ${DIALOG_Z};
                 opacity: 0;
-                transition: opacity 0.15s ease-out;
             `;
 
             dialog.innerHTML = `
-                <div class="alert-dialog-content" style="
-                    background: #181818;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
+                <div class="jpf-alert-dialog-content" style="
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
                     border-radius: var(--jpf-r-md);
                     padding: 24px;
-                    max-width: 420px;
-                    width: 90%;
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${title}</h2>
-                    <p style="color: rgba(255,255,255,0.7); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${message}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
                     <div style="display: flex; justify-content: center;">
-                        <button id="dialog-close-btn" class="profiles-btn btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">${t('common.ok')}</button>
+                        <button id="dialog-close-btn" class="profiles-btn jpf-btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">${t('common.ok')}</button>
                     </div>
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
             
             requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -978,7 +2279,10 @@
 
             const closeBtn = dialog.querySelector('#dialog-close-btn');
 
+            let closed = false;
             closeBtn.addEventListener('click', () => {
+                if (closed) return;
+                closed = true;
                 closeDialog();
                 if (typeof onClose === 'function') onClose();
             });
@@ -986,61 +2290,118 @@
             closeBtn.focus();
 
             dialog.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+                if (isKey(e, 'Escape') || isKey(e, 'Enter') || isKey(e, ' ')) {
                     e.preventDefault();
                     closeBtn.click();
                 }
             });
         },
 
-        /// Writes a token and user into jellyfin-web's own stored credentials, and returns
-        /// whether it actually managed to.
+        /// A dialog with a row of choices. `actions` is [{ label, primary, run }]; the dialog
+        /// closes before `run` is called. Escape closes it with no choice. Arrow keys move along
+        /// the buttons, for a remote.
         ///
-        /// The return value is the point of this function. Everything else about a switch
-        /// can succeed — the server issues the token, ApiClient takes it, the page
-        /// reloads — and the profile still not be the one that comes back, because this is
-        /// the only part that survives the reload. It used to fail silently in two ways,
-        /// both of which look from outside exactly like "it lets me pick a profile but
-        /// loads my own account anyway", which is issue #16:
-        ///
-        ///   - The server was matched with `server.Id === currentServerId`, a raw string
-        ///     comparison of two GUIDs. Every other id comparison in this file goes
-        ///     through normalizeGuid because casing and dashes vary by where the value
-        ///     came from. With more than one server stored — an address and a hostname for
-        ///     the same box is the common way that happens — a mismatch updated nothing
-        ///     and reported nothing.
-        ///   - Writing to localStorage can be accepted and discarded (a full quota, a
-        ///     television in a private-browsing-like mode). Nothing read it back.
-        ///
-        /// So: match by id, fall back to the address ApiClient is actually talking to,
-        /// fall back to a single stored server, and then read back what was written. The
-        /// caller decides what to do with a false; it must not be a reload.
+        /// `onDismiss` runs when the dialog closes without an action that has a run: the cancel
+        /// button, Escape or the TV Back key. A caller holding the main PIN for one act uses it to
+        /// let the PIN go (r2-24-01).
+        showActionsDialog: function (title, message, actions, onDismiss) {
+            // The TV Back key clicks the dialog's cancel button (_dismissSurface), so it needs an id.
+            // The cancel is the first action with nothing to run: choosing it only closes the dialog,
+            // which is what Back should do.
+            let cancelAt = -1;
+            actions.forEach((a, i) => { if (cancelAt < 0 && !(a && typeof a.run === 'function')) cancelAt = i; });
+            const dialog = document.createElement('div');
+            dialog.id = 'profiles-actions-dialog';
+            dialog.classList.add('jpf-trap-surface', 'jpf-fade');
+            dialog.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.82);
+                backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: ${DIALOG_Z};
+                opacity: 0;
+            `;
+            dialog.innerHTML = `
+                <div class="jpf-confirm-dialog-content" style="
+                    background: var(--jpf-panel);
+                    border: 1px solid var(--jpf-border-1);
+                    border-radius: var(--jpf-r-md);
+                    padding: 24px;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                    text-align: center;
+                ">
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
+                    <div class="jpf-actions jpf-actions-wrap">
+                        ${actions.map((a, i) => `<button type="button"${i === cancelAt ? ' id="actions-cancel-btn"' : ''} data-action="${i}" class="profiles-btn ${a.primary ? 'jpf-btn-primary' : 'jpf-btn-secondary'}">${escapeHtml(a.label)}</button>`).join('')}
+                    </div>
+                </div>
+            `;
+            markDialog(dialog);
+            document.body.appendChild(dialog);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                dialog.style.opacity = '1';
+            }));
+
+            const close = () => {
+                dialog.style.opacity = '0';
+                setTimeout(() => dialog.remove(), 160);
+            };
+            const buttons = Array.prototype.slice.call(dialog.querySelectorAll('button[data-action]'));
+            buttons.forEach(btn => btn.addEventListener('click', () => {
+                const action = actions[parseInt(btn.getAttribute('data-action'), 10)];
+                close();
+                if (action && typeof action.run === 'function') action.run();
+                else if (typeof onDismiss === 'function') onDismiss();
+            }));
+            dialog.addEventListener('keydown', (e) => {
+                const at = buttons.indexOf(document.activeElement);
+                if (isKey(e, 'Escape')) {
+                    e.preventDefault();
+                    close();
+                    if (typeof onDismiss === 'function') onDismiss();
+                }
+                else if ((isKey(e, 'ArrowRight') || isKey(e, 'ArrowDown')) && buttons.length) {
+                    e.preventDefault();
+                    buttons[(at + 1) % buttons.length].focus();
+                } else if ((isKey(e, 'ArrowLeft') || isKey(e, 'ArrowUp')) && buttons.length) {
+                    e.preventDefault();
+                    buttons[(at - 1 + buttons.length) % buttons.length].focus();
+                }
+            });
+            const first = buttons.filter((b, i) => actions[i].primary)[0] || buttons[0];
+            if (first) first.focus();
+        },
+
         /// The household this device belongs to, and the session to act as.
         ///
-        /// Only the master account's id is stored. Its TOKEN used to be kept here too, in
-        /// localStorage, for as long as any profile was in use — so anybody at that browser
-        /// with the developer tools open, or any other script running on the page, had the
-        /// master account: every PIN, every parental control and every library restriction
-        /// on the profiles was a picture over it. Closing the tab even put it back in use
-        /// behind the gate.
-        ///
-        /// Nothing needs it. The server resolves the household from whatever session calls
-        /// it, so listing and switching work from a profile's own token, and entering the
-        /// master goes through /switch with the master's PIN like entering anything else.
-        /// `token` here is simply the session in use now.
+        /// Only the master account's id is stored, never its token. The token used to sit in
+        /// localStorage while any profile was in use, so anyone with the developer tools open
+        /// (or any script on the page) held the master account and every PIN and parental
+        /// control was cosmetic. Nothing needs it: the server finds the household from
+        /// whatever session calls it, and entering the master goes through /switch with the
+        /// master's PIN. `token` here is just the session in use now.
         readMasterState: function () {
             let stored = null;
             try {
                 stored = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
             } catch (e) { /* unreadable: treat as unknown */ }
+            // Blocked or full storage swallows the write below, which left every switch with no
+            // master to act for (R-1207). The page keeps the last id it was told.
+            if ((!stored || !stored.masterUserId) && this._masterIdInMemory) stored = { masterUserId: this._masterIdInMemory };
             if (!stored || !stored.masterUserId) return null;
 
             let token = null;
             try { token = (typeof ApiClient !== 'undefined' && ApiClient) ? ApiClient.accessToken() : null; } catch (e) { /* no client yet */ }
 
-            // Left behind by an earlier version. Take it out of the browser, and if it is not
-            // the session in use, end it on the server too: it is a live master session that
-            // nothing on this device should be holding any more.
+            // Left by an earlier version. Remove it, and if it is not the session in use, end it
+            // on the server: it is a live master session nothing here should hold.
             if (stored.masterToken) {
                 if (stored.masterToken !== token) this._endSession(stored.masterToken);
                 this.writeMasterState(stored.masterUserId);
@@ -1051,16 +2412,13 @@
 
         /// Makes the stored master agree with a list the server has just sent.
         ///
-        /// The grid groups profiles by this id and the manage check compares against it,
-        /// so when it is missing the household's own profiles are drawn as a linked
-        /// "<master>'s Bonfire" and Manage Profiles tells the master to open the master.
-        /// Seen on the iPad app. The list is the server's answer to "whose household is
-        /// this" for the session in use — the same rule fetchAndRenderProfiles applies when
-        /// it stores the id — so it wins. Only an id is stored, and every action is still
-        /// authorised by the server.
-        ///
-        /// Safe only because no list from a previous account survives to be rendered: the
-        /// sign-in screen drops the in-memory one (evaluateFloatingBubbleVisibility).
+        /// The grid groups profiles by this id and the manage check compares against it. With
+        /// it missing, the household's own profiles drew as a linked "<master>'s Bonfire" and
+        /// Manage Profiles told the master to open the master (seen on the iPad app). The list
+        /// is the server's answer for the session in use, the same rule fetchAndRenderProfiles
+        /// applies, so it wins. Safe because no list from a previous account survives: the
+        /// sign-in screen drops the in-memory one (evaluateFloatingBubbleVisibility). Only an id
+        /// is stored; the server still authorizes every action.
         _syncMasterFromProfiles: function (masterProfile) {
             if (!masterProfile || !masterProfile.profileUserId) return;
             const st = this.readMasterState();
@@ -1077,16 +2435,25 @@
             return !!current && this.normalizeGuid(current) === this.normalizeGuid(st.masterUserId);
         },
 
-        writeMasterState: function (masterUserId) {
-            try {
-                localStorage.setItem(this.config.masterStorageKey, JSON.stringify({ masterUserId: masterUserId }));
-            } catch (e) { /* full or blocked: the next list fetch writes it again */ }
+        /// Forgets the master everywhere: the stored id and the in-page copy. Every sign-out
+        /// path comes through here, or a shared device shows the next person the last
+        /// household's switcher.
+        clearMasterState: function () {
+            this._masterIdInMemory = null;
+            try { localStorage.removeItem(this.config.masterStorageKey); } catch (e) { /* blocked */ }
         },
 
-        /// Signs one session out on the server. Best-effort and silent: the token has
-        /// already been dropped from this browser, which is what matters here. keepalive,
-        /// because the switch that calls this reloads the page straight afterwards, and a
-        /// plain request in flight is cancelled by the navigation.
+        writeMasterState: function (masterUserId) {
+            // Held only when the browser refused storage. Otherwise storage is the one truth, so
+            // another tab signing out is respected here too.
+            this._masterIdInMemory = null;
+            try {
+                localStorage.setItem(this.config.masterStorageKey, JSON.stringify({ masterUserId: masterUserId }));
+            } catch (e) { this._masterIdInMemory = masterUserId; }
+        },
+
+        /// Signs one session out on the server, best-effort. keepalive, because the switch that
+        /// calls this reloads the page straight after and navigation cancels a plain request.
         _endSession: function (token) {
             try {
                 if (!token || typeof ApiClient === 'undefined' || !ApiClient || typeof ApiClient.getUrl !== 'function') return;
@@ -1095,6 +2462,20 @@
             } catch (e) { /* never worth failing over */ }
         },
 
+        /// Writes a token and user into jellyfin-web's stored credentials and returns whether
+        /// it really did. The caller must not reload on false.
+        ///
+        /// The return value matters because this is the only part of a switch that survives the
+        /// reload. It used to fail silently in two ways, both looking like "it lets me pick a
+        /// profile but loads my own account anyway" (issue #16):
+        ///   - The server was matched with a raw `server.Id === currentServerId`, where every
+        ///     other id comparison uses normalizeGuid (casing and dashes vary). With two stored
+        ///     servers (an address and a hostname for one box) a mismatch updated nothing.
+        ///   - localStorage can accept a write and discard it (full quota, a TV in a
+        ///     private-browsing-like mode), and nothing read it back.
+        ///
+        /// So it matches by id, then by the address ApiClient is using, then a single stored
+        /// server, and reads back what it wrote.
         updateStoredCredentials: function (newToken, newUserId) {
             try {
                 const credsStr = localStorage.getItem('jellyfin_credentials');
@@ -1109,15 +2490,11 @@
                 const sameAddress = (server) => !!address && [server.ManualAddress, server.LocalAddress, server.RemoteAddress]
                     .some(a => a && String(a).replace(/\/+$/, '') === address.replace(/\/+$/, ''));
 
-                // In order, and only one of them applies. Widening the match after a
-                // narrower one has already hit would write another server's entry.
-                //
-                // The second rung is the one that makes a wrong refusal unlikely: the
-                // entry to overwrite is the one holding the session being replaced, so the
-                // user signed in right now names it even when the id and the address do
-                // not. The old code wrote *every* stored server when it had no id, which
-                // did make the switch work — by pointing other servers at a token they
-                // will not accept.
+                // In order; only one rung applies, since widening after a narrower hit would write
+                // another server's entry. The second rung is what makes a wrong refusal unlikely: the
+                // entry holding the session being replaced is the one the signed-in user names, even
+                // when id and address do not match. The old code wrote every stored server when it had
+                // no id, which made the switch work by pointing other servers at a token they reject.
                 const signedIn = this.normalizeGuid(
                     typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : '');
                 let targets = creds.Servers.filter(s => serverId && this.normalizeGuid(s.Id) === serverId);
@@ -1135,8 +2512,8 @@
                 });
                 localStorage.setItem('jellyfin_credentials', JSON.stringify(creds));
 
-                // Read back. A write that was accepted and dropped leaves the old token in
-                // place, and the reload would sign back in as whoever was there before.
+                // Read back: a write that was accepted and dropped leaves the old token, and the reload
+                // would sign back in as whoever was there before.
                 const saved = JSON.parse(localStorage.getItem('jellyfin_credentials') || 'null');
                 return !!(saved && Array.isArray(saved.Servers)
                     && saved.Servers.some(s => s.AccessToken === newToken && s.UserId === newUserId));
@@ -1151,23 +2528,19 @@
             return guid.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
         },
 
-        /// Registers a document-level listener that is torn down the next time a modal is
-        /// rendered.
+        /// Registers a document-level listener that is removed the next time a modal renders.
         ///
-        /// The create/edit forms attach a document click handler to close the device dropdown.
-        /// Those were added on every render and never removed, so each open/close cycle left
-        /// another live closure bound to `document`, each capturing a now-detached modal. After
-        /// a few passes every click on the page ran a growing pile of stale handlers — which
-        /// showed up as clicks taking seconds to register, getting worse the longer the tab
-        /// stayed open.
+        /// The create/edit forms added a document click handler on every render (to close the
+        /// device dropdown) and never removed it. Each open/close left another closure bound to
+        /// `document` holding a detached modal, so clicks took seconds to register the longer
+        /// the tab stayed open.
         addManagedDocumentListener: function (type, handler, options) {
             if (!this._managedDocListeners) this._managedDocListeners = [];
             document.addEventListener(type, handler, options);
             this._managedDocListeners.push({ type, handler, options });
         },
 
-        /// Drops every listener registered via addManagedDocumentListener. Safe to call when
-        /// none are outstanding.
+        /// Drops every listener registered via addManagedDocumentListener.
         clearManagedDocumentListeners: function () {
             if (!this._managedDocListeners) return;
             this._managedDocListeners.forEach(({ type, handler, options }) => {
@@ -1176,10 +2549,9 @@
             this._managedDocListeners = [];
         },
 
-        /// Normalizes the /list response into the camelCase shape the UI uses.
-        /// ASP.NET may serialize either casing depending on server configuration, so every
-        /// field is read both ways. Single definition — adding a field here reaches every
-        /// caller, which two hand-maintained copies of this map did not.
+        /// Normalizes the /list response into the camelCase shape the UI uses. ASP.NET may
+        /// serialize either casing, so every field is read both ways. One definition, so a new
+        /// field reaches every caller (two hand-kept copies did not).
         normalizeProfiles: function (profiles) {
             const pick = (p, name, fallback) => {
                 const upper = name.charAt(0).toUpperCase() + name.slice(1);
@@ -1195,42 +2567,167 @@
                 avatarColor: pick(p, 'avatarColor', DEFAULT_AVATAR_COLOR),
                 // Cut-out picture: paint no colour behind it (issue #23).
                 transparentAvatar: pick(p, 'transparentAvatar', false),
-                // The profile's own choice; null follows the server default. Sent to the
-                // account owner only.
+                // The profile's own choice; null follows the server default. Owner only.
                 theme: pick(p, 'theme', null),
                 requiresPin: pick(p, 'requiresPin', false),
-                // "A PIN exists" — distinct from requiresPin, which is false on the LAN when
-                // the bypass is enabled. Forms must use this one.
+                // "A PIN exists", unlike requiresPin, which is false on the LAN when the bypass is on.
+                // Forms must use this one.
                 hasPin: pick(p, 'hasPin', false),
                 isMaster: pick(p, 'isMaster', false),
-                // Sent for masters only, and used for one thing: warning that this PIN
-                // opens an account which can reach server settings. A sub-profile is never
-                // created with administrator rights, so it is always false for one.
+                // Masters only. Used to warn that this PIN opens an account that can reach server
+                // settings. A sub-profile is never made an administrator, so false for one.
                 isAdministrator: pick(p, 'isAdministrator', false),
                 lockoutMinutes: pick(p, 'lockoutMinutes', 5),
                 maxSubProfiles: pick(p, 'maxSubProfiles', 5),
                 bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
+                // Whether this household has been seen on the server's network; the option above is
+                // only offered where it can apply.
+                seenOnLocalNetwork: pick(p, 'seenOnLocalNetwork', false),
+                // Main account only, to its owner. True unless the owner turned it off.
+                askPinToOpen: pick(p, 'askPinToOpen', true) !== false,
                 allowedDeviceIds: pick(p, 'allowedDeviceIds', []),
                 enabledFolders: pick(p, 'enabledFolders', []),
                 allLibraries: pick(p, 'allLibraries', false),
                 blockedTags: pick(p, 'blockedTags', []),
                 allowedTags: pick(p, 'allowedTags', []),
                 isBonfire: pick(p, 'isBonfire', false),
+                // Another account added to this household's screen (issue #39). Also isBonfire, so
+                // nothing that looks for "our own" counts it.
+                isLinked: pick(p, 'isLinked', false) === true,
                 profileImage: pick(p, 'profileImage', null),
-                masterUserId: pick(p, 'masterUserId', null)
+                masterUserId: pick(p, 'masterUserId', null),
+                // Viewing hours and limits (1.7.2): null for a profile without them.
+                viewing: this.normalizeViewing(pick(p, 'viewing', null))
             }));
         },
 
+        /// A /limits or /list viewing state in camelCase, or null when not limited.
+        normalizeViewing: function (v) {
+            if (!v) return null;
+            const f = (k) => this._field(v, k);
+            if (f('limited') !== true) return null;
+            return {
+                allowed: f('allowed') !== false,
+                reason: f('reason') || '',
+                binding: f('binding') || '',
+                minutesLeft: typeof f('minutesLeft') === 'number' ? f('minutesLeft') : null,
+                untilUtc: f('untilUtc') || null,
+                nextStartUtc: f('nextStartUtc') || null,
+                usedMinutes: f('usedMinutes') || 0,
+                limitMinutes: typeof f('limitMinutes') === 'number' ? f('limitMinutes') : null,
+                askedUtc: f('askedUtc') || null,
+                timeZone: f('timeZone') || ''
+            };
+        },
+
+        /// A time from the server in the household's clock: "20:00", or "Sat 08:00" when it is
+        /// not today. Falls back to the device's zone if the browser doesn't know the household's.
+        viewingTime: function (iso, zone) {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '';
+            const opts = (extra) => Object.assign(zone ? { timeZone: zone } : {}, extra);
+            const format = (locale) => {
+                const day = (x) => x.toLocaleDateString(locale, opts({ year: 'numeric', month: 'numeric', day: 'numeric' }));
+                const time = d.toLocaleTimeString(locale, opts({ hour: '2-digit', minute: '2-digit' }));
+                if (day(d) === day(new Date())) return time;
+                return d.toLocaleDateString(locale, opts({ weekday: 'short' })) + ' ' + time;
+            };
+            // A locale tag the browser rejects must not cost the household's zone: try the browser's
+            // language with the zone before giving the zone up.
+            try { return format(activeLocale || []); } catch (e) { /* next */ }
+            try { return format([]); } catch (e) { /* the zone itself is unknown */ }
+            return zone ? this.viewingTime(iso, null) : d.toLocaleTimeString();
+        },
+
+        /// The line under a limited profile's name on the gate: "Until 20:00", "45 min
+        /// left", "From 15:00", "Time's up". Empty for a profile with no limits.
+        viewingLine: function (v) {
+            if (!v) return '';
+            if (v.askedUtc && !v.allowed) return t('viewing.asked');
+            if (v.allowed) {
+                if (v.binding === 'limit' && v.minutesLeft !== null) return t('viewing.minutesLeft', { minutes: v.minutesLeft });
+                if (v.untilUtc) return t('viewing.until', { time: this.viewingTime(v.untilUtc, v.timeZone) });
+                return '';
+            }
+            if (v.nextStartUtc && v.reason === 'hours') return t('viewing.from', { time: this.viewingTime(v.nextStartUtc, v.timeZone) });
+            return t('viewing.timeUp');
+        },
+
+        /// One call to a /limits route as the household. Resolves the new state, or rejects with
+        /// the server's words.
+        _limitsCall: function (profileId, path, body) {
+            const masterState = this.readMasterState();
+            if (!masterState) return Promise.reject(new Error(t('errors.couldNotSaveThat')));
+            return fetch(ApiClient.getUrl('plugins/profiles/limits/' + profileId + (path ? '/' + path : '')), {
+                method: body ? 'POST' : 'GET',
+                headers: body ? this.jsonHeaders(masterState.token) : this.getAuthHeaders(masterState.token),
+                body: body ? JSON.stringify(body) : undefined
+            }).then(res => {
+                if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.couldNotSaveThat')); }
+                if (res.status === 429 && path === 'ask') throw new Error(t('viewing.alreadyAsked'));
+                if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
+                return res.json();
+            });
+        },
+
+        /// A limited profile chosen on the gate while out of time. It can ask for more, a parent
+        /// can give some with the main PIN, or it can go in and browse. Only playing is refused.
+        showTimeUp: function (profile, open) {
+            const v = profile.viewing;
+            const name = profile.profileName;
+            const message = v.reason === 'hours' && v.nextStartUtc
+                ? t('viewing.outsideBody', { name: name, time: this.viewingTime(v.nextStartUtc, v.timeZone) })
+                : v.reason === 'limit' ? t('viewing.limitBody', { name: name }) : t('viewing.notNowBody', { name: name });
+            const refresh = () => {
+                const masterState = this.readMasterState();
+                if (masterState) this.fetchAndRenderProfiles(ApiClient, masterState.masterUserId, masterState.token, true);
+            };
+            this.showActionsDialog(t('viewing.timeUpTitle'), message, [
+                { label: t('viewing.ask'), primary: true, run: () => {
+                    this._limitsCall(profile.profileUserId, 'ask', {})
+                        .then(() => this.showAlert(t('viewing.askedTitle'), t('viewing.askedBody'), refresh))
+                        .catch(err => this.showAlert(t('viewing.timeUpTitle'), this._failText(err, err.message)));
+                } },
+                { label: t('viewing.giveTime'), run: () => {
+                    this.withMainPin(this.currentProfiles, () => this.chooseMoreTime(profile, refresh));
+                } },
+                { label: t('viewing.browse'), run: open },
+                { label: t('common.cancel') }
+            ]);
+        },
+
+        /// How much more time, then gives it with the main PIN just entered.
+        chooseMoreTime: function (profile, done) {
+            const options = [15, 30, 60, 120].map(m => ({ id: String(m), name: this.durationText(m) }));
+            this.showSelectDialog(t('viewing.giveTitle', { name: profile.profileName }), t('viewing.giveBody'), options, (minutes) => {
+                this._limitsCall(profile.profileUserId, 'grant', { minutes: parseInt(minutes, 10), masterPin: this.masterPin })
+                    .then(() => { this._dropGatePin(); done(); })
+                    .catch(err => { this._dropGatePin(); this.showAlert(t('errors.error'), this._failText(err, err.message), done); });
+            }, () => this._dropGatePin());
+        },
+
+        /// "45 min", "1 h", "1 h 30 min".
+        durationText: function (minutes) {
+            if (minutes < 60) return t('viewing.min', { minutes: minutes });
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return m ? t('viewing.hMin', { hours: h, minutes: m }) : t('viewing.h', { hours: h });
+        },
+
         initTVCheckboxes: function (container) {
-            container.querySelectorAll('.library-check-label').forEach(label => {
+            container.querySelectorAll('.jpf-library-check-label').forEach(label => {
                 if (!label.hasAttribute('tabindex')) {
                     label.setAttribute('tabindex', '0');
                 }
+                // The label is the stop (Enter on it ticks the box). The box inside would be a second
+                // stop for the same control; _overlayFocusables skips it.
+                const inner = label.querySelector('input[type="checkbox"]');
+                if (inner && !inner.hasAttribute('tabindex')) inner.setAttribute('tabindex', '-1');
                 if (label._tvInit) return;
                 label._tvInit = true;
 
                 label.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) {
                         e.preventDefault();
                         const checkbox = label.querySelector('input[type="checkbox"]');
                         if (checkbox) {
@@ -1242,43 +2739,391 @@
             });
         },
 
-        /// Wraps a group of form fields in a titled, self-contained section.
-        /// The create/edit forms grew field-by-field in the order features were added, which
-        /// left unrelated controls adjacent and gave no landmarks to scroll by — worst on
-        /// phones, where the form is several screens long. Sections give each group a heading
-        /// and one-line purpose, and are plain blocks (no collapsing) so D-pad focus order on
-        /// TV stays linear and predictable.
+        /// Wraps a group of form fields in a titled section. The forms had grown field by field,
+        /// leaving unrelated controls adjacent and no landmarks to scroll by, worst on phones.
+        /// Plain blocks, not collapsing, so D-pad focus order on TV stays linear.
         renderSection: function (icon, title, subtitle, bodyHtml) {
             return `
-                <section class="profile-section">
-                    <div class="profile-section-header">
-                        <span class="material-icons profile-section-icon" aria-hidden="true">${icon}</span>
-                        <div class="profile-section-heading">
-                            <h2 class="profile-section-title">${escapeHtml(title)}</h2>
-                            <span class="profile-section-subtitle">${escapeHtml(subtitle)}</span>
+                <section class="jpf-profile-section">
+                    <div class="jpf-profile-section-header">
+                        <span class="material-icons jpf-profile-section-icon" aria-hidden="true">${icon}</span>
+                        <div class="jpf-profile-section-heading">
+                            <h2 class="jpf-profile-section-title">${escapeHtml(title)}</h2>
+                            ${subtitle ? `<span class="jpf-profile-section-subtitle">${escapeHtml(subtitle)}</span>` : ''}
                         </div>
                     </div>
-                    <div class="profile-section-body">${bodyHtml}</div>
+                    <div class="jpf-profile-section-body">${bodyHtml}</div>
                 </section>
             `;
         },
 
-        /// The avatar swatches are identical in both forms; keeping one copy means a palette
-        /// change lands in both places at once.
+        /// "Copy rules from" on a profile's Edit form, under More: the household's other profiles
+        /// in a list, and a button that replaces this one's rating limit, tags, libraries and
+        /// viewing limits with the chosen one's. Nothing when there is no other profile. The
+        /// server decides what may be copied and refuses anything outside the household.
+        renderCopyRulesSection: function (profile) {
+            const me = this.normalizeGuid(profile.profileUserId);
+            const others = (this.currentProfiles || []).filter(p =>
+                p && !p.isMaster && !p.isBonfire && !p.isLinked && this.normalizeGuid(p.profileUserId) !== me);
+            if (!others.length) return '';
+            return this.renderSection('content_copy', t('profileForm.copyTitle'), '', `
+                <div class="jpf-form-group">
+                    <label for="edit-copy-from">${t('profileForm.copyFrom')}</label>
+                    <select id="edit-copy-from">
+                        <option value="">${t('profileForm.copyChoose')}</option>
+                        ${others.map(p => `<option value="${escapeHtml(p.profileUserId)}">${escapeHtml(p.profileName)}</option>`).join('')}
+                    </select>
+                    <div class="jpf-form-hint">${t('profileForm.copyHint')}</div>
+                    <button type="button" id="edit-copy-btn" class="profiles-btn jpf-btn-secondary" disabled>${t('profileForm.copyButton')}</button>
+                </div>`);
+        },
+
+        /// Wires the "Copy rules from" control. It asks first, since it replaces what the
+        /// profile has, then returns to the profiles because the open form would show the old
+        /// rules.
+        bindCopyRules: function (content, profile, apiClient, masterState) {
+            const select = content.querySelector('#edit-copy-from');
+            const btn = content.querySelector('#edit-copy-btn');
+            if (!select || !btn) return;
+            select.addEventListener('change', () => { btn.disabled = !select.value; });
+            btn.addEventListener('click', () => {
+                const sourceId = select.value;
+                if (!sourceId) return;
+                const source = (this.currentProfiles || []).find(p => p.profileUserId === sourceId);
+                this.showConfirmDialog(
+                    t('profileForm.copyTitle'),
+                    t('profileForm.copyConfirm', {
+                        source: source ? source.profileName : '',
+                        target: profile.profileName
+                    }),
+                    () => {
+                        fetch(apiClient.getUrl('plugins/profiles/copy-rules'), {
+                            method: 'POST',
+                            headers: this.jsonHeaders(masterState.token),
+                            body: JSON.stringify({
+                                sourceProfileId: sourceId,
+                                targetProfileId: profile.profileUserId,
+                                masterPin: this.masterPin
+                            })
+                        })
+                        .then(res => {
+                            this.checked(res);
+                            if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
+                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
+                        })
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.savingProfile'))));
+                    });
+            });
+        },
+
+        /// "More settings" under a profile form's Basics, closed until asked for. A real
+        /// <details>, so Enter on a remote opens it with no script (Chromium 12, well inside both
+        /// TV baselines). Its summary carries tabindex so the overlay's focus walk finds it. Two
+        /// columns like Basics; empty strings are dropped so a server without themes leaves no gap.
+        renderMoreSettings: function (prefix, left, right, summary) {
+            const col = (parts) => parts.filter(Boolean).join('');
+            return this.renderFold(prefix + '-more', summary || t('profileForm.moreSummary'), `
+                        <div class="jpf-form-col">${col(left)}</div>
+                        <div class="jpf-form-col">${col(right)}</div>`);
+        },
+
+        /// The one fold every household screen uses, labelled "More": a closed <details> with a
+        /// line saying what is inside. Account and both profile forms draw it so rare options
+        /// look the same everywhere (P2-601's pattern). Anything reporting an error about a field
+        /// inside it must call revealFold, so the message is never behind a closed fold.
+        renderFold: function (id, summary, bodyHtml, single) {
+            return `
+                <details class="jpf-more${single ? ' jpf-more-single' : ''}" id="${id}">
+                    <summary class="jpf-more-summary" tabindex="0">
+                        <span class="material-icons jpf-more-icon" aria-hidden="true">tune</span>
+                        <span class="jpf-more-label">
+                            <span class="jpf-more-title">${t('profileForm.moreTitle')}</span>
+                            <span class="jpf-more-hint">${escapeHtml(summary)}</span>
+                        </span>
+                        <span class="material-icons jpf-more-caret" aria-hidden="true">expand_more</span>
+                    </summary>
+                    <div class="jpf-more-body">${bodyHtml}</div>
+                </details>
+            `;
+        },
+
+        /// Opens the More fold that holds `el`, if it is in one.
+        revealFold: function (el) {
+            for (let n = el; n && n.nodeType === 1; n = n.parentNode) {
+                if (n.tagName === 'DETAILS') n.open = true;
+            }
+        },
+
+        /// Viewing hours and daily limits on a profile's edit form (1.7.2), with "more time now".
+        /// Drawn into `slot` once /limits answers; a server without limits leaves it empty. Rules
+        /// are saved with the form's Save, after the profile, and only if changed. More time is
+        /// given at once: it is an answer, not a setting.
+        ///
+        /// The form shows one stretch per day. The server takes any number; a profile given more
+        /// through the API shows the first of each day here, and saving replaces them.
+        ///
+        /// `creating` is the Add form: there is no profile yet, so nothing is fetched, no "more
+        /// time now" is offered, and `save(id)` takes the id /create answered with. A child is
+        /// set up in one pass (P2-103).
+        initViewingEditor: function (slot, profile, creating) {
+            const editor = { save: () => Promise.resolve(), pending: () => false };
+            if (!slot || (!creating && (!profile || profile.isMaster))) return editor;
+            const ORDER = [1, 2, 3, 4, 5, 6, 0];
+            const LIMITS = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360];
+            const locale = activeLocale || [];
+            const pad = (n) => (n < 10 ? '0' : '') + n;
+            const timeLabel = (hhmm) => {
+                if (hhmm === '24:00') return t('viewing.midnight');
+                const d = new Date(2000, 0, 1, parseInt(hhmm.slice(0, 2), 10), parseInt(hhmm.slice(3), 10));
+                try { return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }); } catch (e) { return hhmm; }
+            };
+            const times = [];
+            for (let m = 0; m < 1440; m += 15) times.push(pad(Math.floor(m / 60)) + ':' + pad(m % 60));
+            const timeOptions = (chosen, end) => times.concat(end ? ['24:00'] : [])
+                .concat(times.indexOf(chosen) === -1 && chosen !== '24:00' ? [chosen] : [])
+                .map(v => `<option value="${v}"${v === chosen ? ' selected' : ''}>${escapeHtml(timeLabel(v))}</option>`).join('');
+            const dayName = (d) => {
+                // 2026-11-01 is a Sunday.
+                try { return new Date(2026, 10, 1 + d).toLocaleDateString(locale, { weekday: 'short' }); } catch (e) { return String(d); }
+            };
+            const limitOptions = (chosen, weekend) => {
+                const values = (weekend ? ['', '0'] : ['0']).concat(LIMITS.map(String));
+                if (values.indexOf(String(chosen)) === -1) values.push(String(chosen));
+                return values.map(v => `<option value="${v}"${v === String(chosen) ? ' selected' : ''}>${
+                    v === '' ? t('viewing.sameAsWeekdays') : v === '0' ? t('viewing.noLimit') : escapeHtml(this.durationText(parseInt(v, 10)))
+                }</option>`).join('');
+            };
+
+            let loaded = null;
+            let baseline = null;
+            const read = () => {
+                const q = (s) => slot.querySelector(s);
+                const groups = {};
+                ORDER.forEach(d => {
+                    if (!q('#viewing-day-' + d).checked) return;
+                    const key = q('#viewing-from-' + d).value + '-' + q('#viewing-to-' + d).value;
+                    groups[key] = (groups[key] || 0) | (1 << d);
+                });
+                const weekend = q('#viewing-weekend').value;
+                return {
+                    hoursEnabled: q('#viewing-hours').checked,
+                    windows: Object.keys(groups).map(k => ({ days: groups[k], start: k.slice(0, 5), end: k.slice(6) })),
+                    dailyMinutes: parseInt(q('#viewing-daily').value, 10) || 0,
+                    weekendMinutes: weekend === '' ? null : parseInt(weekend, 10)
+                };
+            };
+
+            const draw = (state) => {
+                if (!document.body.contains(slot)) return;
+                const f = (o, k) => this._field(o, k);
+                const rules = f(state, 'rules') || {};
+                const windows = (f(rules, 'windows') || []).map(w => ({ days: f(w, 'days') || 0, start: f(w, 'start'), end: f(w, 'end') }));
+                const v = this.normalizeViewing(state);
+                const weekend = f(rules, 'weekendMinutes');
+                const rows = ORDER.map(d => {
+                    const w = windows.filter(x => (x.days & (1 << d)) !== 0)[0];
+                    const start = w ? w.start : '15:00';
+                    const end = w ? w.end : '20:00';
+                    return `
+                        <div class="jpf-viewing-day">
+                            <label class="jpf-library-check-label jpf-viewing-dayname">
+                                <input type="checkbox" id="viewing-day-${d}" ${w ? 'checked' : ''} />
+                                <span>${escapeHtml(dayName(d))}</span>
+                            </label>
+                            <select id="viewing-from-${d}" aria-label="${escapeHtml(t('viewing.fromAria', { day: dayName(d) }))}">${timeOptions(start, false)}</select>
+                            <span class="jpf-viewing-dash" aria-hidden="true">–</span>
+                            <select id="viewing-to-${d}" aria-label="${escapeHtml(t('viewing.toAria', { day: dayName(d) }))}">${timeOptions(end, true)}</select>
+                        </div>`;
+                }).join('');
+                const now = !v ? '' : v.allowed
+                    ? (v.binding === 'limit' || v.untilUtc ? this.viewingLine(v) : t('viewing.canWatch'))
+                    : this.viewingLine(Object.assign({}, v, { askedUtc: null }));
+                const used = v && v.limitMinutes !== null ? t('viewing.usedToday', { used: v.usedMinutes, limit: v.limitMinutes }) : '';
+                // Two halves: limits and their note, then the times. Side by side on a wide form, where
+                // Viewing limits spans both columns (.jpf-viewing-split); stacked on a narrow one.
+                slot.innerHTML = this.renderSection('schedule', t('viewing.title'), t('viewing.subtitle'), `
+                  <div class="jpf-viewing-split"><div class="jpf-viewing-side">
+                    ${v ? `<div class="jpf-form-hint jpf-viewing-now">${escapeHtml([now, used].filter(Boolean).join(' · '))}</div>` : ''}
+                    ${v && v.askedUtc ? `<div class="jpf-form-hint jpf-viewing-asked">${t('viewing.askedHint', { name: escapeHtml(profile.profileName) })}</div>` : ''}
+                    ${v && !creating ? `
+                    <div class="jpf-form-group">
+                        <label id="viewing-more-label">${t('viewing.moreTime')}</label>
+                        <div class="jpf-inline-row" role="group" aria-labelledby="viewing-more-label">
+                            ${[15, 30, 60].map(m => `<button type="button" class="profiles-btn jpf-btn-secondary viewing-grant" data-minutes="${m}">${escapeHtml(this.durationText(m))}</button>`).join('')}
+                            ${v.askedUtc ? `<button type="button" class="profiles-btn jpf-btn-secondary viewing-grant" data-minutes="0">${t('viewing.decline')}</button>` : ''}
+                        </div>
+                        <div class="jpf-form-hint" id="viewing-grant-status" role="status" aria-live="polite"></div>
+                    </div>` : ''}
+                    <div class="jpf-form-group">
+                        <label for="viewing-daily">${t('viewing.daily')}</label>
+                        <select id="viewing-daily">${limitOptions(f(rules, 'dailyMinutes') || 0, false)}</select>
+                    </div>
+                    <div class="jpf-form-group" id="viewing-weekend-group">
+                        <label for="viewing-weekend">${t('viewing.weekend')}</label>
+                        <select id="viewing-weekend">${limitOptions(weekend === null || weekend === undefined ? '' : weekend, true)}</select>
+                        <div class="jpf-form-hint">${t('viewing.hint')}</div>
+                    </div>
+                  </div><div class="jpf-viewing-side">
+                    <div class="jpf-form-group">
+                        <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="viewing-hours" ${f(rules, 'hoursEnabled') ? 'checked' : ''} style="accent-color: var(--jpf-accent);" />
+                            <span>${t('viewing.hoursEnabled')}</span>
+                        </label>
+                        <div class="jpf-viewing-days" id="viewing-days">${rows}</div>
+                        <div class="jpf-form-hint jpf-viewing-nodays" id="viewing-nodays" role="status" hidden style="color: var(--jpf-danger);">${t('viewing.noDays')}</div>
+                    </div>
+                  </div></div>
+                `);
+
+                // The seven rows only appear once "hours" is ticked, and the weekend limit once there is
+                // a daily one for it to differ from (P2-602).
+                const days = slot.querySelector('#viewing-days');
+                const hours = slot.querySelector('#viewing-hours');
+                const daily = slot.querySelector('#viewing-daily');
+                const weekendSel = slot.querySelector('#viewing-weekend');
+                const weekendGroup = slot.querySelector('#viewing-weekend-group');
+                const syncDays = () => { days.style.display = hours.checked ? '' : 'none'; this._syncNoDays(slot, ORDER); };
+                ORDER.forEach(d => slot.querySelector('#viewing-day-' + d).addEventListener('change', syncDays));
+                const syncWeekend = () => {
+                    const none = daily.value === '0' && weekendSel.value === '';
+                    weekendGroup.style.display = none ? 'none' : '';
+                };
+                hours.addEventListener('change', syncDays);
+                daily.addEventListener('change', () => {
+                    if (daily.value === '0') weekendSel.value = '';
+                    syncWeekend();
+                });
+                syncDays();
+                syncWeekend();
+                this.initTVCheckboxes(slot);
+
+                const status = slot.querySelector('#viewing-grant-status');
+                Array.prototype.forEach.call(slot.querySelectorAll('.viewing-grant'), btn => {
+                    btn.addEventListener('click', () => {
+                        const minutes = parseInt(btn.getAttribute('data-minutes'), 10);
+                        const pending = read();
+                        this._limitsCall(profile.profileUserId, 'grant', { minutes: minutes, masterPin: this.masterPin })
+                            .then(reply => {
+                                draw(Object.assign({}, reply, { rules: f(state, 'rules') }));
+                                // Keep what was being edited: more time is not a save.
+                                this._restoreViewingForm(slot, pending, ORDER);
+                                const after = slot.querySelector('#viewing-grant-status');
+                                if (after) after.textContent = minutes ? t('viewing.given', { duration: this.durationText(minutes) }) : t('viewing.declined');
+                                // The pressed button was redrawn away; focus its twin (Decline is gone after use, so
+                                // the first).
+                                const again = slot.querySelector('.viewing-grant[data-minutes="' + minutes + '"]')
+                                    || slot.querySelector('.viewing-grant');
+                                if (again) again.focus();
+                            })
+                            .catch(err => { if (status) { status.textContent = this._failText(err, err.message); status.style.color = 'var(--jpf-danger)'; } });
+                    });
+                });
+            };
+
+            if (creating) {
+                loaded = {};
+                draw({});
+                baseline = JSON.stringify(read());
+            } else {
+                this._limitsCall(profile.profileUserId, '', null)
+                    .then(state => { loaded = state; draw(state); baseline = JSON.stringify(read()); })
+                    .catch(() => { slot.innerHTML = ''; });
+            }
+
+            // Whether saving would switch limits on: the server asks for a main PIN then.
+            editor.pending = () => {
+                if (!loaded || !document.body.contains(slot) || !slot.querySelector('#viewing-hours')) return false;
+                const now = read();
+                return JSON.stringify(now) !== baseline
+                    && (now.hoursEnabled || now.dailyMinutes > 0 || (now.weekendMinutes || 0) > 0);
+            };
+
+            editor.save = (newId) => {
+                if (!loaded || !document.body.contains(slot) || !slot.querySelector('#viewing-hours')) return Promise.resolve();
+                const now = read();
+                if (JSON.stringify(now) === baseline) return Promise.resolve();
+                const id = creating ? newId : profile.profileUserId;
+                if (!id) return Promise.resolve();
+                return this._limitsCall(id, '', Object.assign({ masterPin: this.masterPin, language: activeLocale || '' }, now));
+            };
+            return editor;
+        },
+
+        /// Warns when "only at these times" is on and no day is ticked: the server then allows
+        /// no time at all. Saving is still allowed.
+        _syncNoDays: function (slot, order) {
+            const warn = slot.querySelector('#viewing-nodays');
+            const hours = slot.querySelector('#viewing-hours');
+            if (!warn || !hours) return;
+            const any = order.some(d => slot.querySelector('#viewing-day-' + d).checked);
+            // The hidden attribute, not style.display: .jpf-form-hint's display is !important.
+            warn.hidden = !(hours.checked && !any);
+        },
+
+        /// Puts the form back as it was being edited after a redraw from the server.
+        _restoreViewingForm: function (slot, state, order) {
+            const q = (s) => slot.querySelector(s);
+            if (!q('#viewing-hours')) return;
+            q('#viewing-hours').checked = state.hoursEnabled;
+            order.forEach(d => {
+                const w = state.windows.filter(x => (x.days & (1 << d)) !== 0)[0];
+                q('#viewing-day-' + d).checked = !!w;
+                if (w) { q('#viewing-from-' + d).value = w.start; q('#viewing-to-' + d).value = w.end; }
+            });
+            q('#viewing-daily').value = String(state.dailyMinutes);
+            q('#viewing-weekend').value = state.weekendMinutes === null ? '' : String(state.weekendMinutes);
+            q('#viewing-days').style.display = state.hoursEnabled ? '' : 'none';
+            this._syncNoDays(slot, order);
+            q('#viewing-weekend-group').style.display = (state.dailyMinutes === 0 && state.weekendMinutes === null) ? 'none' : '';
+        },
+
+        /// The theme picker as a section of its own, or '' when profiles may not choose.
+        renderThemeSection: function (prefix, stored) {
+            const picker = this.renderThemePicker(prefix, stored);
+            return picker
+                ? this.renderSection('palette', t('settings.themeTitle'), '', picker)
+                : '';
+        },
+
+        /// The rating the Kids preset fills in: the highest offered at or under 10 (PG, TV-PG, or
+        /// the country's match), else the lowest offered. Null with none.
+        kidsRatingFrom: function (values) {
+            const scores = (values || []).map(Number).filter(n => isFinite(n) && n > 0);
+            if (!scores.length) return null;
+            const under = scores.filter(n => n <= 10);
+            return String(under.length ? Math.max.apply(null, under) : Math.min.apply(null, scores));
+        },
+
+        /// Ticking Kids fills in the rating; unticking restores the old one unless it was changed
+        /// by hand since. Changing the rating by hand unticks it, so the box never claims a
+        /// preset that is no longer what will be saved.
+        bindKidsPreset: function (box, select) {
+            if (!box || !select) return;
+            const values = Array.prototype.map.call(select.options || [], o => o.value);
+            const kids = this.kidsRatingFrom(values);
+            if (kids === null) { box.disabled = true; return; }
+            let before = select.value;
+            box.addEventListener('change', () => {
+                if (box.checked) {
+                    before = select.value;
+                    select.value = kids;
+                } else if (select.value === kids) {
+                    select.value = before === kids ? '' : before;
+                }
+            });
+            select.addEventListener('change', () => {
+                if (select.value !== kids) box.checked = false;
+            });
+        },
+
         /// Dims the avatar colour when it has stopped doing anything.
         ///
-        /// It is twenty-one swatches over three rows, the largest thing on the form, so
-        /// leaving it at full strength when it cannot affect the avatar reads as a
-        /// control that is simply being ignored. Dimmed rather than hidden: it starts
-        /// mattering again the moment the picture is removed, and a control that
-        /// vanishes and reappears is worse than one that fades.
-        ///
-        /// It used to dim whenever a picture was set, and say "Not used while a picture
-        /// is set". That was wrong, and it is how issue #23 came to be filed: the colour
-        /// is painted *behind* the picture and shows through wherever the picture is
-        /// transparent, so somebody read the hint, chose a cut-out picture, and got a
-        /// coloured square anyway. The colour is genuinely unused in one case only —
-        /// a picture with the background switched off.
+        /// Dimmed rather than hidden, so it comes back the moment the picture is removed; a
+        /// control that vanishes and reappears is worse than one that fades. It used to dim
+        /// whenever a picture was set and say "Not used while a picture is set". That was
+        /// wrong and led to issue #23: the colour is painted behind the picture and shows
+        /// through wherever it is transparent, so a cut-out picture still gave a coloured
+        /// square. The colour is unused only for a picture with the background switched off.
         setColorGroupInert: function (prefix, hasPicture, isTransparent) {
             const group = document.getElementById(prefix + '-color-group');
             if (!group) return;
@@ -1298,47 +3143,60 @@
             }
         },
 
+        /// The first palette colour nobody in this household has, as the server picks it
+        /// (NextAvatarColor), so a new profile doesn't start as a copy of the last tile.
+        nextAvatarColor: function () {
+            const own = (this.currentProfiles || []).filter(p => !p.isBonfire);
+            const used = own.map(p => String(p.avatarColor || '').toLowerCase());
+            const free = AVATAR_PALETTE.filter(c => used.indexOf(c.toLowerCase()) === -1);
+            return free.length ? free[0] : AVATAR_PALETTE[own.length % AVATAR_PALETTE.length];
+        },
+
         renderColorPicker: function (selectedColor) {
-            const palette = [
-                '#00A4DC', '#E50914', '#22C55E', '#EAB308', '#A855F7', '#EC4899',
-                '#F97316', '#06B6D4', '#3B82F6', '#10B981', '#6366F1', '#8B5CF6',
-                '#D946EF', '#F43F5E', '#14B8A6', '#F59E0B', '#84CC16', '#64748B'
-            ];
             const active = (selectedColor || '').toLowerCase();
+            // A colour from another app or an older palette is not one of the 18. Offer it as one
+            // more swatch, selected; without it nothing was selected and the preview fell back to
+            // the default blue.
+            const palette = HEX_COLOR_RE.test(selectedColor || '')
+                && AVATAR_PALETTE.map(c => c.toLowerCase()).indexOf(active) === -1
+                ? AVATAR_PALETTE.concat([selectedColor]) : AVATAR_PALETTE;
+            // Named by position, not hex ("#E50914" says nothing to anyone). Every swatch stays a tab
+            // stop: the remote's arrows and the focus trap skip tabindex="-1", so rolling it to one
+            // swatch would hide the rest from a TV.
             return `
-                <div class="avatar-color-picker">
-                    ${palette.map(c => `
-                        <div class="color-dot${c.toLowerCase() === active ? ' active' : ''}"
+                <div class="jpf-avatar-color-picker" role="radiogroup" aria-label="${escapeHtml(t('profileForm.colorGroup'))}">
+                    ${palette.map((c, i) => `
+                        <div class="jpf-color-dot${c.toLowerCase() === active ? ' active' : ''}"
                              style="background-color: ${c}" data-color="${c}"
-                             role="radio" aria-label="${c}" tabindex="0"></div>
+                             role="radio" aria-checked="${c.toLowerCase() === active ? 'true' : 'false'}"
+                             aria-label="${escapeHtml(t('profileForm.colorN', { n: i + 1, total: palette.length }))}" tabindex="0"></div>
                     `).join('')}
                 </div>
             `;
         },
 
-        // ── Tag filtering ───────────────────────────────────────────────────────────
-        // Jellyfin matches blocked/allowed tags against an item's inherited tags, so a tag
-        // on a series or a whole library applies to everything inside it.
+        /// aria-checked follows the .active class, which is what the two forms keep.
+        _syncColorRadios: function (dots) {
+            dots.forEach(d => d.setAttribute('aria-checked', d.classList.contains('active') ? 'true' : 'false'));
+        },
 
-        /// Fetches the distinct tags present in the master's libraries, for the suggestion
-        /// list. Degrades to an empty list — the inputs stay usable as free text.
+        // ── Tag filtering ──────────────────────────
+        // Jellyfin matches blocked/allowed tags against inherited tags, so a tag on a series or
+        // library applies to everything inside it.
+
         // ── Navigation ──────────────────────────────────────────────────────
 
         /// Ticket for the screen currently being asked for.
         ///
-        /// Opening a form fires network requests and only draws when they return.
-        /// Nothing used to stop a second navigation in the meantime, and nothing
-        /// stopped the first response drawing itself over whatever had replaced it —
-        /// so clicking Manage Profiles and then Switcher Style showed Switcher Style,
-        /// then silently replaced it with Manage Profiles seconds later.
-        ///
-        /// Every screen change takes a ticket. An async render compares its ticket
-        /// before touching the DOM and drops the response if the user has moved on.
+        /// Opening a form fires requests and draws when they return. Nothing stopped the first
+        /// response drawing over whatever replaced it, so Manage Profiles then Switcher Style
+        /// showed Switcher Style, then swapped to Manage Profiles seconds later. Every screen
+        /// change takes a ticket; an async render checks it before touching the DOM and drops
+        /// the response if the user has moved on.
         _navTicket: 0,
 
-        /// Claims the screen. Call from anything that replaces the modal contents,
-        /// including synchronous renders — those are exactly what a slow form loses
-        /// the race to.
+        /// Claims the screen. Call from anything that replaces the modal contents, synchronous
+        /// renders included: those are what a slow form loses the race to.
         beginNavigation: function () {
             return ++this._navTicket;
         },
@@ -1350,43 +3208,43 @@
 
         // ── Shared form data ────────────────────────────────────────────────
 
-        /// Cached answer to the four requests that are the same for every profile.
+        /// Cached answer to the requests that are the same for every profile.
         ///
-        /// Add and Edit Profile each fired five requests and waited for all of them.
-        /// Only one — Users/{id} — is about the profile you clicked; the available
-        /// libraries, the connected devices, the library tags and the avatar library
-        /// belong to the account and were refetched in full every single time.
+        /// Add and Edit Profile each fired five requests, only one of them (Users/{id}) about
+        /// the profile clicked. The rest belong to the account and were refetched every time.
+        /// Since 2.0 the libraries, ratings, avatars and time zones are one request
+        /// (form-options).
         _sharedForm: null,
 
-        /// Fetches them once per gate session. Prefetched when the overlay opens, so
-        /// by the time anyone picks a profile the shared half is already in hand and
-        /// opening a form costs one request instead of five.
+        /// Fetched once per gate session and prefetched when the overlay opens, so opening a
+        /// form costs one request.
         fetchSharedFormData: function (apiClient, masterState) {
             if (this._sharedForm) return this._sharedForm;
 
-            const headers = this.getAuthHeaders(masterState.token);
             this._sharedForm = Promise.all([
-                fetch(apiClient.getUrl('plugins/profiles/libraries'), { headers })
-                    .then(res => res.json()),
-                // null, not [], when the list could not be read. The edit form rebuilds a
-                // profile's allowed devices from the boxes it draws, so an empty list here
-                // used to save as "any device" and switch the restriction off.
-                fetch(apiClient.getUrl('plugins/profiles/devices'), { headers })
-                    .then(res => res.ok ? res.json() : null)
+                // Libraries, ratings, avatars and time zones are one request. It fails the form as the
+                // libraries alone used to: with nothing to tick there is no form.
+                this.fetchFormOptions(apiClient, masterState.token),
+                // null, not [], when the list could not be read. The edit form rebuilds a profile's
+                // allowed devices from the boxes it draws, so [] used to save as "any device" and switch
+                // the restriction off. The PIN header too: a profile gets the household's devices only
+                // when it could manage the household (R-1299).
+                fetch(apiClient.getUrl('plugins/profiles/devices'), { headers: this.manageHeaders(masterState.token, false) })
+                    .then(res => this.checked(res).ok ? res.json() : null)
                     .then(list => Array.isArray(list) ? list : null)
                     .catch(() => null),
-                this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId),
-                this.fetchAvatarLibrary(apiClient, masterState.token),
-                // The server country's own rating system. Never fails the form: null falls
-                // back to the US list in renderRatingSelect.
-                fetch(apiClient.getUrl('plugins/profiles/ratings'), { headers })
-                    .then(res => res.ok ? res.json() : null)
-                    .catch(() => null)
-            ]).then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => ({
-                libraries, devices, libraryTags, avatarLibrary, ratings
+                this.fetchLibraryTags(apiClient, masterState.token, masterState.masterUserId)
+            ]).then(([options, devices, libraryTags]) => ({
+                libraries: this._field(options, 'libraries') || [],
+                devices,
+                libraryTags,
+                avatarLibrary: this.readAvatarLibrary(this._field(options, 'avatars')),
+                // The server country's own rating system. Never fails the form: null falls back to the
+                // US list in renderRatingSelect.
+                ratings: this._field(options, 'ratings') || null
             })).catch(err => {
-                // Never cache a failure. A server that was briefly unreachable would
-                // otherwise keep every form broken until the overlay was closed.
+                // Never cache a failure, or a briefly unreachable server keeps every form broken until
+                // the overlay closes.
                 this._sharedForm = null;
                 throw err;
             });
@@ -1394,8 +3252,23 @@
             return this._sharedForm;
         },
 
-        /// Dropped when the overlay closes, so reopening the gate always re-reads the
-        /// server. Within one session the data does not change underneath us.
+        /// What the profile form reads that is the same for every profile, in one request:
+        /// { libraries, ratings, avatars, timeZones }. The avatar picker and the time zone box
+        /// each still want a part of it on their own.
+        fetchFormOptions: function (apiClient, token) {
+            return fetch(apiClient.getUrl('plugins/profiles/form-options'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(token)
+            }).then(res => {
+                // Checked like the others: reading a 401's empty body as JSON showed "Unexpected end of
+                // JSON input" and never told the page the session had ended (R-1177).
+                if (res.status === 401) this.handleSessionExpired();
+                if (!res.ok) throw new Error(t('errors.generic'));
+                return res.json();
+            });
+        },
+
+        /// Dropped when the overlay closes, so reopening the gate re-reads the server.
         clearSharedFormData: function () {
             this._sharedForm = null;
         },
@@ -1408,7 +3281,7 @@
                 return Promise.resolve([]);
             }
             return fetch(url, { headers: this.getAuthHeaders(token) })
-                .then(res => res.ok ? res.json() : null)
+                .then(res => this.checked(res).ok ? res.json() : null)
                 .then(data => {
                     const tags = (data && (data.Tags || data.tags)) || [];
                     return Array.from(new Set(tags.filter(tag => tag)))
@@ -1423,17 +3296,20 @@
 
         renderTagChip: function (tag) {
             const safe = escapeHtml(tag);
-            return `<span class="tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="tag-chip-remove" tabindex="0" aria-label="${t('profileForm.removeTagAria', { tag: safe })}">×</button></span>`;
+            return `<span class="jpf-tag-chip" data-tag="${safe}"><span>${safe}</span><button type="button" class="jpf-tag-chip-remove" tabindex="0" aria-label="${escapeHtml(t('profileForm.removeTagAria', { tag: tag }))}">×</button></span>`;
         },
 
-        renderTagEditor: function (id, tags, placeholder, suggestionsId) {
+        renderTagEditor: function (id, tags, placeholder, suggestionsId, labelId) {
             const chips = (tags || []).map(tag => this.renderTagChip(tag)).join('');
+            // The label above is a bare <label> over a widget and names nothing; the box would be
+            // read out as its placeholder.
+            const named = labelId ? ` aria-labelledby="${labelId}"` : '';
             return `
-                <div class="tag-editor" id="${id}">
-                    <div class="tag-chip-list" data-empty-label="${escapeHtml(t('profileForm.noTags'))}" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
-                    <div class="tag-input-row">
-                        <input type="text" class="tag-input" placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
-                        <button type="button" class="profiles-btn btn-secondary tag-add-btn">${t('common.add')}</button>
+                <div class="jpf-tag-editor" id="${id}"${labelId ? ' role="group"' + named : ''}>
+                    <div class="jpf-tag-chip-list" data-empty-label="${escapeHtml(t('profileForm.noTags'))}" ${(tags || []).length ? '' : 'data-empty="true"'}>${chips}</div>
+                    <div class="jpf-tag-input-row">
+                        <input type="text" class="jpf-tag-input"${named} placeholder="${escapeHtml(placeholder)}" list="${suggestionsId}" autocomplete="off" />
+                        <button type="button" class="profiles-btn jpf-btn-secondary jpf-tag-add-btn">${t('common.add')}</button>
                     </div>
                 </div>
             `;
@@ -1441,26 +3317,22 @@
 
         /// The allowed-devices dropdown, shared by the Add and Edit profile forms.
         ///
-        /// These two forms were built by two functions that had been copied from each
-        /// other and then edited apart: 213 identical lines, ten runs of six or more.
-        /// The copies had already drifted — a fix to one was a fix to one — and the
-        /// duplicated *comments* were the clearest sign of it, the same sentence about
-        /// sending null rather than an empty array sitting verbatim in both.
+        /// The two forms were built by functions copied from each other and edited apart (213
+        /// identical lines), and the copies had already drifted. Three things differ by mode:
+        ///   - create prefixes its element ids, since both forms can be in the document at once
+        ///     and duplicate ids would make getElementById a coin toss;
+        ///   - the checkbox class follows the prefix, since the handlers query it;
+        ///   - only edit has a profile to read existing selections from.
         ///
-        /// Four things actually differ between the modes, and they are all here:
-        ///   - create prefixes its element ids, because both forms can be in the
-        ///     document at once and duplicate ids would make getElementById a coin toss;
-        ///   - the checkbox class follows the same prefix, since the handlers query it;
-        ///   - only edit has a profile to read existing selections from;
-        ///   - only edit offers Forget, because a device cannot be stale for a profile
-        ///     that does not exist yet.
+        /// Neither offers rename, merge or forget any more (1.7.2). Those change the device for
+        /// the whole household and live in Settings → Your account.
         renderDeviceDropdown: function (mode, devices, profile) {
             const isEdit = mode === 'edit';
             const p = isEdit ? '' : 'create-';
             const boxClass = isEdit ? 'device-checkbox' : 'create-device-checkbox';
-            // The server matches device ids ignoring case, and so must this. A whitelisted id
-            // in a different case from the device's record drew an unticked box, and the next
-            // save dropped it from the list.
+            // The server matches device ids ignoring case, and so must this. A whitelisted id in a
+            // different case from the device's record drew an unticked box and the next save
+            // dropped it.
             const allowedIds = (isEdit && profile && profile.allowedDeviceIds || [])
                 .map(id => String(id).toLowerCase());
             const unavailable = devices === null;
@@ -1468,45 +3340,26 @@
             const items = (devices && devices.length > 0)
                 ? devices.map(dev => {
                     const deviceId = dev.deviceId || dev.DeviceId || '';
-                    const deviceName = dev.deviceName || dev.DeviceName || t('profileForm.unknownDevice');
-                    const client = dev.client || dev.Client || t('profileForm.unknownClient');
+                    const deviceName = deviceListName(dev);
+                    const client = deviceListClient(dev);
                     const lastSeen = dev.lastSeen || dev.LastSeen;
                     const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
-                    // Year 1 is what an unset DateTime serialises to; showing "01/01/0001"
-                    // reads as a bug rather than as "we have never seen this device".
+                    // Year 1 is what an unset DateTime serializes to; "01/01/0001" reads as a bug, not
+                    // "never seen".
                     const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
                         ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
-                    // Both spellings, because the list can come from the plugin's own
-                    // camelCase JSON or straight off a Jellyfin DTO.
+                    // Both spellings: the list can come from the plugin's camelCase JSON or a Jellyfin DTO.
                     const isChecked = allowedIds.indexOf(deviceId.toLowerCase()) !== -1
                         || (!!dev.DeviceId && allowedIds.indexOf(String(dev.DeviceId).toLowerCase()) !== -1);
-                    // Housekeeping actions belong to the edit form only: the create form is
-                    // listing devices to tick, and a half-made profile is the wrong place to
-                    // be reorganising the household's hardware.
-                    //
-                    // Rename and merge are here because one machine does not have one device
-                    // id. jellyfin-web keeps its id in localStorage, which is per origin, so
-                    // reaching the server by LAN address and by domain name produces two
-                    // devices for one computer — as does a new browser profile or a reinstall.
-                    // Nothing in the request can tell those apart from two real machines, so
-                    // the plugin will not guess: merging two that are genuinely different
-                    // would widen a whitelist. Renaming is what makes them tellable apart in
-                    // the first place, and the name sticks — see KnownDevice.NameIsCustom.
-                    const actions = isEdit
-                        ? `<button type="button" class="device-rename-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.renameDevice')}" aria-label="${t('profileForm.renameDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">edit</span></button>
-                           <button type="button" class="device-merge-btn" data-id="${escapeHtml(deviceId)}" data-name="${escapeHtml(deviceName)}" title="${t('profileForm.mergeDevice')}" aria-label="${t('profileForm.mergeDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
-                           <button type="button" class="device-delete-btn" data-id="${escapeHtml(deviceId)}" title="${t('profileForm.forgetDevice')}" aria-label="${t('profileForm.forgetDeviceAria', { name: escapeHtml(deviceName) })}"><span class="material-icons" aria-hidden="true">delete</span></button>`
-                        : '';
                     return `
-                        <div class="device-dropdown-item" data-device-id="${escapeHtml(deviceId)}">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
+                        <div class="jpf-device-dropdown-item" data-device-id="${escapeHtml(deviceId)}">
+                            <label class="jpf-row-gap-sm" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;">
                                 <input type="checkbox" class="${boxClass}" value="${escapeHtml(deviceId)}" ${isChecked ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent); flex-shrink: 0;" />
                                 <span style="display: flex; flex-direction: column; min-width: 0;">
                                     <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deviceName)}</span>
                                     <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: lastSeenStr })}</span>
                                 </span>
                             </label>
-                            ${actions}
                         </div>
                     `;
                 }).join('')
@@ -1515,39 +3368,34 @@
                 `;
 
             return `
-                <div class="form-group">
-                    <label>${t('profileForm.allowedDevices')}</label>
+                <div class="jpf-form-group">
+                    <label id="${p}devices-label">${t('profileForm.allowedDevices')}</label>
                     <div class="devices-dropdown-container" style="position: relative;">
-                        <div id="${p}devices-dropdown-trigger" class="devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false">
+                        <div id="${p}devices-dropdown-trigger" class="jpf-devices-dropdown-trigger" tabindex="0" role="button" aria-expanded="false" aria-labelledby="${p}devices-label ${p}devices-dropdown-selected-text">
                             <span id="${p}devices-dropdown-selected-text">${t(unavailable && isEdit ? 'profileForm.devicesUnchanged' : 'profileForm.allDevicesAllowed')}</span>
                         </div>
-                        <div id="${p}devices-dropdown-list" class="devices-dropdown-list" style="display: none;">
+                        <div id="${p}devices-dropdown-list" class="jpf-devices-dropdown-list" style="display: none;">
                             ${items}
                         </div>
                     </div>
-                    <div class="form-hint">${t('profileForm.devicesHint')}</div>
-                    ${isEdit ? `<button type="button" id="devices-tidy-btn" class="profiles-btn btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>` : ''}
+                    <div class="jpf-form-hint">${t('profileForm.devicesHint')}</div>
                 </div>
             `;
         },
 
-        /// The maximum-rating select, shared by both profile forms.
+        /// The maximum-rating select, shared by both profile forms. Only the id prefix and the
+        /// preselected option differ.
         ///
-        /// The five options and their numeric values were written out twice; a rating
-        /// added to one copy would silently not exist in the other. Only the id prefix
-        /// and which option is preselected differ.
-        ///
-        /// `maxRating` is compared with ===, so it must already be a number or null.
-        /// Passing the raw string from a form control would preselect nothing and
-        /// quietly reset the profile's rating on the next save.
-        /// `ratings` is the server's plugins/profiles/ratings answer. With it, the
-        /// options are that country's ratings and nothing else; without it — an older
-        /// server, a failed request — they are the four US ones this form always had.
+        /// `maxRating` is compared with ===, so it must be a number or null. A raw string from a
+        /// form control would preselect nothing and reset the rating on the next save.
+        /// `ratings` is the ratings part of the form-options answer: the options are that
+        /// country's ratings only. Without it (older server, failed request) they are the four
+        /// US ones.
         renderRatingSelect: function (mode, maxRating, ratings) {
             const id = mode + '-rating-select';
             const country = ratingChoicesFrom(ratings);
-            // [value, text]. Country labels are official codes (12A, FSK 16, 14A) and are
-            // shown as they are in every language; only the age around them is translated.
+            // [value, text]. Country labels are official codes (12A, FSK 16, 14A), shown as they are
+            // in every language; only the age around them is translated.
             const choices = [['', t('profileForm.noRestrictions')]].concat(country.length
                 ? country.map(([score, labels]) => [String(score), t('profileForm.ratingAge', { labels: escapeHtml(labels), score: score })])
                 : [
@@ -1556,10 +3404,9 @@
                     ['14', t('profileForm.ratingPG13')],
                     ['17', t('profileForm.ratingR')]
                 ]);
-            // A limit set in Dashboard -> Users is any score, not necessarily one offered
-            // here. With no option to preselect, the select fell back to "No Restrictions"
-            // and the next save cleared the limit, whatever the save was for. It gets an
-            // option of its own.
+            // A limit set in Dashboard -> Users is any score, not necessarily one offered here.
+            // With no option to preselect, the select fell back to "No Restrictions" and the next
+            // save cleared the limit. It gets an option of its own.
             const unlisted = typeof maxRating === 'number'
                 && !choices.some(([value]) => value !== '' && Number(value) === maxRating);
             if (unlisted) choices.push([String(maxRating), t('profileForm.ratingCurrent', { score: maxRating })]);
@@ -1570,7 +3417,7 @@
             }).join('\n                            ');
 
             return `
-                <div class="form-group">
+                <div class="jpf-form-group">
                     <label for="${id}">${t('profileForm.maximumRating')}</label>
                     <select id="${id}">
                             ${opts}
@@ -1579,13 +3426,9 @@
             `;
         },
 
-        /// Blocked and allowed tag editors, shared by both profile forms.
-        ///
-        /// Only the id prefix and the starting tags differ: a new profile begins with
-        /// none, an existing one with whatever it has. The allowed-tags hint carries
-        /// form-hint-warn because an allow-list is subtractive — naming one tag hides
-        /// everything without it — and that warning existing in only one of two copies
-        /// is exactly the drift this merge is for.
+        /// Blocked and allowed tag editors, shared by both profile forms. Only the id prefix and
+        /// starting tags differ. The allowed-tags hint carries jpf-form-hint-warn because an
+        /// allow-list is subtractive: naming one tag hides everything without it.
         renderTagSection: function (mode, libraryTags, profile) {
             const p = mode + '-';
             const suggestions = p + 'tag-suggestions';
@@ -1594,35 +3437,35 @@
 
             return `
                 ${this.renderTagSuggestions(suggestions, libraryTags)}
-                <div class="form-group">
-                    <label>${t('profileForm.blockedTags')}</label>
-                    ${this.renderTagEditor(p + 'blocked-tags', blocked, t('profileForm.tagPlaceholderAdults'), suggestions)}
-                    <div class="form-hint">${t('profileForm.blockedTagsHint')}</div>
+                <div class="jpf-form-group">
+                    <label id="${p}blocked-tags-label">${t('profileForm.blockedTags')}</label>
+                    ${this.renderTagEditor(p + 'blocked-tags', blocked, t('profileForm.tagPlaceholderAdults'), suggestions, p + 'blocked-tags-label')}
+                    <div class="jpf-form-hint">${t('profileForm.blockedTagsHint')}</div>
                 </div>
-                <div class="form-group">
-                    <label>${t('profileForm.allowedTags')}</label>
-                    ${this.renderTagEditor(p + 'allowed-tags', allowed, t('profileForm.tagPlaceholderKids'), suggestions)}
-                    <div class="form-hint form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
+                <div class="jpf-form-group">
+                    <label id="${p}allowed-tags-label">${t('profileForm.allowedTags')}</label>
+                    ${this.renderTagEditor(p + 'allowed-tags', allowed, t('profileForm.tagPlaceholderKids'), suggestions, p + 'allowed-tags-label')}
+                    <div class="jpf-form-hint jpf-form-hint-warn">${t('profileForm.allowedTagsHint')}</div>
                 </div>
             `;
         },
 
         initTagEditors: function (container) {
-            container.querySelectorAll('.tag-editor').forEach(editor => {
+            container.querySelectorAll('.jpf-tag-editor').forEach(editor => {
                 if (editor._tagInit) return;
                 editor._tagInit = true;
 
-                const chipList = editor.querySelector('.tag-chip-list');
-                const input = editor.querySelector('.tag-input');
-                const addBtn = editor.querySelector('.tag-add-btn');
+                const chipList = editor.querySelector('.jpf-tag-chip-list');
+                const input = editor.querySelector('.jpf-tag-input');
+                const addBtn = editor.querySelector('.jpf-tag-add-btn');
                 if (!chipList || !input || !addBtn) return;
 
                 const syncEmpty = () => {
-                    if (chipList.querySelector('.tag-chip')) {
+                    if (chipList.querySelector('.jpf-tag-chip')) {
                         chipList.removeAttribute('data-empty');
                     } else {
-                        // Set here too: a list that starts non-empty carries no label, and
-                        // removing its last chip would otherwise show an empty grey box.
+                        // Set here too: a list that starts non-empty has no label, and removing its last chip
+                        // would show an empty grey box.
                         chipList.setAttribute('data-empty-label', t('profileForm.noTags'));
                         chipList.setAttribute('data-empty', 'true');
                     }
@@ -1632,7 +3475,7 @@
                     const value = (input.value || '').trim();
                     input.value = '';
                     if (!value) return;
-                    const exists = Array.from(chipList.querySelectorAll('.tag-chip')).some(
+                    const exists = Array.from(chipList.querySelectorAll('.jpf-tag-chip')).some(
                         chip => (chip.getAttribute('data-tag') || '').toLowerCase() === value.toLowerCase());
                     if (!exists) {
                         chipList.insertAdjacentHTML('beforeend', this.renderTagChip(value));
@@ -1642,25 +3485,43 @@
 
                 addBtn.addEventListener('click', (e) => { e.preventDefault(); addTag(); input.focus(); });
                 input.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+                    if (isKey(e, 'Enter')) { e.preventDefault(); addTag(); }
+                    // The caret keeps left and right while typing and the button is right of the box, so no
+                    // arrow reached it. Right at the end of the text is the way on.
+                    if (isKey(e, 'ArrowRight') && input.selectionStart === input.value.length
+                        && input.selectionEnd === input.value.length) {
+                        e.preventDefault();
+                        addBtn.focus();
+                    }
                 });
-                // Committing on blur means a typed-but-not-added tag isn't silently lost on save.
+                // Committing on blur keeps a typed-but-not-added tag from being lost on save.
                 input.addEventListener('blur', () => addTag());
 
+                // The pressed button is the thing removed, so focus would fall to the page and a remote
+                // would restart from the top of the form. It goes to the chip that takes its place, else
+                // the one before, else the tag box.
+                const removeChip = (removeBtn) => {
+                    const chip = removeBtn.closest('.jpf-tag-chip');
+                    const all = Array.prototype.slice.call(chipList.querySelectorAll('.jpf-tag-chip'));
+                    const at = all.indexOf(chip);
+                    const next = all[at + 1] || all[at - 1];
+                    chip.remove();
+                    syncEmpty();
+                    const nextBtn = next && next.querySelector('.jpf-tag-chip-remove');
+                    if (nextBtn) nextBtn.focus(); else input.focus();
+                };
                 chipList.addEventListener('click', (e) => {
-                    const removeBtn = e.target.closest('.tag-chip-remove');
+                    const removeBtn = e.target.closest('.jpf-tag-chip-remove');
                     if (!removeBtn) return;
                     e.preventDefault();
-                    removeBtn.closest('.tag-chip').remove();
-                    syncEmpty();
+                    removeChip(removeBtn);
                 });
                 chipList.addEventListener('keydown', (e) => {
-                    if (e.key !== 'Enter' && e.key !== ' ') return;
-                    const removeBtn = e.target.closest('.tag-chip-remove');
+                    if (!isKey(e, 'Enter') && !isKey(e, ' ')) return;
+                    const removeBtn = e.target.closest('.jpf-tag-chip-remove');
                     if (!removeBtn) return;
                     e.preventDefault();
-                    removeBtn.closest('.tag-chip').remove();
-                    syncEmpty();
+                    removeChip(removeBtn);
                 });
             });
         },
@@ -1668,22 +3529,17 @@
         getTagEditorValues: function (container, id) {
             const editor = container.querySelector('#' + id);
             if (!editor) return [];
-            return Array.from(editor.querySelectorAll('.tag-chip'))
+            return Array.from(editor.querySelectorAll('.jpf-tag-chip'))
                 .map(chip => chip.getAttribute('data-tag'))
                 .filter(tag => tag);
         },
 
-        /// Runs one startup step, and refuses to let it take the rest of init() with it.
+        /// Runs one startup step so a throw in it cannot stop the rest of init().
         ///
-        /// 1.5.2 shipped a stray backtick inside the stylesheet template literal in
-        /// injectStyles. The file still parsed — it was valid JavaScript, just not what
-        /// anyone meant — so the syntax check passed and it went out. At runtime
-        /// injectStyles threw, and because init() called these bare, the nine steps after
-        /// it never ran: no focus trap, so a remote could not reach the gate; no switcher
-        /// preferences; no panic shortcut, which is the escape hatch for exactly this;
-        /// no session validation. bindEvents had already run, so the route poll kept
-        /// raising an unstyled gate and the plugin looked alive while almost nothing
-        /// worked. A broken stylesheet should cost styling and nothing else.
+        /// 1.5.2 shipped a stray backtick in the injectStyles stylesheet. The file still
+        /// parsed, so the syntax check passed, but injectStyles threw at runtime and the
+        /// nine steps after it never ran: no focus trap, switcher preferences, panic
+        /// shortcut or session validation. A broken stylesheet should cost styling only.
         _step: function (name, fn) {
             try {
                 fn();
@@ -1694,37 +3550,32 @@
 
         /// Upstream's TV test, copied so the two cannot disagree.
         ///
-        /// From jellyfin-web src/scripts/browser.js isTv(), which is the function behind
-        /// browser.tv and therefore behind layoutManager's own auto-detection. Its own
-        /// first comment is "This is going to be really difficult to get right", which is
-        /// why this is a copy rather than something reasoned out afresh.
-        ///
-        /// `web0s` is spelt with a ZERO. That is upstream's spelling because it is what
-        /// LG actually puts in the user agent, and writing the letter O here would miss
-        /// every webOS set silently.
+        /// From jellyfin-web src/scripts/browser.js isTv(), which is behind browser.tv and
+        /// layoutManager's auto-detection. `web0s` is spelt with a ZERO, as upstream does
+        /// and as LG sends it; the letter O would miss every webOS set.
         _uaLooksLikeTv: function (ua) {
             const s = String(ua || '').toLowerCase();
             // The Oculus browser carries samsungbrowser in its UA and is a headset.
             if (s.indexOf('oculusbrowser') !== -1) return false;
+            // No samsungbrowser: upstream dropped it in 12.x because Samsung Internet on an
+            // Android phone carries it and was laid out as a TV. A Samsung set says SMART-TV
+            // and TV, so 'tv' still finds it.
             return s.indexOf('tv') !== -1
-                || s.indexOf('samsungbrowser') !== -1
                 || s.indexOf('viera') !== -1
                 || s.indexOf('titanos') !== -1
                 || s.indexOf('netcast') !== -1
                 || s.indexOf('web0s') !== -1;
         },
 
-        /// Does this browser lay out flex containers with `gap`?
+        /// Does this browser lay out flex containers with `gap`? (Chrome 84.)
         ///
-        /// Chrome 84. webOS 5 (the LG CX) is Chromium 68 and Tizen 6.0 is 76, so on both
-        /// of the televisions this plugin has open issues from, every `gap` on a flex
-        /// container is ignored and the spacing between children is simply gone.
+        /// webOS 5 is Chromium 68 and Tizen 6.0 is 76, so on both TVs this plugin has
+        /// issues from, flex `gap` is ignored and the spacing is gone.
         ///
-        /// Measured, not asked. `@supports (gap: 1px)` answers TRUE on Chromium 68,
-        /// because grid gap shipped in 66 and the query cannot tell the two layout modes
-        /// apart — so the obvious feature query returns yes on exactly the devices where
-        /// flex gap does nothing. Two empty children in a column box with a 1px row-gap
-        /// make the box 1px tall where it works and 0 where it does not.
+        /// Measured, not asked: `@supports (gap: 1px)` is TRUE on Chromium 68 because grid
+        /// gap shipped in 66 and the query cannot tell the layout modes apart. Two empty
+        /// children in a column box with a 1px row-gap make the box 1px tall where gap
+        /// works and 0 where it does not.
         _supportsFlexGap: function () {
             if (this._flexGapOk !== undefined) return this._flexGapOk;
             if (!document.body) return true;   // too early to tell; assume modern
@@ -1745,41 +3596,49 @@
             return this._flexGapOk;
         },
 
-        /// Puts `jpf-tv` and `jpf-no-flex-gap` on <html>, so the stylesheet can size for
-        /// a screen three metres away and can replace flex gaps the device ignores.
+        /// Puts `jpf-tv` and `jpf-no-flex-gap` on <html> so the stylesheet can size for a TV
+        /// and replace flex gaps the device ignores.
         ///
-        /// The plan said to read `layoutManager.tv`. It cannot be read: layoutManager is
-        /// an ES module default export in jellyfin-web and is never placed on window.
-        /// What it does do is write `layout-tv` / `layout-mobile` / `layout-desktop` onto
+        /// layoutManager cannot be read: it is an ES module export and never on window.
+        /// It does write `layout-tv` / `layout-mobile` / `layout-desktop` onto
         /// document.documentElement (src/components/layoutManager.js, setLayout), so that
-        /// class is the supported signal — and it is strictly better than sniffing,
-        /// because it also honours a layout the user has forced in Display settings. A
-        /// desktop set to TV mode gets TV sizing, which sniffing would never give it.
+        /// class is the signal. It also honors a layout forced in Display settings, which
+        /// sniffing would not. The UA is the fallback for a cold load before
+        /// layoutManager.init() and for the pre-sign-in gate.
         ///
-        /// The UA is only the fallback, for the two moments the class is not there yet:
-        /// a cold load where we run before layoutManager.init(), and the pre-sign-in gate.
-        ///
-        /// Re-run on class changes rather than on a timer. layoutManager can switch mode
-        /// at runtime and fires 'modechange', but that event is on the module object we
-        /// cannot reach; the class attribute it writes is observable, costs nothing when
-        /// nothing changes, and is not the route poll's business.
+        /// Re-run on class changes, not a timer: layoutManager's 'modechange' event is on
+        /// the module object we cannot reach, but the class attribute it writes is
+        /// observable and costs nothing when unchanged.
         applyDeviceClasses: function () {
             const root = document.documentElement;
             if (!root) return;
 
-            // Writes only on an actual change. The observer below watches the very
-            // attribute this touches, and a write that changes nothing would still be a
-            // mutation record and a second pass through here on every unrelated class
-            // change Jellyfin makes.
+            // Writes only on a real change. The observer below watches the attribute this
+            // touches, so a no-op write would cause a second pass on every unrelated class
+            // change.
+            //
+            // This device's own choice (Settings > Your account > More) wins. Read from
+            // storage once and kept, because apply() runs on every class change.
+            if (this._layoutChoice === undefined) this._layoutChoice = this._readLayoutChoice();
             const apply = () => {
-                const isTv = root.classList.contains('layout-tv')
-                    || (!root.classList.contains('layout-mobile')
-                        && !root.classList.contains('layout-desktop')
-                        && this._uaLooksLikeTv(navigator.userAgent));
+                const choice = this._layoutChoice;
+                const isTv = choice === 'tv' ? true
+                    : choice === 'standard' ? false
+                    : root.classList.contains('layout-tv')
+                        || (!root.classList.contains('layout-mobile')
+                            && !root.classList.contains('layout-desktop')
+                            && this._uaLooksLikeTv(navigator.userAgent));
                 if (isTv !== root.classList.contains('jpf-tv')) {
                     root.classList.toggle('jpf-tv', isTv);
                 }
+                // The flat look follows the layout: a TV that cannot blur. A phone or desktop
+                // that cannot blur is left alone, and so is a TV that can.
+                const flat = isTv && !this._canBlur();
+                if (flat !== root.classList.contains('jpf-flat')) {
+                    root.classList.toggle('jpf-flat', flat);
+                }
             };
+            this._applyTvClass = apply;
 
             apply();
             root.classList.toggle('jpf-no-flex-gap', !this._supportsFlexGap());
@@ -1792,146 +3651,236 @@
             });
         },
 
+        /// Can this browser afford the full look? Asked by capability, not user agent:
+        /// backdrop-filter is Chromium 76, and a TV browser without it (webOS 4.5 is 53,
+        /// webOS 5 is 68) chokes on a blurred shadow behind every tile. No CSS.supports
+        /// means no: better flat than slow. Worked out once.
+        _canBlur: function () {
+            if (this._blurCapable === undefined) {
+                let can = false;
+                try {
+                    can = typeof CSS !== 'undefined' && typeof CSS.supports === 'function'
+                        && (CSS.supports('backdrop-filter', 'blur(1px)')
+                            || CSS.supports('-webkit-backdrop-filter', 'blur(1px)'));
+                } catch (e) { can = false; }
+                this._blurCapable = !!can;
+            }
+            return this._blurCapable;
+        },
+
+        /// This device's layout answer: 'tv', 'standard', or null for Automatic. Anything
+        /// else in storage, or storage that will not answer, is Automatic.
+        _readLayoutChoice: function () {
+            let raw = null;
+            try { raw = localStorage.getItem(this.config.layoutKey); } catch (e) { /* blocked */ }
+            return raw === 'tv' || raw === 'standard' ? raw : null;
+        },
+
+        /// Settings > Your account > More > Layout on this device. 'auto' removes the key
+        /// rather than storing a value that could go stale; anything but the three is
+        /// ignored. Applied through the same function the class observer runs, so the two
+        /// cannot disagree about which wins.
+        setLayoutChoice: function (value) {
+            if (value !== 'auto' && value !== 'tv' && value !== 'standard') return;
+            this._layoutChoice = value === 'auto' ? null : value;
+            try {
+                if (this._layoutChoice) localStorage.setItem(this.config.layoutKey, this._layoutChoice);
+                else localStorage.removeItem(this.config.layoutKey);
+            } catch (e) { /* blocked: it holds until the page is reloaded */ }
+            if (this._applyTvClass) this._applyTvClass();
+            else this.applyDeviceClasses();
+        },
+
+        /// loadLocale, then take down the switcher entries already in the page if the
+        /// language changed. The header button, user-menu row, Settings row and
+        /// profile-page section are built once and read t() once, so they kept saying
+        /// "Switch profile" in English (R-1244). The route poll rebuilds them.
+        _loadLocaleAndRelabel: function () {
+            const before = activeLocale;
+            return loadLocale().then(() => {
+                if (activeLocale === before) return;
+                ['profiles-floating-bubble', 'profiles-user-menu-item',
+                 'profiles-preferences-menu-item', 'profiles-userprofile-section'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.remove();
+                });
+            });
+        },
+
         init: function () {
-            if (typeof ApiClient === 'undefined') {
-                // If ApiClient is not defined yet, wait for it
-                setTimeout(() => this.init(), 100);
+            // Turned off: the same teardown as the emergency code, without remembering it, so
+            // the next load after turning it back on starts normally. Before the ApiClient
+            // wait so the head script's cover comes down at once.
+            if (BONFIRE_OFF) {
+                this._step('applyPanicDisable', () => this.applyPanicDisable(/* persist */ false));
+                // The head script raises its startup cover from this cache. Left in place, every
+                // load while off would flash the cover. loadSwitcherPrefs writes it again.
+                try { localStorage.removeItem(this.config.switcherModeKey); } catch (e) { /* blocked */ }
                 return;
             }
-            // viewshow fires when Jellyfin's React view system finishes rendering a view.
-            // We gate _revealPage() on this event so we never fade in to a blank shell.
+            if (typeof ApiClient === 'undefined') {
+                // Wait for ApiClient: every 100 ms for about a minute, then every 5 s. Giving up
+                // after the minute (a 600-try cap) left a page slow to get one, such as
+                // select-server, without Bonfire until a reload (r3-05-01).
+                this._initTries = (this._initTries || 0) + 1;
+                setTimeout(() => this.init(), this._initTries > 600 ? 5000 : 100);
+                return;
+            }
+            // viewshow fires when Jellyfin finishes rendering a view. _revealPage() waits for
+            // it so we never fade in to a blank shell.
             this._viewShowFired = false;
             this._pendingReveal = false;
-            // Kicked off now so it usually finishes before anyone actually needs a
-            // translated string — fetchAndRenderProfiles awaits it just before drawing
-            // the gate for the first time, which is the only render early enough to
-            // matter.
-            this._step('loadLocale', () => { this._i18nReady = loadLocale(); });
-            // fetchAndRenderProfiles awaits this before the first gate render, so it has to
-            // be a promise even if the step above failed.
+            // Started now so it usually finishes before a string is needed.
+            // fetchAndRenderProfiles awaits it before the first gate render.
+            this._step('loadLocale', () => { this._i18nReady = this._loadLocaleAndRelabel(); });
+            // Must be a promise even if the step above failed.
             if (!this._i18nReady) this._i18nReady = Promise.resolve();
-            // Follows Jellyfin's Display language when it changes without a reload. Screens
-            // drawn after that are in the new language; one already open keeps its text.
+            // Follows Jellyfin's Display language when it changes without a reload. A screen
+            // already open keeps its text.
             this._step('watchJellyfinLanguage', () => watchJellyfinLanguage(() => {
-                this._i18nReady = loadLocale();
+                this._i18nReady = this._loadLocaleAndRelabel();
             }));
 
             this._step('bindEvents', () => this.bindEvents());
-            // Before injectStyles, so the sheet's .jpf-tv and .jpf-no-flex-gap rules match
-            // on the first paint rather than after a reflow the viewer can see.
+            // Once per page load, never on the route poll.
+            try { localStorage.removeItem(this.config.deviceGateKey); } catch (e) { /* blocked */ }
+            // Before injectStyles so the .jpf-tv and .jpf-no-flex-gap rules match on first
+            // paint, not after a visible reflow.
             this._step('applyDeviceClasses', () => this.applyDeviceClasses());
-            // Same reason: the first frame of the gate should already be in this
-            // account's theme.
+            // The first frame of the gate should already be in this account's theme. Before
+            // applyCachedTheme, which would turn a custom theme it does not know yet into
+            // Bonfire.
+            this._step('restoreCustomThemes', () => this.restoreCustomThemes());
             this._step('applyCachedTheme', () => this.applyCachedTheme());
             this._step('injectStyles', () => this.injectStyles());
-            // Before anything that can decide about the gate, so every one of those
-            // decisions knows whether a cover is waiting on it.
+            this._step('loadCustomThemes', () => this.loadCustomThemes());
+            // Before anything that decides about the gate, so each decision knows whether a
+            // cover is waiting.
             this._step('_adoptCover', () => this._adoptCover());
-            // Kicked off before the first route check so the gate decision is usually made
-            // with the real answer in hand rather than the cached one.
-            // Before any Jellyfin view renders: the cached rules have to be in the document
-            // by the time the first library card paints, or the artwork this profile is not
-            // meant to see gets a frame on screen.
+            // Started before the first route check so the gate decision usually has the real
+            // answer. Before any Jellyfin view renders, or the cached rules arrive after the
+            // first library card paints and the artwork this profile should not see gets a
+            // frame on screen.
             this._step('applyCachedLibraryArtwork', () => this.applyCachedLibraryArtwork());
             this._step('loadLibraryArtwork', () => this.loadLibraryArtwork());
             this._step('loadSwitcherPrefs', () => this.loadSwitcherPrefs());
             this._step('bindPanicShortcut', () => this.bindPanicShortcut());
-            // Bound once for the life of the page. It resolves the active Bonfire screen on
-            // every event and does nothing when there is none, so it covers the gate, the
-            // PIN prompt, the profile forms and every dialog without per-screen wiring.
+            // Bound once. It resolves the active Bonfire screen on every event and does
+            // nothing when there is none, so it covers the gate, PIN prompt, forms and dialogs.
             this._step('_bindOverlayFocusTrap', () => this._bindOverlayFocusTrap());
-            // Before validateSessionState, which can trigger a reload of its own.
+            // Before validateSessionState, which can trigger a reload.
             this._step('checkPersistedPanic', () => this.checkPersistedPanic());
             if (this._panicDisabled) return;
+            this._startPageChecks();
+        },
+
+        /// What runs once per page load when the interface is known to be on. Init calls
+        /// it, or checkPersistedPanic does when the server says a remembered panic is over.
+        /// Without that, a page that started disabled never ran its maintenance check,
+        /// stale-session revert or lockout timer (R-1186).
+        _pageChecksStarted: false,
+        _startPageChecks: function () {
+            if (this._pageChecksStarted) return;
+            this._pageChecksStarted = true;
+            // Once per page load, never from checkRoute.
+            this._step('checkMaintenance', () => this.checkMaintenance());
             this._step('validateSessionState', () => this.validateSessionState());
-            // If the user refreshes while a profile is active, restart the inactivity timer
+            // Restart the inactivity timer if the page is refreshed while a profile is active.
             setTimeout(() => this._step('initLockoutTimer', () => this.initLockoutTimer()), 800);
         },
 
         bindEvents: function () {
             const doCheck = () => this.checkRoute();
 
-            // Jellyfin view-system events (fires on every page/view change)
-            // Use doCheck so all logic is centralised in checkRoute.
+            // Jellyfin view-system events fire on every view change. Everything goes through
+            // doCheck so the logic stays in checkRoute.
             document.addEventListener('viewshow', () => {
-                // Mark the view as ready so _revealPage() knows content is rendered.
+                // Content is rendered.
                 this._viewShowFired = true;
-                // If _revealPage() was deferred waiting for this event, run it now.
+                // Run a _revealPage() that was waiting for this event.
                 if (this._pendingReveal) this._revealPage();
                 doCheck();
             });
 
             this._bindSettingsRefresh();
 
-            // SPA navigation events
-            window.addEventListener('popstate', doCheck);
-            window.addEventListener('hashchange', doCheck);
+            // SPA navigation. With the Campground runtime on the page, route changes come
+            // from its `route` event (popstate, hashchange, viewshow) and history is wrapped
+            // only through its patch(), so the brake can undo it. If the runtime is missing
+            // (a CSP blocked /Campground/runtime.js, or the brake is on), Bonfire listens
+            // and wraps history itself.
+            const cg = window.Campground;
+            const hasRuntime = !!(cg && typeof cg.on === 'function');
+            if (hasRuntime) {
+                cg.on('route', doCheck);
+            } else {
+                window.addEventListener('popstate', doCheck);
+                window.addEventListener('hashchange', doCheck);
+            }
 
-            // The corner-pill fallback is placed by geometry, so its position is stale
-            // only when the viewport changes — a rotation on a phone, a window resize.
-            // Marking it here is what lets the route tick stop recomputing it.
+            // The corner-pill fallback is placed by geometry, so it is stale only when the
+            // viewport changes. Marking it here lets the route tick skip recomputing it.
             ['resize', 'orientationchange'].forEach(evt => {
                 window.addEventListener(evt, () => { this._fallbackPosDirty = true; });
             });
 
-            // Intercept history.pushState / replaceState (React-router style navigation)
+            // Intercept pushState / replaceState. The runtime's route event does not cover
+            // them: 10.11 keeps the route in the path and navigates by pushState, which fires
+            // neither popstate nor hashchange. If patch() declines (brake on), history is left
+            // alone and the poll notices the change.
             ['pushState', 'replaceState'].forEach(method => {
-                const orig = history[method];
-                history[method] = function (...args) {
-                    orig.apply(history, args);
-                    // Small delay so the URL is committed before we read it
+                const wrap = orig => function (...args) {
+                    const result = orig.apply(this, args);
+                    // Let the URL commit before reading it.
                     setTimeout(doCheck, 0);
+                    return result;
                 };
+                if (hasRuntime && typeof cg.patch === 'function') {
+                    cg.patch(history, method, wrap, 'bonfire');
+                } else {
+                    // No runtime, or one older than 0.10.0 with no patch(). A second copy of the
+                    // script or a second bindEvents would wrap the wrapper and run doCheck twice on
+                    // every navigation, so the marker says it is ours.
+                    if (!history[method] || !history[method]._bonfireWrapped) {
+                        const wrapped = wrap(history[method]);
+                        wrapped._bonfireWrapped = true;
+                        history[method] = wrapped;
+                    }
+                }
             });
 
-            // Clear the cached master token on native Jellyfin sign-out, so it does not
-            // persist in localStorage on a shared or public device. Signing out of
-            // Jellyfin has to mean signing out of Bonfire too, or the next person at the
-            // machine inherits the switcher.
+            // Clear the cached master token on native Jellyfin sign-out so it does not stay
+            // in localStorage on a shared device; the next person would inherit the switcher.
             document.addEventListener('usersignedout', () => {
-                try {
-                    localStorage.removeItem(this.config.masterStorageKey);
-                    localStorage.removeItem(this.config.activeSessionKey);
-                    localStorage.removeItem(this.config.switcherModeKey);
-                    this._switcherPrefs = null;
-                    // Learned from the same response as the preferences, so it goes with them.
-                    this._panicLinkAvailable = null;
-                    // deviceGateKey is deliberately NOT removed: it is a property of this
-                    // machine, and a TV that signs out occasionally should not quietly
-                    // rejoin the household answer it was told to ignore. It is safe to
-                    // leave because every entry is filed under an account id and a read
-                    // only accepts one belonging to whoever is signed in now — the next
-                    // person at this machine gets their own answer, not this one's. The
-                    // in-memory copy still has to go, or it would outlive the account.
-                    this._deviceGateLoaded = false;
-                    this._deviceGate = null;
-                    localStorage.removeItem(this.config.libraryArtKey);
-                    this.clearProfileSession();
-                } catch (e) { /* ignore storage errors */ }
+                // One try per step: a failure (blocked storage, a throwing sessionStorage) used to
+                // skip every later step, including removing the cached list below (R-1310).
+                const step = fn => { try { fn(); } catch (e) { /* ignore storage errors */ } };
+                step(() => this.clearMasterState());
+                step(() => localStorage.removeItem(this.config.activeSessionKey));
+                step(() => localStorage.removeItem(this.config.switcherModeKey));
+                this._switcherPrefs = null;
+                // Learned from the same response as the preferences.
+                this._panicLinkAvailable = null;
+                step(() => localStorage.removeItem(this.config.libraryArtKey));
+                // Names, avatars and tiles: the next person at a shared browser must not read
+                // them (R-1310).
+                step(() => localStorage.removeItem('jellyfin_profiles_cached_list'));
+                step(() => this.clearProfileSession());
             });
 
-            // 500 ms is sufficient because viewshow, popstate and hashchange already cover
-            // every SPA navigation. The poll is only a safety net for the cases that change
-            // the DOM without changing the route — the video OSD is the one that matters.
+            // 500 ms is enough because viewshow, popstate and hashchange cover SPA
+            // navigation. The poll is a safety net for DOM changes without a route change,
+            // chiefly the video OSD.
             //
-            // It backs off to 2 s once playback starts. There is nothing for the plugin to
-            // do during playback — the gate is not raised, the bubble is hidden, and the
-            // menus are not on screen — and that is exactly when the device has least
-            // headroom: a TV decoding 4K is the weakest hardware in the house doing the
-            // hardest thing it ever does. Four times fewer wake-ups for work that has no
-            // effect.
-            //
-            // Not stopped outright. The tick is also what notices playback *ending* on a
-            // client whose URL does not change, and a poll that switched itself off would
-            // then need something else to switch it back on. 2 s is a quarter of a second
-            // of latency on the bubble reappearing, which nobody can see.
+            // It backs off to 2 s during playback: nothing is shown then, and a TV decoding
+            // 4K has the least headroom. Not stopped outright, because the tick is also what
+            // notices playback ending on a client whose URL does not change.
             this._tickMs = 500;
             const arm = () => {
                 clearInterval(this._routeTimer);
                 this._routeTimer = setInterval(() => {
                     doCheck();
-                    // _lastRouteType is set by checkRoute, so this reads the classification
-                    // that has just been made rather than repeating the work to get it.
+                    // _lastRouteType is set by checkRoute, so this reuses that classification.
                     const want = this._lastRouteType === 'videoosd' ? 2000 : 500;
                     if (want !== this._tickMs) {
                         this._tickMs = want;
@@ -1945,34 +3894,31 @@
             setTimeout(doCheck, 200);
         },
 
-        /// True when the browser is sitting on the home screen.
+        /// True when the browser is on the home screen.
         ///
-        /// Extracted from checkRoute so reloadAtHome() can ask the same question. The two
-        /// must agree: reloadAtHome only redirects when this is false, so a route this
-        /// says is home is a route it will never try to build a URL for.
+        /// Extracted from checkRoute so reloadAtHome() asks the same question. It only
+        /// redirects when this is false, so a home route never gets a URL built for it.
         isHomeRoute: function () {
             const hash = window.location.hash || '';
             const path = window.location.pathname || '';
 
-            // Check if we are on the home screen
-            // The home screen route can be: empty, '#/', '#/home', '#/home.html', or similar.
-            // But we must NOT trigger it if we are on pages like configuration, plugins, selectserver, login, etc.
-            const isIgnoredPage = hash.includes('configuration') ||
-                                 hash.includes('plugin') ||
-                                 hash.includes('login') ||
-                                 hash.includes('selectserver') ||
-                                 path.includes('configuration') ||
-                                 path.includes('plugin') ||
-                                 path.includes('login') ||
-                                 path.includes('selectserver');
+            // Home is: empty, '#/', '#/home', '#/home.html', or similar. Not configuration,
+            // plugins, selectserver, login, etc.
+            //
+            // Matched on route segments, not substrings of the address: a server under a base
+            // path like /plugins-media/web/ contains 'plugin' on every page, so the substring
+            // test said "not home" forever. Only what follows /web/ is the route, not the
+            // query string.
+            const webRoute = path.match(/^.*\/web\/(.*)$/);
+            const ignoredWord = /(^|[\/#!])(configuration|plugin|login|selectserver)/i;
+            const isIgnoredPage = ignoredWord.test(hash.split('?')[0]) ||
+                                 ignoredWord.test((webRoute ? webRoute[1] : path).split('?')[0]);
 
             if (isIgnoredPage) return false;
 
-            // 10.11 moved the route out of the fragment and into the path, so on those
-            // builds the hash is empty on every page — and the `hash === ''` clause below
-            // was therefore answering "yes, this is home" for all of them. Whenever the
-            // path carries a route, it is the authority and the hash has nothing to say.
-            const webRoute = path.match(/^.*\/web\/(.*)$/);
+            // 10.11 moved the route from the fragment into the path, so the hash is empty on
+            // every page and the `hash === ''` clause below said "home" for all of them. When
+            // the path carries a route, it wins.
             if (webRoute) {
                 const route = webRoute[1].replace(/\/+$/, '');
                 if (route !== '' && route !== 'index.html') {
@@ -1983,52 +3929,49 @@
             return (
                 hash === '' ||
                 hash === '#/' ||
-                hash.includes('home') ||
+                // The route segment, not any hash containing the word: a search for "home" is
+                // '#/search.html?query=home' (R-1189).
+                /^#!?\/home(\.html)?([?\/]|$)/.test(hash) ||
                 path.endsWith('/home') ||
                 path.endsWith('/home.html') ||
-                // If there is no hash and we are at /web/index.html or root
+                // No hash and at /web/index.html or root.
                 (!hash && (path.endsWith('index.html') || path === '/' || path === '/web/'))
             );
         },
 
-        /// The home screen's URL in whichever routing style this build of jellyfin-web
-        /// uses, or null when neither shape is recognisable.
+        /// The home screen's URL in the routing style this jellyfin-web uses, or null if
+        /// neither shape is recognized.
         ///
-        /// Two styles are in the wild: 10.10 and earlier keep the route in the fragment
-        /// ('/web/index.html#/home.html'), 10.11 moved it into the path ('/web/home').
-        /// Guessing wrong here means a 404 rather than a stale page, so an unrecognised
-        /// shape returns null and the caller stays put instead.
+        /// 10.10 and earlier keep the route in the fragment ('/web/index.html#/home.html');
+        /// 10.11 moved it into the path ('/web/home'). A wrong guess is a 404, so an
+        /// unrecognized shape returns null and the caller stays put.
         homeUrl: function () {
             const loc = window.location;
             const hash = loc.hash || '';
 
-            // Hash-routed: the document does not change, only the fragment. Whichever
-            // prefix this build uses is reused rather than guessed at.
+            // Hash-routed: only the fragment changes. Reuse whichever prefix this build uses.
             if (hash.startsWith('#!/')) return loc.pathname + loc.search + '#!/home.html';
             if (hash.startsWith('#/')) return loc.pathname + loc.search + '#/home.html';
 
-            // Path-routed: '/web/mypreferencesmenu' -> '/web/home'. Matched from '/web/'
-            // so a server hosted on a base path keeps it.
+            // Path-routed: '/web/mypreferencesmenu' -> '/web/home'. Matched from '/web/' so a
+            // base path is kept.
             const m = loc.pathname.match(/^(.*\/web\/)/);
             if (m) return m[1] + 'home';
 
             return null;
         },
 
-        /// Reloads onto the home screen. For every caller here the signed-in identity has
-        /// just changed, so the app must re-initialise under the new token — and the page
-        /// that was on screen belonged to the previous profile.
+        /// Reloads onto the home screen. Every caller has just changed the signed-in
+        /// identity, so the app must re-initialize under the new token and the page on
+        /// screen belonged to the previous profile.
         ///
-        /// Issue #22: this used to be a bare reload, which preserves the route. Switching
-        /// from the user menu therefore reloaded /web/mypreferencesmenu as the new
-        /// profile, leaving the user to find their own way home. The gate never showed it
-        /// because the gate only ever runs from home, where the two are the same thing.
+        /// Issue #22: this was a bare reload, which keeps the route. Switching from the
+        /// user menu reloaded /web/mypreferencesmenu as the new profile. The gate never
+        /// showed it because it only runs from home.
         reloadAtHome: function () {
-            // Already home: reload exactly as before. This is the path the gate uses and
-            // the one with hardware testing behind it, so it is left untouched. It also
-            // keeps homeUrl() away from the one case it could get wrong — a hash-routed
-            // build sitting at '/web/' with no fragment, where the path branch would
-            // wrongly produce '/web/home'.
+            // Already home: reload as before. This is the gate's path and has hardware
+            // testing behind it. It also keeps homeUrl() away from a hash-routed build at
+            // '/web/' with no fragment, where the path branch would wrongly give '/web/home'.
             if (this.isHomeRoute()) {
                 this._reloadWithFallback(null);
                 return;
@@ -2037,52 +3980,46 @@
             this._reloadWithFallback(this.homeUrl());
         },
 
-        /// How long to wait before deciding a navigation attempt did not take.
-        ///
-        /// Long enough that a slow television is not interrupted mid-teardown, short
-        /// enough that somebody who tapped a profile is not left staring at the wrong
-        /// account. A page that is genuinely unloading never reaches the timer.
+        /// How long to wait before deciding a navigation attempt did not take. Long enough
+        /// that a slow TV is not interrupted mid-teardown, short enough that someone who
+        /// tapped a profile is not left on the wrong account. An unloading page never
+        /// reaches the timer.
         RELOAD_ESCALATE_MS: 1200,
 
         /// Reloads the page, and checks that the reload happened.
         ///
-        /// By the time this runs the switch is complete everywhere except the screen: the
-        /// profile's token is in localStorage and in ApiClient, and all that is left is for
-        /// the document to be rebuilt under the new identity. If that does not happen,
-        /// jellyfin-web goes on rendering the page it built for the *previous* profile —
-        /// its home sections, its Continue Watching, its Next Up — while the header shows
-        /// the profile that was picked, because Bonfire draws that part itself.
+        /// By now the profile's token is in localStorage and ApiClient; only the document
+        /// needs rebuilding. If that does not happen, jellyfin-web keeps rendering the
+        /// previous profile's page (home sections, Continue Watching, Next Up) while the
+        /// header, which Bonfire draws itself, shows the new one.
         ///
-        /// Reported on Samsung Tizen as "it lets you pick a profile, but nothing changes
-        /// once you load in". The credentials, the token and the server were all ruled out
-        /// first; what was left is that `location.reload()` is not reliable everywhere this
-        /// runs. The bundled television clients serve jellyfin-web from a local file://
-        /// origin, which is where it has been seen to do nothing at all.
+        /// Reported on Samsung Tizen as "it lets you pick a profile, but nothing changes".
+        /// Credentials, token and server were ruled out; `location.reload()` is not
+        /// reliable everywhere. The bundled TV clients serve jellyfin-web from file://,
+        /// where it has been seen to do nothing.
         ///
-        /// So each step is a different mechanism rather than a retry of the same one. The
-        /// last rung says so out loud: showing a child the parent's Continue Watching while
-        /// they believe it is theirs is worse than admitting the reload failed.
+        /// So each step is a different mechanism, not a retry. The last rung says so
+        /// aloud: showing a child the parent's Continue Watching is worse than admitting
+        /// the reload failed.
         _reloadWithFallback: function (target) {
             const step = (n) => {
                 try {
                     if (n === 0) {
                         if (target) {
-                            // replace() rather than assignment so Back does not return to
-                            // the previous profile's page.
+                            // replace() so Back does not return to the previous profile's page.
                             window.location.replace(target);
-                            // A fragment-only change does not reload the document, and a
-                            // full re-initialisation is the entire point of the call.
+                            // A fragment-only change does not reload the document, and re-initializing is the
+                            // point.
                             if (target.indexOf('#') !== -1) window.location.reload();
                         } else {
                             window.location.reload();
                         }
                     } else if (n === 1) {
-                        // Assignment, not replace(): a different code path in the browser,
-                        // which is the only reason to try it at all.
+                        // Assignment, not replace(): a different browser code path, the only reason to try it.
                         window.location.href = target || window.location.href;
                     } else if (n === 2) {
-                        // Force a cache-busting navigation. Some webviews treat a reload
-                        // of an identical URL as a no-op but will honour a changed query.
+                        // Cache-busting navigation. Some webviews treat reloading an identical URL as a
+                        // no-op but honor a changed query.
                         const url = target || window.location.href;
                         const sep = url.indexOf('?') === -1 ? '?' : '&';
                         const bust = url.indexOf('#') === -1
@@ -2099,15 +4036,16 @@
                 this._reloadTimer = setTimeout(() => step(n + 1), this.RELOAD_ESCALATE_MS);
             };
 
-            // A navigation that has committed fires pagehide, and on a set slow enough to
-            // still be running timers a step later the escalation would then navigate a
-            // second time — onto a cache-busted URL nobody asked for. The ladder is for a
-            // reload that does nothing, not for one that is merely slow.
+            // A committed navigation fires pagehide. On a set slow enough to still run timers,
+            // the escalation would navigate a second time onto a cache-busted URL nobody asked
+            // for. The ladder is for a reload that does nothing, not a slow one.
             //
-            // Taken off again when the ladder ends, which is not academic: the last rung
-            // reveals the page and leaves the viewer able to try another profile, so a
-            // ladder that never unbinds leaves a pair of listeners behind per attempt.
+            // Removed when the ladder ends: the last rung reveals the page and lets the viewer
+            // try another profile, so otherwise each attempt leaves a pair of listeners.
             this._releaseReloadGuards();
+            // A second call while a ladder is climbing would leave the first timer running,
+            // and two ladders navigate twice (R-1189).
+            if (this._reloadTimer) clearTimeout(this._reloadTimer);
             const stop = () => { if (this._reloadTimer) clearTimeout(this._reloadTimer); };
             this._reloadGuards = stop;
             window.addEventListener('pagehide', stop);
@@ -2116,10 +4054,6 @@
             step(0);
         },
 
-        /// Nothing rebuilt the page, so the profile that was chosen is signed in but the
-        /// screen still belongs to whoever was there before. Reveal the page and say so —
-        /// the alternative is leaving somebody looking at another person's library and
-        /// believing it is their own.
         /// Drops the pagehide/beforeunload pair the ladder arms. Safe with none outstanding.
         _releaseReloadGuards: function () {
             if (!this._reloadGuards) return;
@@ -2128,13 +4062,16 @@
             this._reloadGuards = null;
         },
 
+        /// Nothing rebuilt the page, so the chosen profile is signed in but the screen
+        /// still belongs to the previous one. Reveal the page and say so, rather than leave
+        /// someone looking at another person's library believing it is theirs.
         _reloadFailed: function () {
             this._reloading = false;
             this._releaseReloadGuards();
             try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
 
-            // The switch hid the page behind an opaque overlay, or behind the head
-            // script's opacity:0. Either would leave this message invisible.
+            // The switch hid the page behind an opaque overlay or the head script's
+            // opacity:0; either would hide this message.
             document.documentElement.style.removeProperty('opacity');
             document.documentElement.style.removeProperty('background');
             this._dropCover();
@@ -2146,8 +4083,8 @@
         },
 
         checkRoute: function () {
-            // Emergency disable: do nothing at all. This runs on a 500 ms timer, so without
-            // this guard it would rebuild the gate immediately after the teardown.
+            // Emergency disable: do nothing. This runs on a 500 ms timer and would rebuild
+            // the gate right after the teardown.
             if (this._panicDisabled) return;
 
             const hash = window.location.hash || '';
@@ -2155,65 +4092,68 @@
 
             const isHome = this.isHomeRoute();
 
-            // skipReveal: set to true when we know the gate overlay is about to be shown.
-            // In that case showProfileOverlay() will call _revealPage() once the overlay
-            // covers the page, preventing a blank-home flash during the async profile fetch.
+            // Set when the gate overlay is about to show: showProfileOverlay() then calls
+            // _revealPage() once the overlay covers the page, avoiding a blank-home flash
+            // during the profile fetch.
             let skipReveal = false;
 
             if (isHome) {
-                // Preferences are null until we have learned them for this account. Waiting
-                // is the safe direction: loadSwitcherPrefs() re-runs this check the moment it
-                // resolves, so at worst the gate arrives a beat late — whereas guessing would
-                // flash a full-screen overlay at somebody who turned it off, on every load.
+                // Preferences are null until learned for this account. Waiting is safe:
+                // loadSwitcherPrefs() re-runs this check when it resolves, so the gate is at worst
+                // a beat late, whereas guessing would flash a full-screen overlay at someone who
+                // turned it off, on every load.
                 //
-                // Usually unknown because init() ran before the user had signed in, so there
-                // was no token to ask with. Retrying here is what gets the gate working on the
-                // first home screen after a fresh login. loadSwitcherPrefs guards itself and
-                // settles on the historical default if the request fails, so this cannot spin
-                // on the 500 ms route poll.
-                // _panicLinkAvailable rides on the same response and is never cached, so a
-                // browser holding a valid preferences cache would otherwise never learn it
-                // and would hide the emergency link for the whole session.
+                // Usually unknown because init() ran before sign-in, with no token. Retrying here
+                // gets the gate working on the first home screen after login. loadSwitcherPrefs
+                // guards itself and settles on the historical default if the request fails, so it
+                // cannot spin on the poll.
+                // _panicLinkAvailable comes in the same response and is never cached, so a valid
+                // preferences cache would otherwise hide the emergency link all session.
                 if (this.getSwitcherPrefs() === null || this._panicLinkAvailable === null) {
                     this.loadSwitcherPrefs();
                 }
 
-                // Same reason: init runs before sign-in on a fresh load, and there was no
-                // token to ask with. Without a retry the artwork rules never arrive.
+                // Same reason: init runs before sign-in, so without a retry the artwork rules
+                // never arrive.
                 if (!this._libraryArtLoaded) this.loadLibraryArtwork();
 
                 if (this.shouldAskOnStartup()
                     && !this.isProfileSessionActive()
                     && !document.getElementById('profiles-gate-overlay')) {
-                    skipReveal = true;
-                    this.interceptHomeAndShowProfiles();
+                    // This used to call interceptHomeAndShowProfiles every tick until the gate
+                    // existed, each sending its own /list: a slow server got a pile, a down one got
+                    // one every 500 ms. Now a request already out means the gate is coming, so keep
+                    // the page hidden; a recent failure means it is not, so show the page (the catch
+                    // dropped the cover) and ask again at POLL_RETRY_MS.
+                    if (this._listPending()) {
+                        skipReveal = true;
+                    } else if (this._listPollMayRequest()) {
+                        skipReveal = true;
+                        this.interceptHomeAndShowProfiles();
+                    }
                 }
             } else {
-                // If we navigate away from home, ensure the overlay is removed if it somehow got stuck
+                // Remove the overlay if it got stuck after navigating away from home.
                 //
-                // Not while a switch is reloading the page. executeProfileSwitch marks the
-                // new profile active *before* it reloads, which is exactly this test's
-                // "stuck" signature — so on any page but home (the switcher opened from the
-                // button or the user menu) the next tick took the opaque gate down and showed
-                // the old profile's page until the navigation landed. On a television that is
-                // most of a second.
-                if (!this._reloading
+                // Not while a switch is reloading the page. executeProfileSwitch marks the new
+                // profile active before it reloads, which looks exactly like "stuck", so on any
+                // page but home the next tick took the gate down and showed the old profile's
+                // page until the navigation landed (most of a second on a TV).
+                // Nor while first-time setup is on screen: a field read, no DOM work.
+                if (!this._reloading && !this._onboarding
                     && document.getElementById('profiles-gate-overlay') && this.isProfileSessionActive()) {
                     this.removeProfileOverlay();
                 }
             }
 
-            // Monitor and hide shadow profiles from admin user management list
-            const isUsersPage = hash.includes('users') || path.includes('users');
-            if (isUsersPage) {
-                this.monitorAndHideShadowProfiles();
-            } else {
-                if (this.usersObserver) {
-                    this.usersObserver.disconnect();
-                    this.usersObserver = null;
-                }
-                this.isMonitoringUsers = false;
-                this.subProfileIdsToHide = null;
+            // Profile accounts stay off Dashboard -> Users. A string compare per tick; the
+            // work happens once, when the address changes. A failed read asks again once its
+            // wait is over (tests/js/pollbackoff.js, R-1183).
+            if (hash !== this._usersRouteHash
+                || (this._usersRetryDue && Date.now() >= this._usersMappingsRetryAt)) {
+                this._usersRetryDue = false;
+                this._usersRouteHash = hash;
+                this.syncHiddenProfiles(hash);
             }
 
             // ── Active player: URL-based detection ──────────────────────────────
@@ -2222,30 +4162,23 @@
                                    (hash.includes('video') && !hash.includes('videos'));
 
             // ── Active player: DOM-based detection (catches delayed URL updates) ──
-            // The OSD element appears in the DOM the moment playback starts.
-            // Class selectors only. This list carried [class*="videoOsd"] and
-            // [class*="osdBottom"] as well, and an unqualified attribute-substring
-            // selector cannot use the class index — the engine walks every element in the
-            // document and tests each one. That ran twice a second, for the life of the
-            // page, on every device, including the weakest hardware in the house *during
-            // playback*, which is the one moment it has least to spare.
-            //
-            // They also never matched anything the three explicit names beside them did
-            // not already match: .videoOsdBottom is itself the element [class*="videoOsd"]
-            // was reaching for. Verified against jellyfin-web 10.11 —
-            // src/controllers/playback/video/index.html — and recorded in
-            // tests/upstream-selectors.json.
+            // The OSD element appears the moment playback starts. Class selectors only: this
+            // list also had [class*="videoOsd"] and [class*="osdBottom"], and an unqualified
+            // attribute-substring selector cannot use the class index, so the engine walked
+            // every element twice a second during playback, when weak hardware has least to
+            // spare. They matched nothing the three names beside them did not
+            // (.videoOsdBottom is the element [class*="videoOsd"] was reaching for).
+            // Verified against jellyfin-web 10.11 src/controllers/playback/video/index.html
+            // and recorded in tests/upstream-selectors.json.
             const hasOsdDom = !!document.querySelector(
                 '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo'
             );
 
             // ── Admin / server-management pages ─────────────────────────────────
-            // Exception: our own plugin settings page (configurationpage?name=Bonfire) is
-            // the only admin-area page where the button should stay visible.
-            //
-            // Both spellings are accepted. The page was registered as "Profiles" until 1.5
-            // and the name is what forms this URL, so a browser sitting on the old address —
-            // a bookmark, or a tab open across the upgrade — would otherwise lose the button.
+            // Exception: our own settings page (configurationpage?name=Bonfire), the only
+            // admin-area page where the button stays visible. Both spellings are accepted:
+            // the page was "Profiles" until 1.5, so a bookmark or a tab open across the
+            // upgrade would otherwise lose the button.
             const isProfilesSettingsPage = hash.includes('configurationpage')
                 && (hash.toLowerCase().includes('name=bonfire')
                     || hash.toLowerCase().includes('name=profiles'));
@@ -2270,12 +4203,10 @@
             );
 
             // The sign-in and server-select screens belong to nobody. validateSessionState
-            // already forgets the previous account there, but only once, at init — and the
-            // iOS app signs out without reloading, so init never runs again and the old
-            // account's profile and master carried straight into the next sign-in. Classified
-            // here, from the URL this tick already read, so the bubble can act on it without
-            // a second look at location. Same four tests validateSessionState uses: the two
-            // must agree on what a sign-in screen is.
+            // forgets the previous account there, but only once at init, and the iOS app signs
+            // out without reloading, so the old profile and master carried into the next
+            // sign-in. Classified here from the URL this tick already read. Same four tests as
+            // validateSessionState: the two must agree on what a sign-in screen is.
             const isSignIn = hash.includes('login') || hash.includes('selectserver')
                           || path.includes('login') || path.includes('selectserver');
 
@@ -2287,9 +4218,8 @@
             this._lastRouteType = viewType;
             this.evaluateFloatingBubbleVisibility(viewType);
 
-            // Menu-location entry points. Both are re-asserted on every route change
-            // because React discards and rebuilds these views freely; the calls are cheap
-            // and no-op when the element is already in place.
+            // Menu entry points, re-asserted on every route change because React discards and
+            // rebuilds these views. Cheap, and a no-op when the element is in place.
             this.syncUserMenuEntry();
             this.syncPreferencesMenuEntry();
             if (this.isMenuLocation()) {
@@ -2297,47 +4227,40 @@
                 if (isUserProfilePage) this.injectProfilePageSection();
             }
 
-            // Reveal the page now that the gate decision has been made.
-            // Skip when skipReveal is set — the overlay isn't in the DOM yet and
-            // revealing now would show a blank page during the profile fetch.
+            // Reveal the page now that the gate decision is made. Not when skipReveal is set:
+            // the overlay is not in the DOM yet and a reveal would flash a blank page.
             if (!skipReveal) this._revealPage();
 
-            // The startup cover is waiting on exactly the decision made above. If it was
-            // not "raise the gate" — a profile is already active, the preferences say no
-            // or are not this account's, this is not home, the sign-in page — there is
-            // nothing coming to replace it. A cached boolean first: this runs twice a
-            // second for the life of the page, and the cover is up for a second or two of
-            // it at most.
-            // Off home it comes down even while a gate request is out: that gate is never
-            // going to be drawn here.
+            // The startup cover waits on the decision made above. If it was not "raise the
+            // gate" (a profile is already active, the preferences say no or are not this
+            // account's, this is not home, the sign-in page), nothing is coming to replace
+            // it. A cached boolean first: this runs twice a second and the cover is up for a
+            // second or two at most. Off home it comes down even while a gate request is out,
+            // because that gate will never be drawn here.
             if (this._coverUp && !skipReveal && !this._coverForSwitch
                 && (!isHome || !this._coverHeldForGate)) this._dropCover();
         },
 
-        // Smoothly fades the page back in after a profile switch.
-        // Guards on _viewShowFired to ensure React has rendered the view before we
-        // expose it — otherwise a blank white shell flashes for a moment.
+        // Fades the page back in after a profile switch. Waits for _viewShowFired so
+        // React has rendered the view; otherwise a blank white shell flashes.
         /**
-         * Records the colour the page is currently painted in, so the next load can hold
-         * that colour while it renders instead of a hardcoded one.
-         *
-         * The head script used to set background:#101010 and color-scheme:dark
-         * unconditionally. Jellyfin ships light themes and lets a user pick any of them,
-         * so on every one of those a profile switch flashed a full-screen black rectangle
-         * — the exact flash the head script exists to prevent, just in the other
-         * direction. It also forced dark form controls and scrollbars for that moment.
-         *
-         * Read here rather than guessed there, because here is the one place the answer is
-         * knowable: the page is fully rendered, the theme stylesheet has applied, and
-         * whatever the user is looking at is what we should keep showing.
-         *
-         * Returns the colour, so the caller can paint with it immediately as well.
-         */
+        * Records the color the page is painted in, so the next load can hold that color
+        * while it renders instead of a hardcoded one.
+        *
+        * The head script used to set background:#101010 and color-scheme:dark always.
+        * Jellyfin ships light themes, so on those a profile switch flashed a black
+        * rectangle, the flash the head script exists to prevent. It also forced dark form
+        * controls and scrollbars for that moment.
+        *
+        * Read here because this is the one place the answer is known: the page is
+        * rendered and the theme stylesheet has applied.
+        *
+        * Returns the color so the caller can paint with it at once.
+        */
         _captureLeavingBackground: function () {
             let colour = '';
             try {
-                // The body carries the theme colour in Jellyfin's stylesheets; when it is
-                // transparent the colour is on <html> behind it, so ask that instead.
+                // The body carries the theme color; when it is transparent the color is on <html>.
                 const fromBody = getComputedStyle(document.body || document.documentElement).backgroundColor;
                 colour = this._isSeeThrough(fromBody)
                     ? getComputedStyle(document.documentElement).backgroundColor
@@ -2346,8 +4269,8 @@
 
             if (!colour || this._isSeeThrough(colour)) colour = '#101010';
 
-            // The scheme has to match the colour or the browser paints dark scrollbars and
-            // form controls over a light page for the length of the switch.
+            // The scheme must match the color or the browser paints dark scrollbars and form
+            // controls over a light page during the switch.
             const scheme = this._isLightColour(colour) ? 'light' : 'dark';
 
             try {
@@ -2366,10 +4289,9 @@
         },
 
         /**
-         * Relative luminance, so "which colour-scheme is this" is decided by the colour
-         * itself rather than by a list of theme names that would need updating whenever
-         * Jellyfin adds one.
-         */
+        * Relative luminance, so the color-scheme follows the color and not a list of
+        * theme names that would need updating whenever Jellyfin adds one.
+        */
         _isLightColour: function (colour) {
             const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(colour);
             if (!m) return false;
@@ -2379,15 +4301,13 @@
 
         // ── The startup cover ──────────────────────────────────────────────────────
         //
-        // With "Ask on startup" on, the home screen used to be on view before the gate:
-        // jellyfin-web renders home as soon as it has a user, while the gate waits for the
-        // first route check (200 ms after init, which itself waits for ApiClient), then for
-        // the profile list from the server, then fades in from opacity 0 over 220 ms. On a
-        // phone that was a third of a second of somebody else's Continue Watching; on a
-        // television more. The head script now covers the page before the first frame
-        // when the cached preferences say the gate is coming — see WebInjection.HeadScript
-        // for the rules it decides by — and everything here is about taking it down again
-        // at the right moment:
+        // With "Ask on startup" on, home used to be visible before the gate:
+        // jellyfin-web renders home once it has a user, while the gate waits for the first
+        // route check (200 ms after init, which waits for ApiClient), then the profile
+        // list, then fades in over 220 ms. That was a third of a second of somebody else's
+        // Continue Watching on a phone, more on a TV. The head script now covers the page
+        // before the first frame when the cached preferences say the gate is coming (see
+        // WebInjection.HeadScript). This code takes the cover down again:
         //
         //   - the gate is drawn and opaque           -> showProfileOverlay
         //   - the gate is not coming after all       -> checkRoute, interceptHomeAndShowProfiles
@@ -2396,8 +4316,7 @@
         //   - none of the above within GATE_COVER_MS -> the backstop timer
         //
         // It is a pseudo-element under the gate's z-index, not opacity on <html>, so the
-        // gate can be drawn and fade in while the cover is still behind it, and dropping
-        // the cover is then invisible because the two are the same colour.
+        // gate can fade in over it and dropping it is invisible (same color).
 
         _coverUp: false,
         _coverHeldForGate: false,
@@ -2407,9 +4326,12 @@
         /// a margin. Change the two together.
         GATE_FADE_MS: 260,
 
-        /// Notes a cover the head script put up, or puts one up when a page that has no
-        /// head script — the Tizen package — is heading for the gate. The second case is
-        /// late by construction (the package's own page has been showing for a while) but
+        /// The longest the gate waits for the household's custom theme to arrive. Under
+        /// GATE_COVER_MS (3 s), so the startup cover is still up when it ends.
+        GATE_THEME_WAIT_MS: 2000,
+
+        /// Notes a cover the head script put up, or puts one up when a page with no head
+        /// script (the Tizen package) is heading for the gate. The second case is late, but
         /// still takes home off the screen sooner than the gate would.
         _adoptCover: function () {
             const root = document.documentElement;
@@ -2417,8 +4339,8 @@
                 this._coverUp = true;
                 return;
             }
-            // Only the head script knows about the reload that is landing; that page has
-            // its own cover and no gate.
+            // Only the head script knows about the landing reload; that page has its own
+            // cover and no gate.
             if (window.__jpSwitching) return;
             if (!this._gateIsComing()) return;
 
@@ -2444,7 +4366,7 @@
         },
 
         /// True when jellyfin-web holds a token for some server. ApiClient's own token is
-        /// empty for a moment during startup, so it is not the thing to ask.
+        /// empty for a moment during startup.
         _hasStoredSession: function () {
             try {
                 const creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || 'null');
@@ -2459,9 +4381,9 @@
             window.__jpCoverT = setTimeout(() => this._dropCover(), GATE_COVER_MS);
         },
 
-        /// The gate request is out. The head script's timer started before this script had
-        /// even loaded, so it gets one fresh allowance — once, so a gate that never comes
-        /// is still bounded.
+        /// The gate request is out. The head script's timer started before this script
+        /// loaded, so it gets one fresh allowance, once, so a gate that never comes is
+        /// still bounded.
         _holdCoverForGate: function () {
             if (!this._coverUp) return;
             this._coverHeldForGate = true;
@@ -2470,8 +4392,8 @@
             this._armCoverBackstop();
         },
 
-        /// Puts the cover up for a switch that is about to reload the page. No timer: the
-        /// reload replaces the document, and _reloadFailed drops it if that never happens.
+        /// Puts the cover up for a switch about to reload the page. No timer: the reload
+        /// replaces the document, and _reloadFailed drops it if that never happens.
         _holdCoverForSwitch: function () {
             try {
                 if (!document.getElementById('jpf-cover-css')) {
@@ -2488,8 +4410,8 @@
             } catch (e) { /* no document: nothing to cover */ }
         },
 
-        /// Takes the cover down. Safe to call at any time, any number of times, and with
-        /// no cover up; it also clears one this object never noticed going up.
+        /// Takes the cover down. Safe at any time, any number of times; it also clears a
+        /// cover this object never noticed going up.
         _dropCover: function () {
             this._coverUp = false;
             this._coverForSwitch = false;
@@ -2504,8 +4426,7 @@
         _revealPage: function () {
             if (this._pageRevealed || !document.documentElement.style.opacity) return;
 
-            // Defer until Jellyfin's view system has finished rendering the view.
-            // _viewShowFired is set by the viewshow listener in bindEvents().
+            // Wait for the view system to finish rendering (_viewShowFired, set in bindEvents()).
             if (!this._viewShowFired) {
                 this._pendingReveal = true;
                 return;
@@ -2514,19 +4435,21 @@
             this._pageRevealed = true;
             this._pendingReveal = false;
 
-            // The reload this flag was raised for has landed. Clearing it here rather than
-            // only in removeProfileOverlay() matters twice over: the session mirror is
-            // believed only while the flag is up, so leaving it set would keep a marker
-            // alive across a genuine app close; and the head script hides the page whenever
-            // it sees the flag, so a stale one cost a fade on every later hard refresh.
-            //
-            // Safe this late: validateSessionState() ran during init() and has already
-            // pulled anything it needed into the in-memory tier.
+            // The reload this flag was raised for has landed. Cleared here, not only in
+            // removeProfileOverlay(), because the session mirror is believed only while the
+            // flag is up (a stale flag would keep a marker alive across a real app close), and
+            // the head script hides the page whenever it sees the flag (a stale one cost a
+            // fade on every later hard refresh). Safe this late: validateSessionState() ran in
+            // init() and already pulled what it needed into memory.
             if (!this._reloading) {
                 try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
-                // The head script has almost certainly already taken the key; this is the
-                // copy that actually outlives it.
+                // The head script has probably already taken the key; this is the copy that
+                // outlives it.
                 try { window.__jpSwitching = 0; } catch (e) { /* ignore */ }
+                // The mirror is believed only while that flag is up. Left in localStorage it was a
+                // readable copy of a bearer token outliving the switch, for any script on the
+                // origin. The in-memory and session copies stay.
+                try { localStorage.removeItem(this.SESSION_MIRROR_PREFIX + this.config.activeSessionKey); } catch (e) { /* ignore */ }
             }
 
             if (window.__jpReveal) {
@@ -2534,124 +4457,129 @@
                 window.__jpReveal = null;
             }
 
-            document.documentElement.style.transition = 'opacity 0.18s ease';
+            // A class, not an inline transition, so the stylesheet's reduced-motion rule can
+            // skip it.
+            document.documentElement.classList.add('jpf-fading');
             document.documentElement.style.opacity = '1';
             setTimeout(() => {
                 document.documentElement.style.removeProperty('opacity');
-                document.documentElement.style.removeProperty('transition');
+                document.documentElement.classList.remove('jpf-fading');
                 document.documentElement.style.removeProperty('background');
                 document.documentElement.style.removeProperty('color-scheme');
                 this._pageRevealed = false;
             }, 220);
         },
 
-        isMonitoringUsers: false,
-        subProfileIdsToHide: null,
-        usersObserver: null,
+        /// Profile accounts are Bonfire's, not people to list beside real ones, so the
+        /// Dashboard -> Users page hides them (owner decision, 2026-11-11). Main accounts
+        /// and accounts outside Bonfire still appear.
+        ///
+        /// A stylesheet rule per profile id, not a script walking the cards. jellyfin-web
+        /// renders each user as <div class="card" data-userid=ID> inside div.localUsers
+        /// (src/apps/dashboard/routes/users/index.tsx,
+        /// components/dashboard/users/UserCardBox.tsx, same on release-10.11.z and master),
+        /// so a rule covers cards React draws now or later with no observer and no query
+        /// on the poll. The first version read data-id and the card's link; that matched
+        /// on 10.11 only because the link carried ?userId=, 12.0 moved the id into the
+        /// path, and it walked the whole document on every tick and mutation.
+        ///
+        /// Never filtered out of the server's /Users answer: apps and other plugins read
+        /// it. The ids come from admin/mappings, answered to an administrator only, so
+        /// anyone else gets a refusal and never holds the list.
+        ///
+        /// Called from checkRoute when the address changes, never on a tick that did not.
+        _usersRouteHash: null,
+        _usersMappingsRetryAt: 0,
+        _usersRetryDue: false,
+        /// A user card on that page (tests/upstream-selectors.json). The id is added to the
+        /// attribute, so this must end in `]`.
+        USERS_CARD_SELECTOR: '.localUsers [data-userid]',
 
-        monitorAndHideShadowProfiles: function () {
-            const apiClient = ApiClient;
+        syncHiddenProfiles: function (hash) {
+            // The list route only. "users/profile" and "users/<id>/profile" are reached from
+            // Bonfire's own admin page and must not start a request.
+            if (!/dashboard\/users\/?(\?|$)/i.test(hash || '')) return;
+            const apiClient = typeof ApiClient !== 'undefined' ? ApiClient : null;
             if (!apiClient) return;
-
-            // Fetch only once per page visit
-            if (this.isMonitoringUsers) {
-                this.applyUsersHide();
+            // A refusal (403, anyone but an administrator) or a dead server waits out
+            // POLL_RETRY_MS across navigation. checkRoute cleared the retry flag before
+            // calling here, so an early return that does not raise it again forgets the retry:
+            // an admin who navigated onto this page inside the wait kept profile accounts
+            // visible until the address changed.
+            if (this._usersMappingsRetryAt && Date.now() < this._usersMappingsRetryAt) {
+                this._usersRetryDue = true;
                 return;
             }
-            this.isMonitoringUsers = true;
 
             const masterState = this.readMasterState();
             const token = masterState ? masterState.token : apiClient.accessToken();
             if (!token) return;
 
-            const url = apiClient.getUrl('plugins/profiles/admin/mappings');
-            fetch(url, {
+            fetch(apiClient.getUrl('plugins/profiles/admin/mappings'), {
                 headers: this.getAuthHeaders(token)
             })
             .then(res => {
-                if (!res.ok) throw new Error("Could not load mappings");
+                if (!res.ok) throw new Error('Could not load mappings');
                 return res.json();
             })
             .then(data => {
-                const subProfiles = data.SubProfiles || [];
-                this.subProfileIdsToHide = subProfiles.map(p => this.normalizeGuid(p.ProfileUserId));
-                
-                // Start a MutationObserver to hide cards as they are rendered dynamically
-                if (this.usersObserver) {
-                    this.usersObserver.disconnect();
-                }
-
-                this.usersObserver = new MutationObserver(() => this.applyUsersHide());
-                this.usersObserver.observe(document.body, { childList: true, subtree: true });
-                this.applyUsersHide();
+                const subs = (data && (data.SubProfiles || data.subProfiles)) || [];
+                this._applyHiddenProfiles(subs.map(p => p.ProfileUserId || p.profileUserId));
             })
-            .catch(err => {
-                console.error("ProfilesPlugin: Error fetching admin mappings for hide logic:", err);
-                this.isMonitoringUsers = false;
+            .catch(() => {
+                this._usersMappingsRetryAt = Date.now() + this.POLL_RETRY_MS;
+                this._usersRetryDue = true;
             });
         },
 
-        applyUsersHide: function () {
-            if (!this.subProfileIdsToHide || this.subProfileIdsToHide.length === 0) return;
-
-            // Find all cards, list items, or elements with data-id or containing useredit links
-            const cards = document.querySelectorAll('.card, .listItem, [data-id]');
-            cards.forEach(card => {
-                let id = card.getAttribute('data-id');
-                if (id) {
-                    id = this.normalizeGuid(id);
-                    if (this.subProfileIdsToHide.includes(id)) {
-                        card.style.display = 'none';
-                        return;
-                    }
-                }
-
-                // Check for links inside (e.g. useredit.html?userId=...)
-                const links = card.querySelectorAll('a');
-                for (let i = 0; i < links.length; i++) {
-                    const href = links[i].getAttribute('href') || '';
-                    if (href.includes('userId=')) {
-                        const match = href.match(/userId=([^&]+)/);
-                        if (match) {
-                            const normalizedId = this.normalizeGuid(match[1]);
-                            if (this.subProfileIdsToHide.includes(normalizedId)) {
-                                card.style.display = 'none';
-                                break;
-                            }
-                        }
-                    }
-                }
+        /// Both spellings of each id (32 hex or dashed), because jellyfin-web writes the id
+        /// as the server serialized it. The `i` flag is Chromium 49; the dashboard is not a
+        /// TV page anyway.
+        _applyHiddenProfiles: function (ids) {
+            const sels = [];
+            ids.forEach(raw => {
+                const hex = this.normalizeGuid(raw);
+                if (!/^[0-9a-f]{32}$/.test(hex)) return;
+                const dashed = hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+                [hex, dashed].forEach(form => {
+                    sels.push(this.USERS_CARD_SELECTOR.replace(/\]$/, '="' + form + '" i]'));
+                });
             });
+            let style = document.getElementById('jpf-hide-profiles');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'jpf-hide-profiles';
+                document.head.appendChild(style);
+            }
+            style.textContent = sels.length ? sels.join(',\n') + ' { display: none !important; }' : '';
         },
 
         // ── Active-profile session storage ────────────────────────────────────────
-        // The active profile lives in sessionStorage deliberately: closing the app should
-        // drop back to the picker rather than leave a child profile signed in.
+        // The active profile lives in sessionStorage on purpose: closing the app should
+        // drop back to the picker, not leave a child profile signed in.
         //
-        // Some runtimes throw sessionStorage away on a full reload — and a full reload is
-        // exactly how a profile switch finishes. The marker is then gone by the time the
-        // page comes back, validateSessionState() concludes the app was closed, and it
-        // reverts to the master token. On Samsung's Tizen that looked like the avatar
-        // changing and nothing else (issues #15 and #16). On Android it is worse, because
-        // the revert reloads: the reload loses the marker again, which reverts again — the
-        // picker over and over, which is what an Android reporter saw.
+        // Some runtimes discard sessionStorage on a full reload, which is how a switch
+        // finishes. The marker is gone when the page returns, validateSessionState()
+        // decides the app was closed and reverts to the master token. On Samsung Tizen
+        // that looked like the avatar changing and nothing else (issues #15, #16). On
+        // Android the revert reloads, which loses the marker again: the picker over and
+        // over.
         //
         // That was first fixed by sniffing for Tizen, which meant meeting each new runtime
-        // through a bug report. There is no sniff any more. The rule is about WHY
-        // sessionStorage is empty, which is the part that actually decides the answer:
+        // through a bug report. Now the rule is about WHY sessionStorage is empty:
         //
         //   empty because the app was closed     -> show the picker, drop the profile
         //   empty because our own reload lost it -> put it back, keep the profile
         //
-        // and those two are told apart by the switching flag, which is set immediately
-        // before every reload this plugin performs and at no other time.
+        // The two are told apart by the switching flag, set just before every reload this
+        // plugin performs and at no other time.
         //
         // Values are also held in memory for the life of the page, so a runtime where
         // sessionStorage does not work at all still behaves while the page lives.
         SESSION_MIRROR_PREFIX: 'jpf-persist-',
 
         /// How long after our own reload the mirror is still believable. A reload takes
-        /// seconds; anything older is a new session wearing a flag nobody cleared.
+        /// seconds; older is a new session wearing a flag nobody cleared.
         SESSION_MIRROR_MAX_AGE_MS: 60000,
 
         _sessionMemory: {},
@@ -2681,26 +4609,22 @@
             const mirrored = this._readSessionMirror(key);
             if (mirrored === null) return null;
 
-            // Put it back where the rest of the code expects to find it, so this costs one
-            // read per page load rather than one per call.
+            // Put it back where the code expects it: one read per page load, not one per call.
             this._sessionMemory[key] = mirrored;
             try { sessionStorage.setItem(key, mirrored); } catch (e) { /* storage blocked */ }
             return mirrored;
         },
 
-        /// The mirrored value, but only when this page load is the continuation of a reload
-        /// we caused, and that reload was recent. Null otherwise — which is what still makes
-        /// closing the app drop back to the picker.
+        /// The mirrored value, only when this page load continues a reload we caused and
+        /// that reload was recent. Null otherwise, which is what makes closing the app drop
+        /// back to the picker.
         _readSessionMirror: function (key) {
-            // The injected head script consumes this key: it runs synchronously during head
-            // parsing, while profiles.js is deferred, so by the time anything here looks the
-            // key has been gone for the whole document parse. Reading localStorage alone made
-            // this function return null every single time, which left the 1.4.6 switch-loop
-            // fix dead on arrival — the three-reload backstop was doing all the work.
-            //
-            // The head script republishes it as a window global for this reason. localStorage
-            // stays as the fallback for a page still carrying an older head script, and for
-            // any caller reached before the head script has run.
+            // The injected head script consumes this key. It runs synchronously in head
+            // parsing while profiles.js is deferred, so the key is gone for the whole parse.
+            // Reading localStorage alone returned null every time, which left the 1.4.6
+            // switch-loop fix dead on arrival (the three-reload backstop did all the work).
+            // The head script republishes it as a window global; localStorage stays as the
+            // fallback for an older head script and for callers before it has run.
             let switching = false;
             try { switching = !!window.__jpSwitching; } catch (e) { /* no window */ }
             if (!switching) {
@@ -2718,8 +4642,8 @@
             try { parsed = JSON.parse(raw); } catch (e) { /* the older mirror: a bare string */ }
 
             if (!parsed || typeof parsed !== 'object' || typeof parsed.v !== 'string') {
-                // Written by the Tizen-only mirror, which carried no timestamp. Upgrading
-                // must not sign anyone out, so the switching flag above is all it gets.
+                // Written by the Tizen-only mirror, which had no timestamp. Upgrading must not
+                // sign anyone out, so the switching flag above is all it gets.
                 return raw;
             }
 
@@ -2737,8 +4661,8 @@
             try { localStorage.removeItem(this.SESSION_MIRROR_PREFIX + key); } catch (e) { /* ignore */ }
         },
 
-        /// Drops every trace of an active profile session. Used by sign-out, the login
-        /// route and the revert-to-master path, which must all clear both copies.
+        /// Drops every trace of an active profile session. Sign-out, the login route and
+        /// the revert-to-master path all need both copies cleared.
         clearProfileSession: function () {
             this._sessionRemove(this.config.activeSessionKey);
             this._sessionRemove('jellyfin_profiles_active_info');
@@ -2749,28 +4673,26 @@
         },
 
         // ── Emergency disable ──────────────────────────────────────────────────────
-        // An escape hatch for when the switcher itself is what is blocking the interface.
-        // The administrator sets a long code in the plugin settings; entering it here shuts
+        // An escape hatch for when the switcher itself blocks the interface. The
+        // administrator sets a long code in the plugin settings; entering it here shuts
         // the plugin down until the server restarts.
         //
-        // Note the honest limit: this is script running inside the plugin, so it only helps
-        // when the plugin is misbehaving, not when profiles.js fails to load or throws on
-        // startup. In that case the answer is restarting Jellyfin or removing the plugin
-        // folder, which is what the documentation says.
+        // Limit: this is script inside the plugin, so it only helps when the plugin
+        // misbehaves, not when profiles.js fails to load or throws at startup. Then the
+        // answer is restarting Jellyfin or removing the plugin folder, as the docs say.
         //
-        // Entry is a deliberate action rather than a keystroke sniffer. Watching everything
-        // typed anywhere would burn the server's five-per-hour attempt budget on ordinary
-        // typing — a search box would lock the real administrator out of their own escape
-        // hatch.
+        // Entry is a deliberate action, not a keystroke sniffer. Watching all typing would
+        // burn the server's five-per-hour attempt budget on ordinary typing, and a search
+        // box would lock the real administrator out of their own escape hatch.
 
-        /// Tears the switcher down and stops every code path that could rebuild it.
-        /// Setting the flag matters as much as the teardown: checkRoute runs on a 500 ms
-        /// timer, so removing the overlay without it would have the gate back within half a
-        /// second — failing in exactly the situation this feature exists for.
+        /// Tears the switcher down and stops every code path that could rebuild it. The
+        /// flag matters as much as the teardown: checkRoute runs every 500 ms, so without
+        /// it the gate would be back within half a second, in exactly the situation this
+        /// feature exists for.
         applyPanicDisable: function (persist) {
             this._panicDisabled = true;
             this._releaseOverlayFocusTrap();
-            // The cover is waiting for a gate this has just forbidden.
+            // The cover waits for a gate this has just forbidden.
             this._dropCover();
 
             if (persist) {
@@ -2782,9 +4704,8 @@
             this.removeProfileOverlay();
             const bubble = document.getElementById('profiles-floating-bubble');
             if (bubble) bubble.remove();
-            // The drawer link injectSidebarLink used to add. Kept in the teardown, and
-            // only here: a browser that ran an older build in this tab may still have one
-            // in the page, and the emergency disable has to leave nothing of ours behind.
+            // The drawer link injectSidebarLink used to add. Kept here only: a tab that ran an
+            // older build may still have one, and the disable must leave nothing of ours.
             const sidebarLink = document.getElementById('profiles-sidebar-link');
             if (sidebarLink) sidebarLink.remove();
             const menuItem = document.getElementById('profiles-user-menu-item');
@@ -2799,9 +4720,9 @@
             try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
         },
 
-        /// On startup, honour a disable from a previous page load, then confirm it with the
+        /// On startup, honor a disable from a previous page load, then confirm it with the
         /// server. The flag is cleared once Jellyfin has restarted and the plugin is live
-        /// again — the disable is meant to last until a restart, not forever.
+        /// again: the disable lasts until a restart, not forever.
         checkPersistedPanic: function () {
             let marked = false;
             try {
@@ -2809,8 +4730,8 @@
             } catch (e) { /* storage unavailable — nothing to honour */ }
             if (!marked) return;
 
-            // Apply first and ask afterwards: the request may be slow, and a gate that
-            // appears for two seconds before vanishing is the behaviour being escaped.
+            // Apply first, ask afterwards: the request may be slow, and a gate that appears
+            // for two seconds before vanishing is the behavior being escaped.
             this.applyPanicDisable(/* persist */ false);
 
             fetch(ApiClient.getUrl('plugins/profiles/panic-state'), { cache: 'no-store' })
@@ -2820,20 +4741,20 @@
                     if (disabled) return;
                     try { localStorage.removeItem(this.config.panicKey); } catch (e) { /* ignore */ }
                     this._panicDisabled = false;
-                    // The teardown above released the focus trap. Coming back to life has to
-                    // put it back, or issue #16 returns for the rest of this page load.
+                    // The teardown released the focus trap. Coming back to life must restore it, or
+                    // issue #16 returns for the rest of this page load.
                     this._bindOverlayFocusTrap();
+                    this._startPageChecks();
                     this.checkRoute();
                 })
                 .catch(() => {
-                    // Server unreachable: stay disabled. Erring towards "off" leaves the
-                    // interface usable, which is the whole point.
+                    // Server unreachable: stay disabled. Erring toward "off" keeps the interface usable.
                 });
         },
 
         /// Shows the emergency link only once the server has said a code exists. Unknown
-        /// counts as no — the feature is off by default, and advertising an escape hatch
-        /// that cannot work is worse than not offering one.
+        /// counts as no: the feature is off by default and an escape hatch that cannot work
+        /// is worse than none.
         applyPanicLinkVisibility: function () {
             const link = document.getElementById('profiles-panic-link');
             if (!link) return;
@@ -2842,10 +4763,11 @@
 
         bindPanicShortcut: function () {
             document.addEventListener('keydown', (e) => {
-                // Ctrl+Shift+B. Chosen to be unreachable by accident and not to collide
-                // with Jellyfin's own shortcuts. It is the way in when the switcher has
-                // failed badly enough that no overlay renders at all.
-                if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
+                // Ctrl+Shift+B: unlikely by accident, no clash with Jellyfin's shortcuts, and the
+                // way in when no overlay renders at all. Only when the server has said a code is
+                // set; otherwise the key is the browser's (Ctrl+Shift+B toggles the bookmarks bar).
+                if (e.ctrlKey && e.shiftKey && (isKey(e, 'B') || isKey(e, 'b'))
+                    && this._panicLinkAvailable === true) {
                     e.preventDefault();
                     this.showPanicPrompt();
                 }
@@ -2866,22 +4788,23 @@
             `;
 
             dialog.innerHTML = `
-                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
-                            padding:24px; max-width:460px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-                    <h2 style="margin:0 0 12px 0; color:#fff; font-size:1.2rem; font-weight:700;">${t('panic.emergencyDisable')}</h2>
-                    <p style="color:rgba(255,255,255,0.7); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
+                <div style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);
+                            padding:24px; box-sizing:border-box; max-width:460px; width:calc(100% - 32px); box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+                    <h2 style="margin:0 0 12px 0; color:var(--jpf-text-1); font-size:1.2rem; font-weight:700;">${t('panic.emergencyDisable')}</h2>
+                    <p style="color:var(--jpf-text-2); font-size:0.9rem; line-height:1.5; margin:0 0 16px 0;">
                         ${t('panic.dialogBody')}
                     </p>
-                    <input type="password" id="profiles-panic-input" autocomplete="off" placeholder="${t('panic.emergencyCodePlaceholder')}"
+                    <input type="password" id="profiles-panic-input" autocomplete="off" aria-label="${escapeHtml(t('panic.emergencyCodePlaceholder'))}" placeholder="${escapeHtml(t('panic.emergencyCodePlaceholder'))}"
                            style="width:100%; box-sizing:border-box; padding:10px; font-size:1rem; margin-bottom:8px;" />
-                    <div id="profiles-panic-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
-                    <div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
-                        <button id="profiles-panic-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
-                        <button id="profiles-panic-submit" class="profiles-btn btn-danger" style="padding:10px 20px; font-weight:600;">${t('panic.disable')}</button>
+                    <div id="profiles-panic-error" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.85rem; font-weight:600; margin-bottom:8px;"></div>
+                    <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:12px;">
+                        <button id="profiles-panic-submit" class="profiles-btn jpf-btn-danger" style="padding:10px 20px; font-weight:600;">${t('panic.disable')}</button>
+                        <button id="profiles-panic-cancel" class="profiles-btn jpf-btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
 
+            markDialog(dialog);
             document.body.appendChild(dialog);
 
             const input = dialog.querySelector('#profiles-panic-input');
@@ -2906,19 +4829,24 @@
                 })
                 .then(res => {
                     if (res.ok) {
-                        // Tear the switcher down here and now rather than waiting for a
-                        // reload: the person doing this is stuck, and telling them to
-                        // reload a page they cannot use would not help.
+                        // Tear down now rather than wait for a reload: the person is stuck, and a page
+                        // they cannot use will not help them reload it.
                         close();
                         this.applyPanicDisable(/* persist */ true);
                         this.showAlert(t('panic.disabledTitle'), t('panic.disabledBody'));
                         return;
                     }
-                    if (res.status === 429) throw new Error(t('panic.tooManyAttempts'));
-                    throw new Error(t('panic.incorrectCode'));
+                    // Only a refusal is "incorrect". A 500 or a dead connection is not the person's
+                    // mistake, and the browser's own words ("Failed to fetch") are neither theirs nor
+                    // translated (R-1185).
+                    const shown = new Error('panic');
+                    if (res.status === 429) shown.panicText = t('panic.tooManyAttempts');
+                    else if (res.status === 400 || res.status === 401 || res.status === 403) shown.panicText = t('panic.incorrectCode');
+                    else shown.panicText = t('switcher.unreachable');
+                    throw shown;
                 })
                 .catch(err => {
-                    errDiv.textContent = err.message || t('panic.incorrectCode');
+                    errDiv.textContent = (err && err.panicText) || t('switcher.unreachable');
                     errDiv.style.display = 'block';
                     submitBtn.disabled = false;
                     submitBtn.textContent = t('panic.disable');
@@ -2927,8 +4855,8 @@
 
             submitBtn.addEventListener('click', submit);
             input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); submit(); }
-                if (e.key === 'Escape') { e.preventDefault(); close(); }
+                if (isKey(e, 'Enter')) { e.preventDefault(); submit(); }
+                if (isKey(e, 'Escape')) { e.preventDefault(); close(); }
             });
 
             setTimeout(() => input.focus(), 50);
@@ -2937,22 +4865,22 @@
         // ── Switcher preferences ───────────────────────────────────────────────────
         // Two independent settings, because they answer different questions:
         //
-        //   askOnStartup     — does the "Who's Watching?" screen appear when the client
+        //   askOnStartup     - does the "Who's Watching?" screen appear when the client
         //                      loads? (Once per browser session, not per home visit.)
-        //   switcherLocation — 'button' (Bonfire's floating header button) or 'menu'
+        //   switcherLocation - 'button' (Bonfire's floating header button) or 'menu'
         //                      (a row in Jellyfin's own user menu, no floating button).
         //
-        // These were one setting in 1.3.1-beta, which could not express "ask me on startup
-        // but put the switcher in Jellyfin's menu" — the combination issue #14 asked for.
+        // They were one setting in 1.3.1-beta, which could not express "ask on startup but
+        // put the switcher in Jellyfin's menu" (issue #14).
         //
-        // checkRoute has to decide about the gate long before a network round trip could
-        // answer, so both are mirrored into localStorage and read synchronously, with the
-        // server refreshing the copy in the background on every load.
+        // checkRoute decides about the gate long before a network round trip could answer,
+        // so both are mirrored into localStorage and read synchronously; the server
+        // refreshes the copy in the background on every load.
 
-        /// The cached preferences, or null when we have not learned them for this account.
-        /// Null means "do not raise the gate yet" — a wrong guess that way costs a moment of
-        /// home screen, whereas wrongly assuming a gate throws a full-screen overlay at
-        /// somebody who deliberately turned it off, on every single load.
+        /// The cached preferences, or null when not learned for this account. Null means
+        /// "do not raise the gate yet": a wrong guess that way costs a moment of home
+        /// screen, whereas wrongly assuming a gate throws a full-screen overlay at someone
+        /// who turned it off, on every load.
         getSwitcherPrefs: function () {
             if (this._switcherPrefs) return this._switcherPrefs;
 
@@ -2960,9 +4888,9 @@
                 const cached = JSON.parse(localStorage.getItem(this.config.switcherModeKey) || 'null');
                 if (!cached) return null;
 
-                // The cache belongs to one account. On a shared browser the next person to
-                // sign in must not inherit it, so it only counts when it matches either the
-                // signed-in user or the master profile behind the active sub-profile.
+                // The cache belongs to one account. On a shared browser the next person must not
+                // inherit it, so it counts only when it matches the signed-in user or the master
+                // behind the active sub-profile.
                 const cachedMaster = this.normalizeGuid(cached.masterUserId);
                 const currentUserId = (typeof ApiClient !== 'undefined' && ApiClient)
                     ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
@@ -2974,8 +4902,8 @@
                 if (typeof cached.askOnStartup === 'boolean' && cached.location) {
                     prefs = { askOnStartup: cached.askOnStartup, location: cached.location };
                 } else if (cached.mode) {
-                    // A cache written by 1.3.1-beta. Expand it rather than discarding it,
-                    // so upgrading does not flash a gate at someone who turned it off.
+                    // A cache written by 1.3.1-beta. Expand it so upgrading does not flash a gate at
+                    // someone who turned it off.
                     prefs = cached.mode === 'native'
                         ? { askOnStartup: false, location: 'menu' }
                         : { askOnStartup: true, location: 'button' };
@@ -2990,156 +4918,19 @@
             return null;
         },
 
-        // ── One device opting out of the household answer ──────────────────────────
-        //
-        // askOnStartup is a household setting: set it on the phone and the TV follows. That
-        // is right for most homes and wrong for the ones where the TV in the living room
-        // should always ask and the tablet that only one person touches never should. The
-        // "Use the same answer on all my devices" box turns the household answer off for
-        // *this* device only — the flag itself never leaves the machine, so the other
-        // devices carry on exactly as before rather than being dragged into per-device mode
-        // by a choice made somewhere they cannot see.
-        //
-        // Re-checking it POSTs this device's answer up, so the household adopts what is on
-        // screen at the moment the box is ticked. The alternative — snapping back to
-        // whatever the server still held — silently discards the choice the person is
-        // looking at while they tick the box.
-        //
-        // Only the startup question is per-device. switcherLocation stays household-wide:
-        // it decides whether the floating button exists at all, and a household where that
-        // answer differs per device has no consistent place to reach the switcher.
-
-        /// Account ids this device may honour a stored answer for, most specific first.
-        ///
-        /// [0] is where a new answer is filed — the master when one is known, so every
-        /// profile in the household shares one answer per device. The rest of the list is
-        /// what a *read* will accept, which is the same rule getSwitcherPrefs applies to
-        /// its cache: an entry left by whoever used this browser last must never apply to
-        /// the person using it now.
-        _deviceGateIds: function () {
-            let master = '';
-            try {
-                const masterState = this.readMasterState();
-                if (masterState) master = this.normalizeGuid(masterState.masterUserId);
-            } catch (e) { /* unreadable — the signed-in user will do */ }
-
-            let current = '';
-            try {
-                if (typeof ApiClient !== 'undefined' && ApiClient) {
-                    current = this.normalizeGuid(ApiClient.getCurrentUserId());
-                }
-            } catch (e) { /* no client yet */ }
-
-            const ids = [];
-            if (master) ids.push(master);
-            if (current && current !== master) ids.push(current);
-            return ids;
-        },
-
-        /// This device's stored entry, or null when it follows the household.
-        ///
-        /// Cached in memory because shouldAskOnStartup is on the 500 ms route poll, and an
-        /// uncached parse here would put a synchronous storage read and a JSON.parse on
-        /// every tick for the entire life of the page. tests/js/routetick.js fails if it
-        /// does.
-        _readDeviceGate: function () {
-            if (this._deviceGateLoaded) return this._deviceGate;
-
-            let raw = null;
-            try { raw = localStorage.getItem(this.config.deviceGateKey); } catch (e) { /* blocked */ }
-
-            // Nothing stored at all — the overwhelmingly common case, and true regardless
-            // of who is signed in, so it is safe to settle on straight away.
-            if (!raw) {
-                this._deviceGate = null;
-                this._deviceGateLoaded = true;
-                return null;
-            }
-
-            // Something is stored but we do not yet know who this is: init runs before
-            // sign-in on a fresh load. Answer "no entry" for now without caching it, or the
-            // device's own answer would be ignored for the rest of the page's life.
-            const ids = this._deviceGateIds();
-            if (!ids.length) return null;
-
-            let entry = null;
-            try {
-                const all = JSON.parse(raw);
-                if (all && typeof all === 'object') {
-                    for (let i = 0; i < ids.length && !entry; i++) {
-                        const e = all[ids[i]];
-                        if (e && typeof e === 'object') entry = e;
-                    }
-                }
-            } catch (e) { /* corrupt — treat as following the household */ }
-
-            this._deviceGate = entry;
-            this._deviceGateLoaded = true;
-            return entry;
-        },
-
-        /// True when this device follows the household's answer, which is the default and
-        /// what every device did before this setting existed.
-        isGateSynced: function () {
-            const entry = this._readDeviceGate();
-            return !entry || entry.synced !== false;
-        },
-
-        /// This device's own answer, or null when it has none and should follow the
-        /// household. Null rather than a boolean so "no opinion" cannot be mistaken for
-        /// "do not ask".
-        getDeviceGatePref: function () {
-            const entry = this._readDeviceGate();
-            return (entry && entry.synced === false && typeof entry.askOnStartup === 'boolean')
-                ? entry.askOnStartup
-                : null;
-        },
-
-        /// Records how this device answers the startup question, or clears the entry when
-        /// it goes back to following the household. Returns false if storage refused, so a
-        /// caller can say so rather than showing a state that was never stored.
-        setDeviceGate: function (synced, askOnStartup) {
-            const ids = this._deviceGateIds();
-            if (!ids.length) return false;
-
-            try {
-                let all = JSON.parse(localStorage.getItem(this.config.deviceGateKey) || 'null');
-                if (!all || typeof all !== 'object') all = {};
-
-                // Clear every id this device would read, not just the one it writes. A
-                // household that used a sub-profile before the master would otherwise leave
-                // an entry behind that the next read finds and honours.
-                ids.forEach(id => { delete all[id]; });
-                if (!synced) all[ids[0]] = { synced: false, askOnStartup: askOnStartup === true };
-
-                if (Object.keys(all).length) {
-                    localStorage.setItem(this.config.deviceGateKey, JSON.stringify(all));
-                } else {
-                    localStorage.removeItem(this.config.deviceGateKey);
-                }
-            } catch (e) {
-                return false;
-            }
-
-            this._deviceGateLoaded = false;
-            this._deviceGate = null;
-            return true;
-        },
-
         /// True only when we know the startup prompt is wanted. Unknown reads as false so
         /// the gate is never raised on a guess.
+        ///
+        /// One answer per account, for every device. 1.6.x-1.7.1 had a per-device override;
+        /// it was cut in 1.7.2 as one setting too many, so a TV that should always ask is
+        /// now a household that always asks.
         shouldAskOnStartup: function () {
-            // A device keeping its own answer knows it without the server, so this settles
-            // on the first paint instead of waiting for the preferences request.
-            const own = this.getDeviceGatePref();
-            if (own !== null) return own;
-
             const p = this.getSwitcherPrefs();
             return !!p && p.askOnStartup === true;
         },
 
         /// True when the switcher belongs in Jellyfin's user menu rather than the floating
-        /// button. Unknown reads as false, which keeps the historical button behaviour.
+        /// button. Unknown reads as false, the historical button behavior.
         isMenuLocation: function () {
             const p = this.getSwitcherPrefs();
             return !!p && p.location === 'menu';
@@ -3147,11 +4938,6 @@
 
         _cacheSwitcherPrefs: function (askOnStartup, location, masterUserId) {
             this._switcherPrefs = { askOnStartup: askOnStartup, location: location };
-            // The server's answer names the master, so by here we know who this is even if
-            // we did not when the device entry was first looked for. Re-read it once rather
-            // than leaving a "no entry" answer that was only true before sign-in.
-            this._deviceGateLoaded = false;
-            this._deviceGate = null;
             try {
                 localStorage.setItem(this.config.switcherModeKey, JSON.stringify({
                     askOnStartup: askOnStartup,
@@ -3162,31 +4948,106 @@
         },
 
         // ── Theme ──────────────────────────────────────────────────────────────────
-        // One attribute on <html>; styles.css does the rest. Per profile, so it is cached
-        // per account: on a shared browser the next person must not inherit the last one's.
+        // One attribute on <html>; the theme's block (themeCss) does the rest. Per profile,
+        // so it is cached per account: on a shared browser the next person must not
+        // inherit the last one's.
 
         /// Puts a theme on the page. Unknown ids become Bonfire, so a stale cache or an
-        /// older server can never leave the attribute naming a theme the sheet does not have
-        /// (which would leave the tints resolving to nothing).
+        /// older server cannot leave the attribute naming a theme this script has no block
+        /// for (the tints would resolve to nothing).
         applyTheme: function (theme) {
             const root = document.documentElement;
             if (!root) return;
+            // Kept as asked, so a custom theme that arrives later is applied then.
+            this._wantedTheme = String(theme || '').toLowerCase();
             const id = normalizeTheme(theme);
-            if (root.getAttribute('data-jpf-theme') !== id) root.setAttribute('data-jpf-theme', id);
+            // A name this page does not know yet may be an administrator's theme, whose block
+            // comes with themes?part=custom, and the preferences often answer first. Turning
+            // it into Bonfire put Bonfire on the startup cover before the household's own
+            // theme (1.9.0.4-beta). So until that answer is in, the page is left as is, and
+            // useCustomThemes applies it then, Bonfire included.
+            this._themeDeferred = !!this._wantedTheme && id !== this._wantedTheme && !this._customThemesAnswered;
+            if (this._themeDeferred) return;
+            // A gate held back for this answer (see the fade-in in showProfileOverlay).
+            if (this._gateThemeHold) this._gateThemeHold();
+            // Its picture, if it is a custom theme with one. Once per page.
+            this.loadThemePhotoOf(id);
+            const before = root.getAttribute('data-jpf-theme');
+            if (before !== id) {
+                // Read the old look before the attribute moves it.
+                if (before) this.fadeThemeFrom();
+                root.setAttribute('data-jpf-theme', id);
+                // A see-through logo that read on the last theme may not on this one.
+                this.fitLogoBacking();
+            }
         },
 
-        /// The stored themes: { last, users: { normalisedUserId: theme } }.
+        /// The length of the cross-fade between two themes (.jpf-theme-veil's transition in
+        /// styles.css), with a margin. Change the two together.
+        THEME_FADE_MS: 300,
+
+        /// A cross-fade from the theme the gate is wearing to the one replacing it, not a
+        /// hard cut. Called just before data-jpf-theme changes.
         ///
-        /// One entry per account, not one for the device. It was one, and a household
-        /// overwrote it every time it moved between profiles: open as the main account,
-        /// pick a child's profile, and the child's theme replaced the parent's — so the next
-        /// start drew the "Who's watching?" screen, and the cover before it, in Bonfire's
-        /// colours instead of the parent's. Reads the 1.6.6.1 development shape too.
+        /// A transition on the variables cannot do this: gradients, patterns and
+        /// background pictures do not interpolate, and fonts do not at all. So the old look
+        /// (the gate's background and pattern layer) is copied onto a layer above the new
+        /// background and under the content, and its opacity goes from 1 to 0. Opacity
+        /// only, which a TV does without repainting. Text and tiles change at once:
+        /// animating the content's opacity replays .jpf-anim-fade-in when it ends.
+        ///
+        /// Does nothing without a gate on screen or for anyone who asked for less motion.
+        /// The richer-motion setting is not asked: it governs decorations that move while a
+        /// screen is open, and this is a 0.3 second transition. A second choice during the
+        /// fade lets the first layer finish; the page underneath is already on the second
+        /// theme. Run from applyTheme only, never from checkRoute.
+        fadeThemeFrom: function () {
+            const gate = document.getElementById('profiles-gate-overlay');
+            if (!gate || gate.querySelector('.jpf-theme-veil')) return;
+            try {
+                if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+                const now = window.getComputedStyle(gate);
+                const pattern = window.getComputedStyle(gate, '::before');
+                const veil = document.createElement('div');
+                veil.className = 'jpf-theme-veil';
+                veil.setAttribute('aria-hidden', 'true');
+                const paint = (el, s, tail) => {
+                    ['backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat']
+                        .forEach(k => { el.style[k] = s[k]; });
+                    if (tail) el.style.opacity = s.opacity;
+                };
+                paint(veil, now, false);
+                const deco = document.createElement('div');
+                deco.className = 'jpf-theme-veil-deco';
+                paint(deco, pattern, true);
+                veil.appendChild(deco);
+                gate.appendChild(veil);
+                // Drawn once at full strength, then let go.
+                void veil.offsetWidth;
+                veil.classList.add('is-out');
+                setTimeout(() => {
+                    if (veil.parentNode) veil.parentNode.removeChild(veil);
+                }, this.THEME_FADE_MS + 60);
+            } catch (e) { /* a cut is the fallback */ }
+        },
+
+        /// The stored themes: { last, users: { normalisedUserId: theme }, bg: { theme: gate
+        /// background } }. Injection/WebInjection.cs reads all three before this file loads.
+        ///
+        /// One entry per account, not per device. It was per device, and moving between
+        /// profiles overwrote it: pick a child's profile and the child's theme replaced the
+        /// parent's, so the next start drew the gate and the cover in Bonfire's colors.
+        /// Reads the 1.6.6.1 development shape too.
         _readThemeCache: function () {
             let raw = null;
             try { raw = JSON.parse(localStorage.getItem(this.config.themeKey) || 'null'); } catch (e) { /* unreadable */ }
-            const cache = { last: null, users: {} };
+            const cache = { last: null, users: {}, bg: {} };
             if (!raw || typeof raw !== 'object') return cache;
+            if (raw.bg && typeof raw.bg === 'object') {
+                Object.keys(raw.bg).forEach(k => {
+                    if (typeof raw.bg[k] === 'string') cache.bg[k] = raw.bg[k];
+                });
+            }
             if (raw.users && typeof raw.users === 'object') {
                 Object.keys(raw.users).forEach(k => {
                     if (typeof raw.users[k] === 'string') cache.users[k] = raw.users[k];
@@ -3199,8 +5060,8 @@
         },
 
         /// The theme stored for whoever is signed in, applied before the server answers.
-        /// Before anyone is signed in it applies the last one stored on this device, which is
-        /// the person most likely to be signing in.
+        /// Before anyone is signed in it applies the last one stored on this device, the
+        /// person most likely to be signing in.
         applyCachedTheme: function () {
             const cache = this._readThemeCache();
 
@@ -3221,9 +5082,12 @@
                 ? prefs[name]
                 : prefs[name.charAt(0).toUpperCase() + name.slice(1)];
 
-            // A server older than this build sends none of these. Leave the page as it is
-            // and offer no picker, rather than pretend the server knows about themes.
+            // A server older than this build sends none of these. Leave the page as is and
+            // offer no picker.
             if (read('theme') === undefined) return;
+            // As sent, for useCustomThemes: a custom theme named before its file arrived
+            // normalizes to Bonfire below and is read again once it has.
+            this._lastThemePrefs = prefs;
 
             const settings = {
                 theme: normalizeTheme(read('theme')),
@@ -3231,56 +5095,68 @@
                 allow: read('allowProfileThemes') !== false
             };
             this._themeSettings = settings;
-            this.applyTheme(settings.theme);
+            // Whether themes with a special animation may use it. The class is added or
+            // removed whatever it was.
+            try { document.documentElement.classList.toggle('jpf-rich-motion', read('richThemeMotion') === true); } catch (e) { /* no document */ }
+            // As sent, not normalized, so a custom theme still on its way is waited for.
+            this.applyTheme(read('theme'));
+            this.injectFonts();
 
             try {
                 const userId = (typeof ApiClient !== 'undefined' && ApiClient) ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
-                if (userId) {
+                // Not while that theme is waited for: the cache would say Bonfire and the next
+                // start's cover would wear it.
+                if (userId && !this._themeDeferred) {
                     const cache = this._readThemeCache();
-                    // Re-inserted so the most recent is last, and capped: a browser that
-                    // has seen many accounts keeps only the most recent twenty.
+                    // Re-inserted so the most recent is last, and capped at the twenty most recent.
                     delete cache.users[userId];
                     cache.users[userId] = settings.theme;
                     const ids = Object.keys(cache.users);
                     ids.slice(0, Math.max(0, ids.length - 20)).forEach(k => { delete cache.users[k]; });
                     cache.last = settings.theme;
+                    // The gate's background per theme still named here, for the head script's startup
+                    // cover, which runs before this file loads and cannot read a theme. It used to
+                    // carry a copy of every built-in's background, which a custom theme never had.
+                    const bg = gateBackground(settings.theme);
+                    if (bg) cache.bg[settings.theme] = bg;
+                    Object.keys(cache.bg).forEach(k => {
+                        if (k !== cache.last && !Object.keys(cache.users).some(u => cache.users[u] === k)) delete cache.bg[k];
+                    });
                     localStorage.setItem(this.config.themeKey, JSON.stringify(cache));
                 }
             } catch (e) { /* storage full or blocked — it still applies for this page */ }
         },
 
         /// The theme picker for the profile forms, or '' when the server does not let
-        /// profiles choose (or has not said). `stored` is the profile's own choice, null for
-        /// "follow the server default".
+        /// profiles choose (or has not said). `stored` is the profile's own choice, null
+        /// for "follow the server default".
         renderThemePicker: function (prefix, stored) {
             const settings = this._themeSettings;
             if (!settings || !settings.allow) return '';
 
-            const chosen = stored && THEMES.indexOf(String(stored).toLowerCase()) !== -1
-                ? String(stored).toLowerCase() : '';
+            const chosen = offeredChoice(stored);
             const shown = chosen || settings.defaultTheme;
 
             return `
-                <div class="form-group" id="${prefix}-theme-group">
+                <div class="jpf-form-group" id="${prefix}-theme-group">
                     <label for="${prefix}-theme-select">${t('profileForm.theme')}</label>
                     <select id="${prefix}-theme-select">
-                        <option value="" ${chosen ? '' : 'selected'}>${t('profileForm.themeDefault', { name: THEME_NAMES[settings.defaultTheme] })}</option>
-                        ${THEMES.map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${THEME_NAMES[id]}</option>`).join('')}
+                        <option value="" ${chosen ? '' : 'selected'}>${t('profileForm.themeDefault', { name: themeName(settings.defaultTheme) })}</option>
+                        ${offeredThemes().map(id => `<option value="${id}" ${chosen === id ? 'selected' : ''}>${themeName(id)}</option>`).join('')}
                     </select>
                     ${this.renderThemePreview(shown, prefix + '-theme-preview')}
-                    <div class="form-hint">${t('profileForm.themeHint')}</div>
                 </div>
             `;
         },
 
         /// A small "Who's watching?" wearing one theme: its name as the title, three tiles
-        /// with the first in the theme's focus frame, and a button. Drawn entirely from the
-        /// theme's tokens through its own data-jpf-theme, so it is what choosing it does.
+        /// with the first in the theme's focus frame, and a button. Drawn from the theme's
+        /// tokens through its own data-jpf-theme, so it is what choosing it does.
         renderThemePreview: function (theme, id) {
             const shown = normalizeTheme(theme);
             return `
                 <div class="jpf-theme-preview" ${id ? `id="${id}"` : ''} data-jpf-theme="${shown}" aria-hidden="true">
-                    <span class="jpf-theme-preview-name">${THEME_NAMES[shown]}</span>
+                    <span class="jpf-theme-preview-name">${themeName(shown)}</span>
                     <span class="jpf-theme-preview-tiles">
                         <span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span><span class="jpf-theme-preview-tile"></span>
                     </span>
@@ -3294,13 +5170,17 @@
             const select = document.getElementById(prefix + '-theme-select');
             const preview = document.getElementById(prefix + '-theme-preview');
             if (!select || !preview) return;
+            // The preview wears the chosen theme, picture and all. Only the theme the page
+            // wears has its picture fetched up front (applyCustomThemesCss).
+            this.loadThemePhotoOf(preview.getAttribute('data-jpf-theme'));
             select.addEventListener('change', () => {
                 const settings = this._themeSettings;
                 const id = select.value ? normalizeTheme(select.value)
                     : (settings ? settings.defaultTheme : 'bonfire');
+                this.loadThemePhotoOf(id);
                 preview.setAttribute('data-jpf-theme', id);
                 const name = preview.querySelector('.jpf-theme-preview-name');
-                if (name) name.textContent = THEME_NAMES[id];
+                if (name) name.textContent = themeNameText(id);
             });
         },
 
@@ -3311,22 +5191,22 @@
             return select ? (select.value ? normalizeTheme(select.value) : '') : undefined;
         },
 
-        /// How often coming back to the app may re-read the preferences. A television
-        /// woken from standby, a phone unlocked: once a minute is plenty, and it keeps a
-        /// tab being flicked between from asking every time.
+        /// How often coming back to the app may re-read the preferences. Once a minute is
+        /// plenty for a TV woken from standby or a phone unlocked, and stops a tab being
+        /// flicked between from asking every time.
         SETTINGS_REFRESH_MS: 60000,
 
         /// Picks up a changed theme, or any other preference, without a reload.
         ///
-        /// The theme used to arrive once per page load, so an administrator changing the
-        /// server default, or anyone changing a profile's theme on another device, saw
-        /// nothing until the app was restarted. Three signals now re-read it:
-        ///   - 'jpf-settings-changed' on this window, which the admin page dispatches after
-        ///     a save — it runs inside jellyfin-web, in the same window as this script;
-        ///   - a write to SETTINGS_EPOCH_KEY from another tab, which the admin page also
-        ///     makes, and which arrives here as a 'storage' event;
+        /// The theme used to arrive once per page load, so a changed server default, or a
+        /// profile's theme changed on another device, showed nothing until a restart.
+        /// Three signals re-read it:
+        ///   - 'jpf-settings-changed' on this window, dispatched by the admin page after a
+        ///     save (it runs inside jellyfin-web, in the same window as this script);
+        ///   - a write to 'jellyfin_profiles_settings_epoch' from another tab, which the
+        ///     admin page also makes and which arrives as a 'storage' event;
         ///   - the page becoming visible again, at most once a minute.
-        /// None of these is on the route poll, which must not grow (see checkRoute).
+        /// None is on the route poll, which must not grow (see checkRoute).
         _bindSettingsRefresh: function () {
             if (this._settingsRefreshBound || typeof window === 'undefined' || !window.addEventListener) return;
             this._settingsRefreshBound = true;
@@ -3346,29 +5226,38 @@
         },
 
         /// Refreshes the cached preferences from the server. Called once per page load;
-        /// re-runs the route check afterwards so a first-ever load on a new device settles
-        /// into the right behaviour without the user having to navigate.
+        /// re-runs the route check afterward so a first load on a new device settles
+        /// without the user navigating.
         loadSwitcherPrefs: function () {
             if (this._switcherPrefsLoading) return;
             if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
 
             this._switcherPrefsLoading = true;
-            fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
-                cache: 'no-store',
-                headers: this.getAuthHeaders(ApiClient.accessToken())
-            })
-            .then(res => res.ok ? res.json() : Promise.reject(new Error('preferences unavailable')))
+            // A hung request must not leave the flag set for the life of the page.
+            // AbortController is Chromium 58, so the wait is raced, not cancelled; the first
+            // of reply or timeout counts.
+            let settled = false;
+            const timeout = new Promise((resolve, reject) => {
+                setTimeout(() => reject(new Error('preferences timed out')), this.config.prefsTimeoutMs || 10000);
+            });
+            Promise.race([
+                fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
+                    cache: 'no-store',
+                    headers: this.getAuthHeaders(ApiClient.accessToken())
+                }).then(res => res.ok ? res.json() : Promise.reject(new Error('preferences unavailable'))),
+                timeout
+            ])
             .then(prefs => {
+                settled = true;
+                this._switcherPrefsGuessed = false;
                 const askRaw = prefs.askOnStartup !== undefined ? prefs.askOnStartup : prefs.AskOnStartup;
                 const locRaw = prefs.switcherLocation || prefs.SwitcherLocation;
                 const master = prefs.masterUserId || prefs.MasterUserId;
 
-                // A server older than this build answers with switcherMode only.
-                const legacyNative = (prefs.switcherMode || prefs.SwitcherMode) === 'native';
-                const ask = typeof askRaw === 'boolean' ? askRaw : !legacyNative;
-                const location = locRaw === 'menu' || locRaw === 'button'
-                    ? locRaw
-                    : (legacyNative ? 'menu' : 'button');
+                // The 1.3.1-beta switcherMode answer is not read any more: the field was removed
+                // from the server before 2.0, and a server that old sends nothing this script runs on.
+                const ask = typeof askRaw === 'boolean' ? askRaw : true;
+                const location = locRaw === 'menu' || locRaw === 'button' ? locRaw : 'button';
 
                 const emergency = (prefs.emergencyCodeConfigured !== undefined
                     ? prefs.emergencyCodeConfigured
@@ -3379,22 +5268,53 @@
                 this._cacheSwitcherPrefs(ask, location, master);
                 this._panicLinkAvailable = emergency;
                 this._setThemeSettings(prefs);
-                // The gate may already be on screen — reveal or hide the link in place
-                // rather than waiting for the next load.
+                // First-time setup: asked for only when the server says it is due.
+                if ((prefs.onboardingPending !== undefined ? prefs.onboardingPending : prefs.OnboardingPending) === true) {
+                    this.maybeStartOnboarding();
+                }
+                // The gate may already be on screen: show or hide the link in place.
                 this.applyPanicLinkVisibility();
                 this._switcherPrefsLoading = false;
-                // Only re-check when the answer actually moved; checkRoute runs on a timer
-                // anyway and this avoids a redundant pass on every load.
+                // Re-check only when the answer moved; checkRoute runs on a timer anyway.
                 if (changed) this.checkRoute();
             })
             .catch(() => {
                 this._switcherPrefsLoading = false;
-                // Server unreachable or an older plugin build: fall back to the historical
-                // behaviour rather than leaving the gate permanently suppressed.
-                if (!this._switcherPrefs) this._switcherPrefs = { askOnStartup: true, location: 'button' };
-                // Settle this too. Leaving it unknown would have the route check re-request
-                // on every poll, and an emergency link we cannot vouch for stays hidden.
+                // A throw from the reply handler lands here too, after it settled.
+                if (settled) return;
+                settled = true;
+                // Server unreachable or an older plugin build: use the historical behavior rather
+                // than suppress the gate permanently.
+                if (!this._switcherPrefs) {
+                    this._switcherPrefs = { askOnStartup: true, location: 'button' };
+                    this._switcherPrefsGuessed = true;
+                }
+                // The fallback is a guess and a blip should not fix it for the page: ask again a
+                // few times, well apart, from a timer of its own, not checkRoute.
+                this._switcherPrefsRetries = (this._switcherPrefsRetries || 0) + 1;
+                if (this._switcherPrefsGuessed && this._switcherPrefsRetries <= 3) {
+                    setTimeout(() => this.loadSwitcherPrefs(), 15000 * this._switcherPrefsRetries);
+                }
+                // Settle this too. Unknown would make the route check re-request on every poll,
+                // and an emergency link we cannot vouch for stays hidden.
                 if (this._panicLinkAvailable === null) this._panicLinkAvailable = false;
+            });
+        },
+
+        // What goes into the localStorage copy of the profile list. Its one reader is
+        // getCachedActiveProfile, which builds the header bubble from these six fields.
+        // Device ids, tags and library lists do not belong in a store that outlives the
+        // session on a shared browser. Keep in step with that reader.
+        _cacheableProfiles: function (profiles) {
+            return (profiles || []).map(function (p) {
+                return {
+                    profileUserId: p.profileUserId,
+                    profileName: p.profileName,
+                    avatarColor: p.avatarColor,
+                    avatarInitial: p.avatarInitial,
+                    profileImage: p.profileImage,
+                    transparentAvatar: p.transparentAvatar
+                };
             });
         },
 
@@ -3407,8 +5327,9 @@
                 } catch (e) {}
             }
 
-            // Fallback: search in localStorage cached profiles
-            const currentUserId = ApiClient.getCurrentUserId();
+            // Fallback: the cached profiles in localStorage.
+            const haveClient = typeof ApiClient !== 'undefined' && !!ApiClient;
+            const currentUserId = haveClient ? ApiClient.getCurrentUserId() : null;
             if (currentUserId) {
                 try {
                     const cachedListStr = localStorage.getItem('jellyfin_profiles_cached_list');
@@ -3424,7 +5345,7 @@
                                     profileImage: profile.profileImage || null,
                                     transparent: !!profile.transparentAvatar
                                 };
-                                // Store it in sessionStorage for future fast access
+                                // Keep for fast access later.
                                 this._sessionSet('jellyfin_profiles_active_info', JSON.stringify(info));
                                 return info;
                             }
@@ -3435,9 +5356,11 @@
                 }
             }
 
-            // Ultimate fallback (e.g. before any profile list has been loaded)
-            const apiClient = ApiClient;
-            let fallbackName = 'Profiles';
+            // Last resort, before any profile list has loaded.
+            const apiClient = haveClient ? ApiClient : null;
+            // Empty, not English: the one caller that shows the name falls back through t()
+            // when it is empty, so a translated page never says 'Profiles'.
+            let fallbackName = '';
             let fallbackInitial = 'P';
             if (apiClient) {
                 const user = apiClient._currentUser || apiClient.currentUser;
@@ -3461,17 +5384,16 @@
             const hash = window.location.hash || '';
             const path = window.location.pathname || '';
             if (hash.includes('login') || hash.includes('selectserver') || path.includes('login') || path.includes('selectserver')) {
-                localStorage.removeItem(this.config.masterStorageKey);
+                this.clearMasterState();
                 this.clearProfileSession();
                 return;
             }
 
             const currentToken = apiClient.accessToken();
             if (!currentToken) {
-                // If ApiClient token is empty, check if we are truly logged out of Jellyfin.
-                // During initial page load, ApiClient.accessToken() is temporarily empty
-                // while the web app initializes, but 'jellyfin_credentials' in localStorage
-                // still contains the active session token.
+                // If ApiClient's token is empty, check whether we are really logged out. During
+                // page load ApiClient.accessToken() is briefly empty while the web app
+                // initializes, but 'jellyfin_credentials' in localStorage still has the token.
                 let isLoggedOut = true;
                 try {
                     const credsStr = localStorage.getItem('jellyfin_credentials');
@@ -3484,34 +5406,35 @@
                 } catch (e) {}
 
                 if (isLoggedOut) {
-                    localStorage.removeItem(this.config.masterStorageKey);
+                    this.clearMasterState();
                     this.clearProfileSession();
                 }
                 return;
             }
 
             // Reading the state also retires a master token an earlier version left in this
-            // browser, ending that session on the server; see readMasterState.
+            // browser, ending that session on the server (see readMasterState).
             //
-            // This used to go on to a second step. If the app had been closed while a profile
-            // was in use, it put the stored master token back and reloaded, so the gate came
-            // up signed in as the master. That step was the reason the master token lived in
-            // the browser at all, and it meant closing a tab left the least restricted account
-            // in the house signed in behind a picture of a picker. It also needed a backstop
-            // against reloading forever (_revertReloadAllowed), which went with it.
+            // This used to go on to a second step: if the app had been closed while a profile
+            // was in use, it put the stored master token back and reloaded, so the gate came up
+            // signed in as the master. That was the reason the master token lived in the
+            // browser at all, and closing a tab left the least restricted account signed in
+            // behind a picture of a picker. It also needed a backstop against reloading
+            // forever (_revertReloadAllowed), which went with it.
             //
             // Now the session in use stays in use. checkRoute still raises the gate over it
-            // when the household asks on startup, because the active-profile marker is gone
-            // with the tab — and every way out of the gate, the master included, is a /switch
-            // the server checks.
+            // when the household asks on startup, because the active-profile marker goes with
+            // the tab, and every way out of the gate, the master included, is a /switch the
+            // server checks.
             this.readMasterState();
         },
 
         handleSessionExpired: function () {
             console.warn("ProfilesPlugin: Master session expired or invalid. Redirecting to login.");
-            localStorage.removeItem(this.config.masterStorageKey);
+            this.clearMasterState();
+            try { localStorage.removeItem('jellyfin_profiles_cached_list'); } catch (e) { /* ignore storage errors */ }
             this.clearProfileSession();
-            
+
             const apiClient = ApiClient;
             if (apiClient) {
                 if (typeof apiClient.clearUser === 'function') {
@@ -3525,6 +5448,16 @@
             window.location.reload();
         },
 
+        /// First line of the handler for any request the person made on purpose. A 401
+        /// means the main session has ended; without this the screen showed a refusal
+        /// sentence or a JSON error for an expired sign-in (R-1228). Returns the response
+        /// so it can sit in a chain. Anything else is left to the caller, which knows its
+        /// own failure wording.
+        checked: function (res) {
+            if (res && res.status === 401) this.handleSessionExpired();
+            return res;
+        },
+
         interceptHomeAndShowProfiles: function () {
             const apiClient = ApiClient;
             if (!apiClient) return;
@@ -3532,135 +5465,219 @@
             const currentUserId = apiClient.getCurrentUserId();
             const token = apiClient.accessToken();
 
-            // Not a reason to drop the cover. During startup jellyfin-web sits on /web/ —
-            // which is home as far as isHomeRoute can tell — before it knows who is signed
-            // in, and the route poll asks again next tick. Taking the cover down here put
-            // the flash straight back. A sign-in page is not home, so checkRoute drops it
-            // there; anything else is the backstop's.
+            // Not a reason to drop the cover. During startup jellyfin-web sits on /web/, which
+            // isHomeRoute reads as home, before it knows who is signed in, and the poll asks
+            // again next tick. Dropping it here put the flash straight back. A sign-in page is
+            // not home, so checkRoute drops it there; anything else is the backstop's.
             if (!currentUserId || !token) return;
 
             this._holdCoverForGate();
 
             // Listed as whoever is signed in. The household's master is learned from the list
-            // (fetchAndRenderProfiles) rather than assumed to be the current user, which it is
-            // not when a profile was signed into directly — a profile's PIN works on the web
-            // sign-in page too once other apps' sign-in is on.
+            // (fetchAndRenderProfiles), not assumed to be the current user, which it is not
+            // when a profile was signed into directly (a profile's PIN works on the web
+            // sign-in page too once other apps' sign-in is on).
             const known = this.readMasterState();
             this.fetchAndRenderProfiles(apiClient, known ? known.masterUserId : currentUserId, token);
         },
 
-        /// Drops the prefetch cache so the next render is guaranteed to hit the server.
-        /// Must be called after anything that changes profile state — otherwise the render
-        /// that follows a save shows the pre-save snapshot.
+        /// Every request for the profile list goes through here, so the route poll can see
+        /// one already out and a recent failure before it sends another.
+        ///
+        /// Two poll paths ask for the list: the gate (interceptHomeAndShowProfiles) and the
+        /// button's prefetch. Neither knew about a request in flight or a failure. The gate
+        /// asked every tick until drawn, so a slow server collected a pile of requests and
+        /// a down one got one every 500 ms; the prefetch cleared its pending flag on
+        /// failure with no pause. Only the poll consults this (_listPollMayRequest): a
+        /// person who saves a profile or goes back to the grid still gets their request.
+        _requestList: function (apiClient, token, init) {
+            // Stamped on every send, not only when nothing is in flight. A hung request is
+            // treated as lost after POLL_RETRY_MS and the poll sends another; if only the first
+            // send stamped, _listPending stayed false and the poll sent about two requests a
+            // second for as long as the network was dead.
+            this._listSentAt = Date.now();
+            this._listInFlight++;
+            const done = () => { this._listInFlight = Math.max(0, this._listInFlight - 1); };
+            return fetch(apiClient.getUrl('plugins/profiles/list'),
+                         Object.assign({ headers: this.getAuthHeaders(token) }, init || {}))
+                .then(res => {
+                    done();
+                    this._listRetryAt = res.ok ? 0 : Date.now() + this.POLL_RETRY_MS;
+                    return res;
+                }, err => {
+                    done();
+                    this._listRetryAt = Date.now() + this.POLL_RETRY_MS;
+                    throw err;
+                });
+        },
+
+        /// True when one is already out. One that has not answered within POLL_RETRY_MS is
+        /// treated as lost: fetch has no timeout, and a hung connection would otherwise
+        /// keep the gate from ever being asked for again.
+        _listPending: function () {
+            return this._listInFlight > 0 && Date.now() - this._listSentAt < this.POLL_RETRY_MS;
+        },
+
+        /// Whether the route poll may send a /list request now.
+        _listPollMayRequest: function () {
+            return !this._listPending() && Date.now() >= this._listRetryAt;
+        },
+
+        /// Drops the prefetch cache so the next render hits the server. Call after anything
+        /// that changes profile state, or the render after a save shows the old snapshot.
         invalidateProfileCache: function () {
             this.cachedProfiles = [];
             this._profilePrefetchPending = false;
+            // A prefetch already in flight was asked before this change and would land after
+            // it, putting the old list back. It checks this number when it answers.
+            this._profileCacheGen = (this._profileCacheGen || 0) + 1;
         },
 
         /// Renders the profile grid.
         ///
         /// `forceRefresh` bypasses the prefetch cache and is REQUIRED after any mutation
-        /// (create / edit / delete). The cache exists only to make opening the switcher from
-        /// the home screen flash-free; serving it after a save showed stale data — a freshly
-        /// saved PIN still read as "No PIN" until the page was reloaded.
+        /// (create / edit / delete). The cache only makes opening the switcher from home
+        /// flash-free; serving it after a save showed stale data (a saved PIN still read
+        /// "No PIN" until reload).
         fetchAndRenderProfiles: function (apiClient, masterUserId, masterToken, forceRefresh) {
-            // Recorded, not claimed: several callers have already taken a ticket and are
-            // finishing by coming back to the grid, and claiming a new one here would
-            // invalidate theirs. This only needs to know whether the screen moved on while
-            // the list was in flight — Settings, or a profile form, drawn over by a slow
-            // grid was the same race the tickets were added for.
+            // Recorded, not claimed: several callers already took a ticket and finish by
+            // returning to the grid, and a new claim here would invalidate theirs. This only
+            // needs to know whether the screen moved on while the list was in flight (Settings
+            // or a profile form drawn over by a slow grid was the race the tickets were added
+            // for).
             const ticket = this._navTicket;
 
             if (forceRefresh) {
                 this.invalidateProfileCache();
             } else if (this.cachedProfiles && this.cachedProfiles.length) {
-                // Consume the prefetch exactly once, then drop it.
+                // Consume the prefetch once, then drop it.
                 const profiles = this.cachedProfiles;
                 this.invalidateProfileCache();
                 (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(profiles));
                 return;
             }
 
-            const url = apiClient.getUrl(`plugins/profiles/list`);
-
-            fetch(url, {
-                // Never let a conditional/heuristic cache answer this — it drives the
-                // PIN and library state shown in the editor.
-                cache: 'no-store',
-                headers: this.getAuthHeaders(masterToken)
+            this._requestList(apiClient, masterToken, {
+                // No conditional or heuristic cache: this drives the PIN and library state in the
+                // editor.
+                cache: 'no-store'
             })
             .then(res => {
                 if (res.status === 401) {
                     this.handleSessionExpired();
                     throw new Error("Unauthorized");
                 }
+                // A 500 used to go on to res.json() and be drawn as whatever its body parsed to.
+                if (!res.ok) throw new Error('Profile list unavailable (' + res.status + ')');
                 return res.json();
             })
             .then(profiles => {
-                // Not a reason to drop the startup cover: the route poll re-asks for the
-                // list on every tick until the gate exists, so a stale ticket is usually
-                // just one of those duplicates arriving after another has drawn the gate —
-                // or before it, with the gate still on its way. Dropping here showed home
-                // through the gate's fade. A cover nothing replaces is the backstop's.
+                // Not a reason to drop the startup cover: a stale ticket is usually a list another
+                // request already drew the gate from (a user action while the poll's request was
+                // out), or one with the gate still on its way. Dropping here showed home through
+                // the gate's fade. A cover nothing replaces is the backstop's.
                 if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
-                // The household's own master: the master tile that is not a linked Bonfire.
-                // Only its id is kept — see readMasterState.
+                this._listNoticeShown = false;
+                // The household's own master: the master tile that is not a linked Bonfire. Only
+                // its id is kept (see readMasterState).
                 const ownMaster = normalized.find(p => p.isMaster && !p.isBonfire);
                 if (ownMaster) this.writeMasterState(ownMaster.profileUserId);
-                // Deliberately NOT stored in cachedProfiles: that field is the one-shot
-                // prefetch buffer, and repopulating it here made the *next* call short-circuit
-                // to data that was already stale.
-                localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
+                // Not stored in cachedProfiles: that is the one-shot prefetch buffer, and filling
+                // it here made the next call short-circuit to stale data.
+                // Full or blocked storage throws here; unguarded, the catch below reported "list
+                // failed" and the profile screen never appeared on that device.
+                try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(this._cacheableProfiles(normalized))); } catch (e) { /* the screen does not need the copy */ }
                 return (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(normalized));
             })
             .catch(err => {
                 console.error("Failed to load sub-profiles:", err);
-                // No gate is coming from this attempt. The poll will try again and the
-                // home screen may show in between — which is the honest state of things.
+                // Said once, for a few seconds: the home screen is the honest state, but nothing
+                // told the person why the picker they expected is missing. Not for an expired
+                // session, which has its own screen. Once until a list loads: the retry below runs
+                // every 30 s and the note came back with each one.
+                if (!(err && err.message === 'Unauthorized') && !this._listNoticeShown) {
+                    this._listNoticeShown = true;
+                    this._showListNotice();
+                }
+                // No gate is coming from this attempt. The poll retries after POLL_RETRY_MS and
+                // home shows meanwhile. _requestList already paused for a failed request; this
+                // covers a body that would not parse or a grid that would not draw, which
+                // retrying twice a second would not fix either.
+                this._listRetryAt = Date.now() + this.POLL_RETRY_MS;
                 this._dropCover();
-                localStorage.removeItem(this.config.masterStorageKey);
+                // The saved master is not forgotten here. It was, on every failure (a network
+                // blip, a 500, a restart), which cost the household its master for no reason. Only
+                // a 401 says the session is gone, and handleSessionExpired clears it.
             });
         },
 
+        /// A short note that the profile list did not load. Not a dialog: the gate asks
+        /// again by itself, and a dialog every POLL_RETRY_MS would be worse than silence.
+        /// role=status so a screen reader says it without taking focus.
+        _showListNotice: function () {
+            this._hideListNotice();
+            const note = document.createElement('div');
+            note.id = 'jpf-list-notice';
+            note.setAttribute('role', 'status');
+            note.setAttribute('aria-live', 'polite');
+            note.textContent = t('switcher.listFailed');
+            note.style.cssText = 'position:fixed;left:50%;top:24px;transform:translateX(-50%);'
+                + 'max-width:90%;padding:12px 20px;border-radius:var(--jpf-r-md);'
+                + 'background:var(--jpf-panel);color:var(--jpf-text-1);border:1px solid var(--jpf-border-1);'
+                + 'font-size:1rem;text-align:center;z-index:' + DIALOG_Z + ';';
+            document.body.appendChild(note);
+            this._listNoticeTimer = setTimeout(() => this._hideListNotice(), 8000);
+        },
+
+        _hideListNotice: function () {
+            if (this._listNoticeTimer) { clearTimeout(this._listNoticeTimer); this._listNoticeTimer = null; }
+            const old = document.getElementById('jpf-list-notice');
+            if (old && old.parentNode) old.parentNode.removeChild(old);
+        },
+
         showProfileOverlay: function (profiles) {
-            // Always stop the inactivity timer when showing the profile selector
+            // A list that arrived late makes the note wrong.
+            this._hideListNotice();
+            // Stop the inactivity timer while the selector shows.
             this.stopInactivityTimer();
 
-            // Warm the account-wide form data now, while the user is still reading the
-            // grid. Opening a profile then costs one request rather than five, which is
-            // the difference between instant and the several-second wait that made
-            // people click a second time.
+            // Warm the account-wide form data while the user reads the grid. Opening a
+            // profile then costs one request instead of five, which was the several-second
+            // wait that made people click twice.
             try {
-                // Only for the master: the forms are the master's, and a profile's own
-                // session would fetch the profile's libraries rather than the household's.
+                // Master only: the forms are the master's, and a profile's own session would
+                // fetch the profile's libraries, not the household's.
                 const warmState = this.readMasterState();
                 if (warmState && warmState.token && this.isSignedInAsMaster(warmState)) {
                     this.fetchSharedFormData(ApiClient, warmState).catch(() => {
-                        // A cold prefetch failing is not an error anyone needs to see;
-                        // the form will retry and report it properly if it still fails.
+                        // A failed prefetch needs no message; the form retries and reports it.
                     });
                 }
             } catch (e) { /* no master state yet — the form will fetch on demand */ }
             this._overlayMountTime = Date.now();
 
-            // Returning to the grid replaces the modal contents, so any document-level
-            // listeners the previous form registered are now bound to detached nodes.
+            // Returning to the grid replaces the modal contents, so listeners the previous
+            // form registered on the document are bound to detached nodes.
             this.clearManagedDocumentListeners();
 
             const skinHeader = document.querySelector('.skinHeader');
             if (skinHeader) skinHeader.style.display = 'none';
 
-            // Do NOT apply filter:blur to #view-home — it triggers a GPU compositing
-            // layer creation which causes a one-frame white flash on first paint.
-            // The overlay's solid-dark background makes the blur redundant anyway.
+            // No filter:blur on #view-home: it creates a GPU compositing layer and causes a
+            // one-frame white flash on first paint. The overlay's solid dark background makes
+            // the blur redundant.
 
             let overlay = document.getElementById('profiles-gate-overlay');
             if (!overlay) {
                 overlay = document.createElement('div');
                 overlay.id = 'profiles-gate-overlay';
-                // Start at opacity 0 so the browser creates the compositing layer
-                // silently.  We fade it in via rAF once it exists in the DOM.
+                // The page behind is not for the person to read while this is up.
+                overlay.setAttribute('role', 'dialog');
+                overlay.setAttribute('aria-modal', 'true');
+                overlay.setAttribute('aria-label', 'Bonfire');
+                // Start at opacity 0 so the browser creates the compositing layer silently; rAF
+                // fades it in once it exists.
                 overlay.style.opacity = '0';
                 document.body.appendChild(overlay);
             }
@@ -3669,57 +5686,65 @@
             document.body.classList.add('profiles-no-scroll');
             document.documentElement.classList.add('profiles-no-scroll');
 
-            // Keep a stable reference to the profiles being shown so that
-            // back-navigation (PIN cancel, master PIN cancel, promptMasterPinEntry)
-            // can re-show the grid without depending on cachedProfiles, which is
-            // intentionally cleared after first use.
+            // A stable reference to the profiles shown, so back-navigation (PIN cancel, master
+            // PIN cancel, promptMasterPinEntry) can re-show the grid without cachedProfiles,
+            // which is cleared after first use.
             this.currentProfiles = profiles;
             this.renderOverlayContent(overlay, profiles);
+            // First-time setup owns the overlay while it runs: the grid it was opened with, or
+            // one drawn late by the gate, is replaced before it is painted.
+            if (this._onboarding) {
+                this._onboarding.waiting = false;
+                this.showOnboardingStep();
+            }
 
-            // Reveal the page NOW — the overlay covers the home screen so there
-            // is no blank-page flash.  checkRoute() skipped _revealPage() earlier
-            // specifically so we could do it here at the right moment.
+            // Reveal the page now: the overlay covers home, so no blank flash. checkRoute()
+            // skipped _revealPage() so it could happen here.
             this._viewShowFired = true; // overlay is rendered; treat this as view-ready
             this._revealPage();
 
-            // Two rAF calls: first lets the browser paint with opacity:0 (compositing
-            // layer created silently), second begins the CSS opacity transition.
-            requestAnimationFrame(() => requestAnimationFrame(() => {
+            // Two rAF calls: the first paints at opacity:0 (compositing layer created
+            // silently), the second starts the CSS opacity transition.
+            const fadeIn = () => {
                 overlay.style.opacity = ''; // CSS transition takes over
-                // The startup cover comes down once the fade has finished and the gate is
-                // opaque — dropping it at the start of the fade showed home through a
-                // half-transparent gate, which is the flash again. The cover is the same
-                // colour as the gate, so the fade itself is not lost.
+                // The startup cover comes down once the fade has finished and the gate is opaque.
+                // Dropping it at the start of the fade showed home through a half-transparent gate,
+                // the flash again. The cover is the gate's color, so the fade itself is not lost.
                 if (this._coverUp) {
                     this._coverHeldForGate = true;
                     setTimeout(() => this._dropCover(), this.GATE_FADE_MS);
                 }
+            };
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                // The household's theme is an administrator's own and its block has not arrived
+                // (applyTheme is waiting for themes?part=custom); the gate would fade in as
+                // Bonfire. Held at opacity 0 under the startup cover until applyTheme puts the
+                // theme on, or after GATE_THEME_WAIT_MS with Bonfire, so a request that never
+                // answers cannot leave a blank screen. No custom theme, no wait (_themeDeferred
+                // is false).
+                if (!this._themeDeferred) { fadeIn(); return; }
+                let done = false;
+                const release = () => { if (done) return; done = true; this._gateThemeHold = null; fadeIn(); };
+                this._gateThemeHold = release;
+                setTimeout(() => { if (!done) this._customThemesSettled(); release(); }, this.GATE_THEME_WAIT_MS);
             }));
 
-            // Auto-focus the first interactive element so TV/keyboard users
-            // don't need to Tab before they can navigate the profile grid.
+            // Focus the first interactive element so TV and keyboard users need not Tab first.
             setTimeout(() => {
                 const first = overlay.querySelector('[tabindex="0"], button, input');
                 if (first) first.focus();
             }, 100);
         },
 
-        /// Builds the per-library artwork controls in the edit form and returns a handle
-        /// whose save() posts whatever changed.
-        ///
-        /// Choices are held in memory until the form is saved, so backing out leaves
-        /// nothing behind — the same contract as every other field on the form.
-        /// Greys the artwork controls on a library this profile cannot see.
-        ///
-        /// Now that the tick and the artwork sit on one row, an enabled Picture
-        /// dropdown next to an unticked library would be offering to style something
-        /// that is not there.
+        /// Greys the artwork controls on a library this profile cannot see. With the tick
+        /// and the artwork on one row, an enabled Picture dropdown next to an unticked
+        /// library would offer to style something that is not there.
         syncLibraryRowState: function (row) {
             if (!row) return;
             const box = row.querySelector('.library-checkbox');
             const on = !box || box.checked;
 
-            row.querySelectorAll('.libart-mode, .libart-choose').forEach(el => {
+            row.querySelectorAll('.jpf-libart-mode, .jpf-libart-choose').forEach(el => {
                 el.disabled = !on;
             });
             row.style.opacity = on ? '' : '0.5';
@@ -3728,20 +5753,23 @@
         /// Applies the above to every row in a container.
         syncAllLibraryRows: function (root) {
             const scope = root || document;
-            scope.querySelectorAll('.libart-row').forEach(r => this.syncLibraryRowState(r));
+            scope.querySelectorAll('.jpf-libart-row').forEach(r => this.syncLibraryRowState(r));
         },
 
+        /// Builds the per-library artwork controls in the edit form and returns a handle
+        /// whose save() posts whatever changed. Choices are held in memory until the form is
+        /// saved, so backing out leaves nothing behind, like every other field.
         initLibraryArtworkEditor: function (container, profileId) {
-            const rows = Array.prototype.slice.call(container.querySelectorAll(".libart-row"));
-            const list = container.querySelector(".libart-list");
-            const artToggle = container.querySelector(".libart-toggle input");
-            const artHint = container.querySelector(".libart-explainer");
+            const rows = Array.prototype.slice.call(container.querySelectorAll(".jpf-libart-row"));
+            const list = container.querySelector(".jpf-libart-list");
+            const artToggle = container.querySelector(".jpf-libart-toggle input");
+            const artHint = container.querySelector(".jpf-libart-explainer");
 
-            // Off is the honest default: most profiles never touch artwork, and the
-            // controls meant nothing to anyone who was only picking libraries.
+            // Off by default: most profiles never touch artwork, and the controls meant
+            // nothing to anyone only picking libraries.
             const showArtwork = (on) => {
-                if (list) list.classList.toggle("show-artwork", on);
-                if (artHint) artHint.style.display = on ? "" : "none";
+                if (list) list.classList.toggle("jpf-show-artwork", on);
+                if (artHint) artHint.hidden = !on;
             };
             if (artToggle) {
                 artToggle.addEventListener("change", (e) => showArtwork(e.target.checked));
@@ -3750,8 +5778,8 @@
             const state = {};
             const masterState = this.readMasterState();
 
-            // A value safe to drop into a CSS url(): a data payload or our own endpoint.
-            // Anything else previews as empty rather than as a broken rule.
+            // A value safe in a CSS url(): a data payload or our own endpoint. Anything else
+            // previews as empty, not as a broken rule.
             const previewUrl = (entry) => {
                 if (entry.image && /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(entry.image)) {
                     return entry.image;
@@ -3762,15 +5790,15 @@
             const paint = (row) => {
                 const id = row.getAttribute("data-lib");
                 const entry = state[id] || { mode: "inherit" };
-                const select = row.querySelector(".libart-mode");
-                const choose = row.querySelector(".libart-choose");
-                const thumb = row.querySelector(".libart-thumb");
+                const select = row.querySelector(".jpf-libart-mode");
+                const choose = row.querySelector(".jpf-libart-choose");
+                const thumb = row.querySelector(".jpf-libart-thumb");
 
                 select.value = entry.mode;
                 choose.style.visibility = entry.mode === "custom" ? "visible" : "hidden";
-                // Class, not an inline style: the artwork switch hides these by rule, and an
-                // inline display would outrank it and put the placeholder back.
-                row.classList.toggle("libart-has-art", entry.mode !== "inherit");
+                // A class, not an inline style: the artwork switch hides these by rule, and an
+                // inline display would outrank it and bring the placeholder back.
+                row.classList.toggle("jpf-libart-has-art", entry.mode !== "inherit");
 
                 const preview = entry.mode === "custom" ? previewUrl(entry) : "";
                 thumb.style.backgroundImage = preview ? ("url(\"" + preview + "\")") : "";
@@ -3781,18 +5809,24 @@
                 const id = row.getAttribute("data-lib");
                 state[id] = { mode: "inherit" };
 
-                row.querySelector(".libart-mode").addEventListener("change", (e) => {
+                // What the row was before the last change to Picture, for a picker closed without
+                // a choice. Left as "Picture" it would be saved and the server answers "Choose a
+                // picture first." (R-1191).
+                let before = null;
+
+                row.querySelector(".jpf-libart-mode").addEventListener("change", (e) => {
+                    before = { mode: state[id].mode, dirty: state[id].dirty };
                     state[id].mode = e.target.value;
                     state[id].dirty = true;
                     paint(row);
-                    // Choosing Picture with nothing picked yet opens the picker, rather
-                    // than leaving a mode the server would refuse to save.
+                    // Choosing Picture with nothing picked opens the picker, not a mode the server
+                    // would refuse to save.
                     if (state[id].mode === "custom" && !state[id].image && !state[id].url) {
-                        row.querySelector(".libart-choose").click();
+                        row.querySelector(".jpf-libart-choose").click();
                     }
                 });
 
-                row.querySelector(".libart-choose").addEventListener("click", () => {
+                row.querySelector(".jpf-libart-choose").addEventListener("click", () => {
                     this.pickLibraryArtwork((picked) => {
                         state[id].mode = "custom";
                         state[id].image = picked.image;
@@ -3800,6 +5834,11 @@
                         state[id].avatarLibraryId = picked.libraryId;
                         state[id].url = null;
                         state[id].dirty = true;
+                        paint(row);
+                    }, () => {
+                        if (state[id].mode !== "custom" || state[id].image || state[id].url) return;
+                        state[id].mode = before ? before.mode : "inherit";
+                        state[id].dirty = before ? !!before.dirty : false;
                         paint(row);
                     });
                 });
@@ -3809,11 +5848,11 @@
 
             // Existing choices arrive after the form is drawn; the rows work meanwhile.
             if (masterState && masterState.token && rows.length) {
-                fetch(ApiClient.getUrl("plugins/profiles/library-artwork/" + profileId), {
+                fetch(ApiClient.getUrl("plugins/profiles/library-artwork?profileId=" + encodeURIComponent(profileId)), {
                     cache: "no-store",
                     headers: this.getAuthHeaders(masterState.token)
                 })
-                .then(res => res.ok ? res.json() : Promise.reject(new Error("unavailable")))
+                .then(res => this.checked(res).ok ? res.json() : Promise.reject(new Error("unavailable")))
                 .then(entries => {
                     (entries || []).forEach(entry => {
                         const wanted = this.normalizeGuid(entry.libraryId || entry.LibraryId);
@@ -3829,9 +5868,8 @@
                         paint(row);
                     });
 
-                    // A profile that already has artwork set should not have to find the
-                    // switch to see it. Only ever turns the section on, so it cannot fold
-                    // away controls somebody has just opened by hand.
+                    // A profile that already has artwork should not have to find the switch to see it.
+                    // Only turns the section on, so it cannot fold away controls just opened by hand.
                     const anyArt = rows.some(r => (state[r.getAttribute("data-lib")] || {}).mode !== "inherit");
                     if (anyArt && artToggle && !artToggle.checked) {
                         artToggle.checked = true;
@@ -3846,8 +5884,8 @@
                     const changed = rows.filter(r => state[r.getAttribute("data-lib")].dirty);
                     if (!changed.length) return Promise.resolve();
 
-                    // One at a time: each request can carry an image and the server writes
-                    // files, so firing them together buys nothing and risks a partial save.
+                    // One at a time: each request can carry an image and the server writes files, so
+                    // firing them together gains nothing and risks a partial save.
                     return changed.reduce((chain, row) => chain.then(() => {
                         const id = row.getAttribute("data-lib");
                         const entry = state[id];
@@ -3864,7 +5902,8 @@
                                 masterPin: this.masterPin
                             })
                         }).then(res => {
-                            if (!res.ok) return res.text().then(body => { throw new Error(body || t('errors.couldNotSaveArtwork')); });
+                            this.checked(res);
+                            if (!res.ok) throw refusalError(res, t('errors.couldNotSaveArtwork'));
                             entry.dirty = false;
                         });
                     }), Promise.resolve());
@@ -3872,16 +5911,20 @@
             };
         },
 
-        /// Opens the picker and crop editor the profile pictures already use, so library
-        /// artwork gets the avatar library, uploads and positioning without a second
-        /// implementation of any of it.
-        pickLibraryArtwork: function (onPicked) {
+        /// Opens the picker and crop editor the profile pictures use, so library artwork
+        /// gets the avatar library, uploads and positioning without a second implementation.
+        pickLibraryArtwork: function (onPicked, onCancel) {
             const apiClient = ApiClient;
             const masterState = this.readMasterState();
             const token = masterState ? masterState.token : apiClient.accessToken();
 
             this.fetchAvatarLibrary(apiClient, token).then(library => {
-                if (document.getElementById("profiles-libart-dialog")) return;
+                // Already open: the caller waits on one of the two callbacks (it may hold a button
+                // disabled until it hears), and this call will make neither.
+                if (document.getElementById("profiles-libart-dialog")) {
+                    if (typeof onCancel === 'function') onCancel();
+                    return;
+                }
 
                 const dialog = document.createElement("div");
                 dialog.id = "profiles-libart-dialog";
@@ -3891,24 +5934,39 @@
                     "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
                     "display:flex; align-items:center; justify-content:center; z-index:" + DIALOG_Z + ";";
                 dialog.innerHTML =
-                    '<div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);' +
-                    ' padding:22px; max-width:420px; width:94%; max-height:86vh; overflow:auto;">' +
-                    '<h2 style="margin:0 0 14px 0; color:#fff; font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
+                    // Width comes from the shared dialog rule, so a TV gets the wider box too.
+                    '<div class="jpf-libart-dialog-content" style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);' +
+                    ' padding:22px; max-height:86vh; overflow:auto;">' +
+                    '<h2 style="margin:0 0 14px 0; color:var(--jpf-text-1); font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
                     '<div id="profiles-libart-host"></div>' +
-                    '<div id="profiles-libart-error" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
+                    '<div id="profiles-libart-error" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.85rem;' +
                     ' font-weight:600; margin-top:8px;"></div>' +
-                    '<div style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
-                    '<button id="profiles-libart-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
-                    '<button id="profiles-libart-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">' + t('avatar.usePicture') + '</button>' +
+                    '<div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:flex-end; margin-top:16px;">' +
+                    '<button id="profiles-libart-save" class="profiles-btn jpf-btn-primary" style="padding:10px 20px; font-weight:600;">' + t('avatar.usePicture') + '</button>' +
+                    '<button id="profiles-libart-cancel" class="profiles-btn jpf-btn-secondary" style="padding:10px 20px; font-weight:600;">' + t('common.cancel') + '</button>' +
                     '</div></div>';
+                markDialog(dialog);
                 document.body.appendChild(dialog);
 
                 const host = dialog.querySelector("#profiles-libart-host");
                 host.innerHTML = this.renderAvatarPicker("libart", library, null, DEFAULT_AVATAR_COLOR);
                 const picker = this.initAvatarPicker(host, "libart", library, null, () => {});
 
+                // remove() hands focus back to the opener; markDialog wraps it.
                 const close = () => dialog.remove();
-                dialog.querySelector("#profiles-libart-cancel").addEventListener("click", close);
+                // Closing without a choice tells the caller, which already switched its form to
+                // "Picture" and has to put that back (R-1191).
+                const cancel = () => { close(); if (onCancel) onCancel(); };
+                dialog.querySelector("#profiles-libart-cancel").addEventListener("click", cancel);
+                dialog.addEventListener("keydown", (e) => {
+                    if (isKey(e, 'Escape')) { e.stopPropagation(); e.preventDefault(); cancel(); }
+                });
+                if (library.failed) {
+                    // An empty grid with no word said looked like a library with no pictures (R-1197).
+                    const loadErr = dialog.querySelector("#profiles-libart-error");
+                    loadErr.textContent = t('avatar.loadFailed');
+                    loadErr.style.display = "block";
+                }
                 dialog.querySelector("#profiles-libart-save").addEventListener("click", () => {
                     const picked = picker.get();
                     if (!picked.image && !picked.libraryId) {
@@ -3931,28 +5989,26 @@
         // ─── Library tile artwork (issue #19) ──────────────────────────────────────
         //
         // Jellyfin builds one image per library and caches it on the folder, from a query
-        // with no user attached, so the tile for a mixed library can be drawn from something
-        // the active profile is not allowed to open. There is no per-user image to ask the
-        // server for, so the substitution happens here.
+        // with no user attached, so the tile for a mixed library can come from something
+        // the active profile may not open. There is no per-user image to ask for, so the
+        // substitution happens here.
         //
-        // It is done with a stylesheet rule per library rather than by touching the cards.
-        // jellyfin-web renders `.card[data-id]` containing a `.cardImageContainer` and fills
-        // its background in later from `data-src`, as a plain inline style. A stylesheet rule
-        // marked !important outranks a non-important inline one, so ours wins without having
-        // to race the lazy loader, survives every re-render with no observer, and applies
-        // anywhere a card for that library appears.
+        // A stylesheet rule per library, not touching the cards. jellyfin-web renders
+        // `.card[data-id]` with a `.cardImageContainer` and fills its background later from
+        // `data-src` as a plain inline style. A rule marked !important outranks a
+        // non-important inline style, so ours wins without racing the lazy loader, survives
+        // re-renders with no observer, and applies wherever a card for that library appears.
         //
-        // Honest limit: jellyfin-web preloads the original through `new Image()` before it
-        // sets the style, so the file is still fetched even though it is never displayed.
-        // Stopping that would mean rewriting `data-src` before the loader reads it, which is
-        // the fragile DOM race this approach exists to avoid. Nobody sees the picture; it is
-        // not a claim that the bytes never reach the device.
+        // Limit: jellyfin-web preloads the original through `new Image()` before setting
+        // the style, so the file is still fetched though never displayed. Stopping that
+        // would mean rewriting `data-src` before the loader reads it, the fragile DOM race
+        // this approach avoids. Nobody sees the picture; the bytes still reach the device.
 
         LIBRARY_ART_STYLE_ID: 'profiles-library-art',
 
-        /// Accepts only the shape our own endpoint produces. The value is interpolated into
-        /// a stylesheet, where escapeHtml would be the wrong tool and a stray quote or
-        /// parenthesis would end the rule early.
+        /// Accepts only the shape our own endpoint produces. The value goes into a
+        /// stylesheet, where escapeHtml is the wrong tool and a stray quote or parenthesis
+        /// would end the rule early.
         _libraryArtUrl: function (value) {
             if (!value) return '';
             const raw = String(value).trim();
@@ -3960,15 +6016,14 @@
             return pluginUrl(raw);
         },
 
-        /// Writes the rules for `entries` into a single style element, replacing whatever was
-        /// there. Entries are `{ libraryId, mode, url }`; anything unrecognised is skipped.
+        /// Writes the rules for `entries` into one style element, replacing what was there.
+        /// Entries are `{ libraryId, mode, url }`; anything unrecognized is skipped.
         applyLibraryArtwork: function (entries) {
             let css = '';
 
             (entries || []).forEach(entry => {
-                // Jellyfin serialises GUIDs without dashes, and that is the form it puts
-                // in data-id, so the selector has to use the same one. Both spellings are
-                // accepted coming in; only hex goes out.
+                // Jellyfin writes GUIDs without dashes, and that is the form in data-id, so the
+                // selector uses it too. Both spellings are accepted in; only hex goes out.
                 const id = String(entry.libraryId || entry.LibraryId || '').replace(/-/g, '').toLowerCase();
                 if (!/^[0-9a-f]{32}$/.test(id)) return;
 
@@ -3981,8 +6036,8 @@
                     css += selector + '{background-image:url("' + url + '")!important;' +
                            'background-size:cover!important;background-position:center!important;}';
                 } else if (mode === 'none') {
-                    // Reveals the card padder underneath, which is the icon and name — the
-                    // same thing a library with no artwork shows.
+                    // Reveals the card padder underneath (icon and name), as a library with no
+                    // artwork shows.
                     css += selector + '{background-image:none!important;}';
                 }
             });
@@ -4000,9 +6055,9 @@
             style.textContent = css;
         },
 
-        /// Remembers the rules against the account they belong to, so the next load can apply
-        /// them before any request comes back. Without this every page load would show the
-        /// real artwork until the fetch resolved, which is the whole thing being avoided.
+        /// Remembers the rules against the account they belong to, so the next load applies
+        /// them before any request returns. Otherwise every load would show the real
+        /// artwork until the fetch resolved, which is what this avoids.
         cacheLibraryArtwork: function (userId, entries) {
             try {
                 localStorage.setItem(this.config.libraryArtKey, JSON.stringify({
@@ -4033,70 +6088,79 @@
             if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
             const userId = ApiClient.getCurrentUserId();
             if (!userId) return;
+            // checkRoute asks every tick while the rules have not arrived. Without these two
+            // a route that hangs or fails was asked twice a second and the requests stacked:
+            // one at a time now, and longer between tries after each failure.
+            if (this._libraryArtLoading) return;
+            if (Date.now() < (this._libraryArtRetryAt || 0)) return;
+            this._libraryArtLoading = true;
 
-            fetch(ApiClient.getUrl('plugins/profiles/library-artwork'), {
+            // Timed: the flag above is cleared only by an answer, so a reply a proxy dropped
+            // stopped artwork being asked for on this page (r3-06-01).
+            this._fetchTimed(ApiClient.getUrl('plugins/profiles/library-artwork'), {
                 cache: 'no-store',
                 headers: this.getAuthHeaders(ApiClient.accessToken())
             })
             .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
             .then(entries => {
                 const list = Array.isArray(entries) ? entries : [];
+                this._libraryArtLoading = false;
+                this._libraryArtFailures = 0;
                 this._libraryArtLoaded = true;
                 this.cacheLibraryArtwork(userId, list);
                 this.applyLibraryArtwork(list);
             })
             .catch(() => {
-                // Server unreachable, or a server older than this build. Leave whatever the
-                // cache already applied rather than dropping back to Jellyfin's artwork.
+                // Server unreachable, or older than this build. Keep what the cache applied
+                // rather than fall back to Jellyfin's artwork.
+                this._libraryArtLoading = false;
+                this._libraryArtFailures = (this._libraryArtFailures || 0) + 1;
+                // 5 s, 10 s, 20 s ... capped at 5 minutes, and still retried.
+                const wait = Math.min(300000, 5000 * Math.pow(2, Math.min(this._libraryArtFailures - 1, 6)));
+                this._libraryArtRetryAt = Date.now() + wait;
             });
         },
 
         // ─── D-pad focus trap ─────────────────────────────────────────────────────
-        // Issue #16: on a television our screens cover the page, but Jellyfin's own
-        // navigation is still listening on document and still sees every element behind
-        // them. Pressing a direction moved focus into the home screen underneath, leaving
-        // the remote controlling a page nobody could see.
+        // Issue #16: on a TV our screens cover the page, but Jellyfin's own navigation
+        // still listens on document and sees every element behind them. A direction key
+        // moved focus into the home screen underneath, so the remote controlled a page
+        // nobody could see.
         //
-        // `inert` would be the tidy answer and is not an option — the TV browsers this
-        // has to work on predate it. So directions are taken at the capture phase, before
-        // Jellyfin's handlers run, and resolved against our own elements.
+        // `inert` is not an option: the TV browsers this must work on predate it. So
+        // directions are taken at the capture phase, before Jellyfin's handlers, and
+        // resolved against our own elements.
         //
         // The listeners are bound once and stay bound. They resolve the active surface on
-        // every event and return immediately when there is none, so the trap covers every
-        // Bonfire screen without anyone having to remember to arm it, and stops applying
-        // the instant the last one leaves the DOM. Lifecycle bookkeeping is what leaks.
+        // every event and return at once when there is none, so the trap covers every
+        // Bonfire screen with nothing to arm, and stops applying when the last one leaves
+        // the DOM. Lifecycle bookkeeping is what leaks.
 
         /// Selector for the surfaces we trap focus inside: the gate overlay and any of our
-        /// own dialogs (confirm, alert, crop, panic), all of which sit above the page.
-        /// Every dialog gets this class as it is built. It replaced
-        /// `[id^="profiles-"][id$="-dialog"]`, which is two unqualified attribute
-        /// selectors: the engine cannot use an index for either, so resolving them meant
-        /// walking every element in the document — and this runs on every keydown and
-        /// focusin *in the whole application*, so typing in Jellyfin's own search box
-        /// walked the page once per keystroke.
+        /// dialogs (confirm, alert, crop, panic), all above the page. Every dialog gets
+        /// this class as it is built. It replaced `[id^="profiles-"][id$="-dialog"]`: two
+        /// unqualified attribute selectors the engine cannot index, so each match walked
+        /// every element, and this runs on every keydown and focusin in the whole
+        /// application, so typing in Jellyfin's search box walked the page per keystroke.
         ///
-        /// A class keeps the property that made the id pattern attractive: it travels with
-        /// the element, so removing the dialog removes it from the set with no bookkeeping
-        /// to get wrong. See the note above about lifecycle bookkeeping being what leaks.
+        /// A class also travels with the element, so removing the dialog removes it from
+        /// the set with no bookkeeping to get wrong.
         TRAP_SURFACE_CLASS: 'jpf-trap-surface',
 
         TRAP_SURFACE_SELECTOR: '#profiles-gate-overlay, .jpf-trap-surface',
 
-        /// The surface the remote should currently be confined to, or null when Bonfire
-        /// has nothing on screen. Dialogs render above the gate, and the last one in the
-        /// DOM is the topmost, so document order picks the right one.
+        /// The surface the remote should be confined to, or null when Bonfire has nothing
+        /// on screen. Dialogs render above the gate and the last in the DOM is topmost, so
+        /// document order picks the right one.
         _activeTrapSurface: function () {
-            // Class first, id second. Dialogs render above the gate, so the last dialog in
-            // document order is the topmost surface; with none open, the gate is. On the
-            // far more common path — nothing of ours on screen — this is one class-index
-            // lookup that comes back empty, where it used to be a full document walk on
-            // every keystroke anywhere in the application.
+            // Class first, id second. With nothing of ours on screen, the far more common
+            // case, this is one class-index lookup that comes back empty, where it used to be
+            // a full document walk on every keystroke anywhere in the application.
             //
-            // The answer is identical to the querySelectorAll version it replaces,
-            // including the case that looks like an oversight: a topmost surface that has
-            // already detached disarms the trap rather than falling back to the gate
-            // underneath. That is existing behaviour with a test on it, and this change is
-            // about how the surface is found, not about what counts as one.
+            // The answer matches the querySelectorAll version it replaces, including a case
+            // that looks like an oversight: a topmost surface that has already detached
+            // disarms the trap rather than falling back to the gate underneath. That has a
+            // test on it; this change was about how the surface is found, not what counts as one.
             const dialogs = document.getElementsByClassName(this.TRAP_SURFACE_CLASS);
             const last = dialogs.length
                 ? dialogs[dialogs.length - 1]
@@ -4110,25 +6174,56 @@
         /// Everything inside a surface a remote can land on. Hidden elements are left out:
         /// the overlay swaps between a grid and a form, and the old one lingers.
         ///
-        /// The offsetParent read below was flagged as forcing layout once per element
-        /// inside a focus handler. It does not: layout is invalidated by writes, and this
-        /// filter only reads, so the whole loop costs one layout however many controls a
-        /// surface has. Spatial navigation needs geometry anyway.
+        /// The offsetParent read below was flagged as forcing layout per element inside a
+        /// focus handler. It does not: layout is invalidated by writes, this filter only
+        /// reads, so the loop costs one layout however many controls there are. Spatial
+        /// navigation needs geometry anyway.
         ///
-        /// `checkVisibility()` is the tidy replacement and is **not an option here**. It
-        /// needs Chrome 105; the TVs this has to work on are Chrome 68 (webOS 5) and
-        /// Chrome 76 (Tizen 6.0), so it would throw on exactly the devices the focus trap
-        /// exists for — and a remote is the one input with no way to escape a broken trap.
+        /// `checkVisibility()` is not an option: it needs Chrome 105, and the TVs here are
+        /// Chrome 68 (webOS 5) and 76 (Tizen 6.0), so it would throw on the devices the
+        /// trap exists for, and a remote cannot escape a broken trap.
+        ///
+        /// A radio in a group is one Tab stop (_roveRadios), so the others carry
+        /// tabindex="-1" and the selector above would skip them, and a remote with only
+        /// arrows could never reach the second choice. They are listed here and left out
+        /// of Tab alone, in _stepOverlayFocus.
         _overlayFocusables: function (root) {
             return Array.prototype.filter.call(
-                root.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'),
-                el => !el.disabled && el.offsetParent !== null
+                root.querySelectorAll('button, input, select, textarea, a[href], [role="radio"], [tabindex]:not([tabindex="-1"])'),
+                el => !el.disabled && el.offsetParent !== null && !this._inClosedFold(el) &&
+                    // A checkbox inside a .jpf-library-check-label: the label is its stop.
+                    !(el.type === 'checkbox' && el.getAttribute && el.getAttribute('tabindex') === '-1')
             );
         },
 
+        /// True for a control inside a closed More fold, other than the fold's summary.
+        /// Newer Chromium lays a closed fold's content out (offsetParent is not null) but
+        /// will not focus it, so focus() did nothing there: the arrows stopped on the
+        /// summary above it, with Back below out of reach.
+        _inClosedFold: function (el) {
+            for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+                if (n.tagName === 'SUMMARY') return false;
+                if (n.tagName === 'DETAILS' && !n.open) return true;
+            }
+            return false;
+        },
+
+        /// One Tab stop for a group of radio cards, as a radio group is: the one with focus
+        /// (or starting checked). The others are reached with arrows, which the trap turns
+        /// into spatial moves. Passing a card must not leave it as a second stop, so the
+        /// stop follows focus.
+        _roveRadios: function (cards) {
+            const list = Array.prototype.slice.call(cards || []);
+            list.forEach(card => {
+                card.addEventListener('focus', () => {
+                    list.forEach(c => c.setAttribute('tabindex', c === card ? '0' : '-1'));
+                });
+            });
+        },
+
         /// True for a control that binds the arrow keys to something other than moving
-        /// between controls — the crop view pans the picture with them. Those keys are left
-        /// alone there; the trap still keeps focus from escaping the surface.
+        /// between controls; the crop view pans the picture with them. Those keys are left
+        /// alone there, and the trap still keeps focus inside the surface.
         _ownsArrowKeys: function (node) {
             if (!node) return false;
             if (node.closest) return !!node.closest('[data-profiles-own-keys="1"]');
@@ -4136,24 +6231,46 @@
         },
 
         /// Steps one screen back from `surface`, or absorbs the press when there is nowhere
-        /// to go. Every sub-screen carries a Back or Cancel control already, so this clicks
-        /// the one it finds rather than duplicating each screen's teardown.
+        /// to go. Every sub-screen already has a Back or Cancel control, so this clicks the
+        /// one it finds rather than duplicating each screen's teardown.
         ///
-        /// Doing nothing is the right answer on the picker itself: it is a required choice,
-        /// and on a TV the alternative is closing the whole app mid-selection.
+        /// Doing nothing is right on the picker when it is the gate: a required choice,
+        /// and on a TV the alternative is closing the app mid-selection. A picker opened on
+        /// purpose has a Cancel button (#profiles-resume-btn), found above, so Back closes it.
         _dismissSurface: function (surface) {
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
                 '#pin-cancel-btn, #master-pin-cancel-btn, #create-cancel-btn, #edit-cancel-btn, ' +
-                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #profiles-resume-btn, #profiles-libart-cancel'
+                '#select-cancel-btn, #prompt-cancel-btn, #actions-cancel-btn, ' +
+                '#bonfire-back-btn, #switcher-mode-back-btn, #settings-back-btn, #theme-settings-back-btn, #account-back-btn, #self-cancel-btn, #profiles-resume-btn, #profiles-libart-cancel, ' +
+                '#onboarding-skip, #main-pin-skip, #pin-reset-back'
             );
             if (back) back.click();
         },
 
+        /// Puts focus on the first control of a screen just drawn, on a TV only. A remote
+        /// has no pointer, so a screen with nothing focused makes the person press a key to
+        /// find out where they are. Not on a phone or desktop: focusing a text box there
+        /// pops the keyboard unasked. A screen that knows a better first control focuses it
+        /// itself and this leaves that alone: the setup steps focus theirs at 50 ms, and
+        /// this used to land on Next at 100 ms over it (the theme step opened on Next, not
+        /// the checked card).
+        _focusFirstOnTv: function (root, selector) {
+            if (!document.documentElement.classList.contains('jpf-tv')) return;
+            setTimeout(() => {
+                const active = document.activeElement;
+                if (active && active !== root && root.contains(active)) return;
+                const first = root.querySelector(selector || 'input:not([type="hidden"]), select, button, [tabindex="0"]');
+                if (first) first.focus();
+            }, 100);
+        },
+
         /// Moves focus one step through the surface in document order, wrapping at both
-        /// ends. This is what Tab means; geometry is for the direction keys.
+        /// ends. This is Tab; geometry is for the direction keys.
         _stepOverlayFocus: function (root, delta) {
-            const items = this._overlayFocusables(root);
+            // Tab visits a radio group once: a radio left out of the tab order stays out.
+            const items = this._overlayFocusables(root).filter(el =>
+                !(el.getAttribute && el.getAttribute('role') === 'radio' && el.getAttribute('tabindex') === '-1'));
             if (!items.length) return;
             const at = items.indexOf(document.activeElement);
             const next = at < 0
@@ -4162,32 +6279,51 @@
             this._focusVisibly(items[next]);
         },
 
-        /// Focuses a control and brings it into view.
-        ///
-        /// The profile forms are taller than a television screen, so Save and Cancel sit
-        /// below the fold. Focus alone moved to them without scrolling on the TV clients,
-        /// which reads as the remote having stopped responding.
+        /// Focuses a control and brings it into view. The profile forms are taller than a
+        /// TV screen, so Save and Cancel sit below the fold, and focus alone moved there
+        /// without scrolling on the TV clients, which looked like the remote had stopped.
         _focusVisibly: function (el) {
             if (!el) return;
             el.focus();
             try {
                 const r = el.getBoundingClientRect();
                 const h = window.innerHeight || document.documentElement.clientHeight;
-                // Only scroll when it is actually out of the viewport — an unconditional
-                // scrollIntoView jerks the picker around on every arrow press.
-                // The boolean form scrolls like { block: 'nearest' } for an element out of
-                // view on one side; the options object is Chromium 61 and reads as `true`
-                // before that.
+                // Scroll only when it is out of the viewport: an unconditional scrollIntoView
+                // jerks the picker on every arrow press. The boolean form scrolls like
+                // { block: 'nearest' } for an element out of view on one side; the options object
+                // is Chromium 61 and reads as `true` before that.
                 if (r.top < 0 || r.bottom > h) {
                     el.scrollIntoView(r.top < 0);
+                }
+                // The Save bar sticks to the bottom of the profile forms. A field in the viewport
+                // but under it counts as visible above, so a remote landed on controls it could not
+                // see. Scroll the form until the field clears the bar.
+                const bar = document.querySelector('.jpf-profile-dialog-actions');
+                const form = el.closest && el.closest('.jpf-create-profile-container');
+                if (bar && form && !bar.contains(el)) {
+                    const b = bar.getBoundingClientRect();
+                    const r2 = el.getBoundingClientRect();
+                    if (b.height > 0 && b.top > r2.top && r2.bottom > b.top) form.scrollTop += r2.bottom - b.top + 16;
+                }
+                // The picker's button row sticks the same way while the households do not fit, and
+                // scrolls the gate itself. A tile on screen but under the row has to come up above
+                // it, only while it is stuck (otherwise it is in the flow and covers nothing). The
+                // theme step of first-time setup pins its Next / Skip row the same way
+                // (_pinSetupRow), so the class alone names it.
+                const pickBar = document.querySelector('.jpf-footer-stuck');
+                const gate = el.closest && el.closest('#profiles-gate-overlay');
+                if (pickBar && gate && !pickBar.contains(el)) {
+                    const pb = pickBar.getBoundingClientRect();
+                    const r3 = el.getBoundingClientRect();
+                    if (pb.height > 0 && r3.bottom > pb.top && r3.top < pb.bottom) gate.scrollTop += r3.bottom - pb.top + 16;
                 }
             } catch (e) { /* no layout information — focus alone will do */ }
         },
 
-        /// Nearest focusable in a direction. Movement across the axis is penalised so a
+        /// Nearest focusable in a direction. Movement across the axis is penalized so a
         /// grid walks along its row instead of cutting diagonally to a closer card.
         _moveOverlayFocus: function (root, dir) {
-            const items = this._overlayFocusables(root);
+            let items = this._overlayFocusables(root);
             if (!items.length) return;
 
             const current = (document.activeElement && root.contains(document.activeElement))
@@ -4198,6 +6334,66 @@
             const fx = from.left + from.width / 2;
             const fy = from.top + from.height / 2;
             const horizontal = (dir === 'left' || dir === 'right');
+
+            // The picker's button row, while stuck to the bottom of the screen, is nearer than
+            // the tiles below the fold, so Down from a tile skipped them, and with the row off
+            // the end of the page it was never reached. It comes after every tile: Down from
+            // the last row reaches it, Up from it returns to that row.
+            const pickBar = (dir === 'up' || dir === 'down') ? root.querySelector('.jpf-footer-stuck') : null;
+            if (pickBar) {
+                const panic = root.querySelector('#profiles-panic-link');
+                const barItems = items.filter(el => pickBar.contains(el));
+                const tiles = items.filter(el => !pickBar.contains(el) && el !== panic);
+                const centreY = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+                const nearestX = (list) => {
+                    let pick = null, gap = Infinity;
+                    list.forEach(el => {
+                        const r = el.getBoundingClientRect();
+                        const d = Math.abs(r.left + r.width / 2 - fx);
+                        if (d < gap) { gap = d; pick = el; }
+                    });
+                    return pick;
+                };
+                if (barItems.length && tiles.length) {
+                    if (barItems.indexOf(current) !== -1) {
+                        if (dir === 'up') {
+                            let lowestY = -Infinity;
+                            tiles.forEach(el => { lowestY = Math.max(lowestY, centreY(el)); });
+                            this._focusVisibly(nearestX(tiles.filter(el => lowestY - centreY(el) < 8)));
+                            return;
+                        }
+                    } else if (current !== panic) {
+                        const below = tiles.some(el => el !== current && centreY(el) - fy >= 1);
+                        if (dir === 'down' && !below) { this._focusVisibly(nearestX(barItems)); return; }
+                        items = tiles;
+                    }
+                }
+            }
+
+            // The sticky Save bar is nearer than the last field above it, so Down skipped that
+            // field. The bar comes after every control in the form: Down reaches it from the
+            // last one, Up goes back to the last one.
+            const bar = root.querySelector('.jpf-profile-dialog-actions');
+            const inBar = (el) => !!bar && bar.contains(el);
+            const content = bar ? items.filter(el => !inBar(el)) : items;
+            if (bar && content.length && (dir === 'up' || dir === 'down')) {
+                if (inBar(current)) {
+                    if (dir === 'up') {
+                        // Last on the screen, not in the markup: the form has two columns.
+                        let lowest = content[0], lowestY = -Infinity;
+                        content.forEach(el => {
+                            const r = el.getBoundingClientRect();
+                            if (r.top + r.height / 2 > lowestY) { lowestY = r.top + r.height / 2; lowest = el; }
+                        });
+                        this._focusVisibly(lowest);
+                        return;
+                    }
+                } else {
+                    const below = content.some(el => el !== current &&
+                        el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2 - fy >= 1);
+                    if (dir === 'down' && below) items = content;
+                }
+            }
 
             let best = null, bestScore = Infinity;
             items.forEach(el => {
@@ -4211,7 +6407,15 @@
                 if (dir === 'down'  && dy <  1) return;
 
                 const along  = horizontal ? Math.abs(dx) : Math.abs(dy);
-                const across = horizontal ? Math.abs(dy) : Math.abs(dx);
+                // Up and Down: a control spanning the column we are in is straight above or below
+                // however far its center is. Viewing limits and the More row span the whole form,
+                // and by center alone Down from the right half skipped the More row for the tag
+                // box under it.
+                let across = horizontal ? Math.abs(dy) : Math.abs(dx);
+                // The same from the wide one's side: Down from the More row reaches the first
+                // control of either column, nearest first, not only the one nearer its center.
+                const cx = r.left + r.width / 2;
+                if (!horizontal && ((fx >= r.left && fx <= r.right) || (cx >= from.left && cx <= from.right))) across = 0;
                 const score = along + across * 3;
                 if (score < bestScore) { bestScore = score; best = el; }
             });
@@ -4224,7 +6428,7 @@
 
             // e.key is missing on some older TV browsers, so keyCode is the fallback.
             const dirOf = (e) => {
-                switch (e.key) {
+                switch (keyName(e)) {
                     case 'ArrowLeft':  case 'Left':  return 'left';
                     case 'ArrowRight': case 'Right': return 'right';
                     case 'ArrowUp':    case 'Up':    return 'up';
@@ -4242,13 +6446,13 @@
             const onKeyDown = (e) => {
                 const surface = this._activeTrapSurface();
                 if (!surface) return;
-                // Never swallow a shortcut — Ctrl+Shift+B has to keep working from here.
+                // Never swallow a shortcut: Ctrl+Shift+B has to keep working from here.
                 if (e.ctrlKey || e.altKey || e.metaKey) return;
 
-                // The TV Back/Return key. Samsung sends 10009, LG sends 461, and neither is
-                // a key the page gets a second chance at: unhandled, Tizen puts up its
-                // "exit application?" prompt behind our overlay, where it cannot be read or
-                // dismissed. While a Bonfire screen is up, Back belongs to that screen.
+                // The TV Back/Return key. Samsung sends 10009 and LG sends 461, and the page gets
+                // no second chance at either: unhandled, Tizen shows its "exit application?"
+                // prompt behind our overlay, where it cannot be read or dismissed. While a Bonfire
+                // screen is up, Back belongs to it.
                 if (e.keyCode === 10009 || e.keyCode === 461 || e.key === 'XF86Back') {
                     e.preventDefault();
                     e.stopPropagation();
@@ -4256,26 +6460,37 @@
                     return;
                 }
 
-                // An event dispatched at `window` has no element target, and contains()
-                // wants a node. Treat it as outside: the direction keys still move, and
-                // _moveOverlayFocus enters at the first control when the active element is
-                // not in the surface, which is the right first press.
+                // Escape means Back on the full screens. Not on a dialog, which binds it itself.
+                // Not when the script sent it: closeUserMenu dispatches one at Jellyfin's own
+                // menu. Not with a list open, where it closes the list.
+                if ((isKey(e, 'Escape') || isKey(e, 'Esc')) && surface.id === 'profiles-gate-overlay' && e.isTrusted !== false
+                    && !(e.target && e.target.closest && e.target.closest('[aria-expanded="true"]'))) {
+                    this._dismissSurface(surface);
+                    return;
+                }
+
+                // An event dispatched at `window` has no element target and contains() wants a
+                // node. Treat it as outside: direction keys still move, and _moveOverlayFocus
+                // enters at the first control when the active element is not in the surface,
+                // which is the right first press.
                 const inside = !!(e.target && e.target.nodeType && surface.contains(e.target));
                 const dir = dirOf(e);
 
                 if (dir) {
-                    // The crop view pans with the arrows. Ownership is declared on that
-                    // element rather than the whole dialog, so the buttons beside it stay
-                    // reachable — a remote has no Tab key to escape with otherwise.
+                    // The crop view pans with the arrows. Ownership is declared on that element, not
+                    // the whole dialog, so the buttons beside it stay reachable (a remote has no Tab).
                     if (inside && this._ownsArrowKeys(e.target)) return;
 
                     const tag = (e.target.tagName || '').toLowerCase();
                     if (inside) {
                         // Left/right belong to the caret while typing a PIN or a name.
                         if ((tag === 'input' || tag === 'textarea') && (dir === 'left' || dir === 'right')) return;
-                        // Up/down change the value of a dropdown, which is what a remote
-                        // expects. Left/right stay ours, so there is still a way off it.
-                        if (tag === 'select' && (dir === 'up' || dir === 'down')) return;
+                        // Up/down change a dropdown's value from a keyboard. On a TV, Enter opens the list
+                        // and the keys never reach here while it is open, so a press that does is leaving.
+                        // Keeping it for the value left Your account stuck on its time zone with
+                        // everything below out of reach (Left stays, Right jumps back up the form).
+                        if (tag === 'select' && (dir === 'up' || dir === 'down') &&
+                            !document.documentElement.classList.contains('jpf-tv')) return;
                     }
                     e.preventDefault();
                     e.stopPropagation();
@@ -4283,19 +6498,18 @@
                     return;
                 }
 
-                if (e.key === 'Tab' || e.keyCode === 9) {
-                    // Tab follows document order, not geometry. Routing it through the
-                    // spatial search meant it did nothing at all in a stacked form, where
-                    // every candidate is directly above or below rather than beside.
+                if (isKey(e, 'Tab') || e.keyCode === 9) {
+                    // Tab follows document order, not geometry. Routed through the spatial search it
+                    // did nothing in a stacked form, where every candidate is directly above or below.
                     e.preventDefault();
                     e.stopPropagation();
                     this._stepOverlayFocus(surface, e.shiftKey ? -1 : 1);
                     return;
                 }
 
-                // A select landing on the page behind would act on something invisible.
-                // Inside the surface it is left alone: that is how our own buttons fire.
-                const isSelect = e.key === 'Enter' || e.key === ' ' || e.keyCode === 13;
+                // A select landing on the page behind would act on something invisible. Inside the
+                // surface it is left alone: that is how our own buttons fire.
+                const isSelect = isKey(e, 'Enter') || isKey(e, ' ') || e.keyCode === 13;
                 if (isSelect && !inside) {
                     e.preventDefault();
                     e.stopPropagation();
@@ -4304,20 +6518,19 @@
                 }
             };
 
-            // Second line of defence: whatever moved focus out, take it back. Membership is
-            // tested against any surface rather than the topmost one, so focus returning to
-            // the gate under a dialog that is still fading out is left where it belongs.
+            // Second line of defense: whatever moved focus out, take it back. Membership is
+            // tested against any surface, not the topmost, so focus returning to the gate
+            // under a dialog still fading out is left alone.
             //
-            // Two guards, and both are here because this handler fought another focus trap
-            // to a standstill. MUI's Modal enforces focus back inside itself exactly the
-            // way this does, so with Jellyfin's account menu still open the two handlers
-            // bounced focus between them: 134 focus() calls and a RangeError, our onFocusIn
-            // and MUI's contain() alternating the whole way down the stack. From the
-            // household's side, every text box and dropdown in the profile form was dead
-            // and the page jumped to the top — items[0] being the first field in the form.
+            // Two guards, both from this handler fighting another focus trap to a standstill.
+            // MUI's Modal enforces focus back inside itself the way this does, so with
+            // Jellyfin's account menu still open the two bounced focus between them: 134
+            // focus() calls and a RangeError. In the household's view every text box and
+            // dropdown in the profile form was dead and the page jumped to the top
+            // (items[0] is the first field in the form).
             const onFocusIn = (e) => {
-                // 1. Never re-enter. focus() dispatches focusin synchronously, so without
-                //    this the handler calls itself through its own reclaim.
+                // 1. Never re-enter. focus() dispatches focusin synchronously, so the handler
+                //    would call itself through its own reclaim.
                 if (this._reclaimingFocus) return;
 
                 const surface = this._activeTrapSurface();
@@ -4325,12 +6538,10 @@
                 if (e.target && e.target.closest && e.target.closest(this.TRAP_SURFACE_SELECTOR)) return;
                 if (e.target === document.body || e.target === document.documentElement) return;
 
-                // 2. Stop fighting. A reclaim that is immediately undone means something
-                //    else is also enforcing focus, and whoever gives up last wins nothing —
-                //    the loop only ends in a stack overflow. Standing down leaves focus
-                //    where the other trap wants it, which is at least a usable state, and
-                //    is the correct outcome anyway: the other trap belongs to something
-                //    rendered above us.
+                // 2. Stop fighting. A reclaim that is immediately undone means something else
+                //    also enforces focus, and the loop only ends in a stack overflow. Standing
+                //    down leaves focus where the other trap wants it, which is usable and correct:
+                //    that trap belongs to something rendered above us.
                 const now = Date.now();
                 if (this._focusStandDownUntil && now < this._focusStandDownUntil) return;
 
@@ -4355,28 +6566,26 @@
                 }
             };
 
-            // On `window`, and in the capture phase. Both halves of that matter, and the
-            // second time #16 was reported it was because of the first.
+            // On `window`, in the capture phase. Both matter; the second time #16 was
+            // reported it was because of the first.
             //
-            // jellyfin-web binds its own remote navigation with
-            // `window.addEventListener('keydown', ...)` — no capture — in
-            // scripts/keyboardNavigation.js, and it bails on `e.defaultPrevented`. So for
-            // any key event that travels through the document we are ahead of it either
-            // way. What document-level capture does NOT see is an event dispatched at
-            // `window` itself: its propagation path is `window` alone, so a document
-            // listener is never on it while upstream's window listener is. Television
-            // webviews do dispatch remote keys that way.
+            // jellyfin-web binds its remote navigation with `window.addEventListener('keydown',
+            // ...)`, no capture, in scripts/keyboardNavigation.js, and bails on
+            // `e.defaultPrevented`. For any key event that travels through the document we
+            // are ahead of it either way. Document-level capture does not see an event
+            // dispatched at `window` itself: its path is `window` alone, so a document
+            // listener is never on it while upstream's window listener is. TV webviews do
+            // dispatch remote keys that way.
             //
-            // When that happens the arrows belong to upstream's focusManager, and its
-            // focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable` — it does
-            // not look at [tabindex] at all. A profile card is a div with tabindex="0", so
-            // the grid is invisible to it and our two footer buttons are not: every arrow
-            // press lands on Manage Profiles and no profile can be reached. That is
-            // exactly how it was reported. The cards carry `focusable` now as well, so
-            // both ends of this are covered.
+            // Then the arrows belong to upstream's focusManager, whose focusable set is
+            // INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable` and ignores [tabindex]. A
+            // profile card is a div with tabindex="0", so the grid is invisible to it and our
+            // two footer buttons are not: every arrow press landed on Manage Profiles and no
+            // profile could be reached. The cards carry `focusable` now too, so both ends are
+            // covered.
             //
             // Window capture is first on the path for everything else too, so this is a
-            // superset of what it replaces, not a trade.
+            // superset of what it replaces.
             window.addEventListener('keydown', onKeyDown, true);
             window.addEventListener('focusin', onFocusIn, true);
             this._overlayTrap = { onKeyDown: onKeyDown, onFocusIn: onFocusIn };
@@ -4393,8 +6602,11 @@
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) overlay.remove();
 
-            // Reopening the gate should re-read the server; caching only spans one
-            // session so a library added elsewhere shows up next time.
+            // A picture-position dialog is on the body, not in the overlay (R-1218).
+            if (this._cropClose) this._cropClose();
+
+            // Reopening the gate should re-read the server; the cache spans one session so a
+            // library added elsewhere shows up next time.
             this.clearSharedFormData();
 
             // Tearing down the overlay must also drop the form listeners it owned.
@@ -4407,15 +6619,14 @@
             const skinHeader = document.querySelector('.skinHeader');
             if (skinHeader) skinHeader.style.display = '';
 
-            // Note: view-home blur no longer applied (removed in v1.0.14)
         },
 
         // ─── Inactivity Lockout Timer ─────────────────────────────────────────────
 
-        // Called on page load when an active profile session already exists.
-        // Fetches /list (using the master token) to find the active profile's
-        // lockout setting, then arms the inactivity timer.
-        initLockoutTimer: function () {
+        // Called on page load when an active profile session exists. Fetches /list with
+        // the master token to find the active profile's lockout setting, then arms the
+        // timer.
+        initLockoutTimer: function (retry) {
             if (!this.isProfileSessionActive()) return;
 
             const masterState = this.readMasterState();
@@ -4428,10 +6639,7 @@
                 ? apiClient.getCurrentUserId() : null;
             if (!currentUserId) return;
 
-            const url = apiClient.getUrl('plugins/profiles/list');
-            fetch(url, { headers: this.getAuthHeaders(masterState.token) })
-            .then(res => { if (!res.ok) throw new Error('fail'); return res.json(); })
-            .then(profiles => {
+            const arm = (profiles) => {
                 const active = (profiles || []).find(p => {
                     const id = p.profileUserId || p.ProfileUserId;
                     return this.normalizeGuid(id) === this.normalizeGuid(currentUserId);
@@ -4442,8 +6650,26 @@
                 const minutes = active.lockoutMinutes !== undefined ? active.lockoutMinutes
                     : (active.LockoutMinutes !== undefined ? active.LockoutMinutes : 5);
                 if (minutes > 0) this.startInactivityTimer(minutes);
+            };
+
+            const url = apiClient.getUrl('plugins/profiles/list');
+            fetch(url, { headers: this.getAuthHeaders(masterState.token) })
+            .then(res => {
+                // A 401 is a dead master token, not a hiccup: end the session like every other
+                // list caller, and do not fall back to the cached list or ask again in 30 s with a
+                // token that will be refused again.
+                if (res.status === 401) { this.handleSessionExpired(); return null; }
+                if (!res.ok) throw new Error('fail');
+                return res.json();
             })
-            .catch(() => { /* silent — lockout timer is best-effort */ });
+            .then(profiles => { if (profiles) arm(profiles); })
+            .catch(() => {
+                // One failed fetch used to leave the page without a lock for good (R-1193).
+                // Use the list the picker already holds; failing that, ask once more later.
+                if (this.cachedProfiles && this.cachedProfiles.length) { arm(this.cachedProfiles); return; }
+                if (retry) return;
+                setTimeout(() => this.initLockoutTimer(true), 30000);
+            });
         },
 
         isMediaPlaying: function () {
@@ -4457,55 +6683,71 @@
             return false;
         },
 
-        // Arms the inactivity timer. Resets on any user interaction.
-        // Any device event (mouse, keyboard, touch, pointer, scroll) counts as activity,
-        // making this safe for TV remotes, magic remotes, game pads, and touchscreens.
+        // Arms the inactivity timer. Resets on any user interaction. Any device event
+        // (mouse, keyboard, touch, pointer, scroll) counts, so it works for TV remotes,
+        // magic remotes, game pads and touchscreens.
         startInactivityTimer: function (minutes) {
             this.stopInactivityTimer();
             const ms = minutes * 60 * 1000;
             const events = [
                 'mousemove', 'mousedown', 'keydown',
                 'touchstart', 'scroll', 'wheel', 'click',
-                'pointermove', 'pointerdown'  // covers LG Magic Remote and pointer-based TV inputs
+                'pointermove', 'pointerdown'  // LG Magic Remote and pointer-based TV inputs
             ];
+
+            // Activity only writes a timestamp. It used to clear and re-arm a timeout on every
+            // event, about 60 times a second on a magic remote (R-1202). The one timeout checks
+            // the stamp when it fires and sleeps the rest if the page was used meanwhile. The
+            // stamp is also how a suspended TV or throttled tab is judged on waking: a timer
+            // counts only time it ran, so without it the lock came hours late (R-1192).
+            let lastActivity = Date.now();
 
             const checkAndLock = () => {
                 if (this.isMediaPlaying()) {
-                    // Defer lockout by 1 minute if media is actively playing
+                    // Defer the lock by 1 minute while media is playing.
                     this.inactivityTimer = setTimeout(checkAndLock, 60 * 1000);
                 } else {
                     this.lockActiveProfile();
                 }
             };
 
-            const resetTimer = () => {
-                clearTimeout(this.inactivityTimer);
-                this.inactivityTimer = setTimeout(checkAndLock, ms);
+            const onTimer = () => {
+                const remaining = ms - (Date.now() - lastActivity);
+                if (remaining > 1000) this.inactivityTimer = setTimeout(onTimer, remaining);
+                else checkAndLock();
+            };
+
+            const resetTimer = () => { lastActivity = Date.now(); };
+
+            const onVisible = () => {
+                if (document.visibilityState === 'hidden') return;
+                if (Date.now() - lastActivity >= ms) {
+                    clearTimeout(this.inactivityTimer);
+                    checkAndLock();
+                }
             };
 
             events.forEach(ev => document.addEventListener(ev, resetTimer, { passive: true }));
-            this.inactivityEventHandlers = { resetTimer, events };
-            resetTimer(); // Arm immediately
+            document.addEventListener('visibilitychange', onVisible);
+            this.inactivityEventHandlers = { resetTimer, events, onVisible };
+            this.inactivityTimer = setTimeout(onTimer, ms); // Arm immediately
         },
 
         stopInactivityTimer: function () {
             clearTimeout(this.inactivityTimer);
             this.inactivityTimer = null;
             if (this.inactivityEventHandlers) {
-                const { resetTimer, events } = this.inactivityEventHandlers;
+                const { resetTimer, events, onVisible } = this.inactivityEventHandlers;
                 events.forEach(ev => document.removeEventListener(ev, resetTimer));
+                document.removeEventListener('visibilitychange', onVisible);
                 this.inactivityEventHandlers = null;
             }
         },
 
-        // Called when the inactivity timer fires. Clears the active session,
-        // restores master credentials, then shows the profile selector.
-        //
-        // It used to restore the master's credentials here, which made the lock the least
-        // secure moment in the product: the device went from a restricted profile to the
-        // master account, with only the picker drawn over it. The profile's own session is
-        // kept instead; getting back into it — or into anything else — goes through the
-        // gate, and the server asks for the PIN.
+        // Inactivity timer fired: clear the active session and show the picker. The
+        // profile's own session is kept, not swapped for the master's, which made the lock
+        // the weakest moment in the product. Getting back in goes through the gate and
+        // the server asks for the PIN.
         lockActiveProfile: function () {
             this.stopInactivityTimer();
             this.clearProfileSession();
@@ -4513,8 +6755,7 @@
         },
 
         renderOverlayContent: function (overlay, profiles) {
-            // Claims the screen so a form still loading in the background does not
-            // draw itself over the grid when it finally returns.
+            // Claims the screen so a form still loading does not draw over the grid.
             this.beginNavigation();
 
             const title = this.isManageMode ? t('gate.manageProfiles') : t('gate.whosWatching');
@@ -4530,14 +6771,16 @@
             const masterState = this.readMasterState();
             const localMasterId = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
 
-            // Same condition the two settings tiles used, so Settings shows up in exactly
-            // the cases they used to.
+            // Same condition the two settings tiles used.
             const hasLocalMaster = profiles.some(p => p.isMaster && !p.isBonfire);
 
             // Group profiles by masterUserId
             const grouped = {};
             for (const p of profiles) {
-                const key = this.normalizeGuid(p.masterUserId || (p.isBonfire ? '' : localMasterId));
+                // An added account sits with the household it was added to.
+                const key = p.isLinked
+                    ? localMasterId
+                    : this.normalizeGuid(p.masterUserId || (p.isBonfire ? '' : localMasterId));
                 if (!grouped[key]) {
                     grouped[key] = [];
                 }
@@ -4556,18 +6799,12 @@
                 return nameA.localeCompare(nameB);
             });
 
-            // The signed-in Jellyfin user IS the active profile — switching signs in as
-            // that profile's own account. The gate never said which one that was, and the
-            // avatar-colour rings made it look as though it did.
-            //
-            // But ApiClient is not the authority when the picker was opened from the header
-            // bubble. handleBubbleClick puts the *master's* credentials back before listing,
-            // because a sub-profile's token cannot see its siblings — so by the time this
-            // renders, getCurrentUserId() is the master on every platform, and the badge
-            // sat on the master's card however long you had been using a profile. Reported
-            // as "the switcher says I am signed in as my main profile"; it is this, not a
-            // switch that failed. _resumeState is the profile that was active a moment ago
-            // and is what the badge means, so it wins when it is set.
+            // The signed-in Jellyfin user is the active profile. But when the picker opens
+            // from the header bubble, handleBubbleClick has already put the master's
+            // credentials back (a sub-profile's token cannot list its siblings), so
+            // getCurrentUserId() is the master and the badge landed on the master's card.
+            // Reported as "the switcher says I am signed in as my main profile". The
+            // _resumeState user is the profile that was active a moment ago, so it wins.
             const resumed = this._resumeState && !this._resumeState.closeOnly
                 ? this._resumeState.userId
                 : null;
@@ -4577,39 +6814,29 @@
                     ? this.normalizeGuid(ApiClient.getCurrentUserId())
                     : '');
 
-            // `focusable` is jellyfin-web's own hook, not ours — see focusManager.js,
-            // whose focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus that class, and
-            // which never looks at [tabindex]. Without it a profile card does not exist as
-            // far as upstream's remote navigation is concerned, so any moment our own trap
-            // does not get the key event leaves the whole grid unreachable and only the
-            // footer buttons focusable. That is issue #16's second report, word for word:
-            // "if I move off the top left one, it goes to manage profiles".
+            // `focusable` is jellyfin-web's own hook (focusManager.js: INPUT/TEXTAREA/SELECT/
+            // BUTTON/A plus that class; it never looks at [tabindex]). Without it a card is
+            // invisible to remote navigation and only the footer buttons can be focused
+            // whenever our trap misses a key. Issue #16: "if I move off the top left one,
+            // it goes to manage profiles".
             const renderCard = (p) => `
-                <div class="profile-card focusable ${this.isManageMode ? 'manage-mode' : ''}${
+                <div class="jpf-profile-card focusable ${this.isManageMode ? 'jpf-manage-mode' : ''}${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
-                }" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" tabindex="0"${
+                }${this.viewingLine(p.viewing) && !p.viewing.allowed ? ' is-out' : ''}" data-id="${p.profileUserId}" data-pin="${p.requiresPin}" role="button" tabindex="0"${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' aria-current="true"' : ''
                 }>
-                    <div class="profile-avatar-container">
-                        ${p.isMaster ? `
-                        <div class="profile-crown">
-                            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px; color: var(--jpf-warn); filter: drop-shadow(0 2px 5px rgba(0,0,0,0.55));">
-                                <path d="M5 16h14a1 1 0 0 0 1-.76l2.89-10.12a.5.5 0 0 0-.74-.53l-5.6 3.73-4.11-6.17a.5.5 0 0 0-.88 0L7.45 8.32 1.85 4.59a.5.5 0 0 0-.74.53L4 15.24a1 1 0 0 0 1 .76z"/>
-                                <rect x="4" y="18" width="16" height="2" rx="1"/>
-                            </svg>
-                        </div>
-                        ` : ''}
-                        <div class="profile-avatar${
+                    <div class="jpf-profile-avatar-container">
+                        <div class="jpf-profile-avatar${
                             p.profileImage && p.transparentAvatar ? ' is-transparent' : ''
                         }" style="background-color: ${
                             p.profileImage && p.transparentAvatar ? 'transparent' : safeColor(p.avatarColor)
-                        }; overflow: ${
+                        }; color: ${onAvatarColor(p.avatarColor)}; overflow: ${
                             p.profileImage && p.transparentAvatar ? 'visible' : 'hidden'
                         }; display: flex; align-items: center; justify-content: center; position: relative;">
                             ${avatarInner(p.profileImage, p.avatarInitial, /* useThumb */ true)}
                             ${this.isManageMode ? `
-                            <div class="profile-avatar-overlay-wrap">
-                                <svg class="profile-avatar-overlay-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px; color: #fff;">
+                            <div class="jpf-profile-avatar-overlay-wrap">
+                                <svg class="jpf-profile-avatar-overlay-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 32px; height: 32px; color: #fff;">
                                     <path d="M12 20h9"></path>
                                     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                                 </svg>
@@ -4617,25 +6844,31 @@
                             ` : ''}
                         </div>
                         ${p.requiresPin ? `
-                        <div class="profile-lock-indicator">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; color: #fff;">
+                        <div class="jpf-profile-lock-indicator" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: #fff;">
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                             </svg>
                         </div>
                         ` : ''}
                         ${p.isBonfire ? `
-                        <div class="profile-bonfire-indicator" title="${t('gate.bonfireProfile')}">
-                            <span class="material-icons" style="font-size: 1.15rem; color: #fff;">local_fire_department</span>
+                        <div class="jpf-profile-bonfire-indicator" aria-hidden="true" title="${p.isLinked ? t('gate.addedAccount') : t('gate.bonfireProfile')}">
+                            ${p.isLinked
+                                ? '<span class="material-icons" aria-hidden="true" style="font-size: 1.15rem; color: #fff;">link</span>'
+                                : bonfireMark('jpf-badge-mark', 'font-size: 1.15rem; color: #fff;')}
                         </div>
                         ` : ''}
                     </div>
-                    <div class="profile-name">
+                    <div class="jpf-profile-name">
                         <span>${escapeHtml(p.profileName)}</span>
+                        ${p.isBonfire ? `<span class="jpf-sr">${p.isLinked ? t('gate.addedAccount') : t('gate.bonfireProfile')}</span>` : ''}
+                        ${p.requiresPin && !this.isManageMode ? `<span class="jpf-sr">${t('gate.pinProtected')}</span>` : ''}
                         ${signedInId && this.normalizeGuid(p.profileUserId) === signedInId
-                            ? `<span class="profile-current-badge">${t('gate.signedIn')}</span>` : ''}
+                            ? `<span class="jpf-profile-current-badge">${t('gate.signedIn')}</span>` : ''}
+                        ${this.viewingLine(p.viewing)
+                            ? `<span class="jpf-profile-viewing${p.viewing.allowed ? '' : ' is-out'}">${escapeHtml(this.viewingLine(p.viewing))}</span>` : ''}
                         ${this.isManageMode ? `
-                            <span class="profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
+                            <span class="jpf-profile-pin-badge ${p.requiresPin ? 'locked' : 'unlocked'}">
                                 ${p.requiresPin ? t('gate.pinProtected') : t('gate.noPin')}
                             </span>
                         ` : ''}
@@ -4649,46 +6882,37 @@
                 const isLocalGroup = (k === localMasterId);
 
                 let headerTitle = '';
-                let headerIcon = '';
                 let isBonfireIcon = false;
 
-                // Both headers use the campfire glyph — the section is called a Bonfire, so a
-                // house icon read as a different concept entirely. Your own Bonfire keeps the
-                // warm flame colour; linked ones are tinted by .bonfire-icon-color so the two
-                // remain distinguishable at a glance.
+                // Both headers use Bonfire's mark; a house icon read as a different concept.
+                // Your own household keeps the flame colour, linked ones are tinted by
+                // .bonfire-icon-color.
                 if (isLocalGroup) {
                     headerTitle = t('gate.yourBonfire');
-                    headerIcon = "local_fire_department";
                 } else {
                     const masterProfileForGroup = groupProfiles.find(p => p.isMaster);
                     const groupName = masterProfileForGroup ? escapeHtml(masterProfileForGroup.profileName) : t('gate.guest');
                     headerTitle = t('gate.bonfireOf', { name: groupName });
-                    headerIcon = "local_fire_department";
                     isBonfireIcon = true;
                 }
 
                 let cardsHtml = groupProfiles.map(p => renderCard(p)).join('');
 
                 if (isLocalGroup) {
-                    // Settings used to sit here, as two cards in the same row as people.
-                    // They are not profiles: Switcher Style is per-account and Your Bonfire
-                    // is between accounts, and neither belongs to the grid of who can watch.
-                    // They live behind Settings now — which also means the LAN-bypass toggle,
-                    // the one that can hand somebody your admin rights, is somewhere you went
-                    // on purpose rather than somewhere you can land while renaming a profile.
+                    // Settings used to sit here as cards beside the people. They are not
+                    // profiles, and the LAN-bypass toggle (which can hand over your admin
+                    // rights) should be somewhere you go on purpose.
 
-                    // Manage Profiles only. The gate answers one question — who is
-                    // watching — and a card in that grid reads as a person. Adding one is
-                    // administration, and it belongs on the screen named for it, which is
-                    // one button away and already where you go to rename or delete.
+                    // Manage Profiles only. A card in this grid reads as a person, and adding
+                    // one is administration.
                     if (this.isManageMode) {
                         if (!atLimit) {
                             cardsHtml += `
-                                <div class="profile-card action-add-profile focusable" tabindex="0">
-                                    <div class="profile-avatar-container">
-                                        <div class="profile-avatar add-avatar">+</div>
+                                <div class="jpf-profile-card action-add-profile focusable" role="button" tabindex="0">
+                                    <div class="jpf-profile-avatar-container">
+                                        <div class="jpf-profile-avatar jpf-add-avatar">+</div>
                                     </div>
-                                    <div class="profile-name">${t('gate.addProfile')}</div>
+                                    <div class="jpf-profile-name">${t('gate.addProfile')}</div>
                                 </div>
                             `;
                         } else {
@@ -4702,7 +6926,7 @@
                 sectionsHtml += `
                     <div class="profiles-home-section">
                         <div class="profiles-home-header">
-                            <span class="material-icons profiles-home-icon ${isBonfireIcon ? 'bonfire-icon-color' : ''}">${headerIcon}</span>
+                            ${bonfireMark('profiles-home-icon' + (isBonfireIcon ? ' bonfire-icon-color' : ''))}
                             <span class="profiles-home-title">${headerTitle}</span>
                         </div>
                         <div class="profiles-grid">
@@ -4712,109 +6936,574 @@
                 `;
             }
 
-            // jpf-one-home: one household on screen, so its heading names nothing the title
-            // has not. Themes without a panel round each household hide it then.
+            // jpf-one-home: one household on screen, so its heading names nothing new.
+            // The live region sits outside .profiles-modal-content, which later screens
+            // replace; it must exist, empty, before it speaks or a screen reader misses the
+            // first change.
             overlay.innerHTML = `
-                <div class="profiles-modal-content anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
+                <div id="jpf-switch-live" class="jpf-sr" role="status" aria-live="polite"></div>
+                <div class="profiles-modal-content jpf-picker jpf-anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
                     <h1 class="profiles-title">${title}</h1>
+                    ${this.isManageMode ? `<p class="jpf-manage-hint">${t('gate.manageHint')}</p>` : ''}
+                    ${this.isManageMode ? '' : '<div id="profiles-time-requests" class="profiles-time-requests" style="display: none;"></div>'}
                     ${sectionsHtml}
                     <div class="profiles-footer">
-                        <button id="profiles-toggle-manage-btn" class="profiles-btn btn-secondary">${manageBtnText}</button>
+                        ${this.isManageMode ? '' : `<button id="profiles-toggle-manage-btn" class="profiles-btn jpf-btn-secondary">${manageBtnText}</button>`}
                         ${this.isManageMode && hasLocalMaster
-                            ? `<button id="profiles-settings-btn" class="profiles-btn btn-secondary">${t('common.settings')}</button>`
+                            ? `<button id="profiles-settings-btn" class="profiles-btn jpf-btn-secondary">${t('common.settings')}</button>`
+                            : ''}
+                        ${this.ownProfileOf(profiles)
+                            ? `<button id="profiles-self-btn" class="profiles-btn jpf-btn-secondary">${t('gate.ownProfile')}</button>`
                             : ''}
                         ${this._resumeState && !this.isManageMode
-                            ? `<button id="profiles-resume-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>`
+                            ? `<button id="profiles-resume-btn" class="profiles-btn jpf-btn-secondary">${t('common.cancel')}</button>`
                             : ''}
+                        ${this.isManageMode ? `<button id="profiles-toggle-manage-btn" class="profiles-btn jpf-btn-secondary">${manageBtnText}</button>` : ''}
                     </div>
                     <!-- Deliberately plain and dim. It has to be reachable by D-pad, because
                          a TV has no keyboard shortcut, and this screen is exactly where
                          someone locked out by a broken switcher would be standing.
                          Hidden until the server confirms a code is configured. -->
                     <button id="profiles-panic-link" tabindex="0" style="
-                        display: none; background: none; border: none; color: rgba(255,255,255,0.28);
+                        display: none; background: none; border: none; color: var(--jpf-text-3);
                         font-size: 0.72rem; margin-top: 1.5rem; cursor: pointer;
                         text-decoration: underline; padding: 6px 10px;">${t('gate.cantGetPast')}</button>
+                    <!-- Last in the markup and drawn first by the stylesheet (order: -1).
+                         The focus trap reclaims to the first control in the DOM, and on a
+                         TV that must be a profile, not an announcement's Dismiss button. -->
+                    <div id="profiles-announcements" class="profiles-announcements" style="display: none;"></div>
                 </div>
             `;
 
+            this.drawLogo(overlay);
             this.attachOverlayInteractions(overlay, profiles);
             this.fitGateToScreen(overlay);
+            this.showAnnouncements(overlay);
+            this.showTimeRequests(overlay, profiles, localMasterId);
         },
 
-        /// Shrinks the profile tiles, only as far as needed, until the whole gate fits on
-        /// the screen without scrolling (issue #31).
-        ///
-        /// The tiles were a fixed size per device class — 280px on a television — so four
-        /// profiles on a 1080p set ran 247px past the bottom, and a remote had to scroll to
-        /// reach half the household. Two profiles still get the full size; more get smaller.
-        ///
-        /// Measured rather than calculated. How many tiles share a row depends on the names
-        /// under them, the sections a linked Bonfire adds, manage mode's extra controls and
-        /// the theme's fonts, and a formula would have to know all of that. Instead the
-        /// tile size is a custom property, and this halves the gap between "fits" and
-        /// "too big" a few times, reading the overlay's scroll height after each try. Only
-        /// ever runs when the gate is drawn or the window is resized — never on the route
-        /// poll, which is why it is not called from checkRoute.
-        ///
-        /// Below the floor it stops shrinking and lets the gate scroll: on a phone with
-        /// nine profiles, scrolling is better than tiles too small to read.
-        fitGateToScreen: function (overlay) {
-            if (!overlay || !overlay.querySelector) return;
+        /// Profiles waiting for more time, as a row above the tiles. Main account's own
+        /// household only, and only when the fetched list already says someone asked.
+        /// Fetched when the picker is drawn, never from checkRoute. The server decides what
+        /// is pending and how much of the day's four hours is left. A row is a real button;
+        /// opening it asks for the main PIN.
+        showTimeRequests: function (overlay, profiles, localMasterId) {
+            const box = overlay.querySelector('#profiles-time-requests');
+            if (!box || !localMasterId) return;
+            const mine = (p) => !p.isMaster && !p.isBonfire && this.normalizeGuid(p.masterUserId) === localMasterId;
+            if (!profiles.some(p => mine(p) && p.viewing && p.viewing.askedUtc)) return;
+            const masterState = this.readMasterState();
+            if (!masterState || this.normalizeGuid(masterState.masterUserId) !== localMasterId) return;
 
-            // A television rotating its UI, a desktop window being resized: fit again. Bound
-            // once, and finds whatever gate is on screen when it fires.
-            if (!this._gateResizeBound && typeof window !== 'undefined' && window.addEventListener) {
-                this._gateResizeBound = true;
-                let pending = null;
-                window.addEventListener('resize', () => {
-                    if (pending) clearTimeout(pending);
-                    pending = setTimeout(() => {
-                        pending = null;
-                        const open = document.getElementById('profiles-gate-overlay');
-                        if (open && open.querySelector('.profiles-grid')) this.fitGateToScreen(open);
-                    }, 150);
+            const refresh = () => {
+                const state = this.readMasterState();
+                if (state) this.fetchAndRenderProfiles(ApiClient, state.masterUserId, state.token, true);
+            };
+            const draw = (requests) => {
+                if (!requests.length) return;
+                box.innerHTML = '';
+                requests.forEach(req => {
+                    const p = profiles.find(x => this.normalizeGuid(x.profileUserId) === this.normalizeGuid(req.profileId));
+                    const row = document.createElement('button');
+                    row.type = 'button';
+                    row.className = 'profiles-time-request focusable';
+                    row.setAttribute('data-id', req.profileId);
+                    row.innerHTML = `
+                        <span class="profiles-time-request-avatar" aria-hidden="true" style="background-color: ${
+                            p && p.profileImage && p.transparentAvatar ? 'transparent' : safeColor(p ? p.avatarColor : '')
+                        }; color: ${onAvatarColor(p ? p.avatarColor : '')};">${
+                            avatarInner(p ? p.profileImage : null, p ? p.avatarInitial : String(req.profileName || '?').charAt(0).toUpperCase(), true)
+                        }</span>
+                        <span class="profiles-time-request-text">${escapeHtml(t('viewing.askedHint', { name: req.profileName }))}
+                            <span class="profiles-time-request-when">${escapeHtml(this.viewingTime(req.askedUtc, req.timeZone))}</span></span>
+                        <span class="profiles-time-request-action">${t('viewing.answer')}</span>`;
+                    row.addEventListener('click', () => {
+                        if (this._switchLock) return;
+                        this.withMainPin(profiles, () => {
+                            // The picker returns behind the dialog, so cancel leaves the profiles
+                            // on screen, not the PIN screen.
+                            refresh();
+                            this.answerTimeRequest(req, refresh);
+                        });
+                    });
+                    box.appendChild(row);
                 });
+                box.style.display = '';
+                this.fitGateToScreen(overlay);
+            };
+
+            fetch(ApiClient.getUrl('plugins/profiles/time-requests'), {
+                headers: this.getAuthHeaders(masterState.token),
+                cache: 'no-store'
+            })
+                .then(res => this.checked(res).ok ? res.json() : null)
+                .then(data => {
+                    const list = data && (data.requests || data.Requests);
+                    draw(Array.isArray(list) ? list : []);
+                })
+                .catch(() => { /* nothing waiting is the safe reading */ });
+        },
+
+        /// How much more time for a request, or no. Amounts stop at what is left of the
+        /// day's four hours; the server holds the same line.
+        answerTimeRequest: function (req, refresh) {
+            const name = req.profileName;
+            const left = typeof req.grantMinutesLeft === 'number' ? req.grantMinutesLeft : 0;
+            const grant = (minutes) => {
+                this._limitsCall(req.profileId, 'grant', { minutes: minutes, masterPin: this.masterPin })
+                    .then(() => { this._dropGatePin(); refresh(); })
+                    .catch(err => { this._dropGatePin(); this.showAlert(t('errors.error'), this._failText(err, err.message), refresh); });
+            };
+            const drop = () => this._dropGatePin();
+            const no = { label: t('viewing.decline'), run: () => grant(0) };
+            const cancel = { label: t('common.cancel') };
+            if (left <= 0) {
+                no.primary = true;
+                this.showActionsDialog(t('viewing.giveTitle', { name: name }), t('viewing.capBody', { name: name }), [no, cancel], drop);
+                return;
+            }
+            const sizes = [15, 30, 60, 120].filter(m => m <= left);
+            if (left < 120 && sizes.indexOf(left) < 0) sizes.push(left);
+            const actions = sizes.map(m => ({
+                label: this.durationText(m),
+                primary: m === 30 || (sizes.indexOf(30) < 0 && m === sizes[0]),
+                run: () => grant(m)
+            }));
+            actions.push(no, cancel);
+            this.showActionsDialog(t('viewing.giveTitle', { name: name }), t('viewing.giveBody'), actions, drop);
+        },
+
+        /// The administrator's announcements, above the title.
+        ///
+        /// Asked for once a minute at most, and never from checkRoute. Written with
+        /// textContent, never innerHTML: the message reaches every household. An info
+        /// announcement can be dismissed on this device; the key is id plus text, so a
+        /// rewritten one shows again. Warning and critical stay until they end.
+        showAnnouncements: function (overlay) {
+            const draw = (items) => {
+                const box = overlay.querySelector('#profiles-announcements');
+                if (!box) return;
+                const dismissed = this._readDismissedAnnouncements();
+                const shown = (items || []).filter(a => {
+                    const sev = this._announcementSeverity(a);
+                    return sev !== 'info' || dismissed.indexOf(this._announcementKey(a)) < 0;
+                });
+                box.innerHTML = '';
+                shown.forEach(a => {
+                    const sev = this._announcementSeverity(a);
+                    const row = document.createElement('div');
+                    row.className = 'profiles-announcement';
+                    row.setAttribute('data-severity', sev);
+                    row.setAttribute('role', sev === 'critical' ? 'alert' : 'status');
+
+                    const icon = document.createElement('span');
+                    icon.className = 'material-icons profiles-announcement-icon';
+                    icon.setAttribute('aria-hidden', 'true');
+                    icon.textContent = sev === 'critical' ? 'error' : (sev === 'warning' ? 'warning' : 'info');
+                    row.appendChild(icon);
+
+                    const text = document.createElement('span');
+                    text.className = 'profiles-announcement-text';
+                    text.textContent = String(a.message || a.Message || '');
+                    row.appendChild(text);
+
+                    if (sev === 'info') {
+                        const close = document.createElement('button');
+                        close.type = 'button';
+                        close.className = 'profiles-announcement-dismiss focusable';
+                        close.setAttribute('aria-label', t('gate.dismiss'));
+                        close.title = t('gate.dismiss');
+                        close.textContent = '×';
+                        close.addEventListener('click', () => {
+                            this._dismissAnnouncement(a);
+                            draw(items);
+                            // The focused button was redrawn away: next one, else the first control (R-1198).
+                            const next = box.querySelector('.profiles-announcement-dismiss')
+                                || overlay.querySelector('.focusable, button');
+                            if (next && typeof next.focus === 'function') next.focus();
+                        });
+                        row.appendChild(close);
+                    }
+                    box.appendChild(row);
+                });
+                box.style.display = shown.length ? '' : 'none';
+                this.fitGateToScreen(overlay);
+            };
+
+            const cached = this._announcementCache;
+            if (cached && Date.now() - cached.at < 60000) { draw(cached.items); return; }
+
+            const masterState = this.readMasterState();
+            const token = (masterState && masterState.token)
+                || (typeof ApiClient.accessToken === 'function' ? ApiClient.accessToken() : '');
+            if (!token) return;
+            this._fetchStartup(token, 60000)
+                .then(body => body && body.announcements)
+                .then(items => {
+                    // A refusal or non-list body is not cached: cached as [] it hid a critical
+                    // notice for a minute.
+                    if (!Array.isArray(items)) { this._startupHeld = null; return; }
+                    const list = items;
+                    this._announcementCache = { at: Date.now(), items: list };
+                    draw(list);
+                })
+                .catch(() => { /* no announcements is the safe reading */ });
+        },
+
+        /// Closed for maintenance: say so, once per page load.
+        ///
+        /// Asked of /info, which needs no token, because the people it is for cannot sign
+        /// in. A strip across the top on the sign-in screen and for an administrator; a
+        /// cover over the page for anyone else, since their requests are all refused.
+        /// Written with textContent.
+        checkMaintenance: function () {
+            this.serverInfo()
+                .then(info => {
+                    const m = info && (info.maintenance || info.Maintenance);
+                    if (!m) return;
+                    return this._maintenanceView().then(v => this.showMaintenance(m, v.blocking, v.admin));
+                })
+                .catch(() => { /* unknown: say nothing */ });
+        },
+
+        /// Strip for nobody signed in or an administrator, cover for anyone else. Asked
+        /// again by the notice's own timer, since signing in or out does not reload the
+        /// page (R-1209). An account that cannot be read (offline, bad token) is `unknown`
+        /// and gets the strip: locking an administrator out over a failed request is worse
+        /// than a quiet notice. The server refuses what it should regardless.
+        _maintenanceView: function () {
+            const userId = typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : null;
+            if (!userId || typeof ApiClient.getCurrentUser !== 'function') {
+                return Promise.resolve({ blocking: false, admin: false });
+            }
+            return Promise.resolve(ApiClient.getCurrentUser()).then(user => {
+                const policy = user && (user.Policy || user.policy);
+                const admin = !!(policy && (policy.IsAdministrator || policy.isAdministrator));
+                return { blocking: !admin, admin: admin };
+            }, () => ({ blocking: false, admin: false, unknown: true }));
+        },
+
+        showMaintenance: function (m, blocking, admin) {
+            if (document.getElementById('profiles-maintenance')) return;
+            const message = String(m.message || m.Message || '');
+            const until = m.untilUtc || m.UntilUtc;
+            let back = '';
+            if (until) {
+                const d = new Date(until);
+                // Only a future time: "Back by" an hour ago says the server is late.
+                if (!isNaN(d.getTime()) && d.getTime() > Date.now()) back = t('maintenance.backBy', { time: d.toLocaleString(activeLocale || [], { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) });
             }
 
-            // The class and the size go on the gate's own content, not on the overlay. The
-            // PIN, create and settings screens are drawn into the same overlay and share
-            // .profiles-title; a class left on the overlay would carry over to them. On the
-            // content it is replaced along with the markup it was measured for.
+            const box = document.createElement('div');
+            box.id = 'profiles-maintenance';
+            // The cover is a trap surface; without it focus goes to the gate underneath.
+            box.className = blocking ? 'profiles-maintenance is-blocking ' + this.TRAP_SURFACE_CLASS : 'profiles-maintenance';
+            box.setAttribute('role', blocking ? 'alertdialog' : 'status');
+            // What it was drawn for, so a re-check can see who is looking changed.
+            box._maintenanceKey = (blocking ? 'cover' : 'strip') + (admin ? '-admin' : '');
+
+            const inner = document.createElement('div');
+            inner.className = 'profiles-maintenance-inner';
+
+            const title = document.createElement('div');
+            title.className = 'profiles-maintenance-title';
+            title.textContent = admin ? t('maintenance.adminTitle') : t('maintenance.title');
+            inner.appendChild(title);
+
+            const text = document.createElement('div');
+            text.className = 'profiles-maintenance-text';
+            text.textContent = message;
+            inner.appendChild(text);
+
+            if (back) {
+                const when = document.createElement('div');
+                when.className = 'profiles-maintenance-when';
+                when.textContent = back;
+                inner.appendChild(when);
+            }
+
+            // Timer owned by the cover, stopped when it closes. Never checkRoute.
+            let status = null;
+            if (blocking) {
+                const again = document.createElement('button');
+                again.type = 'button';
+                again.className = 'profiles-btn jpf-btn-primary focusable';
+                again.textContent = t('maintenance.checkAgain');
+                again.addEventListener('click', () => this._recheckMaintenance(box, blocking, status));
+                inner.appendChild(again);
+                status = document.createElement('div');
+                status.className = 'profiles-maintenance-when';
+                status.setAttribute('role', 'status');
+
+                const out = document.createElement('button');
+                out.type = 'button';
+                out.className = 'profiles-btn jpf-btn-secondary focusable';
+                out.textContent = t('maintenance.signOut');
+                out.addEventListener('click', () => {
+                    Promise.resolve(ApiClient.logout()).then(() => window.location.reload(), () => window.location.reload());
+                });
+                inner.appendChild(out);
+                inner.appendChild(status);
+            }
+
+            box.appendChild(inner);
+            document.body.appendChild(box);
+            if (blocking) {
+                const btn = box.querySelector('button');
+                if (btn) btn.focus();
+            }
+            this._stopMaintenanceTimer();
+            this._maintenanceTimer = setInterval(() => {
+                if (document.getElementById('profiles-maintenance') !== box) { this._stopMaintenanceTimer(); return; }
+                this._recheckMaintenance(box, blocking, null);
+            }, 30000);
+        },
+
+        _stopMaintenanceTimer: function () {
+            if (this._maintenanceTimer) clearInterval(this._maintenanceTimer);
+            this._maintenanceTimer = null;
+        },
+
+        /// Asks /info again, past the one-minute cache. Maintenance over takes the notice
+        /// down; an unreadable answer leaves it up. A cover is followed by a reload.
+        _recheckMaintenance: function (box, blocking, status) {
+            this._serverInfo = null;
+            this.serverInfo().then(info => {
+                if (document.getElementById('profiles-maintenance') !== box) { this._stopMaintenanceTimer(); return; }
+                if (!info) return;
+                const still = info.maintenance || info.Maintenance;
+                if (still) {
+                    // Redrawn for whoever is here now, never taken down on a failed account read.
+                    return this._maintenanceView().then(v => {
+                        if (document.getElementById('profiles-maintenance') !== box) return;
+                        const key = (v.blocking ? 'cover' : 'strip') + (v.admin ? '-admin' : '');
+                        if (!v.unknown && key !== box._maintenanceKey) {
+                            this._stopMaintenanceTimer();
+                            box.remove();
+                            this.showMaintenance(still, v.blocking, v.admin);
+                            return;
+                        }
+                        if (status) status.textContent = t('maintenance.stillClosed');
+                    });
+                }
+                this._stopMaintenanceTimer();
+                box.remove();
+                if (blocking) window.location.reload();
+            });
+        },
+
+        _announcementSeverity: function (a) {
+            const s = String(a.severity || a.Severity || '').toLowerCase();
+            return (s === 'warning' || s === 'critical') ? s : 'info';
+        },
+
+        _announcementKey: function (a) {
+            const text = String(a.message || a.Message || '');
+            let h = 5381;
+            for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+            return this.normalizeGuid(a.id || a.Id || '') + ':' + h.toString(36);
+        },
+
+        _readDismissedAnnouncements: function () {
+            try {
+                const v = JSON.parse(localStorage.getItem('jpf-dismissed-announcements') || '[]');
+                return Array.isArray(v) ? v : [];
+            } catch (e) { return []; }
+        },
+
+        _dismissAnnouncement: function (a) {
+            const list = this._readDismissedAnnouncements();
+            list.push(this._announcementKey(a));
+            // Fifty is the server's own limit.
+            try { localStorage.setItem('jpf-dismissed-announcements', JSON.stringify(list.slice(-50))); } catch (e) { /* private mode */ }
+        },
+
+        /// Shrinks the profile tiles only as far as needed until the gate fits on screen
+        /// without scrolling (issue #31). Tiles were a fixed 280px on a television, so
+        /// four profiles on 1080p ran 247px past the bottom.
+        ///
+        /// Measured, not calculated: tiles per row depend on names, linked sections,
+        /// manage mode and the theme's fonts. The tile size is a custom property; this
+        /// halves the gap between "fits" and "too big" a few times, reading the overlay's
+        /// scroll height. Runs only on draw and resize, never from checkRoute. Below the
+        /// floor it stops and lets the gate scroll.
+        ///
+        /// Evens out grid rows: four tiles on a tablet drew three and then one. If the
+        /// rows the width allows differ by more than one tile, a zero-height <span> break
+        /// (a span so avatar-ring :nth-of-type counting still sees only cards) goes after
+        /// each row of the even split: 4 = 2+2, 5 = 3+2, 10 = 4+3+3. Run from
+        /// fitGateToScreen.
+        balanceGateRows: function (grid) {
+            if (!grid || !grid.children || !grid.querySelectorAll) return;
+            [].slice.call(grid.querySelectorAll('.jpf-row-break')).forEach((b) => { b.parentNode.removeChild(b); });
+            const cards = [].slice.call(grid.children).filter((e) => e.classList && e.classList.contains('jpf-profile-card'));
+            cards.forEach((c) => { c.style.marginTop = ''; });
+            const n = cards.length;
+            if (n < 3) return;
+            const top0 = cards[0].getBoundingClientRect().top;
+            let per = 0;
+            while (per < n && Math.abs(cards[per].getBoundingClientRect().top - top0) < 2) per++;
+            if (per >= n) return;
+            const rows = Math.ceil(n / per);
+            if (n - (rows - 1) * per >= per - 1) return;       // within one tile
+            const base = Math.floor(n / rows);
+            const extra = n % rows;
+            let rowGap = parseFloat(getComputedStyle(grid).rowGap);
+            if (!isFinite(rowGap)) rowGap = 0;
+            // A break's line sits between two row gaps; one gap has to be taken back. A
+            // negative margin on the break fails (a flex line cannot be shorter than
+            // nothing; rows came out two gaps apart), so the tiles after it take it.
+            let at = 0;
+            for (let r = 0; r < rows - 1; r++) {
+                at += base + (r < extra ? 1 : 0);
+                const br = document.createElement('span');
+                br.className = 'jpf-row-break';
+                br.setAttribute('aria-hidden', 'true');
+                br.style.cssText = 'flex: 0 0 100%; width: 100%; height: 0; margin: 0; padding: 0; pointer-events: none;';
+                grid.insertBefore(br, cards[at]);
+            }
+            if (rowGap > 0) {
+                let line = 0, left = 0;
+                for (let i = 0; i < n; i++) {
+                    const size = base + (line < extra ? 1 : 0);
+                    if (line > 0) cards[i].style.marginTop = (-rowGap) + 'px';
+                    if (++left === size) { line++; left = 0; }
+                }
+            }
+        },
+
+        /// Fit again when a television rotates its UI or a window resizes. Bound once;
+        /// finds whichever gate is on screen (picker, or a setup step with a pinned row).
+        _bindGateResize: function () {
+            if (this._gateResizeBound || typeof window === 'undefined' || !window.addEventListener) return;
+            this._gateResizeBound = true;
+            let pending = null;
+            window.addEventListener('resize', () => {
+                if (pending) clearTimeout(pending);
+                pending = setTimeout(() => {
+                    pending = null;
+                    const open = document.getElementById('profiles-gate-overlay');
+                    if (!open) return;
+                    if (open.querySelector('.profiles-grid')) this.fitGateToScreen(open);
+                    else if (open.querySelector('.jpf-step-tall')) this._pinSetupRow(open);
+                }, 150);
+            });
+        },
+
+        /// The button row under a setup step taller than the screen (the twelve-card theme
+        /// step) sticks to the bottom like the picker's (.jpf-footer-stuck). The sheet is
+        /// marked .jpf-step-tall, lifting its 75vh cap so the gate scrolls, since a sticky
+        /// row only stays against the box that scrolls. Measured with the class off so the
+        /// answer is the layout's. Run again on resize and when fonts load.
+        _pinSetupRow: function (overlay) {
+            if (!overlay || !overlay.querySelector) return;
+            this._bindGateResize();
+            const sheet = overlay.querySelector('.jpf-step-tall');
+            const row = sheet && sheet.querySelector('.jpf-onboarding-actions');
+            if (!row) return;
+            row.classList.remove('jpf-footer-stuck');
+            row.classList.toggle('jpf-footer-stuck', overlay.scrollHeight > overlay.clientHeight + 1);
+            if (!sheet._jpfFontRefit && document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+                sheet._jpfFontRefit = true;
+                document.fonts.ready.then(() => {
+                    if (document.body && document.body.contains(sheet)) this._pinSetupRow(overlay);
+                });
+            }
+        },
+
+        fitGateToScreen: function (overlay) {
+            if (!overlay || !overlay.querySelector) return;
+            this._bindGateResize();
+
+            // Class and size go on the gate's content, not the overlay: PIN, create and
+            // settings screens share the overlay and .profiles-title.
             const grid = overlay.querySelector('.profiles-grid');
             const content = grid && grid.closest('.profiles-modal-content');
             if (!content) return;
             const fits = () => overlay.scrollHeight <= overlay.clientHeight + 1;
 
+            // Once more when fonts load: measured with fallback metrics, four large profiles
+            // fit and then ran 3px off screen. Once per drawn gate (flag on its content),
+            // and only while it is still on screen.
+            if (!content._jpfFontRefit && typeof document !== 'undefined' && document.fonts && document.fonts.ready
+                && typeof document.fonts.ready.then === 'function') {
+                content._jpfFontRefit = true;
+                document.fonts.ready.then(() => {
+                    if (document.body && document.body.contains(content)) this.fitGateToScreen(overlay);
+                });
+            }
+
+            const balance = () => {
+                if (!overlay.querySelectorAll) return;
+                [].slice.call(overlay.querySelectorAll('.profiles-grid')).forEach((g) => this.balanceGateRows(g));
+            };
             content.classList.remove('jpf-fitted');
             content.style.removeProperty('--jpf-tile');
+            content.style.removeProperty('--jpf-name-fit');
+            content.style.removeProperty('--jpf-line-fit');
+            // The button row sticks to the bottom of the screen only while the households
+            // do not fit; measured with the class off, so the answer is the layout's and not
+            // the bar's own padding. When everything fits the row is where it always was.
+            const footer = overlay.querySelector('.profiles-footer');
+            if (footer) footer.classList.remove('jpf-footer-stuck');
+            const stick = () => { if (footer) footer.classList.toggle('jpf-footer-stuck', !fits()); };
+            balance();
             if (fits()) return;
 
-            const sample = grid.querySelector('.profile-avatar-container');
-            if (!sample) return;
+            const sample = grid.querySelector('.jpf-profile-avatar-container');
+            if (!sample) { stick(); return; }
             const natural = Math.round(sample.getBoundingClientRect().width);
-            if (!natural) return;
+            if (!natural) { stick(); return; }
 
             const isTv = document.documentElement.classList.contains('jpf-tv');
-            const floor = Math.min(natural, isTv ? 120 : 88);
-            const tryTile = (px) => { content.style.setProperty('--jpf-tile', px + 'px'); return fits(); };
+            // The smallest the name may get, as a share of its natural size: the size of the
+            // largest line under it. Measured, not written down: a theme scales its names
+            // (Glass and Harbor draw them smaller), and 1.1 / 1.75 left those names under
+            // their own "Signed in".
+            const px = (e) => (e ? parseFloat(getComputedStyle(e).fontSize) || 0 : 0);
+            const nameSize = px(grid.querySelector('.jpf-profile-name > span'));
+            let lineSize = 0;
+            grid.querySelectorAll('.jpf-profile-viewing, .jpf-profile-current-badge').forEach((e) => { lineSize = Math.max(lineSize, px(e)); });
+            const nameFloor = nameSize && lineSize ? Math.min(1, lineSize / nameSize) : 1.1 / 1.75;
+            // A list (layout.profiles, 2.0) is one picture a row: tall, with pictures that start
+            // small and a name beside them rather than under. It may go further down before
+            // it scrolls. Read from the grid as drawn, so nothing here knows the theme.
+            const asList = getComputedStyle(grid).flexDirection === 'column';
+            const floor = Math.min(natural, asList ? (isTv ? 72 : 48) : (isTv ? 120 : 88));
+            // The name shrinks with the tile (the stylesheet uses it on a television only), but
+            // never below the lines under it (nameFloor): shrunk all the way with a 120px tile it
+            // was 20px on a 1080p set, smaller than "Time's up". What still does not fit is cut
+            // with an ellipsis, as Netflix and Plex do. Set on every try: a smaller name is also
+            // a shorter grid, which is part of what fits() measures.
+            const tryTile = (size) => {
+                content.style.setProperty('--jpf-tile', size + 'px');
+                // The lines under it shrink with the tile too, never below 0.8: at full size
+                // "Signed in" was wider than a 120px tile's column and wrapped in two. The
+                // name's floor follows them down, so it is still never smaller than they are.
+                const lineFit = Math.max(size / natural, 0.8);
+                content.style.setProperty('--jpf-line-fit', lineFit.toFixed(3));
+                content.style.setProperty('--jpf-name-fit', Math.max(size / natural, nameFloor * lineFit).toFixed(3));
+                balance();
+                return fits();
+            };
 
             content.classList.add('jpf-fitted');
             let lo = floor;
             let hi = natural;
-            if (!tryTile(lo)) return;             // already at the floor; leave it scrolling
+            if (!tryTile(lo)) { stick(); return; }             // at the floor: leave it scrolling
             for (let i = 0; i < 8 && hi - lo > 2; i++) {
                 const mid = Math.floor((lo + hi) / 2);
                 if (tryTile(mid)) lo = mid; else hi = mid;
             }
             tryTile(lo);
+            stick();
         },
 
         attachOverlayInteractions: function (overlay, profiles) {
-            // Support D-pad Enter/Space selection on focused profile cards
+            // D-pad Enter/Space selects a focused profile card
             overlay.addEventListener('keydown', (e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('profile-card')) {
-                    // Prevent accidental selection from propagated keydown events during login
+                if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('jpf-profile-card')) {
+                    // Ignore keydown events propagated from login
                     if (Date.now() - (this._overlayMountTime || 0) < 350) {
                         e.preventDefault();
                         return;
@@ -4824,8 +7513,8 @@
                 }
             });
 
-            // Card selection logic
-            overlay.querySelectorAll('.profile-card:not(.action-add-profile)').forEach(card => {
+            // Card selection
+            overlay.querySelectorAll('.jpf-profile-card:not(.action-add-profile)').forEach(card => {
                 card.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (this._switchLock) return;
@@ -4833,50 +7522,62 @@
                     const profile = profiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
                     if (!profile) return;
 
-                    if (this.isManageMode) {
-                        this.showEditProfileModal(profile);
-                    } else {
+                    const open = () => {
                         if (profile.requiresPin) {
                             this.promptPinEntry(profileId);
                         } else {
                             this.executeProfileSwitch(profileId, null);
                         }
+                    };
+                    if (this.isManageMode && profile.isLinked) {
+                        this.showAddedAccount(profile);
+                    } else if (this.isManageMode) {
+                        this.showEditProfileModal(profile);
+                    } else if (profile.viewing && !profile.viewing.allowed) {
+                        // Out of time: say so first. Browsing is still allowed, so the profile
+                        // opens anyway if they carry on.
+                        this.showTimeUp(profile, open);
+                    } else {
+                        open();
                     }
                 });
             });
 
-            // "Add Profile" action
+            // "Add Profile": the card only exists in Manage Profiles, which has already asked
+            // for the main PIN. It used to ask again after reading the plugin configuration,
+            // which only an administrator may read, so for everyone else it failed and the form
+            // opened with no PIN.
             const addCard = overlay.querySelector('.action-add-profile');
             if (addCard) {
                 addCard.addEventListener('click', () => {
                     if (this._switchLock) return;
-                    const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
-                    const masterRequiresPin = masterProfile && masterProfile.requiresPin;
-                    
-                    if (masterRequiresPin) {
-                        ApiClient.getPluginConfiguration(this.pluginId).then(config => {
-                            if (config.RequireMasterPinForCreation) {
-                                this.promptMasterPinEntry('create', () => {
-                                    this.showAddProfileModal();
-                                });
-                            } else {
-                                this.showAddProfileModal();
-                            }
-                        }).catch(() => {
-                            this.showAddProfileModal();
-                        });
-                    } else {
-                        this.showAddProfileModal();
-                    }
+                    this.withMainPin(profiles, () => this.showAddProfileModal());
                 });
             }
 
-            // Settings: everything that is not a profile.
+            // Settings: not profiles. They are the main account's, so it opens them with its PIN.
             const settingsBtn = overlay.querySelector('#profiles-settings-btn');
             if (settingsBtn) {
                 settingsBtn.addEventListener('click', () => {
                     if (this._switchLock) return;
-                    this.showSettingsMenu();
+                    const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
+                    this._syncMasterFromProfiles(masterProfile);
+                    if (!this.isSignedInAsMaster()) {
+                        this.showAlert(t('settings.title'),
+                            t('settings.needsMain', { name: masterProfile ? masterProfile.profileName : '' }));
+                        return;
+                    }
+                    this.withMainPin(profiles, () => this.showSettingsMenu());
+                });
+            }
+
+            // A profile's own name and picture, for the person using it (P2-713).
+            const selfBtn = overlay.querySelector('#profiles-self-btn');
+            if (selfBtn) {
+                selfBtn.addEventListener('click', () => {
+                    if (this._switchLock) return;
+                    const own = this.ownProfileOf(profiles);
+                    if (own) this.showOwnProfileForm(own);
                 });
             }
 
@@ -4888,14 +7589,14 @@
                     this.showPanicPrompt();
                 });
                 panicLink.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panicLink.click(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); panicLink.click(); }
                 });
                 this.applyPanicLinkVisibility();
             }
 
-            // Back out of a switcher the user opened on purpose, returning to the profile
-            // they were already using. Only present when there is something to return to —
-            // the startup gate is a required choice and has no Cancel.
+            // Back out of a switcher the user opened on purpose, returning to the profile they
+            // were using. Only present when there is something to return to; the startup gate
+            // is a required choice and has no Cancel.
             const resumeBtn = overlay.querySelector('#profiles-resume-btn');
             if (resumeBtn) {
                 resumeBtn.addEventListener('click', () => {
@@ -4915,92 +7616,107 @@
                         this.renderOverlayContent(overlay, profiles);
                     } else {
                         const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
-                        // isSignedInAsMaster compares against the stored id; without it the
-                        // master was told to open the master.
+                        // isSignedInAsMaster compares against the stored id; without it the master was
+                        // told to open the master.
                         this._syncMasterFromProfiles(masterProfile);
 
-                        // Managing profiles is the master account's to do, and the server
-                        // refuses it from any other. It used to work from a profile only
-                        // because the master's token was kept in the browser; now a profile
-                        // opens the master first, like any other switch.
+                        // Managing profiles is the master account's to do and the server refuses it from
+                        // any other. It worked from a profile only because the master's token was kept in
+                        // the browser; now a profile opens the master first, like any other switch.
                         if (!this.isSignedInAsMaster()) {
                             this.showAlert(t('switcher.manageTitle'),
-                                t('switcher.manageNeedsMaster', { name: escapeHtml(masterProfile ? masterProfile.profileName : '') }));
+                                t('switcher.manageNeedsMaster', { name: masterProfile ? masterProfile.profileName : '' }));
                             return;
                         }
 
-                        if (masterProfile && masterProfile.requiresPin) {
-                            this.promptMasterPinEntry('manage', () => {
-                                this.isManageMode = true;
-                                this.renderOverlayContent(overlay, profiles);
-                            });
-                        } else {
+                        this.withMainPin(profiles, () => {
                             this.isManageMode = true;
                             this.renderOverlayContent(overlay, profiles);
-                        }
+                        });
                     }
                 });
             }
         },
 
-        /// How long the PIN box waits after the last digit before checking what was typed.
+        /// How long the PIN box waits after the last digit before checking.
         PIN_PAUSE_MS: 1500,
 
-        /// Checks a PIN box by itself once the typing stops, so a right PIN opens without
-        /// Enter. Shared by the profile PIN and the main PIN.
+        /// Checks a PIN box once typing stops, so a right PIN opens without Enter. Shared by
+        /// the profile PIN and the main PIN.
         ///
-        /// Both boxes used to POST verify-pin on every keystroke from the fourth digit on.
-        /// The server counts every one of those as a guess — it has to, or a "silent" check
-        /// would be a free way to try PINs — so an eight-digit PIN typed correctly spent four
-        /// wrong prefixes first, and one typo on top of that reached the lockout: a "PIN is
-        /// locked" activity line and a PinLocked email for somebody who knew their PIN, and
-        /// a fifth of the account's twenty guesses a day gone. Now it is one check per pause
-        /// (or at once when the box is full), never the same value twice, and none at all
-        /// after a 429.
+        /// Both boxes used to POST verify-pin on every keystroke from the fourth digit. The
+        /// server counts each as a guess, so an eight-digit PIN typed correctly spent four
+        /// wrong prefixes first, and one typo then reached the lockout: a "PIN is locked"
+        /// activity line and a PinLocked email for someone who knew their PIN. Now it is one
+        /// check per pause (or at once when the box is full), never the same value twice, and
+        /// none after a 429.
         ///
-        /// opts: send(pin) → fetch promise; busy() → true while a switch is underway;
-        /// onRight(pin); onLocked(serverText).
-        /// Returns { input, cancel, hold, takeRefusal(pin) }. takeRefusal hands back the server's
-        /// answer if this exact value was just refused, so Enter can show it rather than
-        /// spend another guess on the same digits; it is used once, so retyping asks again.
+        /// opts: send(pin) returns a fetch promise; busy() is true while a switch is underway;
+        /// onRight(pin); onLocked(serverText). Returns { input, cancel, hold, takeRefusal(pin) }.
+        /// takeRefusal hands back the server's answer if this exact value was just refused, so
+        /// Enter shows it instead of spending another guess; used once, so retyping asks again.
+        ///
+        /// The wait in a 429, in the viewer's language. The server sends seconds in Retry-After
+        /// and an English sentence that is not shown, since it cannot be translated. Rounded as
+        /// the server's DescribeWait does.
+        _lockedText: function (res) {
+            let seconds = 0;
+            try { seconds = Math.ceil(Number(res.headers.get('Retry-After'))) || 0; } catch (e) { seconds = 0; }
+            if (seconds <= 1) return t('pin.lockedMoment');
+            if (seconds < 60) return t('pin.lockedSeconds', { count: seconds });
+            const minutes = Math.ceil(seconds / 60);
+            return minutes === 1 ? t('pin.lockedMinute') : t('pin.lockedMinutes', { count: minutes });
+        },
+
         _pinAutoCheck: function (pinInput, opts) {
             const refused = new Map();
             let timer = null;
             let stopped = false;
             let pending = null;
+            // The request in flight, as { pin, done }; done settles after the answer is acted
+            // on. Enter waits on it instead of sending the same digits again (a second counted guess).
+            let inflight = null;
+            // The screen this keypad belongs to. Anything that starts a navigation moves the
+            // ticket on, and so does the input leaving the document. Either way the keypad is
+            // over: the timer could otherwise spend a guess and run the switch from a screen the
+            // person had left.
+            const ticket = this._navTicket;
+            const gone = () => stopped || !this.navIsCurrent(ticket) || !document.body.contains(pinInput);
 
             const check = () => {
                 timer = null;
+                if (gone()) { stopped = true; return; }
                 const pin = pinInput.value;
-                if (stopped || pin.length < 4 || opts.busy() || pin === pending || refused.has(pin)) return;
+                if (pin.length < 4 || opts.busy() || pin === pending || refused.has(pin)) return;
                 pending = pin;
-                opts.send(pin)
+                const request = opts.send(pin)
                     .then(res => {
                         if (pending === pin) pending = null;
                         if (res.status === 401) { this.handleSessionExpired(); return null; }
                         if (res.ok) {
-                            // Typed on past it while the answer was coming: the box no longer
-                            // holds a right PIN, and Enter will send what it does hold.
-                            if (!stopped && pinInput.value === pin) opts.onRight(pin);
+                            // Typed on while the answer was coming: the box no longer holds a right PIN,
+                            // and Enter will send what it does hold.
+                            if (!gone() && pinInput.value === pin) opts.onRight(pin);
                             return null;
                         }
-                        return res.text().then(text => {
-                            const body = (text || '').trim();
-                            if (res.status === 429) {
-                                // Locked. Every further check would be refused and counted
-                                // nowhere useful; say so and stop.
-                                stopped = true;
-                                if (timer) { clearTimeout(timer); timer = null; }
-                                opts.onLocked(body);
-                                return;
-                            }
-                            refused.set(pin, body);
-                        });
+                        if (res.status === 429) {
+                            // Locked: further checks would all be refused; say so and stop.
+                            stopped = true;
+                            if (timer) { clearTimeout(timer); timer = null; }
+                            opts.onLocked(this._lockedText(res));
+                            return null;
+                        }
+                        refused.set(pin, refusalText(res));
+                        return null;
                     })
                     .catch(() => {
                         // Network trouble: nothing learned. Enter still works.
                         if (pending === pin) pending = null;
                     });
+                const mine = { pin: pin, done: null };
+                const settled = () => { if (inflight === mine) inflight = null; };
+                mine.done = request.then(settled, settled);
+                inflight = mine;
             };
 
             const full = pinInput.maxLength > 0 ? pinInput.maxLength : 8;
@@ -5024,9 +7740,11 @@
                     refused.delete(pin);
                     return body;
                 },
-                // Enter is the person saying they are done: the pending pause has no more
-                // to tell us.
-                hold: () => { if (timer) { clearTimeout(timer); timer = null; } }
+                // Enter means done: the pending pause has nothing more to tell us.
+                hold: () => { if (timer) { clearTimeout(timer); timer = null; } },
+                // Settles once the check already out for this PIN has been acted on, else null.
+                // Enter waits on it instead of asking again.
+                inFlight: (pin) => (inflight && inflight.pin === pin) ? inflight.done : null
             };
         },
 
@@ -5035,25 +7753,34 @@
             const content = document.querySelector('.profiles-modal-content');
             content.innerHTML = `
                 <h1 class="profiles-title">${t('pin.enterProfilePin')}</h1>
-                <div class="pin-entry-container">
-                    <input type="text" id="profile-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
-                    <div id="pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
-                    <div class="pin-actions jpf-actions">
-                        <button id="pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.back')}</button>
-                        <button id="pin-submit-btn" class="profiles-btn btn-primary">${t('common.unlock')}</button>
+                <div class="jpf-pin-entry-container">
+                    <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
+                    <input type="text" id="jpf-profile-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('pin.enterProfilePin'))}" aria-describedby="pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
+                    <div id="pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
+                    <div class="jpf-pin-actions jpf-actions">
+                        <button id="pin-submit-btn" class="profiles-btn jpf-btn-primary">${t('common.unlock')}</button>
+                        <button id="pin-cancel-btn" class="profiles-btn jpf-btn-secondary">${t('common.back')}</button>
                     </div>
+                    <button type="button" id="pin-forgot" class="jpf-text-link" hidden>${t('pinReset.forgot')}</button>
                 </div>
             `;
 
-            const pinInput = document.getElementById('profile-pin-input');
+            const pinInput = document.getElementById('jpf-profile-pin-input');
             const errorMsg = document.getElementById('pin-error-msg');
             pinInput.focus();
+            // The main account's own PIN only: a profile's is reset by the main account.
+            const own = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            if (own && this.normalizeGuid(own.profileUserId) === this.normalizeGuid(profileId)) {
+                this._offerPinReset(content, () => this.promptPinEntry(profileId),
+                    (pin) => this.executeProfileSwitch(profileId, pin, () => this.promptPinEntry(profileId)));
+            }
 
-            // Prevents a second switch from firing if one is already in progress.
+            // No second switch while one is in progress.
             let switchInProgress = false;
 
             const showPinError = (msg) => {
                 switchInProgress = false;
+                pinInput.setAttribute('aria-invalid', 'true');
                 pinInput.style.borderColor = 'var(--jpf-danger)';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
                 errorMsg.textContent = msg || t('pin.incorrectPin');
@@ -5064,31 +7791,33 @@
             };
 
             const clearError = () => {
+                pinInput.removeAttribute('aria-invalid');
                 pinInput.style.borderColor = '';
                 pinInput.style.boxShadow = '';
                 errorMsg.style.display = 'none';
                 errorMsg.textContent = '';
             };
 
-            // Checked once the typing pauses — see _pinAutoCheck for why not per keystroke.
-            // A wrong answer shows nothing yet: the person may still be typing.
+            // Checked once typing pauses (see _pinAutoCheck). A wrong answer shows nothing yet:
+            // the person may still be typing.
             const auto = this._pinAutoCheck(pinInput, {
                 send: (pin) => {
                     const masterState = this.readMasterState();
                     if (!masterState) return Promise.reject(new Error('no master'));
-                    return fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
+                    return this._fetchTimed(ApiClient.getUrl('plugins/profiles/verify-pin'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
                         body: JSON.stringify({ profileId: profileId, pin: pin })
-                    });
+                    }).then(res => this.checked(res));
                 },
                 busy: () => switchInProgress || this._switchLock,
                 onRight: (pin) => {
                     if (switchInProgress || this._switchLock) return;
                     switchInProgress = true;
-                    this.executeProfileSwitch(profileId, pin, () => {
-                        // Verify said OK but switch failed (edge case) — reset silently
-                        switchInProgress = false;
+                    this.executeProfileSwitch(profileId, pin, (msg) => {
+                        // Verify said OK and the switch was refused (limits, device, maintenance, network).
+                        // Say why: otherwise the person types on a screen that is doing nothing.
+                        showPinError(msg);
                     });
                 },
                 onLocked: (msg) => showPinError(msg || t('pin.incorrectPin'))
@@ -5099,14 +7828,26 @@
                 auto.input();
             });
 
-            // Manual submit — only place where we show an error on wrong PIN
+            // Manual submit: the only place a wrong PIN shows an error
+            let submitWaiting = false;
             const submitPin = () => {
                 if (switchInProgress || this._switchLock) return;
                 auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
-                // Just checked and refused: the same digits again would only spend another
-                // of the account's guesses to hear the same answer.
+                // The same digits are already out for checking: wait for that answer instead of resending.
+                const waiting = auto.inFlight(pin);
+                if (waiting) {
+                    if (!submitWaiting) {
+                        submitWaiting = true;
+                        waiting.then(() => {
+                            submitWaiting = false;
+                            if (document.body.contains(pinInput) && pinInput.value === pin) submitPin();
+                        });
+                    }
+                    return;
+                }
+                // Just refused: the same digits again would spend another guess to hear the same answer.
                 const refusal = auto.takeRefusal(pin);
                 if (refusal !== undefined) { showPinError(refusal || t('pin.incorrectPin')); return; }
                 switchInProgress = true;
@@ -5118,13 +7859,132 @@
 
             document.getElementById('pin-submit-btn').addEventListener('click', submitPin);
             pinInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') submitPin();
+                if (isKey(e, 'Enter')) submitPin();
             });
 
             document.getElementById('pin-cancel-btn').addEventListener('click', () => {
                 auto.cancel();
                 this.isManageMode = false;
                 this.showProfileOverlay(this.currentProfiles);
+            });
+        },
+
+        /// The server's /info, read at most once a minute. Null when it can't be read.
+        serverInfo: function () {
+            const now = Date.now();
+            if (this._serverInfo && now - this._serverInfo.at < 60000) return this._serverInfo.promise;
+            const promise = fetch(ApiClient.getUrl('plugins/profiles/info'), { cache: 'no-store' })
+                .then(res => res.ok ? res.json() : null)
+                .catch(() => null);
+            this._serverInfo = { at: now, promise: promise };
+            // Only a successful read is kept: a failed one cached as null read as "no main PIN
+            // required" in withMainPin for the whole minute.
+            promise.then(info => {
+                if (info === null && this._serverInfo && this._serverInfo.promise === promise) this._serverInfo = null;
+            });
+            return promise;
+        },
+
+        /// Runs then() once the main PIN is known: asks for it if the account has one and it
+        /// hasn't been typed yet. With none set and the administrator requiring one, sets one first.
+        ///
+        /// Decided by hasPin, never requiresPin. requiresPin is false on the home network with
+        /// the bypass on, or with asking turned off, but the server still wants the PIN to change
+        /// anything. Going by requiresPin, Manage Profiles opened without asking and every save
+        /// failed as a wrong PIN.
+        withMainPin: function (profiles, then) {
+            // A caller holding the PIN for one act lets it go with _dropGatePin on every way out
+            // of that act, not only the one that works.
+            const main = (profiles || this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            if (main && main.hasPin) {
+                if (this.masterPin) { then(); return; }
+                this.promptMasterPinEntry('manage', then);
+                return;
+            }
+            this.serverInfo().then(info => {
+                const features = info && (info.features || info.Features);
+                const required = !!(features && (features.requireMainPin || features.RequireMainPin));
+                if (required) this.promptSetMainPin(profiles, true, then);
+                else then();
+            }, () => then());
+        },
+
+        /// Forgets the main PIN typed for a single act on the gate. Manage Profiles keeps it
+        /// for as long as the parent stays there.
+        _dropGatePin: function () {
+            if (!this.isManageMode) this.masterPin = null;
+        },
+
+        /// Asks the main account to set a PIN. Required: no "Not now", and Cancel goes back to
+        /// the profiles. Offered: "Not now" carries on without one.
+        ///
+        /// `setup` is first-time setup's `{ onSkip }`; a null onSkip means the administrator
+        /// made the step required, so there is no button.
+        promptSetMainPin: function (profiles, required, done, setup, noteKey) {
+            this.beginNavigation();
+            const content = document.querySelector('.profiles-modal-content');
+            const masterState = this.readMasterState();
+            if (!content || !masterState) { done(); return; }
+
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('mainPin.setTitle')}</h1>
+                <div class="jpf-pin-entry-container">
+                    ${setup ? this._onboardingStepLine() : ''}
+                    <p class="profiles-pin-note">${noteKey ? t(noteKey) : required && !setup ? t('mainPin.requiredBody') : t('mainPin.setBody')}</p>
+                    <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
+                    <input type="text" id="jpf-main-pin-new" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('mainPin.setTitle'))}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <div id="main-pin-new-error" class="profiles-pin-error" role="alert" hidden></div>
+                    <div class="jpf-pin-actions jpf-actions${setup ? ' jpf-onboarding-actions' : ''}">
+                        <button id="main-pin-save" class="profiles-btn jpf-btn-primary">${t('mainPin.set')}</button>
+                        ${setup && !setup.onSkip ? '' : `<button id="main-pin-skip" class="profiles-btn ${setup ? 'jpf-btn-text' : 'jpf-btn-secondary'}">${setup ? t('onboarding.skip') : required ? t('common.cancel') : t('mainPin.notNow')}</button>`}
+                    </div>
+                </div>
+            `;
+
+            const input = content.querySelector('#jpf-main-pin-new');
+            const error = content.querySelector('#main-pin-new-error');
+            let saving = false;
+            const fail = (message) => {
+                saving = false;
+                error.textContent = message;
+                error.hidden = false;
+                input.value = '';
+                input.focus();
+            };
+            input.focus();
+
+            // One save at a time: Enter held down, or Enter then the button, sent the request
+            // twice and ran done() (the next screen) twice.
+            const save = () => {
+                if (saving) return;
+                const pin = input.value;
+                if (!/^\d{4,8}$/.test(pin)) { fail(t('profileForm.pinLengthCreate')); return; }
+                saving = true;
+                fetch(ApiClient.getUrl('plugins/profiles/account'), {
+                    method: 'POST',
+                    headers: this.jsonHeaders(masterState.token),
+                    body: JSON.stringify({ pin: pin })
+                })
+                .then(res => {
+                    if (res.status === 401) { this.handleSessionExpired(); return null; }
+                    if (!res.ok) { fail(refusalText(res) || t('errors.error')); return null; }
+                    (profiles || []).concat(this.currentProfiles || []).forEach(p => {
+                        if (p.isMaster && !p.isBonfire) p.hasPin = true;
+                    });
+                    this.masterPin = pin;
+                    done();
+                    return null;
+                })
+                .catch(err => fail(this._failText(err, err.message)));
+            };
+
+            content.querySelector('#main-pin-save').addEventListener('click', save);
+            input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) save(); });
+            const skipBtn = content.querySelector('#main-pin-skip');
+            if (skipBtn) skipBtn.addEventListener('click', () => {
+                if (setup) setup.onSkip();
+                else if (required) this.showProfileOverlay(this.currentProfiles);
+                else done();
             });
         },
 
@@ -5136,24 +7996,28 @@
             const content = document.querySelector('.profiles-modal-content');
             content.innerHTML = `
                 <h1 class="profiles-title">${t('pin.enterMasterPin')}</h1>
-                <div class="pin-entry-container">
-                    <input type="text" id="master-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="••••" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
-                    <div id="master-pin-error-msg" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
-                    <div class="pin-actions jpf-actions">
-                        <button id="master-pin-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
-                        <button id="master-pin-submit-btn" class="profiles-btn btn-primary">${t('common.submit')}</button>
+                <div class="jpf-pin-entry-container">
+                    <div class="jpf-pin-keys-hint">${t('pin.numberKeys')}</div>
+                    <input type="text" id="jpf-master-pin-input" maxlength="8" placeholder=" " pattern="[0-9]*" inputmode="numeric" aria-label="${escapeHtml(t('pin.enterMasterPin'))}" aria-describedby="master-pin-error-msg" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" autofocus />
+                    <div id="master-pin-error-msg" role="alert" style="display:none; color:var(--jpf-danger); font-size:0.9rem; font-weight:600; text-align:center; margin-top:-0.5rem;"></div>
+                    <div class="jpf-pin-actions jpf-actions">
+                        <button id="master-pin-submit-btn" class="profiles-btn jpf-btn-primary">${t('common.submit')}</button>
+                        <button id="master-pin-cancel-btn" class="profiles-btn jpf-btn-secondary">${t('common.cancel')}</button>
                     </div>
+                    <button type="button" id="pin-forgot" class="jpf-text-link" hidden>${t('pinReset.forgot')}</button>
                 </div>
             `;
 
-            const pinInput = document.getElementById('master-pin-input');
+            const pinInput = document.getElementById('jpf-master-pin-input');
             const errorMsg = document.getElementById('master-pin-error-msg');
             pinInput.focus();
+            this._offerPinReset(content, () => this.promptMasterPinEntry(actionType, callback), () => callback());
 
-            let verified = false; // prevent callback firing more than once
+            let verified = false; // callback fires once
 
             const showPinError = (msg) => {
                 verified = false;
+                pinInput.setAttribute('aria-invalid', 'true');
                 pinInput.style.borderColor = 'var(--jpf-danger)';
                 pinInput.style.boxShadow = '0 0 15px rgba(255,107,107,0.5)';
                 errorMsg.textContent = msg || t('pin.incorrectPin');
@@ -5163,26 +8027,27 @@
             };
 
             const clearError = () => {
+                pinInput.removeAttribute('aria-invalid');
                 pinInput.style.borderColor = '';
                 pinInput.style.boxShadow = '';
                 errorMsg.style.display = 'none';
                 errorMsg.textContent = '';
             };
 
-            // Manual submit — only place where we show an error on wrong master PIN
+            // Manual submit: the only place a wrong master PIN shows an error
             let verifyInProgress = false;
 
-            // Checked once the typing pauses, not per keystroke — see _pinAutoCheck. Every
-            // prefix of the main PIN was a counted guess at the account's own PIN.
+            // Checked once typing pauses, not per keystroke (see _pinAutoCheck): every prefix
+            // of the main PIN was a counted guess.
             const auto = this._pinAutoCheck(pinInput, {
                 send: (pin) => {
                     const masterState = this.readMasterState();
                     if (!masterState) return Promise.reject(new Error('no master'));
-                    return fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
+                    return this._fetchTimed(ApiClient.getUrl('plugins/profiles/account/verify-pin'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
-                        body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
-                    });
+                        body: JSON.stringify({ pin: pin })
+                    }).then(res => this.checked(res));
                 },
                 busy: () => verified || verifyInProgress,
                 onRight: (pin) => {
@@ -5199,23 +8064,35 @@
                 auto.input();
             });
 
+            let submitWaiting = false;
             const submitPin = () => {
                 if (verifyInProgress || verified) return;
                 auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
-                // Just checked and refused: asking again spends another guess for the
-                // same answer.
+                // The same digits are already out for checking: wait for that answer.
+                const waiting = auto.inFlight(pin);
+                if (waiting) {
+                    if (!submitWaiting) {
+                        submitWaiting = true;
+                        waiting.then(() => {
+                            submitWaiting = false;
+                            if (document.body.contains(pinInput) && pinInput.value === pin) submitPin();
+                        });
+                    }
+                    return;
+                }
+                // Just refused: asking again spends another guess for the same answer.
                 const refusal = auto.takeRefusal(pin);
                 if (refusal !== undefined) { showPinError(refusal || t('pin.incorrectMasterPin')); return; }
                 const masterState = this.readMasterState();
                 if (!masterState) return;
 
                 verifyInProgress = true;
-                fetch(ApiClient.getUrl('plugins/profiles/verify-pin'), {
+                this._fetchTimed(ApiClient.getUrl('plugins/profiles/account/verify-pin'), {
                     method: 'POST',
                     headers: this.jsonHeaders(masterState.token),
-                    body: JSON.stringify({ profileId: masterProfile.profileUserId, pin: pin })
+                    body: JSON.stringify({ pin: pin })
                 })
                 .then(res => {
                     verifyInProgress = false;
@@ -5224,9 +8101,7 @@
                         throw new Error('Session expired');
                     }
                     if (!res.ok) {
-                        return res.text().then(text => {
-                            throw new Error(text || t('pin.incorrectMasterPin'));
-                        });
+                        throw refusalError(res, t('pin.incorrectMasterPin'));
                     }
                     this.masterPin = pin;
                     verified = true;
@@ -5235,14 +8110,14 @@
                 .catch(err => {
                     verifyInProgress = false;
                     if (err.message !== 'Session expired') {
-                        showPinError(err.message || t('pin.incorrectMasterPin'));
+                        showPinError(this._failText(err, err.message || t('pin.incorrectMasterPin')));
                     }
                 });
             };
 
             document.getElementById('master-pin-submit-btn').addEventListener('click', submitPin);
             pinInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') submitPin();
+                if (isKey(e, 'Enter')) submitPin();
             });
 
             document.getElementById('master-pin-cancel-btn').addEventListener('click', () => {
@@ -5251,52 +8126,384 @@
             });
         },
 
-        // onError: optional callback(message) invoked on a failed switch.
-        // Callers capture their own DOM references via closure so we never re-query
-        // the DOM inside an async callback (which can race against overlay teardown).
-        /// Puts the picker into "working on it" while a switch is in flight.
-        ///
-        /// The switch is a round trip to the server and then a full page reload. On a phone
-        /// that is a couple of seconds during which nothing on screen changed at all, so the
-        /// only reasonable reading was that the tap had missed — and the reporter kept
-        /// tapping. _switchLock already made the extra taps harmless; it just never said so.
+        /// D-pad Enter/Space presses a colour dot. Create and Edit draw into one modal content
+        /// element for the whole session, so the listener is added once; each visit used to add another.
+        _bindColorDotKeys: function (content) {
+            if (content._jpfDotKeys) return;
+            content._jpfDotKeys = true;
+            content.addEventListener('keydown', (e) => {
+                if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('jpf-color-dot')) {
+                    e.preventDefault();
+                    e.target.click();
+                }
+            });
+        },
+
+        /// A field from a server reply in either casing: o.sentTo or o.SentTo.
+        _field: function (o, k) {
+            if (!o) return undefined;
+            return o[k] !== undefined ? o[k] : o[k.charAt(0).toUpperCase() + k.slice(1)];
+        },
+
+        /// One call to an /account/email or /account/pin-reset route as the main account. No
+        /// body is a GET. Resolves the reply's JSON ({} when none); rejects with the server's
+        /// words. The language goes with every POST: it is what the mail is written in.
+        _emailCall: function (path, body) {
+            const masterState = this.readMasterState();
+            const token = masterState ? masterState.token : ApiClient.accessToken();
+            const init = body === undefined
+                ? { cache: 'no-store', headers: this.manageHeaders(token, false) }
+                : {
+                    method: 'POST',
+                    headers: this.jsonHeaders(token),
+                    body: JSON.stringify(Object.assign({ masterPin: this.masterPin || null, language: activeLocale || '' }, body))
+                };
+            return fetch(ApiClient.getUrl('plugins/profiles/' + path), init).then(res => {
+                if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.error')); }
+                if (!res.ok) throw refusalError(res, t('errors.error'));
+                // An address added or removed changes whether Forgot PIN is offered.
+                if (body !== undefined) this._startupHeld = null;
+                return res.text().then(text => {
+                    try { return text ? JSON.parse(text) : {}; } catch (e) { return {}; }
+                });
+            });
+        },
+
+        /// The one /startup answer for a token, shared by the announcements, first-time setup
+        /// and the caller's identity. Kept for maxAgeMs, so one page load is one request. A
+        /// refusal or failure is null and not kept.
+        _fetchStartup: function (token, maxAgeMs) {
+            const held = this._startupHeld;
+            if (held && held.token === token && Date.now() - held.at < maxAgeMs) return held.promise;
+            const entry = { token: token, at: Date.now(), promise: null };
+            entry.promise = fetch(ApiClient.getUrl('plugins/profiles/startup'), {
+                cache: 'no-store',
+                headers: this.getAuthHeaders(token)
+            })
+            .then(res => res.ok ? res.json() : null)
+            .catch(() => null)
+            .then(body => {
+                if (!body && this._startupHeld === entry) this._startupHeld = null;
+                return body;
+            });
+            this._startupHeld = entry;
+            return entry.promise;
+        },
+
+        /// Shows "Forgot PIN?" on a main-PIN prompt when the server can mail this account a
+        /// code. Read from /startup's `me` once, when the prompt opens. back() redraws the
+        /// prompt; done(pin) carries on with the new PIN, so a reset lands where the person
+        /// was going.
+        _offerPinReset: function (content, back, done) {
+            const link = content.querySelector('#pin-forgot');
+            const masterState = this.readMasterState();
+            if (!link || !masterState) return;
+            this._fetchStartup(masterState.token, 60000)
+            .then(body => body && body.me)
+            .then(me => {
+                if (this._field(me, 'pinResetByEmail') !== true || !document.body.contains(link)) return;
+                link.hidden = false;
+                link.addEventListener('click', () => this.showPinReset(back, done));
+            })
+            .catch(() => { /* no link; the prompt works as before */ });
+        },
+
+        /// Forgot PIN: a code to the main account's confirmed address, then a new PIN. The
+        /// code is sent as the screen opens.
+        showPinReset: function (back, done) {
+            this.beginNavigation();
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return;
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('pinReset.title')}</h1>
+                <div class="jpf-pin-entry-container">
+                    <p class="profiles-pin-note" id="pin-reset-note"></p>
+                    <input type="text" id="jpf-pin-reset-code" maxlength="7" inputmode="numeric" placeholder="${escapeHtml(t('accountEmail.code'))}" aria-label="${escapeHtml(t('accountEmail.code'))}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <input type="text" id="jpf-pin-reset-new" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder=" " aria-label="${escapeHtml(t('pinReset.newPin'))}" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <div id="pin-reset-error" class="profiles-pin-error" role="alert" hidden></div>
+                    <div class="jpf-pin-actions jpf-actions">
+                        <button id="pin-reset-save" class="profiles-btn jpf-btn-primary">${t('mainPin.set')}</button>
+                        <button id="pin-reset-back" class="profiles-btn jpf-btn-secondary">${t('common.back')}</button>
+                    </div>
+                    <button type="button" id="pin-reset-again" class="jpf-text-link">${t('pinReset.sendAgain')}</button>
+                </div>
+            `;
+            const note = content.querySelector('#pin-reset-note');
+            const error = content.querySelector('#pin-reset-error');
+            const code = content.querySelector('#jpf-pin-reset-code');
+            const pin = content.querySelector('#jpf-pin-reset-new');
+            const fail = (message) => { error.textContent = message; error.hidden = false; };
+
+            const send = () => {
+                error.hidden = true;
+                this._emailCall('account/pin-reset/send', {})
+                    .then(reply => {
+                        note.textContent = t('pinReset.sentTo', { address: this._field(reply, 'sentTo') || '' });
+                        code.focus();
+                    })
+                    .catch(err => fail(this._failText(err, err.message)));
+            };
+
+            let busy = false;
+            const save = () => {
+                const typed = code.value.replace(/\s/g, '');
+                if (!/^\d{6}$/.test(typed)) { fail(t('accountEmail.codeInvalid')); code.focus(); return; }
+                if (!/^\d{4,8}$/.test(pin.value)) { fail(t('profileForm.pinLengthCreate')); pin.focus(); return; }
+                if (busy) return;
+                busy = true;
+                const newPin = pin.value;
+                this._emailCall('account/pin-reset', { code: typed, newPin: newPin })
+                    .then(() => {
+                        this.masterPin = newPin;
+                        (this.currentProfiles || []).forEach(p => { if (p.isMaster && !p.isBonfire) p.hasPin = true; });
+                        done(newPin);
+                    })
+                    .catch(err => { busy = false; fail(this._failText(err, err.message)); });
+            };
+
+            content.querySelector('#pin-reset-save').addEventListener('click', save);
+            pin.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) save(); });
+            code.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) pin.focus(); });
+            content.querySelector('#pin-reset-back').addEventListener('click', back);
+            content.querySelector('#pin-reset-again').addEventListener('click', send);
+            send();
+        },
+
+        /// The Email section of Your account. Draws nothing until the server says email works.
+        /// Every route answers with the whole state, so each action redraws from the reply.
+        _bindAccountEmail: function (slot) {
+            if (!slot) return;
+            let data = null;
+            let editing = false;
+            const field = (k) => this._field(data, k);
+            const say = (text, bad) => {
+                const status = slot.querySelector('#account-email-status');
+                if (!status) return;
+                status.textContent = text || '';
+                status.style.color = bad ? 'var(--jpf-danger)' : '';
+            };
+            // One call at a time: a second tap on Send while the first was in flight sent a second code email.
+            let busy = false;
+            const run = (path, body, done) => {
+                if (busy) return;
+                busy = true;
+                return this._emailCall(path, body)
+                    .then(reply => { busy = false; data = reply; editing = false; draw(); if (done) say(done); })
+                    .catch(err => { busy = false; say(this._failText(err, err.message), true); });
+            };
+
+            const draw = () => {
+                if (!document.body.contains(slot)) return;
+                // Email off on this server: say so and where to turn it on, instead of an account
+                // page with no hint that a forgotten PIN could be reset (P2-607).
+                if (field('available') !== true) {
+                    slot.innerHTML = this.renderSection('mail', t('accountEmail.title'), t('accountEmail.subtitle'),
+                        `<div class="jpf-form-hint" id="account-email-off">${t('account.emailOff')}</div>`);
+                    return;
+                }
+                const address = field('address') || '';
+                const pending = field('pendingAddress') || '';
+                const box = (id, on, label) => `
+                    <div class="jpf-form-group">
+                        <label class="jpf-library-check-label jpf-email-check">
+                            <input type="checkbox" id="${id}" ${on ? 'checked' : ''} />
+                            <span>${label}</span>
+                        </label>
+                    </div>`;
+                const noFill = 'data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true"';
+                let body;
+                if (pending && !editing) {
+                    body = `
+                        <div class="jpf-form-group">
+                            <label for="account-email-code">${t('accountEmail.code')}</label>
+                            <div class="jpf-inline-row">
+                                <input type="text" id="account-email-code" maxlength="7" inputmode="numeric" autocomplete="one-time-code" ${noFill} />
+                                <button type="button" id="account-email-confirm" class="profiles-btn jpf-btn-primary">${t('accountEmail.confirm')}</button>
+                            </div>
+                            <div class="jpf-form-hint" id="account-email-sent"></div>
+                            <button type="button" id="account-email-other" class="jpf-text-link">${t('accountEmail.otherAddress')}</button>
+                        </div>`;
+                } else if (address && !editing) {
+                    body = `
+                        <div class="jpf-form-group">
+                            <label id="account-email-label">${t('accountEmail.address')}</label>
+                            <div class="jpf-inline-row" role="group" aria-labelledby="account-email-label">
+                                <span class="jpf-email-address">${escapeHtml(address)}</span>
+                                <button type="button" id="account-email-change" class="profiles-btn jpf-btn-secondary">${t('accountEmail.change')}</button>
+                                <button type="button" id="account-email-remove" class="profiles-btn jpf-btn-secondary">${t('accountEmail.remove')}</button>
+                            </div>
+                            ${field('pinResetEnabled') === true ? `<div class="jpf-form-hint">${t('accountEmail.resetHint')}</div>` : ''}
+                        </div>
+                        ${this.renderFold('account-email-more', t('accountEmail.moreSummary'), `
+                            ${box('account-email-lockout', field('notifyLockout') !== false, t('accountEmail.notifyLockout'))}
+                            ${box('account-email-device', field('notifyNewDevice') !== false, t('accountEmail.notifyNewDevice'))}
+                            ${box('account-email-asked', field('notifyTimeAsked') !== false, t('accountEmail.notifyTimeAsked'))}
+                            ${box('account-email-limit', field('notifyLimitReached') === true, t('accountEmail.notifyLimitReached'))}`, true)}`;
+                } else {
+                    body = `
+                        <div class="jpf-form-group">
+                            <label for="account-email-input">${t('accountEmail.address')}</label>
+                            <div class="jpf-inline-row">
+                                <input type="email" id="account-email-input" maxlength="254" autocomplete="email" value="${escapeHtml(address)}" />
+                                <button type="button" id="account-email-send" class="profiles-btn jpf-btn-primary">${t('accountEmail.send')}</button>
+                                ${address ? `<button type="button" id="account-email-cancel" class="profiles-btn jpf-btn-secondary">${t('common.cancel')}</button>` : ''}
+                            </div>
+                        </div>`;
+                }
+                slot.innerHTML = this.renderSection('mail', t('accountEmail.title'), t('accountEmail.subtitle'),
+                    body + '<div id="account-email-status" class="jpf-form-hint" role="status" aria-live="polite"></div>');
+
+                const q = (id) => slot.querySelector('#' + id);
+                const sent = q('account-email-sent');
+                if (sent) sent.textContent = t('accountEmail.sentTo', { address: pending });
+
+                const input = q('account-email-input');
+                if (input) {
+                    const send = () => {
+                        const typed = input.value.trim();
+                        if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(typed)) { say(t('accountEmail.invalid'), true); input.focus(); return; }
+                        run('account/email', { address: typed });
+                    };
+                    q('account-email-send').addEventListener('click', send);
+                    input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) send(); });
+                    const cancel = q('account-email-cancel');
+                    if (cancel) cancel.addEventListener('click', () => { editing = false; draw(); });
+                }
+
+                const codeInput = q('account-email-code');
+                if (codeInput) {
+                    const confirm = () => {
+                        const typed = codeInput.value.replace(/\s/g, '');
+                        if (!/^\d{6}$/.test(typed)) { say(t('accountEmail.codeInvalid'), true); codeInput.focus(); return; }
+                        run('account/email/confirm', { code: typed }, t('accountEmail.saved'));
+                    };
+                    q('account-email-confirm').addEventListener('click', confirm);
+                    codeInput.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) confirm(); });
+                    q('account-email-other').addEventListener('click', () => { editing = true; draw(); });
+                }
+
+                const change = q('account-email-change');
+                if (change) change.addEventListener('click', () => { editing = true; draw(); });
+                const remove = q('account-email-remove');
+                if (remove) remove.addEventListener('click', () => run('account/email', { address: '' }, t('accountEmail.removed')));
+
+                [['account-email-lockout', 'notifyLockout'], ['account-email-device', 'notifyNewDevice'],
+                    ['account-email-asked', 'notifyTimeAsked'], ['account-email-limit', 'notifyLimitReached']].forEach(pair => {
+                    const el = q(pair[0]);
+                    if (!el) return;
+                    el.addEventListener('change', () => {
+                        const body = {};
+                        body[pair[1]] = el.checked;
+                        this._emailCall('account/email', body)
+                            .then(reply => { data = reply; say(t('account.saved')); })
+                            .catch(err => { el.checked = !el.checked; say(this._failText(err, err.message), true); });
+                    });
+                });
+                this.initTVCheckboxes(slot);
+            };
+
+            this._emailCall('account/email')
+                .then(reply => { data = reply; draw(); })
+                .catch(() => { /* no section; the rest of the page works without it */ });
+        },
+
+        /// Puts the picker into "working on it" while a switch is in flight. The switch is a
+        /// round trip and a full page reload; on a phone nothing on screen changed for a couple
+        /// of seconds, so people read the tap as missed and kept tapping. _switchLock made the
+        /// extra taps harmless but never said so.
         setSwitchBusy: function (profileId, busy) {
+            // The spinner is for sighted people; this is the same news in words.
+            const live = document.getElementById('jpf-switch-live');
+            if (live) {
+                const wanted = this.normalizeGuid(profileId);
+                const who = (this.currentProfiles || []).find(p => this.normalizeGuid(p.profileUserId) === wanted);
+                live.textContent = busy ? t('gate.opening', { name: who ? who.profileName : '' }) : '';
+            }
+
             const overlay = document.getElementById('profiles-gate-overlay');
             if (overlay) {
                 overlay.classList.toggle('is-switching', busy);
                 if (busy) overlay.setAttribute('aria-busy', 'true');
                 else overlay.removeAttribute('aria-busy');
 
-                // Matched by normalised id rather than an attribute selector, so a profile
-                // id can never be read as one.
+                // Matched by normalised id, not an attribute selector, so a profile id can never be read as one.
                 const wanted = busy ? this.normalizeGuid(profileId) : null;
-                overlay.querySelectorAll('.profile-card').forEach(card => {
+                overlay.querySelectorAll('.jpf-profile-card').forEach(card => {
                     const isTarget = !!wanted
                         && this.normalizeGuid(card.getAttribute('data-id')) === wanted;
                     card.classList.toggle('is-switching', isTarget);
                 });
             }
 
-            // Started from a PIN prompt, the button is what the user is looking at — the
-            // card behind it may not even be on screen.
+            // Started from a PIN prompt, the button is what the user is looking at; the card
+            // behind it may not be on screen.
             ['pin-submit-btn', 'master-pin-submit-btn'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.classList.toggle('is-busy', busy);
             });
         },
 
+        /// fetch() that gives up. A server that accepts the connection and never answers (a
+        /// restart, a proxy dropping the reply) would lock the picker until a page reload.
+        ///
+        /// A timer raced against the request, not an AbortController: webOS 4.5 is Chromium 53
+        /// and has none. The request is not cancelled, just no longer listened to. Rejects
+        /// with isTimeout set.
+        _fetchTimed: function (url, init, ms) {
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    const e = new Error('timeout');
+                    e.isTimeout = true;
+                    reject(e);
+                }, ms || REQUEST_TIMEOUT_MS);
+                fetch(url, init).then(
+                    res => { clearTimeout(timer); resolve(res); },
+                    err => { clearTimeout(timer); reject(err); }
+                );
+            });
+        },
+
+        /// What to tell the person about a failed request. The server's own words go through;
+        /// anything the browser raised ("Failed to fetch", "Load failed", a JSON parse error)
+        /// is replaced, since it is untranslated and makes "wrong PIN" and "server unreachable"
+        /// read the same.
+        _failText: function (err, fallback) {
+            if (err && err.serverText) return err.serverText;
+            // By name, not instanceof: an error from another frame is not an instance of this one's TypeError.
+            if (err && (err.isTimeout || err.name === 'TypeError' || err.name === 'SyntaxError')) {
+                return t('switcher.unreachable');
+            }
+            return fallback;
+        },
+
+        /// The profile saved and its viewing hours did not. Said apart so it does not read as
+        /// a lost profile; the server's reason follows when it gave one.
+        _hoursFailText: function (err) {
+            const why = this._failText(err, '');
+            return t('errors.savingHours') + (why ? ' ' + why : '');
+        },
+
+        // onError: optional callback(message) on a failed switch. Callers capture their own
+        // DOM references via closure so nothing re-queries the DOM inside an async callback
+        // (it can race overlay teardown).
         executeProfileSwitch: function (profileId, pin, onError) {
             if (this._switchLock) return;
 
             const apiClient = ApiClient;
             const masterState = this.readMasterState();
-            if (!masterState) return;
+            if (!masterState) {
+                // No household to act for: nothing was sent. Saying nothing left a PIN screen that
+                // took its digits and did nothing (R-1207).
+                if (typeof onError === 'function') onError(t('switcher.failedBody'));
+                else this.showAlert(t('switcher.failedTitle'), t('switcher.failedBody'));
+                return;
+            }
 
             this._switchLock = true;
             this.setSwitchBusy(profileId, true);
             const url = apiClient.getUrl('plugins/profiles/switch');
 
-            fetch(url, {
+            this._fetchTimed(url, {
                 method: 'POST',
                 headers: this.jsonHeaders(masterState.token),
                 body: JSON.stringify({ profileId: profileId, pin: pin })
@@ -5305,15 +8512,20 @@
                 if (!res.ok) {
                     return res.text().then(text => {
                         const body = (text || '').trim();
-                        // Our own 401 (caller's token rejected) has an empty body. A 401 with a
-                        // message came from something failing further in — the target profile,
-                        // not the caller — so signing the master out would be wrong (issue #15).
+                        // Our own 401 (caller's token rejected) has an empty body. A 401 with a message came
+                        // from further in (the target profile, not the caller), so signing the master out
+                        // would be wrong (issue #15).
                         if (res.status === 401 && !body) {
                             this._switchLock = false;
                             this.handleSessionExpired();
                             throw new Error('Session expired');
                         }
-                        throw new Error(body || t('pin.incorrectPin'));
+                        // A 429's sentence is English; the wait is built here in the viewer's language. Any
+                        // other refusal is said by its code; the body is not shown.
+                        const shown = res.status === 429 ? this._lockedText(res) : refusalText(res);
+                        const refusal = new Error(shown || t('pin.incorrectPin'));
+                        refusal.serverText = shown;
+                        throw refusal;
                     });
                 }
                 return res.json();
@@ -5322,14 +8534,13 @@
                 const activeProfileToken = data.activeProfileToken || data.ActiveProfileToken;
                 const jellyfinUserId = data.jellyfinUserId || data.JellyfinUserId;
 
-                // The session being left, ended once the new one is safely stored below.
+                // The session being left, ended once the new one is stored below.
                 const leavingToken = masterState.token;
 
-                // Before anything else is written, because this is the one write that has
-                // to survive the reload. Without it the token lives only on this page's
-                // ApiClient, and the reload signs back in as whoever was there before —
-                // right name in the header, wrong account underneath. Bail here rather
-                // than leave session keys describing a switch that will not happen.
+                // First write, because it is the one that must survive the reload. Without it the
+                // token lives only on this page's ApiClient and the reload signs back in as whoever
+                // was there before: right name in the header, wrong account underneath. Bail here
+                // rather than leave session keys describing a switch that will not happen.
                 if (!this.updateStoredCredentials(activeProfileToken, jellyfinUserId)) {
                     this._switchLock = false;
                     this.setSwitchBusy(profileId, false);
@@ -5339,17 +8550,15 @@
 
                 this._sessionSet(this.config.activeSessionKey, activeProfileToken);
 
-                // Nothing on this device should go on holding the account it just left —
-                // above all when that was the master. Its token was the thing the switcher
-                // is meant to stand in front of, and a copy kept "for later" is a copy anyone
-                // at this browser can use. Coming back is a /switch like any other.
+                // Nothing on this device keeps the account it just left, above all the master. Its
+                // token is what the switcher stands in front of, and a kept copy is usable by anyone
+                // at this browser. Coming back is a /switch like any other.
                 if (leavingToken && leavingToken !== activeProfileToken) this._endSession(leavingToken);
 
-                // Cached against the profile being switched into, before the reload, so the
-                // next load starts with the right rules already in place.
+                // Cached against the profile being switched into, so the next load starts with the right rules.
                 this.cacheLibraryArtwork(jellyfinUserId, data.libraryArtwork || data.LibraryArtwork || []);
 
-                // A switch has happened; there is no longer an earlier profile to go back to.
+                // A switch has happened; there is no earlier profile to go back to.
                 this._resumeState = null;
 
                 const profile = this.currentProfiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
@@ -5365,31 +8574,29 @@
 
                 apiClient.setAuthenticationInfo(activeProfileToken, jellyfinUserId);
 
-                // The overlay is opaque and covers the viewport, so leaving it up is all it
-                // takes to keep the old page out of sight — and it keeps the spinner on
-                // screen for however long the reload costs. Blanking the document instead
-                // meant a phone showed several seconds of black with nothing to say the tap
-                // had registered. Only the background is calmed towards the next page.
+                // The overlay is opaque and covers the viewport, so leaving it up hides the old page
+                // and keeps the spinner on screen through the reload. Blanking the document instead
+                // showed a phone several seconds of black with no sign the tap registered.
                 const leavingBg = this._captureLeavingBackground();
-                // A second layer under the gate, in its colour, for as long as this page
-                // lives. The gate is the cover while it stays up; this is for the moment
-                // it does not — whatever takes it down before the navigation lands, the
-                // old profile's home is not what shows. Only the reload failing takes it
-                // down (_reloadFailed), so there is no backstop timer to race the reload.
+                // A second layer under the gate, in its colour, for the life of this page: if the
+                // gate comes down before the navigation lands, the old profile's home must not show.
+                // Only a failed reload takes it down (_reloadFailed), so no backstop timer races the reload.
                 this._holdCoverForSwitch();
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
-                    overlay.style.transition = 'background 0.2s ease';
+                    overlay.classList.add('jpf-bg-fade');
                     overlay.style.background = leavingBg;
                 } else {
-                    // Menu-mode switch with no gate on screen: nothing is covering the app,
-                    // so the old page does still have to be hidden before it repaints.
+                    // Menu-mode switch with no gate on screen: nothing covers the app, so the old
+                    // page must be hidden before it repaints.
                     document.documentElement.style.cssText =
                         'opacity:0;background:' + leavingBg + ';color-scheme:'
                         + (this._isLightColour(leavingBg) ? 'light' : 'dark');
                 }
                 this._reloading = true;
-                localStorage.setItem(this.config.switchingKey, '1');
+                // Guarded like every other use of the key: full or blocked storage threw here, into
+                // the catch below, after the switch had already succeeded.
+                try { localStorage.setItem(this.config.switchingKey, '1'); } catch (e) { /* the reload still happens */ }
                 this.reloadAtHome();
             })
             .catch(err => {
@@ -5397,34 +8604,33 @@
                 this.setSwitchBusy(profileId, false);
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
-                    // Caller has closed-over references to the DOM — no re-query needed
-                    onError(err.message || t('pin.incorrectPin'));
+                    // Caller holds its own DOM references; no re-query needed
+                    onError(this._failText(err, err.message || t('pin.incorrectPin')));
                 } else {
-                    // Fallback: no PIN screen is currently shown (e.g. direct card tap without PIN prompt)
+                    // No PIN screen is shown (a direct tap on a profile with no PIN): put the picker
+                    // back and say why, or the tile just stops responding.
                     this.isManageMode = false;
                     this.interceptHomeAndShowProfiles();
+                    this.showAlert(t('switcher.failedTitle'),
+                        this._failText(err, t('switcher.failedBody')));
                 }
             });
         },
 
         // ── Avatar images ──────────────────────────────────────────────────────────
-        // Two renderings are produced for every picture: a master used where the avatar is
-        // shown large, and a thumbnail used by grids and switcher cards. Twenty full-size
-        // avatars in a picker would otherwise decode about twenty megabytes of bitmap,
-        // which is enough to stall the TV browsers this plugin supports.
-        //
-        // Both are produced here, in the browser, so the plugin needs no server-side image
-        // library. It also means the accepted input set is "whatever this browser can
-        // decode" while the stored output stays deliberately narrow.
+        // Two renderings per picture: a master for large display and a thumbnail for grids and
+        // switcher cards. Twenty full-size avatars in a picker would decode about twenty
+        // megabytes of bitmap, enough to stall the TV browsers this plugin supports.
+        // Both are made in the browser, so the plugin needs no server-side image library;
+        // the accepted input is whatever this browser can decode, the stored output stays narrow.
 
         IMAGE_MASTER_SIZE: 512,
         IMAGE_THUMB_SIZE: 128,
         IMAGE_JPEG_QUALITY: 0.85,
 
-        /// The sizes to render a picture at, from the server's picture quality setting.
-        /// Anything missing or out of range falls back to the standard sizes above, which
-        /// are what every picture was before the setting existed — and what a server older
-        /// than it expects, since it will refuse anything over 2 MB.
+        /// The sizes to render a picture at, from the server's picture quality setting. Missing
+        /// or out-of-range values fall back to the standard sizes above, which are what every
+        /// picture was before the setting and what an older server expects (it refuses over 2 MB).
         parseImageSpec: function (raw) {
             const pick = (k) => raw ? (raw[k] !== undefined ? raw[k] : raw[k.charAt(0).toUpperCase() + k.slice(1)]) : undefined;
             const size = Number(pick('masterSize'));
@@ -5441,21 +8647,19 @@
             return this._imageSpec || this.parseImageSpec(null);
         },
 
-        /// Formats refused before we even try to decode, each with a reason worth showing.
-        /// Everything else is handed to the browser: if it decodes, we can store it.
+        /// Formats refused before decoding, each with a reason worth showing. Everything else
+        /// goes to the browser: if it decodes, we can store it.
         _rejectImageFile: function (file) {
             const name = (file.name || '').toLowerCase();
             const type = (file.type || '').toLowerCase();
 
-            // The common case by a distance: iPhones shoot HEIC by default, and only Safari
-            // can decode it. Elsewhere the canvas load simply fails, so without this the
-            // user gets silence and no idea why.
+            // The common case: iPhones shoot HEIC and only Safari can decode it. Elsewhere the
+            // canvas load just fails, leaving the user with silence.
             if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
                 return t('errors.heicUnsupported');
             }
 
-            // SVG can carry script, and these files are served back from the server's own
-            // origin. Not worth it for an avatar.
+            // SVG can carry script and these files are served from the server's origin.
             if (type.includes('svg') || /\.svgz?$/.test(name)) {
                 return t('errors.svgUnsupported');
             }
@@ -5467,7 +8671,7 @@
             return null;
         },
 
-        /// Reads a File into a decoded <img>. Rejects with a message fit to show the user.
+        /// Reads a File into a decoded <img>. Rejects with a message fit to show.
         loadImageFromFile: function (file) {
             return new Promise((resolve, reject) => {
                 const reason = this._rejectImageFile(file);
@@ -5484,8 +8688,8 @@
                         }
                         resolve(img);
                     };
-                    // Reached for any format this browser cannot decode — including a HEIC
-                    // that slipped past the check above with an empty MIME type.
+                    // Any format this browser cannot decode, including HEIC that slipped past the check
+                    // above with an empty MIME type.
                     img.onerror = () => reject(new Error(t('errors.imageFormatUnsupported')));
                     img.src = event.target.result;
                 };
@@ -5493,10 +8697,10 @@
             });
         },
 
-        /// Loads a URL into an <img> for cropping. Used when someone picks an avatar from the
-        /// administrator's library. The canvas has to stay untainted or the crop cannot be
-        /// re-encoded, so anything off-origin is requested with CORS — that is the packaged
-        /// clients, where the page origin is the app rather than the server.
+        /// Loads a URL into an <img> for cropping, for avatars picked from the administrator's
+        /// library. The canvas must stay untainted or the crop cannot be re-encoded, so
+        /// off-origin URLs are requested with CORS (the packaged clients, where the page
+        /// origin is the app).
         loadImageFromUrl: function (url) {
             const resolved = pluginUrl(url);
             return new Promise((resolve, reject) => {
@@ -5512,12 +8716,61 @@
             });
         },
 
+        /// Pointer bookkeeping for the picture-position dialog: one finger pans, two pinch.
+        /// pan(dx, dy) and setZoom(z) are the dialog's; getZoom() reads the slider; grab(bool)
+        /// flips the cursor. Returns begin/move/end by pointer id.
+        ///
+        /// When one finger of a pinch lifts, the remaining finger is measured again from where
+        /// it is now. Otherwise the first move after the lift was taken from where the drag
+        /// began and the picture jumped (R-1204).
+        _cropGesture: function (getZoom, pan, setZoom, grab) {
+            let dragging = false, lastX = 0, lastY = 0, pinchStart = 0, pinchZoomStart = 1;
+            const active = new Map();
+            const spread = () => {
+                const pts = Array.from(active.values());
+                return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            };
+            return {
+                count: function () { return active.size; },
+                begin: function (id, x, y) {
+                    active.set(id, { x: x, y: y });
+                    if (active.size === 1) {
+                        dragging = true; lastX = x; lastY = y;
+                        grab(true);
+                    } else if (active.size === 2) {
+                        pinchStart = spread();
+                        pinchZoomStart = getZoom();
+                    }
+                },
+                move: function (id, x, y) {
+                    if (!active.has(id)) return;
+                    active.set(id, { x: x, y: y });
+                    if (active.size >= 2) {
+                        if (active.size === 2 && pinchStart > 0) setZoom(pinchZoomStart * (spread() / pinchStart));
+                        return;
+                    }
+                    if (!dragging) return;
+                    pan(x - lastX, y - lastY);
+                    lastX = x; lastY = y;
+                },
+                end: function (id) {
+                    active.delete(id);
+                    if (active.size < 2) pinchStart = 0;
+                    if (active.size === 1) {
+                        const left = active.values().next().value;
+                        lastX = left.x; lastY = left.y;
+                    }
+                    if (active.size === 0) { dragging = false; grab(false); }
+                }
+            };
+        },
+
         /// Smallest zoom at which the image still covers a square of `size`.
         _coverZoom: function (img, size) {
             return Math.max(size / img.width, size / img.height);
         },
 
-        /// Keeps the image covering the viewport, so a crop can never include blank edges.
+        /// Keeps the image covering the viewport, so a crop never has blank edges.
         _clampCrop: function (img, viewport, crop) {
             const w = img.width * crop.zoom;
             const h = img.height * crop.zoom;
@@ -5539,30 +8792,26 @@
             return canvas;
         },
 
-        /// Renders the cropped square at `outSize` and returns it as a data URL.
-        /// PNG is used when the source has transparency — re-encoding a cut-out avatar as
-        /// JPEG would fill the transparent area with black.
+        /// Renders the cropped square at `outSize` as a data URL. PNG when the source has
+        /// transparency: JPEG would fill a cut-out avatar's transparent area with black.
         renderCrop: function (img, viewport, crop, outSize, preferPng) {
             const canvas = this._cropCanvas(img, viewport, crop, outSize);
             return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', this.imageSpec().jpegQuality);
         },
 
-        /// Reads an image's alpha channel at low resolution and answers the two separate
-        /// questions the picker has about it. One decode, two answers.
+        /// Reads an image's alpha channel at low resolution and answers the picker's two
+        /// questions in one decode.
         ///
-        ///   hasAlpha — is any pixel less than fully opaque? Decides PNG over JPEG, where
-        ///              a single soft pixel is enough to matter, because re-encoding a
-        ///              cut-out as JPEG fills the transparent area with black.
+        ///   hasAlpha: is any pixel less than fully opaque? Decides PNG over JPEG; one soft
+        ///             pixel is enough to matter.
         ///
-        ///   cutout   — is this shaped art rather than a rectangular photo? Decides
-        ///              whether to paint the avatar colour behind it (issue #23). This is
-        ///              a much stricter question and deliberately not the same test: an
-        ///              antialiased edge or a soft border makes hasAlpha true, and must
-        ///              not be allowed to switch somebody's background off.
+        ///   cutout:   is this shaped art rather than a rectangular photo? Decides whether to
+        ///             paint the avatar colour behind it (issue #23). Much stricter: an
+        ///             antialiased edge makes hasAlpha true and must not switch somebody's
+        ///             background off.
         ///
-        /// cutout reads the corners, because `object-fit: cover` means the corners are the
-        /// only place the colour is ever visible. A circular avatar has four transparent
-        /// corners; a photograph has none.
+        /// cutout reads the corners, because `object-fit: cover` makes them the only place the
+        /// colour is visible. A circular avatar has four transparent corners; a photo has none.
         _alphaProfile: function (source) {
             const out = { hasAlpha: false, cutout: false };
             try {
@@ -5577,12 +8826,11 @@
                     if (data[i] < 250) { out.hasAlpha = true; break; }
                 }
 
-                // Nothing is transparent at all, so there is no shape to work around and
-                // the corner walk cannot say otherwise.
+                // Nothing is transparent, so there is no shape to work around.
                 if (!out.hasAlpha) return out;
 
-                // A corner counts as cut away only when a whole 4x4 block of it is clear.
-                // One outermost pixel would let a single stray sample decide this.
+                // A corner counts as cut away only when a whole 4x4 block is clear; one outermost
+                // pixel would let a stray sample decide.
                 const BLOCK = 4;
                 const corners = [[0, 0], [s - BLOCK, 0], [0, s - BLOCK], [s - BLOCK, s - BLOCK]];
                 let clearCorners = 0;
@@ -5599,33 +8847,32 @@
                     if (clear) clearCorners++;
                 }
 
-                // Three of four rather than all four: a circle with one stray opaque
-                // sample still counts, a rectangle with one rounded corner still does not.
+                // Three of four, not all: a circle with one stray opaque sample still counts, a
+                // rectangle with one rounded corner still does not.
                 out.cutout = clearCorners >= 3;
             } catch (e) { /* tainted canvas or no context — assume an opaque photo */ }
             return out;
         },
 
-        /// True when any pixel is not fully opaque. Sampled at low resolution — this only
-        /// decides an output format, so an exact answer is not worth the work.
+        /// True when any pixel is not fully opaque. Sampled at low resolution; it only picks
+        /// an output format.
         _hasTransparency: function (img) {
             return this._alphaProfile(img).hasAlpha;
         },
 
-        /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does
-        /// nothing if the user cancels.
-        ///
-        /// Supports all three input modes the supported clients need: mouse drag, touch
-        /// drag, and D-pad (arrows pan, +/- zoom, and the zoom slider is focusable).
+        /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does nothing
+        /// if the user cancels. Supports mouse drag, touch drag and D-pad (arrows pan, +/-
+        /// zoom, the zoom slider is focusable).
         showCropDialog: function (img, onDone) {
+            // Two quick picks used to open two dialogs, one on top of the other.
+            if (this._cropClose) this._cropClose();
             const VIEW = 260;
             const preferPng = this._hasTransparency(img);
 
             const minZoom = this._coverZoom(img, VIEW);
             let crop = this._clampCrop(img, VIEW, {
                 zoom: minZoom,
-                // Start centred — the subject of a photo is far more often in the middle
-                // than in a corner.
+                // Start centred: a photo's subject is far more often in the middle.
                 x: (VIEW - img.width * minZoom) / 2,
                 y: (VIEW - img.height * minZoom) / 2
             });
@@ -5640,31 +8887,35 @@
                 z-index: ${DIALOG_Z};
             `;
             dialog.innerHTML = `
-                <div style="background:#181818; border:1px solid rgba(255,255,255,0.1); border-radius: var(--jpf-r-md);
+                <div style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);
                             padding:22px; max-width:340px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:center;
                             user-select:none; -webkit-user-select:none;">
-                    <h2 style="margin:0 0 4px 0; color:#fff; font-size:1.15rem; font-weight:700;">${t('avatar.positionYourPicture')}</h2>
-                    <p style="color:rgba(255,255,255,0.55); font-size:0.78rem; margin:0 0 14px 0;">
+                    <h2 style="margin:0 0 4px 0; color:var(--jpf-text-1); font-size:1.15rem; font-weight:700;">${t('avatar.positionYourPicture')}</h2>
+                    <p id="profiles-crop-hint" style="color:var(--jpf-text-2); font-size:0.78rem; margin:0 0 14px 0;">
                         ${t('avatar.dragOrArrows')}
                     </p>
                     <!-- data-profiles-own-keys marks the arrows as this element's own, so
                          the focus trap leaves them for panning. It is on the view and not
                          the dialog so the buttons below stay reachable by remote. -->
-                    <div id="profiles-crop-view" tabindex="0" data-profiles-own-keys="1" style="
+                    <!-- Named and described, since it is a tab stop that takes the arrow keys;
+                         the canvas inside is a picture of nothing a screen reader can read. -->
+                    <div id="profiles-crop-view" tabindex="0" data-profiles-own-keys="1" role="application"
+                         aria-label="${escapeHtml(t('avatar.positionYourPicture'))}" aria-describedby="profiles-crop-hint" style="
                         width:${VIEW}px; height:${VIEW}px; margin:0 auto; border-radius:50%;
                         overflow:hidden; position:relative; cursor:grab; touch-action:none;
                         background:#0d0d12; outline-offset:3px;">
-                        <canvas id="profiles-crop-canvas" width="${VIEW}" height="${VIEW}"
+                        <canvas id="profiles-crop-canvas" width="${VIEW}" height="${VIEW}" aria-hidden="true"
                                 style="display:block; width:${VIEW}px; height:${VIEW}px;"></canvas>
                     </div>
                     <input type="range" id="profiles-crop-zoom" min="1" max="4" step="0.01" value="1"
-                           style="width:100%; margin:16px 0 4px 0;" aria-label="${t('avatar.zoom')}" />
-                    <div style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
-                        <button id="profiles-crop-cancel" class="profiles-btn btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
-                        <button id="profiles-crop-save" class="profiles-btn btn-primary" style="padding:10px 20px; font-weight:600;">${t('avatar.usePicture')}</button>
+                           style="width:100%; margin:16px 0 4px 0;" aria-label="${escapeHtml(t('avatar.zoom'))}" />
+                    <div class="jpf-row-gap" style="display:flex; gap: var(--jpf-gap); justify-content:center; margin-top:12px;">
+                        <button id="profiles-crop-save" class="profiles-btn jpf-btn-primary" style="padding:10px 20px; font-weight:600;">${t('avatar.usePicture')}</button>
+                        <button id="profiles-crop-cancel" class="profiles-btn jpf-btn-secondary" style="padding:10px 20px; font-weight:600;">${t('common.cancel')}</button>
                     </div>
                 </div>
             `;
+            markDialog(dialog);
             document.body.appendChild(dialog);
 
             const view = dialog.querySelector('#profiles-crop-view');
@@ -5681,8 +8932,7 @@
             const setZoom = (multiplier, anchorX, anchorY) => {
                 const next = Math.max(1, Math.min(4, multiplier));
                 const newZoom = minZoom * next;
-                // Zoom about a point so the image does not lurch sideways: keep whatever
-                // was under the anchor in the same place.
+                // Zoom about a point: keep whatever was under the anchor in the same place.
                 const ax = anchorX === undefined ? VIEW / 2 : anchorX;
                 const ay = anchorY === undefined ? VIEW / 2 : anchorY;
                 const ratio = newZoom / crop.zoom;
@@ -5698,53 +8948,24 @@
             zoomInput.addEventListener('input', () => setZoom(parseFloat(zoomInput.value)));
 
             // ── Dragging ──────────────────────────────────────────────────────────
-            // Movement and release are tracked on window, not on the circle. Pointer
-            // capture used to be what kept a gesture alive, and it is not dependable
-            // across the clients this runs on — a throw from setPointerCapture aborted
-            // the handler before dragging was ever set, which is why panning did nothing
-            // while the zoom slider still worked. Capture is now best-effort only.
-            let dragging = false, lastX = 0, lastY = 0, pinchStart = 0, pinchZoomStart = 1;
-            const activePointers = new Map();
+            // Movement and release are tracked on window, not the circle. Pointer capture was
+            // unreliable across clients: a throw from setPointerCapture aborted the handler before
+            // dragging was set, so panning did nothing while the zoom slider worked. Capture is
+            // now best-effort.
+            const gesture = this._cropGesture(
+                () => parseFloat(zoomInput.value),
+                (dx, dy) => {
+                    crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x + dx, y: crop.y + dy });
+                    draw();
+                },
+                z => setZoom(z),
+                down => { view.style.cursor = down ? 'grabbing' : 'grab'; }
+            );
+            const beginPointer = (id, x, y) => gesture.begin(id, x, y);
+            const movePointer = (id, x, y) => gesture.move(id, x, y);
+            const endPointer = (id) => gesture.end(id);
 
-            const beginPointer = (id, x, y) => {
-                activePointers.set(id, { x: x, y: y });
-                if (activePointers.size === 1) {
-                    dragging = true; lastX = x; lastY = y;
-                    view.style.cursor = 'grabbing';
-                } else if (activePointers.size === 2) {
-                    const pts = Array.from(activePointers.values());
-                    pinchStart = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-                    pinchZoomStart = parseFloat(zoomInput.value);
-                }
-            };
-
-            const movePointer = (id, x, y) => {
-                if (!activePointers.has(id)) return;
-                activePointers.set(id, { x: x, y: y });
-
-                if (activePointers.size === 2 && pinchStart > 0) {
-                    const pts = Array.from(activePointers.values());
-                    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-                    setZoom(pinchZoomStart * (dist / pinchStart));
-                    return;
-                }
-                if (!dragging) return;
-                crop = this._clampCrop(img, VIEW, {
-                    zoom: crop.zoom,
-                    x: crop.x + (x - lastX),
-                    y: crop.y + (y - lastY)
-                });
-                lastX = x; lastY = y;
-                draw();
-            };
-
-            const endPointer = (id) => {
-                activePointers.delete(id);
-                if (activePointers.size < 2) pinchStart = 0;
-                if (activePointers.size === 0) { dragging = false; view.style.cursor = 'grab'; }
-            };
-
-            // Tracked so the window-level listeners come off again when the dialog closes.
+            // Tracked so the window-level listeners come off when the dialog closes.
             const bound = [];
             const on = (target, type, fn, opts) => {
                 target.addEventListener(type, fn, opts);
@@ -5753,11 +8974,9 @@
 
             if (window.PointerEvent) {
                 on(view, 'pointerdown', (e) => {
-                    // Stops the browser starting a text selection or image drag instead,
-                    // which on desktop swallows the rest of the gesture.
+                    // Stops the browser starting a text selection or image drag, which on desktop swallows the gesture.
                     e.preventDefault();
-                    // preventDefault also suppresses the focus that a click would give,
-                    // and focus is what the arrow-key panning below needs.
+                    // preventDefault also suppresses the click's focus, which the arrow-key panning needs.
                     view.focus();
                     try { view.setPointerCapture(e.pointerId); } catch (err) { /* best effort */ }
                     beginPointer(e.pointerId, e.clientX, e.clientY);
@@ -5766,7 +8985,7 @@
                 on(window, 'pointerup', (e) => endPointer(e.pointerId));
                 on(window, 'pointercancel', (e) => endPointer(e.pointerId));
             } else {
-                // Older TV browsers have no Pointer Events at all.
+                // Older TV browsers have no Pointer Events.
                 on(view, 'mousedown', (e) => { e.preventDefault(); beginPointer('mouse', e.clientX, e.clientY); });
                 on(window, 'mousemove', (e) => movePointer('mouse', e.clientX, e.clientY));
                 on(window, 'mouseup', () => endPointer('mouse'));
@@ -5776,7 +8995,7 @@
                     Array.prototype.forEach.call(e.changedTouches, t => beginPointer(t.identifier, t.clientX, t.clientY));
                 }, { passive: false });
                 on(window, 'touchmove', (e) => {
-                    if (!activePointers.size) return;
+                    if (!gesture.count()) return;
                     // Without this the page scrolls under the finger instead of panning.
                     e.preventDefault();
                     Array.prototype.forEach.call(e.changedTouches, t => movePointer(t.identifier, t.clientX, t.clientY));
@@ -5786,20 +9005,19 @@
                 on(window, 'touchcancel', endTouch);
             }
 
-            // D-pad / keyboard. A television has no pointer at all, so this is the only way
-            // in on the clients that need the avatar library most.
+            // D-pad / keyboard. A television has no pointer, so this is the only way in on the
+            // clients that need the avatar library most.
             view.addEventListener('keydown', (e) => {
                 const step = 12;
                 let handled = true;
-                switch (e.key) {
+                switch (keyName(e)) {
                     case 'ArrowLeft':  crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x + step, y: crop.y }); break;
                     case 'ArrowRight': crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x - step, y: crop.y }); break;
                     case 'ArrowUp':    crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x, y: crop.y + step }); break;
                     case 'ArrowDown':  crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x, y: crop.y - step }); break;
                     case '+': case '=': setZoom(parseFloat(zoomInput.value) + 0.2); break;
                     case '-': case '_': setZoom(parseFloat(zoomInput.value) - 0.2); break;
-                    // The arrows are spent on panning here, so OK is the way onward. A
-                    // remote has nothing else to leave the picture with.
+                    // Arrows are spent on panning, so OK is the way onward; a remote has nothing else to leave with.
                     case 'Enter': case ' ':
                         e.preventDefault();
                         dialog.querySelector('#profiles-crop-save').focus();
@@ -5809,48 +9027,62 @@
                 if (handled) { e.preventDefault(); draw(); }
             });
 
+            // The dialog sits on the body, outside the gate, so tearing the gate down (idle lock,
+            // expiry) left it up with its window listeners (R-1218). removeProfileOverlay calls this.
             const close = () => {
                 bound.forEach(([target, type, fn, opts]) => target.removeEventListener(type, fn, opts));
                 bound.length = 0;
+                this._cropClose = null;
                 dialog.remove();
             };
+            this._cropClose = close;
+            dialog.addEventListener('keydown', (e) => {
+                if (isKey(e, 'Escape') || isKey(e, 'Esc')) { e.preventDefault(); e.stopPropagation(); close(); }
+            });
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
-                const spec = this.imageSpec();
-                const thumbCanvas = this._cropCanvas(img, VIEW, crop, spec.thumbSize);
+                let result;
+                // A canvas tainted by a cross-origin picture throws on read-back. Uncaught, it threw
+                // before close() and left a dialog with a dead button.
+                try {
+                    const spec = this.imageSpec();
+                    const thumbCanvas = this._cropCanvas(img, VIEW, crop, spec.thumbSize);
 
-                // Read from the cropped result, not the source. Cropping into the opaque
-                // middle of a cut-out leaves a picture with nothing transparent about it,
-                // and the background decision has to describe what will actually be shown.
-                // preferPng stays on the source, where being over-eager costs only bytes.
-                const cutout = this._alphaProfile(thumbCanvas).cutout;
+                    // Read from the cropped result, not the source: cropping into the opaque middle of a
+                    // cut-out leaves nothing transparent, and the background decision must describe what is
+                    // shown. preferPng stays on the source, where over-eager only costs bytes.
+                    const cutout = this._alphaProfile(thumbCanvas).cutout;
 
-                const image = this.renderCrop(img, VIEW, crop, spec.masterSize, preferPng);
-                const thumb = preferPng
-                    ? thumbCanvas.toDataURL('image/png')
-                    : thumbCanvas.toDataURL('image/jpeg', spec.jpegQuality);
+                    const image = this.renderCrop(img, VIEW, crop, spec.masterSize, preferPng);
+                    const thumb = preferPng
+                        ? thumbCanvas.toDataURL('image/png')
+                        : thumbCanvas.toDataURL('image/jpeg', spec.jpegQuality);
+                    result = { image: image, thumb: thumb, cutout: cutout };
+                } catch (err) {
+                    close();
+                    this.showAlert(t('errors.error'), t('avatar.cropFailed'));
+                    return;
+                }
                 close();
-                onDone({ image: image, thumb: thumb, cutout: cutout });
+                onDone(result);
             });
 
             setTimeout(() => view.focus(), 50);
         },
 
-        /// Fetches the administrator's avatar library. Resolves to a safe empty shape on
-        /// failure so a picker can always render.
+        /// Fetches the administrator's avatar library. Resolves to an empty shape on failure so a picker can render.
         fetchAvatarLibrary: function (apiClient, token) {
-            return fetch(apiClient.getUrl('plugins/profiles/avatars'), {
-                cache: 'no-store',
-                headers: this.getAuthHeaders(token)
-            })
-            .then(res => res.ok ? res.json() : Promise.reject(new Error('unavailable')))
-            .then(data => {
-                // The administrator's picture quality rides along with the avatar list,
-                // because every picker that could save a picture has already asked for it.
-                this._imageSpec = this.parseImageSpec(data.image || data.Image);
-                return data;
-            })
-            .then(data => ({
+            return this.fetchFormOptions(apiClient, token)
+                .then(options => this.readAvatarLibrary(this._field(options, 'avatars')))
+                .catch(() => ({ allowCustomUploads: true, avatars: [], failed: true }));
+        },
+
+        /// The avatars part of the form options, in the shape the pickers use.
+        readAvatarLibrary: function (data) {
+            data = data || {};
+            // Picture quality rides along with the avatar list; every picker that can save a picture has asked for it.
+            this._imageSpec = this.parseImageSpec(data.image || data.Image);
+            return {
                 allowCustomUploads: (data.allowCustomUploads !== undefined ? data.allowCustomUploads : data.AllowCustomUploads) !== false,
                 avatars: (data.avatars || data.Avatars || []).map(a => ({
                     id: a.id || a.Id,
@@ -5858,42 +9090,33 @@
                     url: a.url || a.Url,
                     thumbUrl: a.thumbUrl || a.ThumbUrl
                 }))
-            }))
-            .catch(() => ({ allowCustomUploads: true, avatars: [] }));
+            };
         },
 
-        /// Renders the profile-picture block. Shared by the create and edit forms so the two
-        /// cannot drift — they already carried near-identical copies of the old upload UI.
+        /// Renders the profile-picture block, shared by the create and edit forms so they cannot
+        /// drift. `prefix` namespaces the element ids ('create' or 'edit').
         ///
-        /// `prefix` namespaces the element ids ('create' or 'edit').
-        /// The cut-out background choice (issue #23).
-        ///
-        /// Rendered by the form rather than by renderAvatarPicker, and placed directly under
-        /// the name field: it decides what happens to the avatar *colour*, so sitting below
-        /// the picture panel put the whole picture row between it and the swatches it
-        /// governs. initAvatarPicker still owns the wiring and finds it by id wherever the
-        /// form has put it.
-        ///
-        /// Hidden until a picture is set — with no picture the colour is the entire
-        /// background and there is nothing to switch off. The library-artwork dialog reuses
-        /// the picker and simply never calls this.
+        /// Includes the cut-out background choice (issue #23), right under the preview and its
+        /// buttons since 1.7.2; the forms put the colour swatches straight after the picker, so
+        /// it sits beside them. initAvatarPicker owns the wiring and finds it by id. Hidden
+        /// until a picture is set: with none, the colour is the whole background. The
+        /// library-artwork dialog passes no `transparency`, so it never draws this.
         renderTransparentToggle: function (prefix, currentImage, currentTransparent) {
             return `
-                <div id="${prefix}-transparent-row" class="form-group picture-transparent-row"
+                <div id="${prefix}-transparent-row" class="jpf-form-group jpf-picture-transparent-row"
                      style="display: ${currentImage ? 'block' : 'none'};">
-                    <label class="library-check-label picture-transparent-toggle">
+                    <label class="jpf-library-check-label jpf-picture-transparent-toggle">
                         <input type="checkbox" id="${prefix}-transparent-toggle"${currentTransparent ? ' checked' : ''} />
                         <span>${t('profileForm.noBackground')}</span>
                     </label>
-                    <div class="form-hint picture-transparent-hint">${t('profileForm.noBackgroundHint')}</div>
+                    <div class="jpf-form-hint jpf-picture-transparent-hint">${t('profileForm.noBackgroundHint')}</div>
                 </div>
             `;
         },
 
-        /// `transparency` opts this picker into the cut-out background choice (issue #23):
-        /// null or omitted means the form is not offering it, which is what the
-        /// library-artwork dialog wants — it reuses this picker to choose a tile picture,
-        /// where a transparent avatar background means nothing. Otherwise { enabled: bool }.
+        /// `transparency` opts this picker into the cut-out background choice (issue #23). Null
+        /// or omitted means the form does not offer it (the library-artwork dialog reuses this
+        /// picker for a tile picture, where a transparent background means nothing). Otherwise { enabled: bool }.
         renderAvatarPicker: function (prefix, library, currentImage, currentColor, transparency) {
             const supportsTransparent = !!transparency;
             const currentTransparent = supportsTransparent && !!transparency.enabled;
@@ -5901,11 +9124,11 @@
             const preview = currentImage ? avatarInner(currentImage, '+', /* useThumb */ true) : '+';
 
             const libraryHtml = hasLibrary ? `
-                <div class="picture-source-block">
-                    <div class="picture-source-title">${t('avatar.fromThisServer')}</div>
-                    <div id="${prefix}-avatar-library" class="avatar-library-grid">
+                <div class="jpf-picture-source-block">
+                    <div class="jpf-picture-source-title">${t('avatar.fromThisServer')}</div>
+                    <div id="${prefix}-avatar-library" class="jpf-avatar-library-grid">
                         ${library.avatars.map(a => `
-                            <button type="button" class="avatar-library-item" tabindex="0"
+                            <button type="button" class="jpf-avatar-library-item" tabindex="0"
                                     data-id="${escapeHtml(a.id)}" data-url="${escapeHtml(a.url)}"
                                     title="${escapeHtml(a.displayName)}"
                                     aria-label="${escapeHtml(a.displayName) || t('avatar.avatarLabel')}">
@@ -5916,62 +9139,60 @@
                 </div>
             ` : '';
 
-            // The upload control disappears entirely when the administrator has locked
-            // avatars to the library — a disabled button people cannot use is just noise.
+            // The upload control disappears when the administrator has locked avatars to the
+            // library; a disabled button is noise.
             const uploadHtml = library.allowCustomUploads ? `
-                <div class="picture-source-block">
-                    <div class="picture-source-title">${t('avatar.fromThisDevice')}</div>
-                    <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn btn-secondary image-upload-btn" tabindex="0">
-                        <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                <div class="jpf-picture-source-block">
+                    <div class="jpf-picture-source-title">${t('avatar.fromThisDevice')}</div>
+                    <label for="${prefix}-profile-image-file" id="${prefix}-profile-image-label" class="profiles-btn jpf-btn-secondary jpf-image-upload-btn" tabindex="0" role="button">
+                        <span class="material-icons" aria-hidden="true" style="font-size: 1.25rem;">photo_camera</span>
                         <span>${t('avatar.uploadPicture')}</span>
                     </label>
                     <input type="file" id="${prefix}-profile-image-file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/bmp" style="display: none;" />
-                    <div class="form-hint" style="margin: 0;">${t('avatar.uploadHint')}</div>
+                    <div class="jpf-form-hint" style="margin: 0;">${t('avatar.uploadHint')}</div>
                 </div>
             ` : `
-                <div class="form-hint" style="margin: 0; min-width: 0;">
+                <div class="jpf-form-hint" style="margin: 0; min-width: 0;">
                     ${t('avatar.adminLimited')}
                 </div>
             `;
 
-            // A pasted URL was the odd one out among the ways of setting a picture: it
-            // could not be cropped, nothing was copied onto the server, and the avatar
-            // broke the day the far end went away — with no sign here that it had. Every
-            // other path ends in a file this server owns.
+            // A pasted URL was the odd one out: it could not be cropped, nothing was copied to
+            // the server, and the avatar broke when the far end went away. Every other path ends
+            // in a file this server owns.
 
-            // Open when there is no picture yet, because on a new profile choosing one IS
-            // the task. On a profile that already has one, the whole apparatus was sitting
-            // open for nothing.
-            const sourcesOpen = !currentImage;
+            // Closed, always (P2-104). Open on a new profile it put the whole library grid between
+            // the name and the rating on a phone. The colour swatches are the default; the button is one tap.
+            const sourcesOpen = false;
 
-            // Remove is rendered here rather than by the edit form, so the two actions are
-            // the same size and sit together. It was a third-height button hanging under
-            // the row, which read as belonging to whatever came next.
+            // Remove is rendered here so the two actions are the same size and sit together; it
+            // was a third-height button that read as belonging to whatever came next.
             return `
-                <div class="form-group">
-                    <label>${t('avatar.profilePicture')}</label>
-                    <div class="profile-image-upload-container" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
-                        <div class="image-upload-row">
-                            <div id="${prefix}-image-upload-preview" class="image-upload-preview${
+                <div class="jpf-form-group">
+                    <label id="${prefix}-picture-label">${t('avatar.profilePicture')}</label>
+                    <div class="jpf-profile-image-upload-container" role="group" aria-labelledby="${prefix}-picture-label" style="display: flex; flex-direction: column; gap: var(--jpf-gap);">
+                        <div class="jpf-image-upload-row">
+                            <div id="${prefix}-image-upload-preview" class="jpf-image-upload-preview${
                                 currentImage && currentTransparent ? ' is-transparent' : ''
                             }" style="background-color: ${
                                 currentImage && currentTransparent ? 'transparent' : safeColor(currentColor)
-                            };">${preview}</div>
-                            <div class="image-upload-actions">
-                                <button type="button" id="${prefix}-change-picture" class="profiles-btn btn-secondary image-upload-btn picture-change-btn"
+                            }; color: ${onAvatarColor(currentColor)};">${preview}</div>
+                            <div class="jpf-image-upload-actions">
+                                <button type="button" id="${prefix}-change-picture" class="profiles-btn jpf-btn-secondary jpf-image-upload-btn jpf-picture-change-btn"
                                         aria-expanded="${sourcesOpen}" aria-controls="${prefix}-picture-sources">
-                                    <span class="material-icons" style="font-size: 1.25rem;">photo_camera</span>
+                                    <span class="material-icons" aria-hidden="true" style="font-size: 1.25rem;">photo_camera</span>
                                     <span>${currentImage ? t('avatar.changePicture') : t('avatar.choosePicture')}</span>
-                                    <span class="material-icons picture-caret" aria-hidden="true">expand_more</span>
+                                    <span class="material-icons jpf-picture-caret" aria-hidden="true">expand_more</span>
                                 </button>
-                                <button type="button" id="${prefix}-clear-profile-image-btn" class="profiles-btn btn-secondary image-upload-btn picture-remove-btn"
+                                <button type="button" id="${prefix}-clear-profile-image-btn" class="profiles-btn jpf-btn-secondary jpf-image-upload-btn jpf-picture-remove-btn"
                                         style="display: ${currentImage ? 'inline-flex' : 'none'};">
-                                    <span class="material-icons" style="font-size: 1.25rem;">delete_outline</span>
+                                    <span class="material-icons" aria-hidden="true" style="font-size: 1.25rem;">delete_outline</span>
                                     <span>${t('common.remove')}</span>
                                 </button>
                             </div>
                         </div>
-                        <div id="${prefix}-picture-sources" class="picture-sources${sourcesOpen ? ' is-open' : ''}">
+                        ${supportsTransparent ? this.renderTransparentToggle(prefix, currentImage, currentTransparent) : ''}
+                        <div id="${prefix}-picture-sources" class="jpf-picture-sources${sourcesOpen ? ' is-open' : ''}">
                             ${libraryHtml}
                             ${uploadHtml}
                         </div>
@@ -5981,20 +9202,17 @@
             `;
         },
 
-        /// Wires the picker up. Returns an accessor for the chosen image so the caller can
-        /// read it at save time without tracking the state itself.
-        /// `transparency` must match what was passed to renderAvatarPicker — see there.
+        /// Wires the picker up. Returns an accessor for the chosen image so the caller reads
+        /// it at save time. `transparency` must match renderAvatarPicker.
         initAvatarPicker: function (container, prefix, library, initialImage, onPreviewChange, transparency) {
             const initialTransparent = !!transparency && !!transparency.enabled;
-            // libraryId is set instead of image/thumb when the picture comes from the
-            // library on a locked-down server: the server copies the file itself, which is
-            // the only form of the choice it can actually verify.
+            // libraryId is set instead of image/thumb when the picture comes from the library on a
+            // locked-down server: the server copies the file itself, the only form of the choice it can verify.
             const state = {
                 image: initialImage || null,
                 thumb: null,
                 libraryId: null,
-                // Only meaningful while a picture is set. With no picture the colour is
-                // the entire background, so there is nothing to make transparent.
+                // Only meaningful while a picture is set; with none the colour is the whole background.
                 transparent: !!(initialImage && initialTransparent)
             };
 
@@ -6012,43 +9230,38 @@
                 errEl.style.display = message ? 'block' : 'none';
             };
 
-            /// The colour currently chosen on the form. Read from the DOM rather than
-            /// passed in: the two forms already keep `.active` on exactly one dot, so
-            /// this cannot drift out of step with what will be saved.
+            /// The colour chosen on the form, read from the DOM: the two forms keep `.active` on
+            /// exactly one dot, so this cannot drift from what will be saved.
             const currentColor = () => {
-                const active = container.querySelector('.color-dot.active');
+                const active = container.querySelector('.jpf-color-dot.active');
                 return active ? safeColor(active.getAttribute('data-color')) : DEFAULT_AVATAR_COLOR;
             };
 
-            /// Whether the colour swatches can still affect the avatar. Owned here rather
-            /// than by the two forms, because it depends on both facts this function
-            /// holds — a picture being set, and its background being switched off — and
-            /// two writers would race each other.
+            /// Whether the colour swatches can still affect the avatar. Owned here, not by the two
+            /// forms, because it depends on both a picture being set and its background being
+            /// switched off; two writers would race.
             const syncColorGroup = () => {
                 this.setColorGroupInert(prefix, !!state.image, state.transparent);
             };
 
-            /// Paints the preview to match state.transparent and keeps the checkbox in
-            /// step. Called both when detection decides and when the user overrides, so
-            /// the two can never disagree about what is stored.
+            /// Paints the preview to match state.transparent and keeps the checkbox in step. Called
+            /// on detection and on user override, so the two cannot disagree about what is stored.
             const applyTransparency = () => {
                 if (transparentInput) transparentInput.checked = state.transparent;
                 syncColorGroup();
                 if (!previewEl) return;
                 previewEl.classList.toggle('is-transparent', state.transparent);
-                previewEl.style.backgroundColor = state.transparent ? 'transparent' : currentColor();
+                paintAvatar(previewEl, state.transparent ? 'transparent' : currentColor());
             };
 
             const setPreview = (src) => {
                 if (!previewEl) return;
                 previewEl.style.position = 'relative';
                 previewEl.innerHTML = src ? avatarInner(src, '+', /* useThumb */ true) : '+';
-                // Removing is only an option while there is something to remove. Driven
-                // from here so it is right on the first paint too — setPreview runs once
-                // at init.
+                // Removing is only an option while there is something to remove. Driven from here so
+                // it is right on the first paint (setPreview runs once at init).
                 if (removeBtn) removeBtn.style.display = src ? 'inline-flex' : 'none';
-                // Same for the transparency choice: it describes a picture, so it has
-                // nothing to say when there is not one.
+                // Same for the transparency choice: it describes a picture.
                 if (transparentRow) transparentRow.style.display = src ? 'block' : 'none';
                 syncColorGroup();
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
@@ -6057,17 +9270,15 @@
             applyTransparency();
 
             if (transparentInput) {
-                // The user's answer always beats detection's. Detection only ever writes
-                // this value when a new picture arrives.
+                // The user's answer beats detection; detection only writes this when a new picture arrives.
                 transparentInput.addEventListener('change', () => {
                     state.transparent = transparentInput.checked;
                     applyTransparency();
                 });
             }
 
-            // The ways of choosing a picture are collapsed behind one button. Every id
-            // the handlers below bind to still exists — they have only moved inside the
-            // panel — so nothing else in this function changes.
+            // The ways of choosing a picture are collapsed behind one button. Every id the
+            // handlers bind to still exists, just inside the panel.
             const sourcesEl = container.querySelector(`#${prefix}-picture-sources`);
             const changeBtn = container.querySelector(`#${prefix}-change-picture`);
             if (sourcesEl && changeBtn) {
@@ -6082,19 +9293,18 @@
                 state.thumb = result.thumb;
                 state.libraryId = null;
                 setPreview(result.image);
-                // A new picture re-answers the question, so detection wins here even if
-                // the user had overridden it for the previous one — the override was
-                // about a picture that is no longer set.
+                // A new picture re-answers the question: detection wins even over an override, which
+                // was about the previous picture.
                 state.transparent = !!result.cutout;
                 applyTransparency();
                 showError('');
                 if (fileInput) fileInput.value = '';
             };
 
-            // Label doubles as the file trigger so it can be focused by D-pad.
+            // Label doubles as the file trigger so the D-pad can focus it.
             if (fileLabel && fileInput) {
                 fileLabel.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); fileInput.click(); }
                 });
             }
 
@@ -6112,29 +9322,25 @@
                 });
             }
 
-            container.querySelectorAll(`#${prefix}-avatar-library .avatar-library-item`).forEach(btn => {
+            container.querySelectorAll(`#${prefix}-avatar-library .jpf-avatar-library-item`).forEach(btn => {
                 const pick = () => {
                     showError('');
 
-                    // On a locked-down server the crop step is skipped and the id is sent
-                    // instead. Cropping would produce a data payload indistinguishable from
-                    // an upload, which is exactly what that server has chosen to refuse.
+                    // On a locked-down server the crop step is skipped and the id is sent: a crop would
+                    // produce a data payload indistinguishable from the upload that server refuses.
                     if (!library.allowCustomUploads) {
                         state.image = btn.getAttribute('data-url');
                         state.thumb = null;
                         state.libraryId = btn.getAttribute('data-id');
                         setPreview(state.image);
 
-                        // No crop step on this path, so there is no cropped canvas to read
-                        // and the source has to be fetched again to be sampled. Same
-                        // origin — it is our own avatar endpoint — so the canvas is not
-                        // tainted. Detection is best-effort: a failure just leaves the
-                        // colour painted, which is the old behaviour.
+                        // No crop step here, so no cropped canvas to read; the source is fetched again to be
+                        // sampled. Same origin (our own avatar endpoint), so the canvas is not tainted.
+                        // Detection is best-effort: failure leaves the colour painted, the old behavior.
                         const pickedUrl = state.image;
                         this.loadImageFromUrl(pickedUrl)
                             .then(img => {
-                                // The user may have picked something else while this was
-                                // in flight; a late answer must not overwrite it.
+                                // The user may have picked something else meanwhile; a late answer must not overwrite it.
                                 if (state.image !== pickedUrl) return;
                                 state.transparent = this._alphaProfile(img).cutout;
                                 applyTransparency();
@@ -6143,26 +9349,23 @@
                         return;
                     }
 
-                    // Full size, not the thumbnail — this is about to be re-cropped, and
-                    // cropping a 128px source would produce a soft avatar.
+                    // Full size, not the thumbnail: cropping a 128px source would produce a soft avatar.
                     this.loadImageFromUrl(btn.getAttribute('data-url'))
                         .then(img => this.showCropDialog(img, applyCropped))
                         .catch(err => showError(err.message));
                 };
                 btn.addEventListener('click', (e) => { e.preventDefault(); pick(); });
                 btn.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); pick(); }
                 });
             });
 
-            // Empty string, not null: the server reads that as "delete the picture",
-            // whereas null means "leave it alone".
+            // Empty string, not null: the server reads '' as "delete the picture", null as "leave it alone".
             const clearPicture = () => {
                 state.image = '';
                 state.thumb = null;
                 state.libraryId = null;
-                // With no picture the colour is the whole background. Leaving this set
-                // would save a profile whose avatar is a transparent square.
+                // With no picture the colour is the whole background; leaving this set would save a transparent square.
                 state.transparent = false;
                 setPreview(null);
                 applyTransparency();
@@ -6183,6 +9386,144 @@
             };
         },
 
+        /// The profile the person at this screen is using, when it is a sub-profile and the
+        /// picker was opened from inside it (P2-713). Null for the main account, a linked
+        /// account, a startup gate with nobody in, and Manage Profiles (the main account has
+        /// /update and its PIN for those). _resumeState carries the profile in use when the
+        /// picker opened, which is the one /me would change; the list cannot say who is signed in.
+        ownProfileOf: function (profiles) {
+            const prior = this._resumeState;
+            if (this.isManageMode || !prior || prior.closeOnly || !prior.token || !prior.userId) return null;
+            const id = this.normalizeGuid(prior.userId);
+            return (profiles || []).find(p => this.normalizeGuid(p.profileUserId) === id
+                && !p.isMaster && !p.isLinked && !p.isBonfire) || null;
+        },
+
+        /// A profile's own name and picture, changed without the main PIN (P2-713). Saves
+        /// through POST /me, which takes the caller to be the profile and has no field for
+        /// anything else. The picture uses the same picker as the main account's forms: a
+        /// server limited to its avatar library gets the library and no upload button, and a
+        /// choice is sent as an id the server copies from. The route checks the same rule;
+        /// this is presentation.
+        showOwnProfileForm: function (profile) {
+            const content = document.querySelector('.profiles-modal-content');
+            const prior = this._resumeState;
+            if (!content || !profile || !prior || prior.closeOnly) return;
+            const ticket = this.beginNavigation();
+            const token = prior.token;
+
+            const backToGrid = () => {
+                const overlay = document.getElementById('profiles-gate-overlay');
+                if (overlay) this.renderOverlayContent(overlay, this.currentProfiles);
+            };
+
+            this.fetchAvatarLibrary(ApiClient, token).then(library => {
+                if (!this.navIsCurrent(ticket)) return;
+                this.clearManagedDocumentListeners();
+
+                content.innerHTML = `
+                    <h1 class="profiles-title">${t('ownProfile.title')}</h1>
+                    <div class="jpf-create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                        <div class="jpf-form-col">
+                            <div class="jpf-form-group">
+                                <label for="self-name-input">${t('profileForm.profileName')}</label>
+                                <input type="text" id="self-name-input" maxlength="32" value="${escapeHtml(profile.profileName)}" required />
+                            </div>
+                            ${this.renderAvatarPicker('self', library, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
+                            <div class="jpf-form-group jpf-avatar-color-group" id="self-color-group">
+                                <label>${t('profileForm.avatarColor')}</label>
+                                ${this.renderColorPicker(profile.avatarColor)}
+                                <div class="jpf-form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
+                            </div>
+                            <div id="self-error" class="jpf-form-error" role="alert" style="display:none;"></div>
+                        </div>
+                        <div class="bonfire-dialog-actions jpf-actions">
+                            <button id="self-submit-btn" class="profiles-btn jpf-btn-primary">${t('common.save')}</button>
+                            <button id="self-cancel-btn" class="profiles-btn jpf-btn-secondary">${t('common.cancel')}</button>
+                        </div>
+                    </div>
+                `;
+
+                const dots = content.querySelectorAll('.jpf-color-dot');
+                let selectedColor = profile.avatarColor || DEFAULT_AVATAR_COLOR;
+                dots.forEach(dot => {
+                    const color = dot.getAttribute('data-color');
+                    dot.addEventListener('click', () => {
+                        dots.forEach(d => d.classList.remove('active'));
+                        dot.classList.add('active');
+                        this._syncColorRadios(dots);
+                        selectedColor = color;
+                        const preview = document.getElementById('self-image-upload-preview');
+                        if (preview && !preview.querySelector('img')) paintAvatar(preview, selectedColor);
+                    });
+                    dot.addEventListener('keydown', (e) => {
+                        if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); dot.click(); }
+                    });
+                });
+
+                const picker = this.initAvatarPicker(
+                    content, 'self', library, profile.profileImage,
+                    (src) => {
+                        const preview = document.getElementById('self-image-upload-preview');
+                        if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
+                    },
+                    { enabled: !!profile.transparentAvatar });
+
+                const errorEl = content.querySelector('#self-error');
+                const showError = (message) => {
+                    errorEl.textContent = message;
+                    errorEl.style.display = message ? 'block' : 'none';
+                };
+
+                content.querySelector('#self-cancel-btn').addEventListener('click', backToGrid);
+
+                let busy = false;
+                content.querySelector('#self-submit-btn').addEventListener('click', () => {
+                    if (busy) return;
+                    const name = (content.querySelector('#self-name-input').value || '').trim();
+                    if (!name) { showError(t('profileForm.nameRequired')); return; }
+
+                    // Only what changed: the route leaves what is absent as it is.
+                    const picked = picker.get();
+                    const body = { avatarColor: selectedColor, transparentAvatar: picked.transparent };
+                    if (name !== profile.profileName) body.profileName = name;
+                    if (picked.libraryId) {
+                        body.avatarLibraryId = picked.libraryId;
+                    } else if (picked.image !== (profile.profileImage || null)) {
+                        // '' removes the picture; the picker holds '' for that.
+                        body.profileImage = picked.image || '';
+                        if (picked.thumb) body.profileImageThumb = picked.thumb;
+                    }
+
+                    busy = true;
+                    showError('');
+                    fetch(ApiClient.getUrl('plugins/profiles/me'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(token),
+                        body: JSON.stringify(body)
+                    })
+                    .then(res => {
+                        if (res.status === 401) { this.handleSessionExpired(); throw new Error(t('errors.couldNotSaveThat')); }
+                        if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
+                    })
+                    .then(() => {
+                        // The header marker is rebuilt from the fresh list read below; the remembered one for the resumed profile is stale.
+                        if (this._resumeState) this._resumeState.info = null;
+                        const known = this.readMasterState();
+                        this.fetchAndRenderProfiles(ApiClient, known ? known.masterUserId : ApiClient.getCurrentUserId(),
+                            token, /* forceRefresh */ true);
+                    })
+                    .catch(err => {
+                        busy = false;
+                        showError(this._failText(err, err.message || t('errors.couldNotSaveThat')));
+                    });
+                });
+
+                this.initTVCheckboxes(content);
+                this._focusFirstOnTv(content, '#self-name-input');
+            });
+        },
+
         showAddProfileModal: function () {
             const apiClient = ApiClient;
             const masterState = this.readMasterState();
@@ -6190,8 +9531,7 @@
 
             const ticket = this.beginNavigation();
 
-            // Everything this form needs is account-wide, so it is usually already
-            // cached from the prefetch that ran when the overlay opened.
+            // Everything here is account-wide, so it is usually cached from the prefetch when the overlay opened.
             this.fetchSharedFormData(apiClient, masterState)
             .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
             .then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => {
@@ -6201,125 +9541,138 @@
                     name: lib.name || lib.Name,
                     collectionType: lib.collectionType || lib.CollectionType
                 }));
-                // Re-rendering the modal orphans any listeners the previous form owned.
+                // Re-rendering the modal orphans the previous form's listeners.
                 this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
-                // ── Section 1: who this profile is ──────────────────────────────
+                // Basics, then a closed "More settings" (1.7.2). Basics is what nearly every profile
+                // is made of: who it is, its PIN, what it may watch.
+
+                // ── Basics: who this profile is ─────────────────────────────────
+                const startColor = this.nextAvatarColor();
                 const createAppearance = `
-                    <div class="form-group">
+                    <div class="jpf-form-group">
                         <label for="create-name-input">${t('profileForm.profileName')}</label>
-                        <input type="text" id="create-name-input" maxlength="32" placeholder="${t('profileForm.namePlaceholder')}" required />
+                        <input type="text" id="create-name-input" maxlength="32" placeholder="${escapeHtml(t('profileForm.namePlaceholder'))}" required />
                     </div>
-                    ${this.renderTransparentToggle('create', null, false)}
-                    <div class="form-group avatar-color-group" id="create-color-group">
+                    ${this.renderAvatarPicker('create', avatarLibrary, null, startColor, { enabled: false })}
+                    <div class="jpf-form-group jpf-avatar-color-group" id="create-color-group">
                         <label>${t('profileForm.avatarColor')}</label>
-                        ${this.renderColorPicker(DEFAULT_AVATAR_COLOR)}
-                        <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
+                        ${this.renderColorPicker(startColor)}
+                        <div class="jpf-form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
                     </div>
-                    ${this.renderAvatarPicker('create', avatarLibrary, null, DEFAULT_AVATAR_COLOR, { enabled: false })}
-                    ${this.renderThemePicker('create', null)}
                 `;
 
-                // ── Section 2: getting into this profile ────────────────────────
+                // ── Basics: its PIN ─────────────────────────────────────────────
                 const createSecurity = `
-                    <div class="form-group">
-                        <label for="create-pin-input">${t('profileForm.pin')}</label>
-                        <input type="text" id="create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${t('profileForm.pinPlaceholderEmpty')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    <div class="jpf-form-group">
+                        <label for="jpf-create-pin-input">${t('profileForm.pin')}</label>
+                        <input type="text" id="jpf-create-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${escapeHtml(t('profileForm.pinPlaceholderEmpty'))}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
                     </div>
-                    <div class="form-group">
-                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                `;
+
+                // ── More: when the PIN is asked again ───────────────────────────
+                const createLocking = `
+                    <div class="jpf-form-group">
+                        <label for="create-lockout-select">${t('profileForm.autoLock')}</label>
+                        <select id="create-lockout-select">${this.renderLockoutOptions(5, true)}</select>
+                        <div class="jpf-form-hint">${t('profileForm.autoLockHintCreate')}</div>
+                    </div>
+                    ${this.showHomeSkip(this.householdSeenLocally(), false) ? `
+                    <div class="jpf-form-group">
+                        <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                             <input type="checkbox" id="create-local-bypass-checkbox" style="cursor: pointer; accent-color: var(--jpf-accent);" />
                             <span>${t('profileForm.bypassPinLan')}</span>
                         </label>
-                        <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="create-lockout-select">${t('profileForm.autoLock')}</label>
-                        <select id="create-lockout-select">
-                            <option value="0">${t('profileForm.lockoutNever')}</option>
-                            <option value="1">${t('profileForm.lockout1Min')}</option>
-                            <option value="5" selected>${t('profileForm.lockout5MinDefault')}</option>
-                            <option value="10">${t('profileForm.lockout10Min')}</option>
-                            <option value="20">${t('profileForm.lockout20Min')}</option>
-                            <option value="30">${t('profileForm.lockout30Min')}</option>
-                            <option value="60">${t('profileForm.lockout1Hour')}</option>
-                        </select>
-                        <div class="form-hint">${t('profileForm.autoLockHintCreate')}</div>
-                    </div>
+                    </div>` : ''}
                 `;
 
-                // ── Section 3: what this profile can browse ─────────────────────
+                // ── Basics: what this profile can watch ─────────────────────────
+                // The Kids preset only fills in the rating; it is not a kind of profile and nothing
+                // remembers it was ticked.
                 const createLibraries = `
-                    <div class="form-group">
-                        <div class="section-inline-header">
+                    <div class="jpf-form-group">
+                        <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="create-kids-preset" style="cursor: pointer; accent-color: var(--jpf-accent);" />
+                            <span>${t('profileForm.kidsPreset')}</span>
+                        </label>
+                        <div class="jpf-form-hint">${t('profileForm.kidsPresetHint')}</div>
+                    </div>
+                    ${this.renderRatingSelect('create', null, ratings)}
+                    <div class="jpf-form-group">
+                        <div class="jpf-section-inline-header">
                             <label style="margin: 0;">${t('profileForm.enabledLibraries')}</label>
-                            <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <label class="jpf-library-check-label" style="font-size: 0.85rem; color: var(--jpf-text-2); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="create-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>${t('common.selectAll')}</span>
                             </label>
                         </div>
-                        <div class="library-checklist">
+                        <div class="jpf-library-checklist">
                             ${normalizedLibs.map(lib => `
-                                <label class="library-check-label">
-                                    <input type="checkbox" class="library-checkbox" value="${lib.id}" />
+                                <label class="jpf-library-check-label">
+                                    <input type="checkbox" class="library-checkbox" value="${escapeHtml(lib.id)}" />
                                     <span>${escapeHtml(lib.name)}</span>
                                 </label>
                             `).join('')}
                         </div>
-                        <div class="form-hint">${t('profileForm.librariesInheritHint')}</div>
+                        <div class="jpf-form-hint">${t('profileForm.librariesInheritHint')}</div>
                     </div>
+                    ${this.renderDeviceDropdown('create', devices, null)}
                 `;
 
-                // ── Section 4: limits applied on top of the libraries above ─────
+                // ── More: tags on top of the libraries ──────────────────────────
+                // Devices are above, with what the profile can watch: keeping a child to one
+                // television is the common parental task (P2-605).
                 const createRestrictions = `
-                    ${this.renderDeviceDropdown('create', devices, null)}
-
-                    ${this.renderRatingSelect('create', null, ratings)}
                     ${this.renderTagSection('create', libraryTags, null)}
                 `;
 
                 content.innerHTML = `
                     <h1 class="profiles-title">${t('profileForm.createTitle')}</h1>
-                    <div class="create-profile-container is-two-col">
-                        <div class="form-col">
+                    <div class="jpf-create-profile-container is-two-col">
+                        <div class="jpf-form-col">
                             ${this.renderSection('person', t('profileForm.sectionProfileTitle'), t('profileForm.sectionProfileSubtitle'), createAppearance)}
-                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionSecuritySubtitle'), createSecurity)}
+                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionPinSubtitle'), createSecurity)}
                         </div>
-                        <div class="form-col">
-                            ${this.renderSection('video_library', t('profileForm.libraries'), t('profileForm.sectionLibrariesSubtitle'), createLibraries)}
-                            ${this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), createRestrictions)}
+                        <div class="jpf-form-col">
+                            ${this.renderSection('video_library', t('profileForm.sectionWatchTitle'), t('profileForm.sectionWatchSubtitle'), createLibraries)}
                         </div>
+                        <div id="create-viewing-slot" class="jpf-viewing-slot"></div>
+                        ${this.renderMoreSettings('create', [
+                            this.renderSection('timer', t('profileForm.sectionLockingTitle'), '',createLocking),
+                            this.renderThemeSection('create', null)
+                        ], [
+                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), '',createRestrictions)
+                        ])}
 
-                        <div id="create-error-msg" class="form-error" style="display:none;"></div>
-                        <div class="profile-dialog-actions jpf-actions">
-                            <button id="create-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
-                            <button id="create-submit-btn" class="profiles-btn btn-primary">${t('common.create')}</button>
+                        <div id="create-error-msg" class="jpf-form-error" role="alert" style="display:none;"></div>
+                        <div class="jpf-profile-dialog-actions jpf-actions">
+                            <button id="create-submit-btn" class="profiles-btn jpf-btn-primary">${t('common.create')}</button>
+                            <button id="create-cancel-btn" class="profiles-btn jpf-btn-secondary">${t('common.cancel')}</button>
                         </div>
                     </div>
                 `;
 
                 // Color selector interaction
-                const dots = content.querySelectorAll('.color-dot');
-                let selectedColor = DEFAULT_AVATAR_COLOR;
+                const dots = content.querySelectorAll('.jpf-color-dot');
+                let selectedColor = startColor;
                 dots.forEach(dot => {
                     dot.addEventListener('click', () => {
                         dots.forEach(d => d.classList.remove('active'));
                         dot.classList.add('active');
+                        this._syncColorRadios(dots);
                         selectedColor = dot.getAttribute('data-color');
                         const createPreview = document.getElementById('create-image-upload-preview');
                         if (createPreview && !createPreview.querySelector('img')) {
-                            createPreview.style.backgroundColor = selectedColor;
+                            paintAvatar(createPreview, selectedColor);
                         }
                     });
                 });
 
-                // The colour group is dimmed by the picker itself now — it depends on the
-                // transparency choice as well as on whether a picture is set.
+                // The picker dims the colour group itself: it depends on the transparency choice as well.
                 const avatarPicker = this.initAvatarPicker(
                     content, 'create', avatarLibrary, null, null, { enabled: false });
 
-                // With no picture chosen, the preview shows the profile's initial — so it
-                // has to follow what is being typed into the name field.
+                // With no picture the preview shows the initial, so it follows the name field.
                 const previewDiv = document.getElementById('create-image-upload-preview');
                 const nameInput = document.getElementById('create-name-input');
                 if (nameInput && previewDiv) {
@@ -6330,13 +9683,7 @@
                     });
                 }
 
-                // Support D-pad Enter/Space select on color dots
-                content.addEventListener('keydown', (e) => {
-                    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('color-dot')) {
-                        e.preventDefault();
-                        e.target.click();
-                    }
-                });
+                this._bindColorDotKeys(content);
 
                 // Select all libraries logic for creation
                 const selectAllCheckbox = document.getElementById('create-select-all-libraries');
@@ -6361,8 +9708,7 @@
                 const createTrigger = document.getElementById('create-devices-dropdown-trigger');
                 const createList = document.getElementById('create-devices-dropdown-list');
                 if (createTrigger && createList) {
-                    // Keep aria-expanded in step with the visual state so screen readers and
-                    // TV remotes report the dropdown correctly.
+                    // Keep aria-expanded in step so screen readers and TV remotes report the dropdown correctly.
                     const setCreateOpen = (open) => {
                         createList.style.display = open ? 'block' : 'none';
                         createTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -6372,10 +9718,10 @@
                         setCreateOpen(createList.style.display === 'none');
                     });
                     createTrigger.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                        if (isKey(e, 'Enter') || isKey(e, ' ')) {
                             e.preventDefault();
                             createTrigger.click();
-                        } else if (e.key === 'Escape') {
+                        } else if (isKey(e, 'Escape')) {
                             setCreateOpen(false);
                         }
                     });
@@ -6384,7 +9730,7 @@
                         e.stopPropagation();
                     });
                     createList.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' && e.target.type === 'checkbox') {
+                        if (isKey(e, 'Enter') && e.target.type === 'checkbox') {
                             e.preventDefault();
                             e.target.checked = !e.target.checked;
                             e.target.dispatchEvent(new Event('change'));
@@ -6410,17 +9756,22 @@
                 });
                 updateCreateSelectedText();
 
+                this.bindKidsPreset(content.querySelector('#create-kids-preset'),
+                                    content.querySelector('#create-rating-select'));
+
                 document.getElementById('create-submit-btn').addEventListener('click', () => {
                     const name = document.getElementById('create-name-input').value.trim();
-                    const pin = document.getElementById('create-pin-input').value;
+                    const pin = document.getElementById('jpf-create-pin-input').value;
                     const rating = document.getElementById('create-rating-select').value;
                     const lockoutMinutes = parseInt(document.getElementById('create-lockout-select').value, 10);
-                    const bypassPin = document.getElementById('create-local-bypass-checkbox').checked;
+                    // Absent until the household has been seen on the server's network.
+                    const bypassBox = document.getElementById('create-local-bypass-checkbox');
+                    const bypassPin = bypassBox ? bypassBox.checked : false;
                     
                     const checkedLibs = [];
                     content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                        // Only an id. A library listed without one gave its checkbox the
-                        // value "undefined", and that one entry failed the whole create (#33).
+                        // Only an id. A library listed without one gave its checkbox the value "undefined"
+                        // and that one entry failed the whole create (#33).
                         if (isGuidLike(cb.value)) checkedLibs.push(cb.value);
                     });
 
@@ -6452,11 +9803,12 @@
                             profileName: name,
                             pin: pin,
                             avatarColor: selectedColor,
-                            maxParentalRating: rating || null,
-                            // Send null (not empty array) when no libraries are checked.
-                            // An empty array tells the server "allow no libraries",
-                            // while null means "inherit all accessible libraries from master".
+                            // "" is no limit of its own, the same word /update uses (R-1144).
+                            maxParentalRating: rating,
+                            // No box ticked means every library, said explicitly as /update needs it: a
+                            // left-out list there now keeps what it was.
                             enabledFolders: checkedLibs.length > 0 ? checkedLibs : null,
+                            allLibraries: checkedLibs.length > 0 ? null : true,
                             blockedTags: this.getTagEditorValues(content, 'create-blocked-tags'),
                             allowedTags: this.getTagEditorValues(content, 'create-allowed-tags'),
                             masterPin: this.masterPin,
@@ -6471,11 +9823,36 @@
                         })
                     })
                     .then(res => {
-                        if (!res.ok) return res.text().then(text => { throw new Error(text); });
+                        this.checked(res);
+                        if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                         return res.json();
                     })
-                    .then(() => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
+                    .then(created => {
+                        const refresh = () => this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
+                        // The profile exists now, so its viewing rules can be saved against its id. A
+                        // failure here must not look like a failed create.
+                        const id = created && (created.profileUserId || created.ProfileUserId);
+                        const saveLimits = () => viewingEditor.save(id).catch(err => {
+                            this.showAlert(t('errors.error'), this._hoursFailText(err));
+                        });
+                        // The first profile is when a main PIN starts to matter: from now on the main account
+                        // is the way past that profile's restrictions.
+                        const people = this.currentProfiles || [];
+                        const main = people.find(x => x.isMaster && !x.isBonfire);
+                        const first = !people.some(x => !x.isMaster && !x.isBonfire);
+                        const needsPin = !!main && !main.hasPin;
+                        if (needsPin && viewingEditor.pending()) {
+                            // The server will not switch limits on with no main PIN to switch them off, so the
+                            // PIN comes first. Saving limits first lost them, with an error (P2-712).
+                            this.promptSetMainPin(people, false, () => {
+                                if (main.hasPin) saveLimits().then(refresh);
+                                else this.showAlert(t('errors.error'), t('mainPin.limitsOff'), refresh);
+                            }, null, 'mainPin.limitsBody');
+                        } else if (needsPin && first) {
+                            this.promptSetMainPin(people, false, refresh);
+                        } else {
+                            saveLimits().then(refresh);
+                        }
                     })
                     .catch(err => {
                         const el = document.getElementById('create-error-msg');
@@ -6486,9 +9863,17 @@
                 document.getElementById('create-cancel-btn').addEventListener('click', () => {
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
+                const viewingEditor = this.initViewingEditor(content.querySelector('#create-viewing-slot'), null, true);
                 this.bindThemePicker('create');
                 this.initTVCheckboxes(content);
+                this._focusFirstOnTv(content);
                 this.initTagEditors(content);
+            })
+            .catch(err => {
+                // As Edit does: a failed read of the form's lists used to leave Add doing nothing (R-1215).
+                if (!this.navIsCurrent(ticket)) return;
+                this.showAlert(t('errors.error'), this._failText(err, t('errors.loadProfileDetails')));
+                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
             });
         },
 
@@ -6499,13 +9884,18 @@
 
             const ticket = this.beginNavigation();
 
-            // Users/{id} is the only one of the five that is about the profile you
-            // clicked. The rest come from the account-wide cache.
+            // Users/{id} is the only one of the five about the profile you clicked; the rest come from the account-wide cache.
             const userUrl = apiClient.getUrl(`Users/${profile.profileUserId}`);
 
             Promise.all([
                 this.fetchSharedFormData(apiClient, masterState),
-                fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => res.json())
+                fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => {
+                    // A refusal has no Policy: read as {} it ticked every library and the next save
+                    // wrote them as a fixed list (R-1222).
+                    if (res.status === 401) { this.handleSessionExpired(); return Promise.reject({ handled: true }); }
+                    if (!res.ok) return Promise.reject(new Error('Users/' + res.status));
+                    return res.json();
+                })
             ])
             .then(([shared, userDetails]) => [shared.libraries, userDetails, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
             .then(([libraries, userDetails, devices, libraryTags, avatarLibrary, ratings]) => {
@@ -6521,94 +9911,90 @@
                 const maxRating = policy.MaxParentalRating !== undefined ? policy.MaxParentalRating : (policy.maxParentalRating !== undefined ? policy.maxParentalRating : null);
                 const currentLockout = profile.lockoutMinutes !== undefined ? profile.lockoutMinutes : 5;
 
-                // Re-rendering the modal orphans any listeners the previous form owned.
+                // Re-rendering the modal orphans the previous form's listeners.
                 this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
 
                 const isSub = !profile.isMaster;
 
-                // ── Section 1: who this profile is ──────────────────────────────
+                // Basics, then a closed "More settings"; see the create form.
+
+                // ── Basics: who this profile is ─────────────────────────────────
                 const appearanceBody = `
-                    <div class="form-group">
+                    <div class="jpf-form-group">
                         <label for="edit-name-input">${t('profileForm.profileName')}</label>
                         <input type="text" id="edit-name-input" maxlength="32" value="${escapeHtml(profile.profileName)}" ${profile.isMaster ? 'disabled style="opacity: 0.6"' : ''} required />
-                        ${profile.isMaster ? `<div class="form-hint">${t('profileForm.masterNameHint')}</div>` : ''}
-                    </div>
-                    ${this.renderTransparentToggle('edit', profile.profileImage, !!profile.transparentAvatar)}
-                    <div class="form-group avatar-color-group" id="edit-color-group">
-                        <label>${t('profileForm.avatarColor')}</label>
-                        ${this.renderColorPicker(profile.avatarColor)}
-                        <div class="form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
+                        ${profile.isMaster ? `<div class="jpf-form-hint">${t('profileForm.masterNameHint')}</div>` : ''}
                     </div>
                     ${this.renderAvatarPicker('edit', avatarLibrary, profile.profileImage, profile.avatarColor, { enabled: !!profile.transparentAvatar })}
-                    ${this.renderThemePicker('edit', profile.theme)}
+                    <div class="jpf-form-group jpf-avatar-color-group" id="edit-color-group">
+                        <label>${t('profileForm.avatarColor')}</label>
+                        ${this.renderColorPicker(profile.avatarColor)}
+                        <div class="jpf-form-hint" data-role="color-hint">${t('profileForm.colorHintNoPicture')}</div>
+                    </div>
                 `;
 
-                // ── Section 2: getting into this profile ────────────────────────
-                const securityBody = `
-                    <div class="form-group">
-                        <label for="edit-pin-input">${t('profileForm.pin')}</label>
-                        <div class="pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
-                            <input type="text" id="edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? t('profileForm.pinPlaceholderNew') : t('profileForm.pinPlaceholderNone')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
-                            ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn btn-secondary" style="padding:10px 15px;">${t('profileForm.clearPin')}</button>` : ''}
+                // ── Basics: its PIN ─────────────────────────────────────────────
+                // The main account's PIN, home-network skip and auto-lock are in Settings → Your
+                // account (1.7.2), each saved alone through /account. Two places to set one PIN is how they drift.
+                const securityBody = !isSub ? `
+                    <div class="jpf-form-hint">${t('profileForm.mainSecurityMoved')}</div>
+                ` : `
+                    <div class="jpf-form-group">
+                        <label for="jpf-edit-pin-input">${t('profileForm.pin')}</label>
+                        <div class="jpf-pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
+                            <input type="text" id="jpf-edit-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${profile.hasPin ? t('profileForm.pinPlaceholderNew') : t('profileForm.pinPlaceholderNone')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 160px;" />
+                            ${profile.hasPin ? `<button id="edit-clear-pin-btn" class="profiles-btn jpf-btn-secondary" style="padding:10px 15px;">${t('profileForm.clearPin')}</button>` : ''}
                         </div>
-                        <div id="edit-pin-error" class="form-error" style="display:none; margin-top:8px;"></div>
-                        <div class="form-hint">
+                        <div id="edit-pin-error" class="jpf-form-error" role="alert" style="display:none; margin-top:8px;"></div>
+                        <div class="jpf-form-hint">
                             ${profile.hasPin
                                 ? t('profileForm.pinIsSetHint')
                                 : t('profileForm.noPinSetHint')}
                         </div>
-                        ${profile.isAdministrator ? `
-                        <div class="form-hint" style="color: var(--jpf-danger); font-weight: 600;">
-                            ${t('profileForm.pinAdminWarning')}
-                        </div>` : ''}
-                    </div>
-                    <div class="form-group">
-                        <label class="library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                            <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
-                            <span>${t('profileForm.bypassPinLan')}</span>
-                        </label>
-                        <div class="form-hint">${t('profileForm.bypassPinHint')}</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-lockout-select">${t('profileForm.autoLock')}</label>
-                        <select id="edit-lockout-select">
-                            <option value="0" ${currentLockout === 0 ? 'selected' : ''}>${t('profileForm.lockoutNever')}</option>
-                            <option value="1" ${currentLockout === 1 ? 'selected' : ''}>${t('profileForm.lockout1Min')}</option>
-                            <option value="5" ${currentLockout === 5 ? 'selected' : ''}>${t('profileForm.lockout5Min')}</option>
-                            <option value="10" ${currentLockout === 10 ? 'selected' : ''}>${t('profileForm.lockout10Min')}</option>
-                            <option value="20" ${currentLockout === 20 ? 'selected' : ''}>${t('profileForm.lockout20Min')}</option>
-                            <option value="30" ${currentLockout === 30 ? 'selected' : ''}>${t('profileForm.lockout30Min')}</option>
-                            <option value="60" ${currentLockout === 60 ? 'selected' : ''}>${t('profileForm.lockout1Hour')}</option>
-                        </select>
-                        <div class="form-hint">${t('profileForm.autoLockHintEdit')}</div>
                     </div>
                 `;
 
-                // ── Section 3: what this profile can browse ─────────────────────
+                // ── More: when the PIN is asked again ───────────────────────────
+                const lockingBody = `
+                    <div class="jpf-form-group">
+                        <label for="edit-lockout-select">${t('profileForm.autoLock')}</label>
+                        <select id="edit-lockout-select">${this.renderLockoutOptions(currentLockout, false)}</select>
+                        <div class="jpf-form-hint">${t('profileForm.autoLockHintEdit')}</div>
+                    </div>
+                    ${this.showHomeSkip(profile.seenOnLocalNetwork, profile.bypassPinOnLocalNetwork) ? `
+                    <div class="jpf-form-group">
+                        <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="edit-local-bypass-checkbox" ${profile.bypassPinOnLocalNetwork ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
+                            <span>${t('profileForm.bypassPinLan')}</span>
+                        </label>
+                    </div>` : ''}
+                `;
+
+                // ── Basics: what this profile can watch ─────────────────────────
                 const librariesBody = `
-                    <div class="form-group">
-                        <div class="section-inline-header">
+                    ${this.renderRatingSelect('edit', maxRating, ratings)}
+                    <div class="jpf-form-group">
+                        <div class="jpf-section-inline-header">
                             <label style="margin: 0;">${t('profileForm.libraries')}</label>
-                            <label class="library-check-label" style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <label class="jpf-library-check-label" style="font-size: 0.85rem; color: var(--jpf-text-2); margin: 0; display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="checkbox" id="edit-select-all-libraries" style="margin: 0; cursor: pointer; accent-color: var(--jpf-accent);" />
                                 <span>${t('common.selectAll')}</span>
                             </label>
                         </div>
-                        <div class="form-hint" style="margin: 0 0 8px 0;">
+                        <div class="jpf-form-hint" style="margin: 0 0 8px 0;">
                             ${t('profileForm.librariesInheritHint')}
                         </div>
-                        <div class="libart-list" id="edit-library-artwork">
-                            <div class="libart-head" aria-hidden="true">
-                                <span class="libart-head-lib">${t('profileForm.libraryHeader')}</span>
-                                <span class="libart-head-art">${t('profileForm.artworkHeader')}</span>
+                        <div class="jpf-libart-list" id="edit-library-artwork">
+                            <div class="jpf-libart-head" aria-hidden="true">
+                                <span>${t('profileForm.libraryHeader')}</span>
+                                <span>${t('profileForm.artworkHeader')}</span>
                             </div>
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
                                 let isChecked;
-                                // "Every library" is saved as nothing ticked, so it is shown
-                                // that way. Drawn with every box ticked, the next save would
-                                // send them all and turn it into a fixed list.
+                                // "Every library" is saved as nothing ticked, so it is shown that way. Drawn with
+                                // every box ticked, the next save would send them all as a fixed list.
                                 if (profile.allLibraries) {
                                     isChecked = false;
                                 } else if (storedFolders !== null && storedFolders !== undefined) {
@@ -6617,102 +10003,115 @@
                                     isChecked = enableAll || !blockedFolders.some(bf => this.normalizeGuid(bf) === this.normalizeGuid(lib.id));
                                 }
                                 return `
-                                    <div class="libart-row" data-lib="${lib.id}">
-                                        <label class="library-check-label libart-check">
-                                            <input type="checkbox" class="library-checkbox" value="${lib.id}" ${isChecked ? 'checked' : ''} />
-                                            <span class="libart-thumb" aria-hidden="true"></span>
-                                            <span class="libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
+                                    <div class="jpf-libart-row" data-lib="${escapeHtml(lib.id)}">
+                                        <label class="jpf-library-check-label jpf-libart-check">
+                                            <input type="checkbox" class="library-checkbox" value="${escapeHtml(lib.id)}" ${isChecked ? 'checked' : ''} />
+                                            <span class="jpf-libart-thumb" aria-hidden="true"></span>
+                                            <span class="jpf-libart-name" title="${escapeHtml(lib.name)}">${escapeHtml(lib.name)}</span>
                                         </label>
-                                        <select class="libart-mode" aria-label="${t('profileForm.artworkForAria', { name: escapeHtml(lib.name) })}">
+                                        <select class="jpf-libart-mode" aria-label="${escapeHtml(t('profileForm.artworkForAria', { name: lib.name }))}">
                                             <option value="inherit">${t('profileForm.artworkDefault')}</option>
                                             <option value="custom">${t('profileForm.artworkPicture')}</option>
                                             <option value="none">${t('profileForm.artworkHidden')}</option>
                                         </select>
-                                        <button type="button" class="profiles-btn btn-secondary libart-choose" style="padding:6px 12px; font-size:0.8rem;">${t('profileForm.artworkChoose')}</button>
+                                        <button type="button" class="profiles-btn jpf-btn-secondary jpf-libart-choose" style="padding:6px 12px; font-size:0.8rem;">${t('profileForm.artworkChoose')}</button>
                                     </div>
                                 `;
                             }).join('')}
                         </div>
-                        <label class="library-check-label libart-toggle">
+                    </div>
+                    ${this.renderDeviceDropdown('edit', devices, profile)}
+                `;
+
+                // The artwork switch lives under More; the per-library controls it reveals stay on the
+                // library rows, and initLibraryArtworkEditor finds both by class. It used to sit bare
+                // between the Theme and Tags cards, outside any titled card (P2-1010).
+                const artworkSwitch = this.renderSection('image', t('profileForm.artworkHeader'), '', `
+                    <div class="jpf-form-group">
+                        <label class="jpf-library-check-label jpf-libart-toggle">
                             <input type="checkbox" id="edit-libart-toggle" />
                             <span>${t('profileForm.artworkToggleLabel')}</span>
                         </label>
-                        <div class="form-hint libart-explainer" id="edit-libart-hint" style="display: none;">
+                        <div class="jpf-form-hint jpf-libart-explainer" id="edit-libart-hint" hidden>
                             ${t('profileForm.artworkExplainer')}
                         </div>
-                    </div>
-                `;
+                    </div>`);
 
-                // ── Section 4: limits applied on top of the libraries above ─────
+                // ── More: tags on top of the libraries ──────────────────────────
+                // Devices sit above with what the profile can watch (P2-605).
                 const restrictionsBody = `
-                    ${this.renderDeviceDropdown('edit', devices, profile)}
-
-                    ${this.renderRatingSelect('edit', maxRating, ratings)}
                     ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 
+                // The main account has no More: its sign-in settings are in Your account and it has
+                // no limits, so only the theme is left.
                 content.innerHTML = `
                     <h1 class="profiles-title">${t('profileForm.editTitle')}</h1>
-                    <div class="create-profile-container${isSub ? ' is-two-col' : ''}">
-                        <div class="form-col">
+                    <div class="jpf-create-profile-container${isSub ? ' is-two-col' : ''}">
+                        <div class="jpf-form-col">
                             ${this.renderSection('person', t('profileForm.sectionProfileTitle'), t('profileForm.sectionProfileSubtitle'), appearanceBody)}
-                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), t('profileForm.sectionSecuritySubtitle'), securityBody)}
+                            ${this.renderSection('lock', t('profileForm.sectionSecurityTitle'), isSub ? t('profileForm.sectionPinSubtitle') : t('profileForm.sectionSecuritySubtitle'), securityBody)}
+                            ${isSub ? '' : this.renderThemeSection('edit', profile.theme)}
                         </div>
-                        <div class="form-col">
-                            ${isSub ? this.renderSection('video_library', t('profileForm.libraries'), t('profileForm.sectionLibrariesSubtitle'), librariesBody) : ''}
-                            ${isSub ? this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), t('profileForm.sectionRestrictionsSubtitle'), restrictionsBody) : ''}
+                        ${isSub ? `
+                        <div class="jpf-form-col">
+                            ${this.renderSection('video_library', t('profileForm.sectionWatchTitle'), t('profileForm.sectionWatchSubtitle'), librariesBody)}
                         </div>
+                        <div id="edit-viewing-slot" class="jpf-viewing-slot"></div>
+                        ${this.renderMoreSettings('edit', [
+                            this.renderSection('timer', t('profileForm.sectionLockingTitle'), '',lockingBody),
+                            this.renderThemeSection('edit', profile.theme),
+                            artworkSwitch
+                        ], [
+                            this.renderSection('shield', t('profileForm.sectionRestrictionsTitle'), '',restrictionsBody),
+                            this.renderCopyRulesSection(profile)
+                        ])}` : ''}
 
-                        <div class="profile-dialog-actions jpf-actions">
-                            <div class="dialog-action-buttons">
-                                <button id="edit-cancel-btn" class="profiles-btn btn-secondary">${t('common.cancel')}</button>
+                        <div class="jpf-profile-dialog-actions jpf-actions">
+                            <div class="jpf-dialog-action-buttons">
+                                <button id="edit-submit-btn" class="profiles-btn jpf-btn-primary">${t('common.save')}</button>
                                 ${isSub ? `
-                                    <button id="edit-delete-btn" class="profiles-btn btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
+                                    <button id="jpf-edit-delete-btn" class="profiles-btn jpf-btn-danger-quiet">${t('profileForm.deleteProfile')}</button>
                                 ` : ''}
                             </div>
-                            <button id="edit-submit-btn" class="profiles-btn btn-primary">${t('common.save')}</button>
+                            <button id="edit-cancel-btn" class="profiles-btn jpf-btn-secondary">${t('common.cancel')}</button>
                         </div>
                     </div>
                 `;
 
                 // Setup active color dot selection
-                const dots = content.querySelectorAll('.color-dot');
+                const dots = content.querySelectorAll('.jpf-color-dot');
                 let selectedColor = profile.avatarColor || DEFAULT_AVATAR_COLOR;
                 dots.forEach(dot => {
                     const color = dot.getAttribute('data-color');
                     if (color.toLowerCase() === selectedColor.toLowerCase()) {
                         dot.classList.add('active');
+                        this._syncColorRadios(dots);
                     }
                     dot.addEventListener('click', () => {
                         dots.forEach(d => d.classList.remove('active'));
                         dot.classList.add('active');
+                        this._syncColorRadios(dots);
                         selectedColor = color;
                         const editPreview = document.getElementById('edit-image-upload-preview');
                         if (editPreview && !editPreview.querySelector('img')) {
-                            editPreview.style.backgroundColor = selectedColor;
+                            paintAvatar(editPreview, selectedColor);
                         }
                     });
                 });
 
-                // Remove now lives inside the picker, next to Change picture, and shows
-                // itself from setPreview — so there is nothing left to wire here.
+                // Remove lives inside the picker next to Change picture and shows itself from
+                // setPreview; nothing to wire here.
                 const avatarPicker = this.initAvatarPicker(
                     content, 'edit', avatarLibrary, profile.profileImage,
                     (src) => {
-                        // Colour dimming is the picker's own business now; this callback
-                        // is only here to put the initial back when the picture goes.
+                        // The picker dims the colour itself; this callback only puts the initial back when the picture goes.
                         const preview = document.getElementById('edit-image-upload-preview');
                         if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
                     },
                     { enabled: !!profile.transparentAvatar });
 
-                // Support D-pad Enter/Space select on color dots
-                content.addEventListener('keydown', (e) => {
-                    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('color-dot')) {
-                        e.preventDefault();
-                        e.target.click();
-                    }
-                });
+                this._bindColorDotKeys(content);
 
                 // Select all libraries logic for edit
                 const selectAllCheckbox = document.getElementById('edit-select-all-libraries');
@@ -6733,20 +10132,19 @@
                         cb.addEventListener('change', () => {
                             const allChecked = Array.from(libCheckboxes).every(c => c.checked);
                             selectAllCheckbox.checked = allChecked;
-                            this.syncLibraryRowState(cb.closest('.libart-row'));
+                            this.syncLibraryRowState(cb.closest('.jpf-libart-row'));
                         });
                     });
                 }
 
-                // The tick and the artwork controls share a row now, so the artwork half
-                // has to start out matching the tick rather than waiting for a change.
+                // The tick and artwork controls share a row, so the artwork half starts out matching the tick.
                 this.syncAllLibraryRows(content);
 
                 // Devices dropdown logic for edit
                 const editTrigger = document.getElementById('devices-dropdown-trigger');
                 const editList = document.getElementById('devices-dropdown-list');
                 if (editTrigger && editList) {
-                    // Keep aria-expanded in step with the visual state — see the create form.
+                    // Keep aria-expanded in step; see the create form.
                     const setEditOpen = (open) => {
                         editList.style.display = open ? 'block' : 'none';
                         editTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -6756,10 +10154,10 @@
                         setEditOpen(editList.style.display === 'none');
                     });
                     editTrigger.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                        if (isKey(e, 'Enter') || isKey(e, ' ')) {
                             e.preventDefault();
                             editTrigger.click();
-                        } else if (e.key === 'Escape') {
+                        } else if (isKey(e, 'Escape')) {
                             setEditOpen(false);
                         }
                     });
@@ -6768,7 +10166,7 @@
                         e.stopPropagation();
                     });
                     editList.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' && e.target.type === 'checkbox') {
+                        if (isKey(e, 'Enter') && e.target.type === 'checkbox') {
                             e.preventDefault();
                             e.target.checked = !e.target.checked;
                             e.target.dispatchEvent(new Event('change'));
@@ -6796,157 +10194,6 @@
                 });
                 updateSelectedText();
 
-                // Device deletion handler
-                content.querySelectorAll('.device-delete-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const devId = btn.getAttribute('data-id');
-                        this.showConfirmDialog(t('profileForm.deleteDeviceTitle'), t('profileForm.deleteDeviceMessage'), () => {
-                            const delDevUrl = apiClient.getUrl('plugins/profiles/devices/delete');
-                            fetch(delDevUrl, {
-                                method: 'POST',
-                                headers: this.jsonHeaders(masterState.token),
-                                body: JSON.stringify({ deviceId: devId })
-                            })
-                            .then(res => {
-                                if (res.ok) {
-                                    // The device list is part of the account-wide cache the
-                                    // forms share. Removing only the row would let the next
-                                    // form re-list the device it just deleted, and allow it
-                                    // to be ticked as permitted.
-                                    this.clearSharedFormData();
-
-                                    const row = btn.closest('.device-dropdown-item');
-                                    if (row) row.remove();
-                                    const remaining = editList.querySelectorAll('.device-dropdown-item');
-                                    if (remaining.length === 0) {
-                                        editList.innerHTML = '<div style="padding: 12px; text-align: center; opacity: 0.6; font-size: 0.9rem;">' + t('profileForm.noDevicesConnected') + '</div>';
-                                    }
-                                    updateSelectedText();
-                                    return null;
-                                }
-                                // The server refuses this when the device is the only one a
-                                // profile is allowed on, and says which profiles those are —
-                                // forgetting it would empty their whitelist, and an empty
-                                // whitelist means "any device". Showing the generic failure
-                                // instead threw that away and left the administrator with a
-                                // button that just did not work.
-                                return res.text().then(body => {
-                                    this.showAlert(
-                                        t('errors.error'),
-                                        escapeHtml(body && body.trim()) || t('errors.failedDeleteDevice'));
-                                });
-                            })
-                            .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
-                        });
-                    });
-                });
-
-                // ── Renaming and merging ────────────────────────────────────────────
-                //
-                // Both post and then re-open the form, rather than patching the row in
-                // place: a merge changes which devices exist and which of them this profile
-                // is allowed on, and the checkbox states are rebuilt from that. Patching
-                // would leave the ticks describing a list that no longer exists.
-                const deviceAction = (path, body, failKey) => {
-                    // Some of these take their argument in the query string and no body at
-                    // all. Sending the four bytes "null" for those is not harmless: ASP.NET
-                    // binds it as an explicit null, which is a different thing from absent.
-                    const init = {
-                        method: 'POST',
-                        headers: this.jsonHeaders(masterState.token)
-                    };
-                    if (body !== null && body !== undefined) init.body = JSON.stringify(body);
-
-                    fetch(apiClient.getUrl('plugins/profiles/devices/' + path), init)
-                    .then(res => {
-                        if (res.ok) {
-                            this.clearSharedFormData();
-                            this.showEditProfileModal(profile);
-                            return null;
-                        }
-                        return res.text().then(text => {
-                            this.showAlert(t('errors.error'), escapeHtml(text && text.trim()) || t(failKey));
-                        });
-                    })
-                    .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
-                };
-
-                content.querySelectorAll('.device-rename-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.showPromptDialog(
-                            t('profileForm.renameDeviceTitle'),
-                            t('profileForm.renameDeviceLabel'),
-                            btn.getAttribute('data-name'),
-                            (name) => deviceAction(
-                                'rename',
-                                { deviceId: btn.getAttribute('data-id'), deviceName: name },
-                                'errors.failedRenameDevice'));
-                    });
-                });
-
-                // One browser that has minted a new id every time its site data was cleared
-                // leaves four or five identical-looking rows, and merging them a pair at a
-                // time is the kind of chore nobody finishes. Two calls: the first only
-                // reports, the second acts.
-                const tidyBtn = content.querySelector('#devices-tidy-btn');
-                if (tidyBtn) {
-                    tidyBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const url = apiClient.getUrl('plugins/profiles/devices/merge-duplicates');
-                        fetch(url, {
-                            method: 'POST',
-                            headers: this.jsonHeaders(masterState.token)
-                        })
-                        .then(res => res.json())
-                        .then(data => {
-                            const count = (data.groups || [])
-                                .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
-                            if (!count) {
-                                this.showAlert(t('profileForm.tidyDevices'), t('profileForm.tidyNone'));
-                                return;
-                            }
-                            this.showConfirmDialog(
-                                t('profileForm.tidyDevices'),
-                                t('profileForm.tidyFound', { count: count }),
-                                () => deviceAction('merge-duplicates?apply=true', null,
-                                                   'errors.failedMergeDevice'));
-                        })
-                        .catch(err => this.showAlert(t('errors.error'),
-                            t('errors.withMessage', { message: escapeHtml(err.message) })));
-                    });
-                }
-
-                content.querySelectorAll('.device-merge-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        const fromId = btn.getAttribute('data-id');
-                        const others = Array.from(content.querySelectorAll('.device-dropdown-item'))
-                            .map(row => ({
-                                id: row.getAttribute('data-device-id'),
-                                name: (row.querySelector('.device-row-name') || {}).textContent || ''
-                            }))
-                            .filter(d => d.id && d.id !== fromId);
-
-                        if (others.length === 0) return;
-
-                        this.showSelectDialog(
-                            t('profileForm.mergeDeviceTitle'),
-                            t('profileForm.mergeDeviceMessage'),
-                            others,
-                            (intoId) => deviceAction(
-                                'merge',
-                                { fromDeviceId: fromId, intoDeviceId: intoId },
-                                'errors.failedMergeDevice'));
-                    });
-                });
-
                 // Clear PIN logic
                 let isPinCleared = false;
                 const clearPinBtn = document.getElementById('edit-clear-pin-btn');
@@ -6954,8 +10201,8 @@
                     clearPinBtn.addEventListener('click', (e) => {
                         e.preventDefault();
                         isPinCleared = true;
-                        document.getElementById('edit-pin-input').value = '';
-                        document.getElementById('edit-pin-input').placeholder = t('profileForm.pinPlaceholderUnprotected');
+                        document.getElementById('jpf-edit-pin-input').value = '';
+                        document.getElementById('jpf-edit-pin-input').placeholder = t('profileForm.pinPlaceholderUnprotected');
                         clearPinBtn.style.display = 'none';
                     });
                 }
@@ -6964,14 +10211,16 @@
                 // Save handler
                 document.getElementById('edit-submit-btn').addEventListener('click', () => {
                     const name = document.getElementById('edit-name-input').value.trim();
-                    const pinVal = document.getElementById('edit-pin-input').value;
-                    const bypassPin = document.getElementById('edit-local-bypass-checkbox').checked;
-                    
+                    // The main account's form has none of these (see Section 2): null leaves each as it is.
+                    const pinField = document.getElementById('jpf-edit-pin-input');
+                    const pinVal = pinField ? pinField.value : '';
+                    const bypassBox = document.getElementById('edit-local-bypass-checkbox');
+                    const bypassPin = bypassBox ? bypassBox.checked : null;
+
                     let rating = null;
                     let checkedLibs = null;
                     let checkedDevices = null;
-                    // Null for the master profile, which has no tag editor — the server reads
-                    // null as "leave unchanged".
+                    // Null for the master profile, which has no tag editor; the server reads null as "leave unchanged".
                     let blockedTags = null;
                     let allowedTags = null;
                     if (!profile.isMaster) {
@@ -6983,12 +10232,12 @@
                             // Same guard as the create form (#33).
                             if (isGuidLike(cb.value)) rawLibs.push(cb.value);
                         });
-                        // Send null (not empty array) when no libraries are checked.
-                        // An empty array tells the server "allow no libraries",
-                        // while null means "inherit all accessible libraries from master".
+                        // No box ticked means every library, sent as allLibraries: true. It used to be
+                        // enabledFolders: null, which the server also read as "every library", so any client
+                        // that left the field out lifted a child's library limits (R-1144). Null now keeps
+                        // the list and "all" has to be said.
                         checkedLibs = rawLibs.length > 0 ? rawLibs : null;
-                        // Null leaves the list as it is. With no device list to draw there
-                        // are no boxes, and [] would mean "any device".
+                        // Null leaves the list as it is. With no device list drawn there are no boxes, and [] would mean "any device".
                         if (devices !== null) {
                             checkedDevices = [];
                             content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
@@ -6999,23 +10248,22 @@
                     const lockoutSel = document.getElementById('edit-lockout-select');
                     const lockoutMinutes = lockoutSel ? parseInt(lockoutSel.value, 10) : undefined;
 
-                    // Report validation failures inline next to the offending field as well as
-                    // in a dialog. A dialog alone is fragile — when it was rendering behind the
-                    // overlay this button looked completely dead on an invalid PIN.
+                    // Report validation failures inline next to the field as well as in a dialog. A
+                    // dialog alone made this button look dead on an invalid PIN when it rendered behind the overlay.
                     const pinError = document.getElementById('edit-pin-error');
                     const showPinError = (msg) => {
                         if (pinError) {
                             pinError.textContent = msg;
                             pinError.style.display = 'block';
                         }
-                        const input = document.getElementById('edit-pin-input');
+                        const input = document.getElementById('jpf-edit-pin-input');
                         if (input) {
                             input.style.borderColor = 'var(--jpf-danger)';
                             input.focus();
                         }
                     };
                     if (pinError) pinError.style.display = 'none';
-                    const pinInputEl = document.getElementById('edit-pin-input');
+                    const pinInputEl = document.getElementById('jpf-edit-pin-input');
                     if (pinInputEl) pinInputEl.style.borderColor = '';
 
                     if (!name) {
@@ -7023,11 +10271,10 @@
                         return;
                     }
 
-                    // What is typed in the box comes first. "Clear PIN" empties the field
-                    // but leaves it on screen, and the clear used to be checked first: a
-                    // parent who cleared and then typed a new PIN saved an unprotected
-                    // profile and was told it had worked (R-1214). Clear means "no PIN"
-                    // only while the box is still empty.
+                    // What is typed in the box comes first. "Clear PIN" empties the field but leaves it
+                    // on screen, and clear used to win: a parent who cleared and then typed a new PIN saved
+                    // an unprotected profile and was told it worked (R-1214). Clear means "no PIN" only
+                    // while the box is empty.
                     let pin = null;
                     if (pinVal) {
                         if (!/^\d+$/.test(pinVal)) {
@@ -7052,8 +10299,11 @@
                             profileName: name,
                             pin: pin,
                             avatarColor: selectedColor,
-                            maxParentalRating: rating || null,
+                            // "" is "no limit of its own"; null (the main account) keeps it. Null used to be
+                            // both, so "no limit" sent null (R-1144).
+                            maxParentalRating: rating,
                             enabledFolders: checkedLibs,
+                            allLibraries: !profile.isMaster && checkedLibs === null ? true : null,
                             blockedTags: blockedTags,
                             allowedTags: allowedTags,
                             masterPin: this.masterPin,
@@ -7068,18 +10318,11 @@
                         })
                     })
                     .then(res => {
-                        if (!res.ok) return res.text().then(text => { throw new Error(text); });
-                        // The main account just changed its own PIN. This is the one the server
-                        // checks on every later change, so keeping the old one made each of them
-                        // fail as an incorrect main PIN, and count as a wrong try, until Done (#44).
-                        if (pin !== null && this.normalizeGuid(profile.profileUserId) === this.normalizeGuid(masterState.masterUserId)) {
-                            this.masterPin = pin || null;
-                        }
-                        // Artwork is stored per library, so it is saved after the profile
-                        // itself rather than folded into that one request.
-                        // The account on screen changed its own theme: put it on now rather
-                        // than on the next load. Any other profile's theme shows when it is
-                        // opened.
+                        this.checked(res);
+                        if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
+                        // Artwork is stored per library, so it is saved after the profile, not folded into
+                        // that request. If the account on screen changed its own theme, apply it now; any
+                        // other profile's theme shows when it is opened.
                         const savedTheme = this.readThemePicker('edit');
                         if (savedTheme !== undefined && this._themeSettings
                             && this.normalizeGuid(profile.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
@@ -7089,18 +10332,28 @@
                                 allowProfileThemes: this._themeSettings.allow
                             });
                         }
-                        return artworkEditor.save(profile.profileUserId).then(() => {
-                            this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
-                        });
+                        return artworkEditor.save(profile.profileUserId)
+                            // The profile is saved by now, so an artwork failure is said as that and the hours
+                            // and refresh still run. Uncaught, it fell to the outer catch, which says the profile did not save.
+                            .catch(err => {
+                                this.showAlert(t('errors.error'), this._failText(err, t('errors.couldNotSaveArtwork')));
+                            })
+                            // A failure here is the hours only.
+                            .then(() => viewingEditor.save().catch(err => {
+                                this.showAlert(t('errors.error'), this._hoursFailText(err));
+                            }))
+                            .then(() => {
+                                this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
+                            });
                     })
-                    .catch(err => this.showAlert(t('errors.error'), t('errors.savingProfile', { message: escapeHtml(err.message) })));
+                    .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.savingProfile'))));
                 });
 
                 // Delete handler
-                const delBtn = document.getElementById('edit-delete-btn');
+                const delBtn = document.getElementById('jpf-edit-delete-btn');
                 if (delBtn) {
                     delBtn.addEventListener('click', () => {
-                        this.showConfirmDialog(t('profileForm.deleteProfile'), t('profileForm.deleteConfirmMessage', { name: escapeHtml(profile.profileName) }), () => {
+                        this.showConfirmDialog(t('profileForm.deleteProfile'), t(profile.keepAccountOnDelete ? 'profileForm.deleteConfirmKept' : 'profileForm.deleteConfirmMessage', { name: profile.profileName }), () => {
                             this.executeProfileDeletion(profile.profileUserId);
                         });
                     });
@@ -7110,12 +10363,16 @@
                     this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
                 });
                 const artworkEditor = this.initLibraryArtworkEditor(content, profile.profileUserId);
+                const viewingEditor = this.initViewingEditor(content.querySelector('#edit-viewing-slot'), profile);
+                this.bindCopyRules(content, profile, apiClient, masterState);
                 this.bindThemePicker('edit');
                 this.initTVCheckboxes(content);
+                this._focusFirstOnTv(content);
                 this.initTagEditors(content);
             })
             .catch(err => {
-                this.showAlert(t('errors.error'), t('errors.loadProfileDetails', { message: escapeHtml(err.message) }));
+                if (err && err.handled) return;
+                this.showAlert(t('errors.error'), this._failText(err, t('errors.loadProfileDetails')));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
             });
         },
@@ -7132,13 +10389,14 @@
 
             content.innerHTML = `
                 <h1 class="profiles-title">${t('bonfire.yourBonfireTitle')}</h1>
-                <div class="create-profile-container" style="max-width: 500px; width: 100%;">
-                    <div id="bonfire-container" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
+                <div class="jpf-create-profile-container jpf-sheet-bare" style="max-width: 500px; width: 100%;">
+                    <div id="account-links-slot"></div>
+                    <div id="bonfire-container" class="jpf-col-gap-15" style="width: 100%; min-height: 100px; display: flex; flex-direction: column; gap: 1.5rem;">
                         <div style="display: flex; justify-content: center; padding: 20px;">
-                            <div class="profiles-loading-spinner" style="border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
+                            <div class="profiles-loading-spinner" style="border: 3px solid var(--jpf-border-1); border-radius: 50%; border-top: 3px solid var(--jpf-accent); width: 24px; height: 24px; animation: jpfSpin 1s linear infinite;"></div>
                         </div>
-                        <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
-                            <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
+                        <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
+                            <button id="bonfire-back-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                         </div>
                     </div>
                 </div>
@@ -7147,33 +10405,1061 @@
             const attachBackBtnListener = () => {
                 const btn = content.querySelector('#bonfire-back-btn');
                 if (btn) {
-                    btn.addEventListener('click', () => {
-                        this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
-                    });
+                    // Back goes to Settings, where Sharing is opened from, as on the loaded page.
+                    // It went to the profile grid while loading.
+                    btn.addEventListener('click', () => this.showSettingsMenu());
                 }
             };
 
             attachBackBtnListener();
 
+            this._bindAccountLinks(content.querySelector('#account-links-slot'));
             this.loadBonfireStatus(content, apiClient, masterState.token);
 
             // Auto-focus first focusable element for TV D-pad navigation
             setTimeout(() => {
-                const first = content.querySelector('input, button');
+                // The user may have left for another screen during the 250 ms (R-1217).
+                if (!this.navIsCurrent(navTicket)) return;
+                // Never a Remove button: focus fills it, and it read as a primary action (P2-102).
+                const first = content.querySelector('input, button:not(.links-remove):not(.links-leave)');
                 if (first) first.focus();
             }, 250);
         },
 
-        /// Lets the account holder choose between the forced gate and native-menu access.
-        /// A per-account preference rather than a server setting — some households want the
-        /// Netflix-style "Who's Watching?" screen, others find it intrusive, and neither
-        /// answer should be imposed on the other by whoever runs the server.
-        /// Everything that is not a profile.
+        /// Settings → Sharing: other accounts shown on this household's screen (issue #39),
+        /// and the screens this account is shown on. A tile opens that person's own account,
+        /// so there is one watch history.
         ///
-        /// Bonfire has four scopes of setting: per profile (Edit Profile), per account
-        /// (Switcher Style), between accounts (Your Bonfire) and server-wide (the
-        /// dashboard). The middle two used to be cards in the profile grid, which is
-        /// why they needed their own gradient tiles to avoid reading as people.
+        /// Adding one takes its password, typed once; the server checks it and stores nothing.
+        /// Every route returns the whole list, so each action redraws from it.
+        _bindAccountLinks: function (slot) {
+            if (!slot) return;
+            let data = null;
+            const status = () => slot.querySelector('#links-status');
+            const say = (text, bad) => {
+                const el = status();
+                if (!el) return;
+                el.textContent = text || '';
+                el.style.color = bad ? 'var(--jpf-danger)' : '';
+            };
+            const list = (key) => (this._field(data, key) || []).map(x => ({
+                id: this._field(x, 'userId'),
+                name: this._field(x, 'name') || '',
+                hasPin: this._field(x, 'hasPin') === true
+            }));
+
+            // Each reply redraws the section, destroying the focused button and the status line a
+            // screen reader was watching. The status node is carried across so the next message
+            // is a change to an existing region (a newly inserted one is often not announced),
+            // and focus goes to a stated place instead of the page (R-1219).
+            const draw = (focusSel) => {
+                if (!document.body.contains(slot)) return;
+                const keptStatus = status();
+                const added = list('added');
+                const shown = list('shownIn');
+                const row = (x, cls, label, aria) => `
+                    <div class="jpf-link-row">
+                        <span class="jpf-link-name">
+                            <span>${escapeHtml(x.name)}</span>
+                            ${cls === 'links-remove' ? `<span class="jpf-form-hint">${x.hasPin ? t('links.withPin') : t('links.noPin')}</span>` : ''}
+                        </span>
+                        <button type="button" class="profiles-btn jpf-btn-danger-quiet ${cls}" data-id="${escapeHtml(x.id)}" data-name="${escapeHtml(x.name)}" aria-label="${escapeHtml(aria)}">${label}</button>
+                    </div>`;
+                slot.innerHTML = this.renderSection('group_add', t('links.title'), t('links.subtitle'), `
+                    ${added.length
+                        ? `<div class="jpf-link-list">${added.map(x => row(x, 'links-remove', t('links.remove'), t('links.removeAria', { name: x.name }))).join('')}</div>`
+                        : `<div class="jpf-form-hint">${t('links.none')}</div>`}
+                    <div class="jpf-form-group">
+                        <label for="links-username">${t('links.username')}</label>
+                        <input type="text" id="links-username" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    </div>
+                    <div class="jpf-form-group">
+                        <label for="links-password">${t('links.password')}</label>
+                        <input type="password" id="links-password" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
+                    </div>
+                    <button type="button" id="links-add" class="profiles-btn jpf-btn-primary">${t('links.add')}</button>
+                    ${shown.length ? `
+                    <div class="jpf-form-group" style="margin-top: 1.25rem;">
+                        <label id="links-shown-label">${t('links.shownTitle')}</label>
+                        <div class="jpf-link-list" role="group" aria-labelledby="links-shown-label">${shown.map(x => row(x, 'links-leave', t('links.leave'), t('links.leaveAria', { name: x.name }))).join('')}</div>
+                    </div>` : ''}
+                    <div id="links-status" class="jpf-form-hint" role="status" aria-live="polite"></div>
+                `);
+
+                if (keptStatus) {
+                    const fresh = status();
+                    if (fresh && fresh.parentNode && typeof fresh.parentNode.replaceChild === 'function') {
+                        keptStatus.textContent = '';
+                        fresh.parentNode.replaceChild(keptStatus, fresh);
+                    }
+                }
+                if (focusSel) {
+                    const target = slot.querySelector(focusSel) || slot.querySelector('#links-username');
+                    if (target && typeof target.focus === 'function') target.focus();
+                }
+
+                const user = slot.querySelector('#links-username');
+                const pass = slot.querySelector('#links-password');
+                let busy = false;
+                const add = () => {
+                    const name = (user.value || '').trim();
+                    if (!name || !pass.value) { say(t('links.needBoth'), true); return; }
+                    if (busy) return;
+                    busy = true;
+                    this._emailCall('accounts/links/add', { username: name, password: pass.value })
+                        .then(reply => { data = reply; draw('#links-username'); say(t('links.added', { name: name })); })
+                        .catch(err => { busy = false; pass.value = ''; say(this._failText(err, t('errors.couldNotSaveThat')), true); });
+                };
+                slot.querySelector('#links-add').addEventListener('click', add);
+                pass.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) add(); });
+                user.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) pass.focus(); });
+
+                const bind = (cls, body, title, message) => {
+                    Array.prototype.forEach.call(slot.querySelectorAll('.' + cls), btn => {
+                        btn.addEventListener('click', () => {
+                            const id = btn.getAttribute('data-id');
+                            const name = btn.getAttribute('data-name') || '';
+                            this.showActionsDialog(title(name), message, [
+                                { label: cls === 'links-remove' ? t('links.remove') : t('links.leave'), primary: true, run: () => {
+                                    this._emailCall('accounts/links/remove', body(id))
+                                        .then(reply => { data = reply; draw(cls === 'links-remove' ? '.links-remove' : '.links-leave'); say(t('links.removed')); })
+                                        .catch(err => say(this._failText(err, t('errors.couldNotSaveThat')), true));
+                                } },
+                                { label: t('common.cancel') }
+                            ]);
+                        });
+                    });
+                };
+                bind('links-remove', id => ({ userId: id }), name => t('links.removeTitle', { name: name }), t('links.removeBody'));
+                bind('links-leave', id => ({ householdId: id }), name => t('links.leaveTitle', { name: name }), t('links.leaveBody'));
+            };
+
+            this._emailCall('accounts/links')
+                .then(reply => { data = reply; draw(); })
+                .catch(() => { slot.innerHTML = ''; });
+        },
+
+        /// An added account chosen in Manage Profiles. It isn't this household's to edit,
+        /// so the only action is taking it off the screen.
+        showAddedAccount: function (profile) {
+            const name = profile.profileName || '';
+            this.showActionsDialog(name, t('links.manageBody', { name: name }), [
+                { label: t('links.remove'), primary: true, run: () => {
+                    this._emailCall('accounts/links/remove', { userId: profile.profileUserId })
+                        .then(() => {
+                            const st = this.readMasterState();
+                            if (st) this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, true);
+                        })
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.couldNotSaveThat'))));
+                } },
+                { label: t('common.cancel') }
+            ]);
+        },
+
+        /// Settings → Your account: the main account's PIN and sign-in settings, and the
+        /// household's devices.
+        ///
+        /// Device tools (rename, merge, forget, tidy) used to sit in each profile's device list.
+        /// A device belongs to the account: renaming the TV from Kid's form renamed it for
+        /// everyone. A profile now only ticks devices.
+        ///
+        /// Every control saves on its own through /account or /devices/*, so there is no Save
+        /// button and nothing else on the account is sent back.
+        showAccountSettings: function () {
+            const ticket = this.beginNavigation();
+            const masterState = this.readMasterState();
+            const content = document.querySelector('.profiles-modal-content');
+            if (!masterState || !content) return;
+            const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            if (!main) { this.showSettingsMenu(); return; }
+
+            this.fetchSharedFormData(ApiClient, masterState)
+                .then(shared => shared.devices, () => null)
+                .then(devices => {
+                    if (!this.navIsCurrent(ticket)) return;
+                    this._renderAccountSettings(content, main, devices, masterState);
+                });
+        },
+
+        _renderAccountSettings: function (content, main, devices, masterState) {
+            const apiClient = ApiClient;
+            const check = (id, on, label, hint) => `
+                <div class="jpf-form-group">
+                    <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="cursor: pointer; accent-color: var(--jpf-accent);" />
+                        <span>${label}</span>
+                    </label>
+                    ${hint ? `<div class="jpf-form-hint">${hint}</div>` : ''}
+                </div>`;
+
+            const signIn = `
+                <div class="jpf-form-group">
+                    <label for="jpf-account-pin-input">${t('account.pinLabel')}</label>
+                    <div class="jpf-pin-edit-group" style="display:flex; gap: var(--jpf-gap); flex-wrap: wrap;">
+                        <input type="text" id="jpf-account-pin-input" maxlength="8" pattern="[0-9]*" inputmode="numeric" placeholder="${main.hasPin ? t('profileForm.pinPlaceholderNew') : t('profileForm.pinPlaceholderNone')}" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" style="flex:1; min-width: 140px;" />
+                        <button type="button" id="account-pin-save" class="profiles-btn jpf-btn-primary" style="padding:10px 15px;">${t('account.savePin')}</button>
+                        ${main.hasPin ? `<button type="button" id="account-pin-clear" class="profiles-btn jpf-btn-secondary" style="padding:10px 15px;">${t('profileForm.clearPin')}</button>` : ''}
+                    </div>
+                    <div class="jpf-form-hint">${main.hasPin ? t('account.pinSetHint') : t('mainPin.setBody')}</div>
+                    ${main.isAdministrator ? `<div class="jpf-form-hint" style="color: var(--jpf-danger); font-weight: 600;">${t('profileForm.pinAdminWarning')}</div>` : ''}
+                </div>
+            `;
+
+            // Rare, and each says what it changes in one line: closed under the fold every
+            // household screen uses (P2-603).
+            const rare = `
+                ${check('account-ask-pin', main.askPinToOpen, t('profileForm.askPinToOpen'), t('profileForm.askPinToOpenHint'))}
+                ${this.showHomeSkip(main.seenOnLocalNetwork, main.bypassPinOnLocalNetwork)
+                    ? check('account-lan-bypass', main.bypassPinOnLocalNetwork, t('profileForm.bypassPinLan'))
+                    : ''}
+                <div class="jpf-form-group">
+                    <label for="account-lockout-select">${t('profileForm.autoLock')}</label>
+                    <select id="account-lockout-select">${this.renderLockoutOptions(main.lockoutMinutes, false)}</select>
+                    <div class="jpf-form-hint">${t('profileForm.autoLockHintEdit')}</div>
+                </div>
+                <div class="jpf-form-group">
+                    <label for="account-layout-select">${t('account.layout')}</label>
+                    <select id="account-layout-select">
+                        <option value="auto"${!this._layoutChoice ? ' selected' : ''}>${t('account.layoutAuto')}</option>
+                        <option value="tv"${this._layoutChoice === 'tv' ? ' selected' : ''}>${t('account.layoutTv')}</option>
+                        <option value="standard"${this._layoutChoice === 'standard' ? ' selected' : ''}>${t('account.layoutStandard')}</option>
+                    </select>
+                    <div class="jpf-form-hint">${t('account.layoutHint')}</div>
+                </div>
+            `;
+
+            // A count and a button. The list, with rename, merge and forget, is its own screen (P2-603).
+            const deviceBody = devices === null
+                ? `<div class="jpf-form-hint">${t('profileForm.devicesUnavailable')}</div>`
+                : `<div class="jpf-form-hint" id="account-device-count">${t('account.devicesCount', { count: devices.length })}</div>
+                   <button type="button" id="account-manage-devices" class="profiles-btn jpf-btn-secondary">${t('account.manageDevices')}</button>`;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('settings.accountTitle')}</h1>
+                <div class="jpf-create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                    ${this.renderSection('lock', t('account.signInTitle'), '', signIn)}
+                    <div id="account-email-slot"></div>
+                    <div id="account-zone-slot"></div>
+                    ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesCountSubtitle'), deviceBody)}
+                    ${this.renderFold('account-more', t('account.moreSummary'), `<div class="jpf-form-col">${rare}</div>`, true)}
+                    <div id="account-status" class="jpf-form-hint" role="status" aria-live="polite"></div>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
+                        <button id="account-back-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
+                    </div>
+                </div>
+            `;
+            this._bindAccountScreen(content, main, devices, masterState);
+        },
+
+        /// Settings → Your account → Manage devices: every device the household has used,
+        /// with rename, merge and forget on each. Its own screen so the account page can
+        /// show a count (P2-603).
+        showAccountDevices: function () {
+            const ticket = this.beginNavigation();
+            const masterState = this.readMasterState();
+            const content = document.querySelector('.profiles-modal-content');
+            if (!masterState || !content) return;
+            this.fetchSharedFormData(ApiClient, masterState)
+                .then(shared => shared.devices, () => null)
+                .then(devices => {
+                    if (!this.navIsCurrent(ticket)) return;
+                    this._renderAccountDevices(content, devices, masterState);
+                });
+        },
+
+        _renderAccountDevices: function (content, devices, masterState) {
+            const deviceRow = (dev) => {
+                const id = dev.deviceId || dev.DeviceId || '';
+                const name = deviceListName(dev);
+                const client = deviceListClient(dev);
+                const seen = dev.lastSeen || dev.LastSeen;
+                const seenDate = seen ? new Date(seen) : null;
+                // Year 1 is an unset DateTime; see renderDeviceDropdown.
+                const seenStr = (seenDate && seenDate.getFullYear() > 1)
+                    ? seenDate.toLocaleDateString() : t('profileForm.unknown');
+                return `
+                    <div class="jpf-device-dropdown-item" data-device-id="${escapeHtml(id)}" data-device-detail="${escapeHtml(t('profileForm.deviceLastSeen', { client: client, date: seenStr }))}">
+                        <span style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+                            <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(name)}</span>
+                            <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: seenStr })}</span>
+                        </span>
+                        <button type="button" class="jpf-device-rename-btn" data-id="${escapeHtml(id)}" data-name="${escapeHtml(name)}" title="${escapeHtml(t('profileForm.renameDevice'))}" aria-label="${escapeHtml(t('profileForm.renameDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">edit</span></button>
+                        <button type="button" class="jpf-device-merge-btn" data-id="${escapeHtml(id)}" title="${escapeHtml(t('profileForm.mergeDevice'))}" aria-label="${escapeHtml(t('profileForm.mergeDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
+                        <button type="button" class="jpf-device-delete-btn" data-id="${escapeHtml(id)}" title="${escapeHtml(t('profileForm.forgetDevice'))}" aria-label="${escapeHtml(t('profileForm.forgetDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">delete</span></button>
+                    </div>`;
+            };
+            const deviceBody = devices === null
+                ? `<div class="jpf-form-hint">${t('profileForm.devicesUnavailable')}</div>`
+                : !devices.length
+                    ? `<div class="jpf-form-hint">${t('profileForm.noDevicesYet')}</div>`
+                    : `<div class="jpf-device-list">${devices.map(deviceRow).join('')}</div>
+                       <div class="jpf-form-hint">${t('account.devicesHint')}</div>
+                       <button type="button" id="devices-tidy-btn" class="profiles-btn jpf-btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>`;
+
+            content.innerHTML = `
+                <h1 class="profiles-title">${t('account.devicesTitle')}</h1>
+                <div class="jpf-create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                    ${this.renderSection('devices', t('account.devicesTitle'), t('account.devicesSubtitle'), deviceBody)}
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1.5rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
+                        <button id="account-back-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
+                    </div>
+                </div>
+            `;
+            this.bindDeviceTools(content, masterState, () => this.showAccountDevices());
+            content.querySelector('#account-back-btn').addEventListener('click', () => this.showAccountSettings());
+            this.initTVCheckboxes(content);
+        },
+
+        /// Everything on the account page that does something. Each control saves alone
+        /// through /account.
+        _bindAccountScreen: function (content, main, devices, masterState) {
+            const apiClient = ApiClient;
+            // Looked up on every call: a PIN save redraws the page and replaces this element,
+            // and a reference taken once wrote "PIN saved" into the detached old one.
+            const say = (text, bad) => {
+                const status = content.querySelector('#account-status');
+                if (!status) return;
+                status.textContent = text || '';
+                status.style.color = bad ? 'var(--jpf-danger)' : '';
+            };
+            const rerender = () => this._renderAccountSettings(content, main, devices, masterState);
+
+            /// One POST to /account. Resolves true when saved; on refusal shows why and
+            /// resolves false so the caller can put its control back.
+            const saveAccount = (body) => {
+                say('');
+                return fetch(apiClient.getUrl('plugins/profiles/account'), {
+                    method: 'POST',
+                    headers: this.jsonHeaders(masterState.token),
+                    body: JSON.stringify(Object.assign({ masterPin: this.masterPin }, body))
+                })
+                .then(res => {
+                    if (res.status === 401) { this.handleSessionExpired(); return false; }
+                    if (!res.ok) { say(refusalText(res) || t('errors.couldNotSaveThat'), true); return false; }
+                    return res.json().then(saved => {
+                        const pick = (k) => (saved[k] !== undefined ? saved[k] : saved[k.charAt(0).toUpperCase() + k.slice(1)]);
+                        if (pick('hasPin') !== undefined) main.hasPin = pick('hasPin') === true;
+                        if (pick('askPinToOpen') !== undefined) main.askPinToOpen = pick('askPinToOpen') !== false;
+                        if (pick('bypassPinOnLocalNetwork') !== undefined) main.bypassPinOnLocalNetwork = pick('bypassPinOnLocalNetwork') === true;
+                        if (pick('seenOnLocalNetwork') === true) main.seenOnLocalNetwork = true;
+                        if (typeof pick('lockoutMinutes') === 'number') main.lockoutMinutes = pick('lockoutMinutes');
+                        return true;
+                    }, () => true);
+                })
+                .catch(err => { say(err.message || t('errors.couldNotSaveThat'), true); return false; });
+            };
+
+            const pinInput = content.querySelector('#jpf-account-pin-input');
+            const savePin = () => {
+                const pin = pinInput.value;
+                if (!/^\d{4,8}$/.test(pin)) { say(t('profileForm.pinLengthCreate'), true); pinInput.focus(); return; }
+                saveAccount({ pin: pin }).then(ok => {
+                    if (!ok) return;
+                    this.masterPin = pin;
+                    main.hasPin = true;
+                    rerender();
+                    say(t('account.pinSaved'));
+                    const again = content.querySelector('#jpf-account-pin-input');
+                    if (again && again.focus) again.focus();
+                });
+            };
+            content.querySelector('#account-pin-save').addEventListener('click', savePin);
+            pinInput.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) savePin(); });
+
+            const clearBtn = content.querySelector('#account-pin-clear');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    saveAccount({ pin: '' }).then(ok => {
+                        if (!ok) return;
+                        this.masterPin = null;
+                        main.hasPin = false;
+                        rerender();
+                        say(t('account.pinCleared'));
+                        const again = content.querySelector('#jpf-account-pin-input');
+                        if (again && again.focus) again.focus();
+                    });
+                });
+            }
+
+            const toggle = (id, field) => {
+                const box = content.querySelector('#' + id);
+                if (!box) return;
+                box.addEventListener('change', () => {
+                    const body = {};
+                    body[field] = box.checked;
+                    saveAccount(body).then(ok => {
+                        if (ok) say(t('account.saved'));
+                        else { box.checked = !box.checked; this.revealFold(box); }
+                    });
+                });
+            };
+            toggle('account-ask-pin', 'askPinToOpen');
+            toggle('account-lan-bypass', 'bypassPinOnLocalNetwork');
+
+            const lockSel = content.querySelector('#account-lockout-select');
+            // What the select showed when drawn. main.lockoutMinutes can be absent, and
+            // String(undefined) put "undefined" in the select after a failed save.
+            let savedLockout = lockSel.value;
+            lockSel.addEventListener('change', () => {
+                saveAccount({ lockoutMinutes: parseInt(lockSel.value, 10) }).then(ok => {
+                    if (ok) { savedLockout = lockSel.value; say(t('account.saved')); }
+                    else { lockSel.value = savedLockout; this.revealFold(lockSel); }
+                });
+            });
+
+            // Not saveAccount: this answer stays on the device and the server never hears of it.
+            const layoutSel = content.querySelector('#account-layout-select');
+            if (layoutSel) {
+                layoutSel.addEventListener('change', () => {
+                    this.setLayoutChoice(layoutSel.value);
+                    say(t('account.saved'));
+                });
+            }
+
+            const manage = content.querySelector('#account-manage-devices');
+            if (manage) manage.addEventListener('click', () => this.showAccountDevices());
+            this._bindAccountEmail(content.querySelector('#account-email-slot'));
+            this._bindAccountZone(content.querySelector('#account-zone-slot'), saveAccount, say);
+
+            content.querySelector('#account-back-btn').addEventListener('click', () => this.showSettingsMenu());
+            this.initTVCheckboxes(content);
+            this._focusFirstOnTv(content);
+        },
+
+        /// The household's time zone, in which viewing hours are read. Drawn once the server
+        /// has listed its zones; a server too old to list them shows nothing.
+        _bindAccountZone: function (slot, saveAccount, say) {
+            if (!slot) return;
+            const masterState = this.readMasterState();
+            if (!masterState) return;
+            this.fetchFormOptions(ApiClient, masterState.token)
+                .then(options => this._field(options, 'timeZones'))
+                .then(data => {
+                    if (!data || !document.body.contains(slot)) return;
+                    const zones = this._field(data, 'zones') || [];
+                    const chosen = this._field(data, 'household') || '';
+                    const fallback = this._field(data, 'default') || this._field(data, 'server') || '';
+                    // "Server default (Chicago)", not "(America/Chicago)": a native select can't shorten
+                    // its text, and the full id was cut under the arrow on a phone (P2-1002).
+                    slot.innerHTML = this.renderSection('schedule', t('account.zoneTitle'), t('account.zoneSubtitle'), `
+                        <div class="jpf-form-group">
+                            <label for="account-zone-select">${t('account.zone')}</label>
+                            <select id="account-zone-select">
+                                <option value="">${t('account.zoneDefault', { zone: escapeHtml(fallback.split('/').pop().replace(/_/g, ' ')) })}</option>
+                                ${zones.map(z => `<option value="${escapeHtml(z)}"${z === chosen ? ' selected' : ''}>${escapeHtml(z.replace(/_/g, ' '))}</option>`).join('')}
+                            </select>
+                        </div>`);
+                    const select = slot.querySelector('#account-zone-select');
+                    let before = select.value;
+                    select.addEventListener('change', () => {
+                        saveAccount({ timeZone: select.value }).then(ok => {
+                            if (ok) { before = select.value; say(t('account.saved')); }
+                            else select.value = before;
+                        });
+                    });
+                })
+                .catch(() => {});
+        },
+
+        /// Rename, merge, forget and tidy, for the rows _renderAccountSettings draws.
+        ///
+        /// Each posts, then redraws through refresh() instead of patching the row: a merge
+        /// changes which devices exist, and only a redraw from the server's list stays true.
+        bindDeviceTools: function (content, masterState, refresh) {
+            const apiClient = ApiClient;
+            const deviceAction = (path, body, failKey) => {
+                // Some take their argument in the query string and no body. Sending the four bytes
+                // "null" for those is not harmless: ASP.NET binds it as an explicit null, not absent.
+                const init = {
+                    method: 'POST',
+                    headers: this.manageHeaders(masterState.token)
+                };
+                if (body !== null && body !== undefined) init.body = JSON.stringify(body);
+
+                fetch(apiClient.getUrl('plugins/profiles/devices/' + path), init)
+                .then(res => {
+                    this.checked(res);
+                    if (res.ok) {
+                        // The device list is part of the account-wide cache the profile forms share;
+                        // left stale, the next form would list what was just changed.
+                        this.clearSharedFormData();
+                        refresh();
+                        return null;
+                    }
+                    // Forget is refused when the device is the only one a profile may open on: forgetting
+                    // it would empty their list, and an empty list means "any device". The server names
+                    // the profiles, and that reason is shown instead of a generic failure.
+                    this.showAlert(t('errors.error'), refusalText(res) || t(failKey));
+                    return null;
+                })
+                .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
+            };
+
+            content.querySelectorAll('.jpf-device-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showConfirmDialog(t('profileForm.deleteDeviceTitle'), t('profileForm.deleteDeviceMessage'),
+                        () => deviceAction('delete', { deviceId: btn.getAttribute('data-id') }, 'errors.failedDeleteDevice'));
+                });
+            });
+
+            // Renaming tells two ids for one machine apart: jellyfin-web keeps its id per origin,
+            // so the LAN address and the domain name give one computer two devices, as do a new
+            // browser profile or a reinstall. The name sticks (see KnownDevice.NameIsCustom).
+            content.querySelectorAll('.jpf-device-rename-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showPromptDialog(
+                        t('profileForm.renameDeviceTitle'),
+                        t('profileForm.renameDeviceLabel'),
+                        btn.getAttribute('data-name'),
+                        (name) => deviceAction('rename',
+                            { deviceId: btn.getAttribute('data-id'), deviceName: name },
+                            'errors.failedRenameDevice'));
+                });
+            });
+
+            // Nothing in a request tells one machine's two ids from two real machines, so the
+            // plugin never merges on a guess: merging different ones would widen a profile's
+            // list. A person says so here.
+            content.querySelectorAll('.jpf-device-merge-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const fromId = btn.getAttribute('data-id');
+                    // The picker is for rows that look alike, so each choice carries the client and
+                    // last-seen date the list shows; the name alone told four identical rows apart by
+                    // nothing (R-1230).
+                    const others = Array.from(content.querySelectorAll('.jpf-device-dropdown-item'))
+                        .map(row => {
+                            const name = (row.querySelector('.device-row-name') || {}).textContent || '';
+                            const detail = row.getAttribute('data-device-detail') || '';
+                            return {
+                                id: row.getAttribute('data-device-id'),
+                                name: name,
+                                label: detail ? name + ' (' + detail + ')' : name
+                            };
+                        })
+                        .filter(d => d.id && d.id !== fromId);
+                    if (others.length === 0) return;
+                    this.showSelectDialog(
+                        t('profileForm.mergeDeviceTitle'),
+                        t('profileForm.mergeDeviceMessage'),
+                        others,
+                        (intoId) => deviceAction('merge',
+                            { fromDeviceId: fromId, intoDeviceId: intoId },
+                            'errors.failedMergeDevice'));
+                });
+            });
+
+            // A browser that mints a new id every time its site data is cleared leaves four or
+            // five identical rows, and merging a pair at a time is a chore nobody finishes.
+            // Two calls: the first only reports, the second acts.
+            const tidyBtn = content.querySelector('#devices-tidy-btn');
+            if (tidyBtn) {
+                tidyBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    fetch(apiClient.getUrl('plugins/profiles/devices/merge-duplicates'), {
+                        method: 'POST',
+                        headers: this.manageHeaders(masterState.token)
+                    })
+                    .then(res => {
+                        this.checked(res);
+                        if (!res.ok) throw refusalError(res, t('errors.generic'));
+                        return res.json();
+                    })
+                    .then(data => {
+                        const count = (data.groups || [])
+                            .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
+                        if (!count) {
+                            this.showAlert(t('profileForm.tidyDevices'), t('profileForm.tidyNone'));
+                            return;
+                        }
+                        this.showConfirmDialog(
+                            t('profileForm.tidyDevices'),
+                            t('profileForm.tidyFound', { count: count }),
+                            () => deviceAction('merge-duplicates?apply=true', null, 'errors.failedMergeDevice'));
+                    })
+                    .catch(err => this.showAlert(t('errors.error'),
+                        this._failText(err, t('errors.generic'))));
+                });
+            }
+        },
+
+        /// "Skip the PIN on my home network" only applies to a household the server has seen
+        /// on its own network, so it is offered to no other. Where it is already on it stays,
+        /// so it can be turned off. `seen` is the household's flag from /list; `on` is this
+        /// row's setting.
+        showHomeSkip: function (seen, on) {
+            return seen === true || on === true;
+        },
+
+        /// Whether the signed-in household has been seen on the server's network.
+        householdSeenLocally: function () {
+            const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            return !!(main && main.seenOnLocalNetwork);
+        },
+
+        /// The auto-lock choices. `isNew` marks five minutes as the default in its label.
+        renderLockoutOptions: function (current, isNew) {
+            return [
+                [0, 'profileForm.lockoutNever'],
+                [1, 'profileForm.lockout1Min'],
+                [5, isNew ? 'profileForm.lockout5MinDefault' : 'profileForm.lockout5Min'],
+                [10, 'profileForm.lockout10Min'],
+                [20, 'profileForm.lockout20Min'],
+                [30, 'profileForm.lockout30Min'],
+                [60, 'profileForm.lockout1Hour']
+            ].map(([v, key]) => `<option value="${v}" ${current === v ? 'selected' : ''}>${t(key)}</option>`).join('');
+        },
+
+        // ─── First-time setup (1.7.2) ────────────────────────────────────────────
+
+        /// Asks the server whether this account should be walked through first-time setup,
+        /// and if so starts it. At most once per page load, and only after /preferences says
+        /// it is pending. Never from checkRoute.
+        ///
+        /// The server decides who sees it: main accounts only, once per account, and only
+        /// while the administrator has it on.
+        maybeStartOnboarding: function () {
+            if (this._onboardingChecked) return;
+            this._onboardingChecked = true;
+            if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
+
+            this._fetchStartup(ApiClient.accessToken(), 60000)
+            .then(body => body && body.onboarding)
+            .then(data => {
+                if (!data || (data.pending !== undefined ? data.pending : data.Pending) !== true) return;
+                const steps = (data.steps || data.Steps || []).map(s => ({
+                    id: s.id || s.Id,
+                    done: (s.done !== undefined ? s.done : s.Done) === true
+                })).filter(s => ONBOARDING_STEPS.indexOf(s.id) !== -1);
+                // Already true when setup began: skipped and not counted in "Step n of m".
+                steps.forEach(s => { s.given = s.done; });
+                if (!steps.length) return;
+
+                this._onboarding = {
+                    steps: steps,
+                    index: 0,
+                    waiting: true
+                };
+                // On the gate already: take over its content. Otherwise open the overlay;
+                // showProfileOverlay hands it to the setup before the grid is painted.
+                if (document.getElementById('profiles-gate-overlay') && document.querySelector('.profiles-modal-content')) {
+                    this._onboarding.waiting = false;
+                    this.showOnboardingStep();
+                } else {
+                    this.fetchAndRenderProfiles(ApiClient, ApiClient.getCurrentUserId(), ApiClient.accessToken(), /* forceRefresh */ true);
+                }
+            })
+            .catch(() => { /* not shown this time; it stays pending on the server */ });
+        },
+
+        /// Draws the current step. Steps already true of the account (a PIN set, a profile
+        /// made) are skipped. Every screen the overlay redraws while setup runs comes back
+        /// here, so a slow grid arriving late can't paint over a step.
+        showOnboardingStep: function () {
+            const ob = this._onboarding;
+            if (!ob) return;
+            while (ob.index < ob.steps.length && ob.steps[ob.index].done) ob.index++;
+            if (ob.index >= ob.steps.length) { this.finishOnboarding(); return; }
+
+            const step = ob.steps[ob.index];
+            const next = () => {
+                if (this._onboarding !== ob) return;
+                step.done = true;
+                ob.index++;
+                this.showOnboardingStep();
+            };
+            const skip = () => {
+                if (this._onboarding !== ob) return;
+                ob.index++;
+                this.showOnboardingStep();
+            };
+
+            if (step.id === 'mainPin') {
+                this.promptSetMainPin(this.currentProfiles, false, next, { onSkip: skip });
+                return;
+            }
+            if (step.id === 'welcome') this._onboardingWelcome(next);
+            else if (step.id === 'resetEmail') this._onboardingEmail(next, skip);
+            else if (step.id === 'firstProfile') this._onboardingProfile(next, skip);
+            else if (step.id === 'switcher') this._onboardingSwitcher(next, skip);
+            else if (step.id === 'theme') this._onboardingTheme(next, skip);
+            else skip ? skip() : next();
+        },
+
+        /// The frame every step but the PIN shares: title, body, an error line and the
+        /// buttons. A required step has no Skip. `extraClass` marks a step that is not a
+        /// form (the welcome), which is centered.
+        _onboardingFrame: function (title, body, nextLabel, skip, extraClass) {
+            this.beginNavigation();
+            const content = document.querySelector('.profiles-modal-content');
+            if (!content) return null;
+            content.innerHTML = `
+                ${extraClass === 'jpf-onboarding-welcome' ? bonfireMark('jpf-onboarding-mark') : ''}
+                <h1 class="profiles-title">${title}</h1>
+                ${this._onboardingStepLine()}
+                <div class="jpf-create-profile-container jpf-onboarding${extraClass ? ' ' + extraClass : ''}" style="max-width: var(--jpf-w-form); width: 100%;">
+                    ${body}
+                    <div id="onboarding-error" class="profiles-pin-error" role="alert" hidden></div>
+                    <div class="bonfire-dialog-actions jpf-actions jpf-onboarding-actions">
+                        <button id="onboarding-next" class="profiles-btn jpf-btn-primary">${nextLabel}</button>
+                        ${skip ? `<button id="onboarding-skip" class="profiles-btn jpf-btn-text">${t('onboarding.skip')}</button>` : ''}
+                    </div>
+                </div>
+            `;
+            const skipBtn = content.querySelector('#onboarding-skip');
+            if (skipBtn) skipBtn.addEventListener('click', skip);
+            // Next on a TV, unless the step already focused a better control.
+            this._focusFirstOnTv(content, '#onboarding-next');
+            return content;
+        },
+
+        /// One dot per step: done, current (the wide one) and to come. "Step 2 of 5" stays as
+        /// the screen reader label. '' with nothing to count. The PIN step draws its own screen
+        /// and calls this too, so it is numbered like the rest (P2-110).
+        _onboardingStepLine: function () {
+            const ob = this._onboarding;
+            if (!ob) return '';
+            const shown = ob.steps.filter(s => s.id !== 'welcome' && !s.given);
+            const position = shown.indexOf(ob.steps[ob.index]);
+            if (position === -1 || shown.length < 2) return '';
+            const dots = shown.map((s, i) => '<span class="jpf-onboarding-dot' + (i < position ? ' is-done' : i === position ? ' is-current' : '') + '"'
+                + (i === position ? ' aria-current="step"' : '') + '></span>').join('');
+            return `<div class="jpf-onboarding-dots" role="img" aria-label="${escapeHtml(t('onboarding.step', { n: position + 1, total: shown.length }))}">${dots}</div>`;
+        },
+
+        _onboardingError: function (content, message) {
+            const el = content.querySelector('#onboarding-error');
+            if (!el) return;
+            el.textContent = message || t('errors.couldNotSaveThat');
+            el.hidden = false;
+        },
+
+        /// Bonfire's own welcome. The administrator's text was cut, so a server that still
+        /// sends one is ignored.
+        _onboardingWelcome: function (next) {
+            const content = this._onboardingFrame(t('onboarding.welcomeTitle'),
+                `<p class="jpf-onboarding-text">${t('onboarding.welcomeBody')}</p>`, t('onboarding.start'), null,
+                'jpf-onboarding-welcome');
+            if (!content) return;
+            const go = content.querySelector('#onboarding-next');
+            go.addEventListener('click', next);
+            setTimeout(() => go.focus(), 50);
+        },
+
+        /// An address for a forgotten PIN and notices: the address, then the code mailed to
+        /// it. The server offers this step only while email works. `sentTo` is the second
+        /// screen; `refill` restores what was typed when a refusal redraws the first.
+        _onboardingEmail: function (next, skip, sentTo, refill) {
+            const noFill = 'data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true"';
+            const content = this._onboardingFrame(t('onboarding.emailTitle'), sentTo ? `
+                <p class="jpf-onboarding-text" id="onboarding-email-sent"></p>
+                <div class="bonfire-form-group">
+                    <label for="onboarding-email-code">${t('accountEmail.code')}</label>
+                    <input type="text" id="onboarding-email-code" maxlength="7" inputmode="numeric" autocomplete="one-time-code" ${noFill} />
+                </div>
+                <button type="button" id="onboarding-email-other" class="jpf-text-link">${t('accountEmail.otherAddress')}</button>
+            ` : `
+                <p class="jpf-onboarding-text">${t('onboarding.emailBody')}</p>
+                <div class="bonfire-form-group">
+                    <label for="onboarding-email">${t('accountEmail.address')}</label>
+                    <input type="email" id="onboarding-email" maxlength="254" autocomplete="email" />
+                </div>
+            `, sentTo ? t('accountEmail.confirm') : t('accountEmail.send'), skip);
+            if (!content) return;
+
+            // withMainPin may have drawn its own screen; come back to say why.
+            const fail = (message, typed) => {
+                this._onboardingEmail(next, skip, sentTo, typed);
+                const again = document.querySelector('.profiles-modal-content');
+                if (again) this._onboardingError(again, message);
+            };
+            let busy = false;
+
+            if (sentTo) {
+                content.querySelector('#onboarding-email-sent').textContent = t('accountEmail.sentTo', { address: sentTo });
+                const input = content.querySelector('#onboarding-email-code');
+                const confirm = () => {
+                    const code = input.value.replace(/\s/g, '');
+                    if (!/^\d{6}$/.test(code)) { this._onboardingError(content, t('accountEmail.codeInvalid')); input.focus(); return; }
+                    // The guard goes inside the callback, as in the switcher step: set before it, a
+                    // cancelled main PIN prompt left this step dead.
+                    this.withMainPin(this.currentProfiles, () => {
+                        if (busy) return;
+                        busy = true;
+                        this._emailCall('account/email/confirm', { code: code })
+                            .then(() => next(), err => fail(this._failText(err, err.message)));
+                    });
+                };
+                content.querySelector('#onboarding-next').addEventListener('click', confirm);
+                input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) confirm(); });
+                content.querySelector('#onboarding-email-other').addEventListener('click', () => this._onboardingEmail(next, skip));
+                setTimeout(() => input.focus(), 50);
+                return;
+            }
+
+            const input = content.querySelector('#onboarding-email');
+            if (refill) input.value = refill;
+            const send = () => {
+                const address = input.value.trim();
+                if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(address)) { this._onboardingError(content, t('accountEmail.invalid')); input.focus(); return; }
+                this.withMainPin(this.currentProfiles, () => {
+                    if (busy) return;
+                    busy = true;
+                    this._emailCall('account/email', { address: address })
+                        .then(reply => this._onboardingEmail(next, skip, this._field(reply, 'pendingAddress') || address),
+                              err => fail(this._failText(err, err.message), address));
+                });
+            };
+            content.querySelector('#onboarding-next').addEventListener('click', send);
+            input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) send(); });
+            setTimeout(() => input.focus(), 50);
+        },
+
+        /// A first profile, by name only. Everything else has a default and lives in the
+        /// profile's own form.
+        _onboardingProfile: function (next, skip) {
+            const content = this._onboardingFrame(t('onboarding.profileTitle'), `
+                <p class="jpf-onboarding-text">${t('onboarding.profileBody')}</p>
+                <div class="bonfire-form-group">
+                    <label for="onboarding-profile-name">${t('profileForm.profileName')}</label>
+                    <input type="text" id="onboarding-profile-name" maxlength="32" placeholder="${escapeHtml(t('profileForm.namePlaceholder'))}" />
+                </div>
+            `, t('common.create'), skip);
+            if (!content) return;
+            const input = content.querySelector('#onboarding-profile-name');
+            let busy = false;
+            const create = () => {
+                const name = input.value.trim();
+                if (!name) { this._onboardingError(content, t('profileForm.nameRequired')); input.focus(); return; }
+                this.withMainPin(this.currentProfiles, () => {
+                    if (busy) return;
+                    busy = true;
+                    const masterState = this.readMasterState();
+                    fetch(ApiClient.getUrl('plugins/profiles/create'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
+                        body: JSON.stringify({ profileName: name, avatarColor: this.nextAvatarColor(), masterPin: this.masterPin })
+                    })
+                    .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); })
+                    .then(() => { this.invalidateProfileCache(); next(); })
+                    .catch(err => {
+                        busy = false;
+                        // withMainPin may have drawn its own screen; come back to this one.
+                        this.showOnboardingStep();
+                        const again = document.querySelector('.profiles-modal-content');
+                        const field = again && again.querySelector('#onboarding-profile-name');
+                        if (field) field.value = name;
+                        if (again) this._onboardingError(again, this._failText(err, err.message));
+                    });
+                });
+            };
+            content.querySelector('#onboarding-next').addEventListener('click', create);
+            input.addEventListener('keydown', (e) => { if (isKey(e, 'Enter')) create(); });
+            setTimeout(() => input.focus(), 50);
+        },
+
+        /// Ask on startup, and where to switch from. The same two questions as Settings →
+        /// Switcher, saved together on Next.
+        _onboardingSwitcher: function (next, skip) {
+            const prefs = this.getSwitcherPrefs() || { askOnStartup: true, location: 'button' };
+            let location = prefs.location === 'menu' ? 'menu' : 'button';
+            const option = (value, icon, title, body) => `
+                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="${location === value ? 0 : -1}" role="radio"
+                     aria-checked="${location === value}">
+                    <span class="material-icons jpf-choice-icon" aria-hidden="true">${icon}</span>
+                    <div style="flex: 1 1 auto; min-width: 0;">
+                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
+                        <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
+                    </div>
+                </div>
+            `;
+            const content = this._onboardingFrame(t('onboarding.switcherTitle'), `
+                <label class="jpf-library-check-label jpf-onboarding-check">
+                    <input type="checkbox" id="onboarding-ask" ${prefs.askOnStartup ? 'checked' : ''} />
+                    <span>${t('switcher.askOnStartup')}</span>
+                </label>
+                <div class="jpf-form-hint">${t('switcher.askOnStartupHint')}</div>
+                <div class="jpf-onboarding-label">${t('switcher.whereToSwitchFrom')}</div>
+                <div role="radiogroup" aria-label="${escapeHtml(t('switcher.whereToSwitchFrom'))}" class="jpf-onboarding-choices">
+                    ${option('button', 'account_circle', t('switcher.bonfireButtonTitle'), t('switcher.bonfireButtonBody'))}
+                    ${option('menu', 'switch_account', t('switcher.menuTitle'), t('switcher.menuBody'))}
+                </div>
+                <div class="jpf-form-hint" id="onboarding-switcher-later">${t('onboarding.switcherLater')}</div>
+            `, t('onboarding.next'), skip);
+            if (!content) return;
+
+            const cards = content.querySelectorAll('.switcher-location-option');
+            cards.forEach(card => {
+                const choose = () => {
+                    location = card.getAttribute('data-location');
+                    cards.forEach(c => c.setAttribute('aria-checked', String(c === card)));
+                };
+                card.addEventListener('click', choose);
+                card.addEventListener('keydown', (e) => {
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); choose(); }
+                });
+            });
+            this._roveRadios(cards);
+            this.initTVCheckboxes(content);
+
+            // One save per draw: a second Next while the first was in flight saved twice and
+            // called next() twice, skipping the following step (R-1225). A failure redraws the
+            // step, which makes a fresh guard.
+            let busy = false;
+            content.querySelector('#onboarding-next').addEventListener('click', () => {
+                const ask = content.querySelector('#onboarding-ask').checked;
+                this.withMainPin(this.currentProfiles, () => {
+                    if (busy) return;
+                    busy = true;
+                    const masterState = this.readMasterState();
+                    fetch(ApiClient.getUrl('plugins/profiles/preferences'), {
+                        method: 'POST',
+                        headers: this.manageHeaders(masterState ? masterState.token : ApiClient.accessToken()),
+                        body: JSON.stringify({ askOnStartup: ask, switcherLocation: location })
+                    })
+                    .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
+                    .then(saved => {
+                        const savedAsk = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
+                        const savedLoc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
+                        this._cacheSwitcherPrefs(savedAsk, savedLoc, masterState ? masterState.masterUserId : ApiClient.getCurrentUserId());
+                        next();
+                    })
+                    .catch(err => {
+                        this.showOnboardingStep();
+                        const again = document.querySelector('.profiles-modal-content');
+                        if (again) this._onboardingError(again, this._failText(err, err.message));
+                    });
+                });
+            });
+            setTimeout(() => {
+                const first = content.querySelector('.switcher-location-option[aria-checked="true"]');
+                if (first) first.focus();
+            }, 50);
+        },
+
+        /// The main account's own theme. Profiles choose theirs in Settings → Look.
+        _onboardingTheme: function (next, skip) {
+            const settings = this._themeSettings;
+            const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
+            // One theme is nothing to choose; the server leaves the step out too
+            // (OnboardingStepsFor). This covers a custom theme deleted since.
+            if (!settings || !settings.allow || !main || offeredThemes().length < 2) { (skip || next)(); return; }
+
+            const stored = offeredChoice(main.theme);
+            let chosen = stored || settings.defaultTheme;
+            const option = (id) => `
+                <button type="button" class="jpf-theme-option focusable" role="radio" data-id="${id}"
+                        aria-checked="${id === chosen}">
+                    ${this.renderThemePreview(id)}
+                    <span class="jpf-theme-option-label">
+                        <span>${themeName(id)}</span>
+                        <span class="material-icons jpf-theme-option-check" aria-hidden="true">check_circle</span>
+                    </span>
+                </button>
+            `;
+            const content = this._onboardingFrame(t('onboarding.themeTitle'), `
+                <p class="jpf-onboarding-text">${t('onboarding.themeBody')}</p>
+                <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(t('settings.themeTitle'))}">${offeredThemes().map(option).join('')}</div>
+            `, t('onboarding.next'), skip && (() => {
+                // Skip keeps the account's theme, which the choosing has been previewing over.
+                this.applyTheme(settings.theme);
+                skip();
+            }));
+            if (!content) return;
+
+            // The cards are taller than the screen: the gate scrolls and Next / Skip stay
+            // pinned to its bottom (see _pinSetupRow).
+            const sheet = content.querySelector('.jpf-onboarding');
+            if (sheet) sheet.classList.add('jpf-step-tall');
+            this._pinSetupRow(document.getElementById('profiles-gate-overlay'));
+
+            // Choosing a card repaints the screen behind it in that theme at once, through the
+            // cross-fade a theme change has elsewhere (applyTheme runs fadeThemeFrom). Nothing
+            // is saved until Next. The card keeps focus: nothing is redrawn.
+            const options = content.querySelectorAll('.jpf-theme-option');
+            options.forEach(btn => btn.addEventListener('click', () => {
+                chosen = btn.getAttribute('data-id');
+                options.forEach(o => o.setAttribute('aria-checked', String(o === btn)));
+                this.applyTheme(chosen);
+            }));
+
+            let busy = false;   // as the switcher step: one save, one next()
+            content.querySelector('#onboarding-next').addEventListener('click', () => {
+                if (busy) return;
+                if (chosen === (stored || settings.defaultTheme)) { busy = true; next(); return; }
+                this.withMainPin(this.currentProfiles, () => {
+                    if (busy) return;
+                    busy = true;
+                    const masterState = this.readMasterState();
+                    fetch(ApiClient.getUrl('plugins/profiles/update'), {
+                        method: 'POST',
+                        headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
+                        // The default theme goes on the wire as '', so the account follows the server's
+                        // default if it changes, as Settings → Look does.
+                        body: JSON.stringify({
+                            profileId: main.profileUserId,
+                            theme: chosen === settings.defaultTheme ? '' : chosen,
+                            masterPin: this.masterPin
+                        })
+                    })
+                    .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
+                    .then(saved => {
+                        main.theme = (saved.stored !== undefined ? saved.stored : saved.Stored) || null;
+                        if (this.normalizeGuid(main.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
+                            this._setThemeSettings({
+                                theme: normalizeTheme(saved.theme || saved.Theme),
+                                defaultTheme: settings.defaultTheme,
+                                allowProfileThemes: settings.allow
+                            });
+                        }
+                        next();
+                    })
+                    .catch(err => {
+                        // Draw the step again with the stored choice so the screen goes back to match.
+                        this.applyTheme(settings.theme);
+                        this.showOnboardingStep();
+                        const again = document.querySelector('.profiles-modal-content');
+                        if (again) this._onboardingError(again, this._failText(err, err.message));
+                    });
+                });
+            });
+            setTimeout(() => {
+                const first = content.querySelector('.jpf-theme-option[aria-checked="true"]');
+                if (first) first.focus();
+            }, 50);
+        },
+
+        /// Records the setup as seen and puts the person where they would have been: the
+        /// grid if this account asks on startup, otherwise straight into Jellyfin. The main
+        /// PIN typed during setup is forgotten, as when Settings closes.
+        finishOnboarding: function () {
+            this._onboarding = null;
+            this.masterPin = null;
+            if (typeof ApiClient !== 'undefined' && ApiClient && ApiClient.accessToken()) {
+                fetch(ApiClient.getUrl('plugins/profiles/onboarding/done'), {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(ApiClient.accessToken())
+                }).catch(() => { /* shown again next time, which is the honest outcome */ });
+            }
+            if (this.shouldAskOnStartup() && !this.isProfileSessionActive()) {
+                const st = this.readMasterState();
+                if (st) {
+                    this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, /* forceRefresh */ true);
+                    return;
+                }
+            }
+            this.removeProfileOverlay();
+        },
+
+        /// The main account's Settings, in four sections: Your account, Switcher, Sharing,
+        /// Look.
+        ///
+        /// Opened through withMainPin, so the main PIN is asked once on the way in and every
+        /// page below sends it; the server checks it again on each save. A Profiles entry
+        /// that only reopened Manage profiles (where this is reached from, and where Back
+        /// returns) was removed. Server-wide settings stay on the dashboard.
         showSettingsMenu: function () {
             this.beginNavigation();
 
@@ -7182,7 +11468,7 @@
 
             const entry = (id, icon, title, body) => `
                 <div class="settings-menu-entry jpf-choice focusable" id="${id}" tabindex="0" role="button">
-                    <span class="material-icons jpf-choice-icon">${icon}</span>
+                    ${icon === 'bonfire' ? bonfireMark('jpf-choice-icon') : `<span class="material-icons jpf-choice-icon" aria-hidden="true">${icon}</span>`}
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -7192,18 +11478,20 @@
 
             content.innerHTML = `
                 <h1 class="profiles-title">${t('settings.title')}</h1>
-                <div class="create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
-                        ${entry('settings-switcher-style', 'switch_account', t('settings.switcherStyleTitle'),
+                <div class="jpf-create-profile-container" style="max-width: var(--jpf-w-form); width: 100%;">
+                    <div class="jpf-col-gap" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
+                        ${entry('settings-account', 'manage_accounts', t('settings.accountTitle'),
+                            t('settings.accountBody'))}
+                        ${entry('settings-switcher-style', 'switch_account', t('settings.switcherTitle'),
                             t('settings.switcherStyleBody'))}
-                        ${entry('settings-your-bonfire', 'local_fire_department', t('settings.yourBonfireTitle'),
+                        ${entry('settings-your-bonfire', 'bonfire', t('settings.sharingTitle'),
                             t('settings.yourBonfireBody'))}
                         ${this._themeSettings && this._themeSettings.allow
-                            ? entry('settings-theme', 'palette', t('settings.themeTitle'), t('settings.themeBody'))
+                            ? entry('settings-theme', 'palette', t('settings.lookTitle'), t('settings.themeBody'))
                             : ''}
                     </div>
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
-                        <button id="settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
+                        <button id="settings-back-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
             `;
@@ -7213,16 +11501,20 @@
                 if (!el) return;
                 el.addEventListener('click', () => fn.call(this));
                 el.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); el.click(); }
                 });
             };
+            open('settings-account', this.showAccountSettings);
             open('settings-switcher-style', this.showSwitcherModeModal);
             open('settings-your-bonfire', this.showBonfireModal);
             open('settings-theme', () => this.showThemeSettings(null));
+            this._focusFirstOnTv(content);
 
             const back = content.querySelector('#settings-back-btn');
             if (back) {
                 back.addEventListener('click', () => {
+                    // Manage Profiles may still be open underneath, and still needs it.
+                    if (!this.isManageMode) this.masterPin = null;
                     const st = this.readMasterState();
                     if (st) {
                         this.fetchAndRenderProfiles(ApiClient, st.masterUserId, st.token, /* forceRefresh */ true);
@@ -7234,10 +11526,9 @@
 
         /// Settings → Theme: every theme as a small preview, for one profile at a time.
         ///
-        /// The profile form already had a picker, but nobody looks for a theme inside a
-        /// profile's restrictions; Settings is where it was looked for and not found. Each
-        /// choice saves at once through /theme, which changes nothing else on the profile,
-        /// and when the profile is the one signed in the screen changes with it.
+        /// The profile form had a picker, but nobody looks for a theme among a profile's
+        /// restrictions. Each choice saves at once through /theme, which changes nothing else
+        /// on the profile; if it is the signed-in profile, the screen changes with it.
         showThemeSettings: function (selectedId) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
@@ -7255,23 +11546,21 @@
             const signedIn = this.normalizeGuid(ApiClient.getCurrentUserId());
             const pick = (id) => people.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(id));
             const person = pick(selectedId) || pick(signedIn) || people.find(p => p.isMaster) || people[0];
-            const stored = person.theme && THEMES.indexOf(String(person.theme).toLowerCase()) !== -1
-                ? String(person.theme).toLowerCase() : '';
+            const stored = offeredChoice(person.theme);
             // What the profile is wearing: its own choice, or the server's default.
             const current = stored || settings.defaultTheme;
 
-            // One card per theme. There used to be a separate "Server default (Crimson)"
-            // card in front of a Crimson card that looked identical, and which of the two
-            // was ticked depended on how the choice had been stored. Now the default theme's
-            // own card carries the tag, and choosing it follows the default ('' on the wire),
-            // so a profile set that way changes when the server's default does.
+            // One card per theme. A separate "Server default (Crimson)" card used to sit before
+            // an identical Crimson card, and which was ticked depended on how the choice was
+            // stored. Now the default theme's own card carries the tag, and choosing it follows
+            // the default ('' on the wire), so the profile changes when the server's default does.
             const option = (id) => `
                 <button type="button" class="jpf-theme-option focusable" role="radio"
                         data-theme="${id === settings.defaultTheme ? '' : id}"
                         aria-checked="${id === current}">
                     ${this.renderThemePreview(id)}
                     <span class="jpf-theme-option-label">
-                        <span>${THEME_NAMES[id]}${id === settings.defaultTheme
+                        <span>${themeName(id)}${id === settings.defaultTheme
                             ? ` <span class="jpf-theme-option-tag">${t('themeSettings.default')}</span>` : ''}</span>
                         <span class="material-icons jpf-theme-option-check" aria-hidden="true">check_circle</span>
                     </span>
@@ -7279,13 +11568,12 @@
             `;
 
             // jpf-theme-page: no sheet behind the cards in any theme. Bonfire's sheet and
-            // its padding left room for three previews a row where every other theme
-            // showed four, so the page looked different only in Bonfire.
+            // padding fit three previews a row where other themes fit four.
             content.innerHTML = `
                 <h1 class="profiles-title">${t('settings.themeTitle')}</h1>
-                <div class="create-profile-container jpf-theme-page">
+                <div class="jpf-create-profile-container jpf-theme-page">
                     ${people.length > 1 ? `
-                    <div class="jpf-theme-people" role="radiogroup" aria-label="${t('settings.themeTitle')}">
+                    <div class="jpf-theme-people" role="radiogroup" aria-label="${escapeHtml(t('settings.themeTitle'))}">
                         ${people.map(p => `
                             <button type="button" class="jpf-theme-person focusable" role="radio"
                                     data-id="${escapeHtml(p.profileUserId)}"
@@ -7293,11 +11581,12 @@
                         `).join('')}
                     </div>` : ''}
                     <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(person.profileName)}">
-                        ${THEMES.map(option).join('')}
+                        ${offeredThemes().map(option).join('')}
                     </div>
                     <div class="jpf-theme-status" id="theme-settings-status" role="status"></div>
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
-                        <button id="theme-settings-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
+                    <div class="jpf-theme-match" id="theme-settings-match" hidden></div>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 1rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
+                        <button id="theme-settings-back-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
             `;
@@ -7318,12 +11607,14 @@
                     busy = true;
                     status.classList.remove('is-error');
                     status.textContent = '';
-                    fetch(ApiClient.getUrl('plugins/profiles/theme'), {
+                    fetch(ApiClient.getUrl('plugins/profiles/update'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
-                        body: JSON.stringify({ profileId: person.profileUserId, theme: value, masterPin: this.masterPin })
+                        // The name is for a profile's own row: /update wants it for anyone but the main
+                        // account, and leaves it alone when it matches.
+                        body: JSON.stringify({ profileId: person.profileUserId, profileName: person.profileName, theme: value, masterPin: this.masterPin })
                     })
-                    .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text || t('errors.couldNotSaveThat')); }))
+                    .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
                     .then(saved => {
                         const shownNow = normalizeTheme(saved.theme || saved.Theme);
                         const keep = saved.stored !== undefined ? saved.stored : saved.Stored;
@@ -7335,16 +11626,17 @@
                                 allowProfileThemes: settings.allow
                             });
                         }
-                        // No "Saved." line: the tick moving to the card is the confirmation.
-                        // The status line is for a failure only.
+                        // No "Saved." line: the tick moving to the card confirms it. The status line is
+                        // for failures only.
                         this.showThemeSettings(person.profileUserId);
+                        this._offerJellyfinTheme(person, shownNow);
                         const chosen = document.querySelector('.jpf-theme-option[aria-checked="true"]');
                         if (chosen) chosen.focus();
                     })
                     .catch(err => {
                         busy = false;
                         status.classList.add('is-error');
-                        status.textContent = escapeHtml(err.message || t('errors.couldNotSaveThat'));
+                        status.textContent = err.message || t('errors.couldNotSaveThat');
                     });
                 });
             });
@@ -7357,6 +11649,37 @@
             }, 150);
         },
 
+        /// After Settings → Theme gives a profile Jellyfin Dark or Light: offers to set that
+        /// profile's jellyfin-web theme on this device to match, and does nothing unless the
+        /// offer is taken. Any profile of the household, not only the signed-in one: the
+        /// setting is keyed by user id, so it waits for that profile to open here. See
+        /// JELLYFIN_WEB_THEMES for where jellyfin-web keeps it.
+        _offerJellyfinTheme: function (person, theme) {
+            const key = jellyfinWebThemeKey(person && person.profileUserId);
+            const box = document.querySelector('#theme-settings-match');
+            if (!key || !box) return;
+            let stored = null;
+            try { stored = localStorage.getItem(key); } catch (e) { return; }
+            const offer = jellyfinWebOffer(theme, stored);
+            if (!offer) return;
+            box.innerHTML = `
+                <p class="jpf-theme-match-text">${escapeHtml(t('themeSettings.matchJellyfin', { name: themeNameText(theme) }))}</p>
+                <div class="jpf-theme-match-actions">
+                    <button type="button" id="theme-match-yes" class="profiles-btn jpf-btn-secondary focusable">${t('themeSettings.matchYes')}</button>
+                    <button type="button" id="theme-match-no" class="profiles-btn jpf-btn-secondary focusable">${t('themeSettings.matchNo')}</button>
+                </div>`;
+            box.hidden = false;
+            box.querySelector('#theme-match-yes').addEventListener('click', () => {
+                let done = true;
+                try { localStorage.setItem(key, offer); } catch (e) { done = false; }
+                box.innerHTML = `<p class="jpf-theme-match-text${done ? '' : ' is-error'}">${escapeHtml(t(done ? 'themeSettings.matchDone' : 'errors.couldNotSaveThat'))}</p>`;
+            });
+            box.querySelector('#theme-match-no').addEventListener('click', () => {
+                box.innerHTML = '';
+                box.hidden = true;
+            });
+        },
+
         showSwitcherModeModal: function () {
             this.beginNavigation();
             const apiClient = ApiClient;
@@ -7367,21 +11690,15 @@
             if (!content) return;
 
             const prefs = this.getSwitcherPrefs() || { askOnStartup: true, location: 'button' };
+            const askOnStartup = prefs.askOnStartup;
 
-            // What the startup box shows is this device's answer when it keeps its own, and
-            // the household's otherwise — the same thing shouldAskOnStartup acts on, so the
-            // box can never disagree with what the device will actually do.
-            const synced = this.isGateSynced();
-            const ownAsk = this.getDeviceGatePref();
-            const askOnStartup = ownAsk !== null ? ownAsk : prefs.askOnStartup;
-
-            // Two separate questions, deliberately not folded into one list of modes: the
-            // combination people asked for in issue #14 — ask on startup, but switch from
-            // Jellyfin's menu — is unreachable when it is a single choice.
+            // Two separate questions, not one list of modes: the combination asked for in
+            // issue #14 (ask on startup, switch from Jellyfin's menu) is unreachable as a
+            // single choice.
             const locationOption = (value, icon, title, body) => `
-                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="0" role="radio"
+                <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="${prefs.location === value ? 0 : -1}" role="radio"
                      aria-checked="${prefs.location === value}">
-                    <span class="material-icons jpf-choice-icon">${icon}</span>
+                    <span class="material-icons jpf-choice-icon" aria-hidden="true">${icon}</span>
                     <div style="flex: 1 1 auto; min-width: 0;">
                         <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${title}</div>
                         <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.5;">${body}</div>
@@ -7391,48 +11708,37 @@
 
             content.innerHTML = `
                 <h1 class="profiles-title">${t('switcher.title')}</h1>
-                <div class="create-profile-container" style="max-width: 560px; width: 100%;">
+                <div class="jpf-create-profile-container" style="max-width: 560px; width: 100%;">
                     <p style="opacity: 0.75; font-size: 0.9rem; line-height: 1.5; margin: 0 0 1.5rem 0; text-align: left;">
                         ${t('switcher.intro')}
                     </p>
 
                     <div class="bonfire-form-group" style="gap: 4px; text-align: left; margin-bottom: 1.5rem;">
-                        <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.95rem !important; font-weight: 600 !important; position: relative !important;">
+                        <label class="jpf-library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.95rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="switcher-ask-startup" ${askOnStartup ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>${t('switcher.askOnStartup')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
+                        <div class="jpf-form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">
                             ${t('switcher.askOnStartupHint')}
-                        </div>
-
-                        <!-- Indented under the box it governs. It qualifies the startup
-                             question only, not the location choice below, and sitting at
-                             the same level would read as applying to the whole screen. -->
-                        <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.88rem !important; font-weight: 600 !important; position: relative !important; margin-left: 1.6rem !important; margin-top: 10px !important;">
-                            <input type="checkbox" id="switcher-sync-devices" ${synced ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 16px !important; height: 16px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
-                            <span>${t('switcher.syncAskAcrossDevices')}</span>
-                        </label>
-                        <div class="form-hint" style="margin-left: 3.1rem !important; opacity: 0.5 !important; font-size: 0.78rem !important; position: relative !important; display: block !important;">
-                            ${t('switcher.syncAskAcrossDevicesHint')}
                         </div>
                     </div>
 
                     <div style="text-align: left; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;">${t('switcher.whereToSwitchFrom')}</div>
-                    <div role="radiogroup" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
+                    <div role="radiogroup" aria-label="${escapeHtml(t('switcher.whereToSwitchFrom'))}" class="jpf-col-gap" style="display: flex; flex-direction: column; gap: var(--jpf-gap); width: 100%;">
                         ${locationOption('button', 'account_circle', t('switcher.bonfireButtonTitle'),
                             t('switcher.bonfireButtonBody'))}
                         ${locationOption('menu', 'switch_account', t('switcher.menuTitle'),
                             t('switcher.menuBody'))}
                     </div>
 
-                    <div id="switcher-mode-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important;">
-                        <button id="switcher-mode-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
+                    <div id="switcher-mode-error" role="alert" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 12px;"></div>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important;">
+                        <button id="switcher-mode-back-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; margin: 0 !important; width: auto !important;">${t('common.done')}</button>
                     </div>
                 </div>
             `;
 
-            // Back to Settings, which is where this was opened from.
+            // Back to Settings, where this was opened from.
             const goBack = () => this.showSettingsMenu();
 
             const backBtn = content.querySelector('#switcher-mode-back-btn');
@@ -7445,12 +11751,12 @@
                 errDiv.style.display = 'none';
                 return fetch(apiClient.getUrl('plugins/profiles/preferences'), {
                     method: 'POST',
-                    headers: this.jsonHeaders(masterState.token),
+                    headers: this.manageHeaders(masterState.token),
                     body: JSON.stringify({ askOnStartup: askOnStartup, switcherLocation: location })
                 })
-                .then(res => res.ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
+                .then(res => this.checked(res).ok ? res.json() : Promise.reject(new Error(t('errors.couldNotSaveThat'))))
                 .then(saved => {
-                    const ask = (saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
+                    const ask =(saved.askOnStartup !== undefined ? saved.askOnStartup : saved.AskOnStartup) === true;
                     const loc = (saved.switcherLocation || saved.SwitcherLocation) === 'menu' ? 'menu' : 'button';
                     this._cacheSwitcherPrefs(ask, loc, masterState.masterUserId);
                     return { askOnStartup: ask, location: loc };
@@ -7462,83 +11768,33 @@
                 });
             };
 
-            // getSwitcherPrefs() returns null until the account's preferences have loaded,
-            // which is reachable here — init() runs before sign-in on a fresh browser, and
-            // only the home route retries. Fall back to what the form was rendered with
-            // rather than throwing and leaving the controls looking dead.
+            // getSwitcherPrefs() returns null until the account's preferences have loaded.
+            // That is reachable here: init() runs before sign-in on a fresh browser and only
+            // the home route retries. Fall back to what the form rendered with instead of
+            // throwing and leaving the controls dead.
             const currentPrefs = () => this.getSwitcherPrefs() || prefs;
-
-            const syncCb = content.querySelector('#switcher-sync-devices');
-
-            /// Reverts a checkbox and says why, so a box can never sit there showing a
-            /// state that was never stored — the same rule the location cards follow.
-            const refuse = (cb, message) => {
-                cb.checked = !cb.checked;
-                errDiv.textContent = message || t('errors.couldNotSaveThat');
-                errDiv.style.display = 'block';
-            };
 
             if (askCb) {
                 askCb.addEventListener('change', () => {
-                    // A device keeping its own answer stores it here and nowhere else. No
-                    // request, so the other devices never learn about it.
-                    if (!this.isGateSynced()) {
-                        errDiv.style.display = 'none';
-                        if (!this.setDeviceGate(false, askCb.checked)) {
-                            refuse(askCb, t('switcher.notSavedBody'));
-                        }
-                        return;
-                    }
-
                     save(askCb.checked, currentPrefs().location).then(applied => {
-                        // Revert the box if the server refused, so it cannot sit there
-                        // showing a state that was never stored.
+                        // Revert the box if the server refused, so it doesn't show a state never stored.
                         if (!applied) askCb.checked = !askCb.checked;
                     });
                 });
             }
 
-            if (syncCb && askCb) {
-                syncCb.addEventListener('change', () => {
-                    errDiv.style.display = 'none';
-
-                    if (!syncCb.checked) {
-                        // Seed the device with the answer already on screen, so leaving the
-                        // household changes nothing until the box above is actually touched.
-                        if (!this.setDeviceGate(false, askCb.checked)) {
-                            refuse(syncCb, t('switcher.notSavedBody'));
-                        }
-                        return;
-                    }
-
-                    // Rejoining pushes this device's answer up, so the household adopts
-                    // what is on screen right now. Sent before the local entry is cleared:
-                    // if the server refuses, the device is left exactly as it was rather
-                    // than dropped back onto a household answer nobody asked for.
-                    save(askCb.checked, currentPrefs().location).then(applied => {
-                        if (!applied) { syncCb.checked = false; return; }
-                        this.setDeviceGate(true);
-                    });
-                });
-            }
-
+            this._roveRadios(content.querySelectorAll('.switcher-location-option'));
             content.querySelectorAll('.switcher-location-option').forEach(el => {
                 const choose = () => {
                     const location = el.getAttribute('data-location');
                     if (location === currentPrefs().location) return;
 
-                    // The household's own answer, not the box's. On a device keeping its
-                    // own answer those differ, and posting the box's value here would push
-                    // this device's private choice out to every other device as a side
-                    // effect of moving the switcher button.
-                    const ask = this.isGateSynced()
-                        ? (askCb ? askCb.checked : prefs.askOnStartup)
-                        : currentPrefs().askOnStartup;
+                    const ask = askCb ? askCb.checked : currentPrefs().askOnStartup;
 
                     save(ask, location).then(applied => {
                         if (!applied) return;
-                        // Re-render so the selected card updates, and so the floating button
-                        // appears or disappears immediately rather than on the next poll.
+                        // Re-render so the selected card updates and the floating button appears or
+                        // disappears at once, not on the next poll.
                         this.showSwitcherModeModal();
                         this.checkRoute();
                     });
@@ -7546,7 +11802,7 @@
 
                 el.addEventListener('click', choose);
                 el.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+                    if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); choose(); }
                 });
             });
 
@@ -7574,19 +11830,19 @@
                 })
             })
             .then(res => {
+                this.checked(res);
                 if (!res.ok) throw new Error(t('errors.failedDeleteProfile'));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
             })
-            .catch(err => this.showAlert(t('errors.error'), t('errors.deletingProfile', { message: escapeHtml(err.message) })));
+            .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.deletingProfile'))));
         },
 
         loadBonfireStatus: function (content, apiClient, masterToken) {
             const container = content.querySelector('#bonfire-container');
             if (!container) return;
 
-            // Whatever owns the screen right now. If anything claims it before this
-            // returns, the response is dropped rather than drawn over the newer screen —
-            // the same guard the profile forms use.
+            // Whatever owns the screen now. If anything claims it before this returns, the
+            // response is dropped rather than drawn over the newer screen (as in the profile forms).
             const ticket = this._navTicket;
 
             const statusUrl = apiClient.getUrl('plugins/profiles/bonfire/status');
@@ -7594,8 +11850,11 @@
             .then(res => {
                 if (res.status === 401) {
                     this.handleSessionExpired();
-                    throw new Error(t('errors.unauthorized'));
+                    throw new Error('status request refused: 401');
                 }
+                // An error page is not a status: res.json() on one threw a parse error that was
+                // then shown as the reason.
+                if (!res.ok) throw new Error('status request failed: ' + res.status);
                 return res.json();
             })
             .then(status => {
@@ -7604,7 +11863,7 @@
             })
             .catch(err => {
                 if (!this.navIsCurrent(ticket)) return;
-                container.innerHTML = `<div style="color: var(--jpf-danger); font-size: 0.9rem;">${t('bonfire.failedLoadStatus', { message: escapeHtml(err.message) })}</div>`;
+                container.innerHTML = `<div style="color: var(--jpf-danger); font-size: 0.9rem;">${t('bonfire.failedLoadStatus')}</div>`;
             });
         },
 
@@ -7618,31 +11877,31 @@
             let hostSectionHtml = '';
             if (isOwner) {
                 hostSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
+                    <div class="jpf-col-gap-lg" style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75; display: block;">${t('bonfire.shareCode')}</span>
                             <div style="font-size: 2rem; font-weight: 700; letter-spacing: 4px; margin: 12px 0; font-family: monospace; text-align: center; background: rgba(0,0,0,0.3); padding: 12px; border-radius: var(--jpf-r-md); border: 1px solid var(--jpf-accent-a30);">${escapeHtml(ownedCode)}</div>
-                            <button type="button" id="bonfire-newcode-btn" class="profiles-btn btn-danger-quiet" style="padding: 8px 16px !important; font-size: 0.9rem !important; margin: 0 auto !important; display: block !important;">${t('bonfire.newCode')}</button>
+                            <button type="button" id="bonfire-newcode-btn" class="profiles-btn jpf-btn-danger-quiet" style="padding: 8px 16px !important; font-size: 0.9rem !important; margin: 0 auto !important; display: block !important;">${t('bonfire.newCode')}</button>
                         </div>
 
                         <div class="bonfire-form-group">
-                            <label style="font-size: 1rem; font-weight: 600; color: #fff; display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
-                            <div style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border); border-radius: var(--jpf-input-r); padding: 8px;">
+                            <label style="font-size: 1rem; font-weight: 600; color: var(--jpf-text-1); display: block; margin-bottom: 8px;">${t('bonfire.members', { count: ownedMembers.length })}</label>
+                            <div class="jpf-col-gap-sm" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border); border-radius: var(--jpf-input-r); padding: 8px;">
                                 ${ownedMembers.length > 0 ? ownedMembers.map(m => {
                                     const mUserId = m.userId || m.UserId;
                                     const mUsername = escapeHtml(m.username || m.Username) || t('bonfire.unknownUser');
                                     return `
                                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--jpf-card-bg); border-radius: var(--jpf-r-sm);">
                                         <span style="font-size: 0.95rem; font-weight: 500;">${mUsername}</span>
-                                        <button type="button" class="bonfire-kick-btn" data-id="${escapeHtml(mUserId)}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
+                                        <button type="button" class="bonfire-kick-btn" data-id="${escapeHtml(mUserId)}" aria-label="${escapeHtml(t('bonfire.kickNamed', { name: m.username || m.Username || t('bonfire.unknownUser') }))}" style="background: var(--jpf-danger) !important; border: none !important; color: #fff !important; padding: 6px 12px !important; border-radius: var(--jpf-r-sm) !important; font-size: 0.85rem !important; cursor: pointer !important; font-weight: 600 !important; transition: background-color 0.2s !important; margin: 0 !important; box-sizing: border-box !important;">${t('bonfire.kick')}</button>
                                     </div>
                                     `;
                                 }).join('') : '<div style="font-size: 0.9rem; opacity: 0.5; font-style: italic; text-align: center; padding: 12px;">' + t('bonfire.noMembersYet') + '</div>'}
                             </div>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-delete-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">${t('bonfire.deleteGroup')}</button>
+                            <button type="button" id="bonfire-delete-btn" class="profiles-btn jpf-btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">${t('bonfire.deleteGroup')}</button>
                         </div>
                     </div>
                 `;
@@ -7651,7 +11910,7 @@
                     <div class="bonfire-form-group" style="border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.hostTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.hostBody')}</span>
-                        <button type="button" id="bonfire-generate-btn" class="profiles-btn btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">${t('bonfire.generateJoinCode')}</button>
+                        <button type="button" id="bonfire-generate-btn" class="profiles-btn jpf-btn-primary" style="width: 100% !important; padding: 12px !important; font-weight: 600 !important; box-sizing: border-box !important; display: block !important; margin: 8px 0 !important;">${t('bonfire.generateJoinCode')}</button>
                     </div>
                 `;
             }
@@ -7659,7 +11918,7 @@
             let guestSectionHtml = '';
             if (isMember) {
                 guestSectionHtml = `
-                    <div style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
+                    <div class="jpf-col-gap-lg" style="display: flex; flex-direction: column; gap: var(--jpf-gap-lg); border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <div class="bonfire-form-group">
                             <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinedTitle')}</label>
                             <span style="font-size: 0.88rem; opacity: 0.75;">${t('bonfire.joinedOwnedBy')}</span>
@@ -7667,7 +11926,7 @@
                             <span style="font-size: 0.85rem; opacity: 0.6; display: block; margin-top: -4px;">${t('bonfire.accessEachOther')}</span>
                         </div>
                         <div style="display: flex; justify-content: flex-end;">
-                            <button type="button" id="bonfire-leave-btn" class="profiles-btn btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">${t('bonfire.leaveGroup')}</button>
+                            <button type="button" id="bonfire-leave-btn" class="profiles-btn jpf-btn-danger-quiet" style="padding: 10px 20px !important; font-size: 0.95rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important;">${t('bonfire.leaveGroup')}</button>
                         </div>
                     </div>
                 `;
@@ -7676,11 +11935,11 @@
                     <div class="bonfire-form-group" style="border-bottom: 1px solid var(--jpf-card-border); padding-bottom: 1.5rem;">
                         <label style="font-size: 1.1rem; font-weight: 700; display: block; margin-bottom: 4px;">${t('bonfire.joinTitle')}</label>
                         <span style="font-size: 0.88rem; opacity: 0.75; display: block; margin-bottom: 12px;">${t('bonfire.joinBody')}</span>
-                        <div style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
-                            <input type="text" id="bonfire-join-input" placeholder="${t('bonfire.joinCodePlaceholder')}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; margin: 0 !important; padding: 10px !important;" />
-                            <button type="button" id="bonfire-join-btn" class="profiles-btn btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; margin: 0 !important; box-sizing: border-box !important;">${t('common.join')}</button>
+                        <div class="bonfire-join-row" style="display: flex !important; gap: var(--jpf-gap) !important; align-items: center !important; width: 100% !important; box-sizing: border-box !important; margin: 12px 0 !important;">
+                            <input type="text" id="bonfire-join-input" aria-label="${escapeHtml(t('bonfire.joinTitle'))}" placeholder="${escapeHtml(t('bonfire.joinCodePlaceholder'))}" maxlength="6" style="flex: 1 1 0% !important; min-width: 0 !important; text-align: center !important; text-transform: uppercase !important; font-family: monospace !important; letter-spacing: 2px !important; height: 44px !important; box-sizing: border-box !important; padding: 10px !important;" />
+                            <button type="button" id="bonfire-join-btn" class="profiles-btn jpf-btn-primary" style="flex: 0 0 auto !important; padding: 0 24px !important; height: 44px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; font-weight: 600 !important; box-sizing: border-box !important;">${t('common.join')}</button>
                         </div>
-                        <div id="bonfire-join-error" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
+                        <div id="bonfire-join-error" role="alert" style="display: none; color: var(--jpf-danger); font-size: 0.85rem; font-weight: 600; margin-top: 8px; text-align: center;"></div>
                     </div>
                 `;
             }
@@ -7691,46 +11950,43 @@
             const isAdmin = status.isAdministrator || status.IsAdministrator || false;
             const hasPinSet = status.hasPin || status.HasPin || false;
 
-            // Only worth showing once there is somebody to share with — on a standalone
-            // account the setting has nothing to act on and just reads as a scary toggle.
+            // Only shown once there is somebody to share with: on a standalone account it has
+            // nothing to act on and reads as a scary toggle.
             const lanBypassSectionHtml = (isOwner || isMember) ? `
                 <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid var(--jpf-card-border); padding-top: 16px;">
-                    <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
+                    <label class="jpf-library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                         <input type="checkbox" id="bonfire-lan-bypass-checkbox" ${lanBypass ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-warn) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                         <span>${t('bonfire.lanSwitchLabel')}</span>
                     </label>
-                    <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">
+                    <div class="jpf-form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">
                         ${t('bonfire.lanSwitchHint', { extra: hasPinSet ? '' : t('bonfire.lanSwitchHintExtra') })}
                     </div>
                     ${isAdmin ? `
-                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid var(--jpf-warn); border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: rgba(255,255,255,0.8);">
+                    <div style="margin-left: 1.6rem; margin-top: 8px; padding: 10px 12px; background: rgba(255,153,0,0.08); border-left: 3px solid var(--jpf-warn); border-radius: var(--jpf-r-sm); font-size: 0.75rem; line-height: 1.5; color: var(--jpf-text-1);">
                         <strong style="color: var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}
                     </div>` : ''}
-                    <div style="margin-left: 1.6rem; margin-top: 8px; font-size: 0.72rem; line-height: 1.5; opacity: 0.45;">
-                        ${t('bonfire.proxyHint')}
-                    </div>
                 </div>
             ` : '';
 
             const settingsSectionHtml = `
                 <div class="bonfire-form-group" style="margin-top: 5px; display: flex; flex-direction: column; gap: var(--jpf-gap);">
-                    <div class="bonfire-form-group" style="gap: 4px;">
-                        <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
+                    ${(isOwner || isMember) ? `<div class="bonfire-form-group" style="gap: 4px;">
+                        <label class="jpf-library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="bonfire-hide-mine-checkbox" ${hideMine ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>${t('bonfire.hideMine')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">${t('bonfire.hideMineHint')}</div>
+                        <div class="jpf-form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">${t('bonfire.hideMineHint')}</div>
                     </div>
 
                     <div class="bonfire-form-group" style="gap: 4px;">
-                        <label class="library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
+                        <label class="jpf-library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
                             <input type="checkbox" id="bonfire-hide-others-checkbox" ${hideOthers ? 'checked' : ''} style="cursor: pointer !important; accent-color: var(--jpf-accent) !important; position: relative !important; opacity: 1 !important; width: 18px !important; height: 18px !important; margin: 0 !important; padding: 0 !important; flex-shrink: 0 !important;" />
                             <span>${t('bonfire.hideOthers')}</span>
                         </label>
-                        <div class="form-hint" style="margin-left: 1.6rem !important; opacity: 0.5 !important; font-size: 0.75rem !important; position: relative !important; display: block !important;">${t('bonfire.hideOthersHint')}</div>
-                    </div>
+                        <div class="jpf-form-hint" style="margin-left: 1.6rem !important; opacity: 0.75 !important; font-size: 0.8rem !important; position: relative !important; display: block !important;">${t('bonfire.hideOthersHint')}</div>
+                    </div>` : ''}
 
-                    ${lanBypassSectionHtml}
+                    ${lanBypassSectionHtml ? this.renderFold('bonfire-more', t('bonfire.moreSummary'), lanBypassSectionHtml, true) : ''}
 
                     <!-- Saving these is a fetch that can fail. Without somewhere to say so,
                          a failure left the box sitting in its new position with the server
@@ -7744,21 +12000,30 @@
             `;
 
             container.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
+                <div class="jpf-col-gap-15" style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
                     ${hostSectionHtml}
                     ${guestSectionHtml}
                     ${settingsSectionHtml}
-                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-start !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
-                        <button id="bonfire-back-btn" class="profiles-btn btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
+                    <div class="bonfire-dialog-actions jpf-actions" style="margin-top: 2rem !important; display: flex !important; justify-content: flex-end !important; width: 100% !important; box-sizing: border-box !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">
+                        <button id="bonfire-back-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 24px !important; font-size: 1rem !important; box-sizing: border-box !important; margin: 0 !important; display: inline-block !important; width: auto !important; flex: 0 0 auto !important; position: relative !important; bottom: auto !important; left: auto !important; right: auto !important; top: auto !important;">${t('common.back')}</button>
                     </div>
                 </div>
             `;
+
+            // Every action redraws this block, destroying the pressed button and dropping focus
+            // to the page behind the dialog (R-1231). The first draw leaves focus alone; a
+            // redraw puts it on the first control.
+            if (container._bonfireDrawn) {
+                const firstControl = container.querySelector('button, input');
+                if (firstControl && firstControl.focus) firstControl.focus();
+            }
+            container._bonfireDrawn = true;
 
             // Event Listener: Back Button
             const backBtn = container.querySelector('#bonfire-back-btn');
             if (backBtn) {
                 backBtn.addEventListener('click', () => {
-                    // Back to Settings, which is where this was opened from.
+                    // Back to Settings, where this was opened from.
                     this.showSettingsMenu();
                 });
             }
@@ -7770,34 +12035,34 @@
                     this.showConfirmDialog(t('bonfire.kickConfirmTitle'), t('bonfire.kickConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/kick'), {
                             method: 'POST',
-                            headers: this.jsonHeaders(masterToken),
+                            headers: this.manageHeaders(masterToken),
                             body: JSON.stringify({ memberId: mId })
                         })
                         .then(res => {
-                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedKick'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
                     });
                 });
             });
 
             // Replaces a code that has gone further than intended. Members stay in; the old
-            // code stops working. A kick does the same on its own, since the kicked member
-            // otherwise just joined again with the code they already had.
+            // code stops working. A kick does the same, since the kicked member otherwise
+            // rejoined with the code they already had.
             const newCodeBtn = container.querySelector('#bonfire-newcode-btn');
             if (newCodeBtn) {
                 newCodeBtn.addEventListener('click', () => {
                     this.showConfirmDialog(t('bonfire.newCodeConfirmTitle'), t('bonfire.newCodeConfirmBody'), () => {
-                        fetch(apiClient.getUrl('plugins/profiles/bonfire/regenerate-code'), {
+                        fetch(apiClient.getUrl('plugins/profiles/bonfire/generate?regenerate=true'), {
                             method: 'POST',
-                            headers: this.jsonHeaders(masterToken)
+                            headers: this.manageHeaders(masterToken)
                         })
                         .then(res => {
-                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedNewCode'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
                     });
                 });
             }
@@ -7809,13 +12074,13 @@
                     this.showConfirmDialog(t('bonfire.deleteGroupConfirmTitle'), t('bonfire.deleteGroupConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/delete-group'), {
                             method: 'POST',
-                            headers: this.getAuthHeaders(masterToken)
+                            headers: this.manageHeaders(masterToken, false)
                         })
                         .then(res => {
-                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedDeleteGroup'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
                     });
                 });
             }
@@ -7827,13 +12092,13 @@
                     this.showConfirmDialog(t('bonfire.leaveGroupConfirmTitle'), t('bonfire.leaveGroupConfirmBody'), () => {
                         fetch(apiClient.getUrl('plugins/profiles/bonfire/leave'), {
                             method: 'POST',
-                            headers: this.getAuthHeaders(masterToken)
+                            headers: this.manageHeaders(masterToken, false)
                         })
                         .then(res => {
-                            if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                            if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
                             else this.showAlert(t('errors.error'), t('bonfire.failedLeaveGroup'));
                         })
-                        .catch(err => this.showAlert(t('errors.error'), t('errors.withMessage', { message: escapeHtml(err.message) })));
+                        .catch(err => this.showAlert(t('errors.error'), this._failText(err, t('errors.generic'))));
                     });
                 });
             }
@@ -7842,21 +12107,25 @@
             const generateBtn = container.querySelector('#bonfire-generate-btn');
             if (generateBtn) {
                 generateBtn.addEventListener('click', () => {
-                    // Disable immediately to prevent double-fire on slow connections
+                    // Disable at once to prevent a double-fire on slow connections. A disabled button
+                    // drops focus and a D-pad has nowhere to start, so focus returns when it is
+                    // enabled again (R-1249).
+                    const hadFocus = document.activeElement === generateBtn;
                     generateBtn.disabled = true;
                     generateBtn.textContent = t('bonfire.generating');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
                         method: 'POST',
-                        headers: masterToken ? this.getAuthHeaders(masterToken) : {}
+                        headers: masterToken ? this.manageHeaders(masterToken, false) : {}
                     })
                     .then(res => {
-                        if (res.ok) this.loadBonfireStatus(content, apiClient, masterToken);
-                        else return res.text().then(text => { throw new Error(text); });
+                        if (this.checked(res).ok) this.loadBonfireStatus(content, apiClient, masterToken);
+                        else throw refusalError(res, t('errors.couldNotSaveThat'));
                     })
                     .catch(err => {
                         generateBtn.disabled = false;
                         generateBtn.textContent = t('bonfire.generateJoinCode');
-                        this.showAlert(t('errors.error'), t('bonfire.failedGenerateCode', { message: escapeHtml(err.message) }));
+                        if (hadFocus) generateBtn.focus();
+                        this.showAlert(t('errors.error'), this._failText(err, t('bonfire.failedGenerateCode')));
                     });
                 });
             }
@@ -7874,8 +12143,8 @@
                         errDiv.style.display = 'block';
                         return;
                     }
-                    // The server allows membership in only one group, so joining silently
-                    // drops the current one. Confirm first rather than surprising the user.
+                    // A user can be in only one group, so joining silently drops the current one.
+                    // Confirm first.
                     if (isMember) {
                         this.showConfirmDialog(
                             t('bonfire.leaveCurrentTitle'),
@@ -7888,23 +12157,26 @@
 
                 const submitJoin = (code) => {
                     errDiv.style.display = 'none';
-                    // Disable to prevent double-submit; re-enable on all error paths
+                    // Disable against double-submit; re-enable on every error path.
+                    const hadFocus = document.activeElement === joinBtn;
                     joinBtn.disabled = true;
                     joinBtn.textContent = t('bonfire.joining');
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/join'), {
                         method: 'POST',
-                        headers: this.jsonHeaders(masterToken),
+                        headers: this.manageHeaders(masterToken),
                         body: JSON.stringify({ code: code })
                     })
                     .then(res => {
+                        this.checked(res);
                         if (res.status === 429) {
                             errDiv.textContent = t('bonfire.tooManyJoinAttempts');
                             errDiv.style.display = 'block';
                             joinBtn.disabled = false;
                             joinBtn.textContent = t('common.join');
+                            if (hadFocus) joinBtn.focus();
                             return;
                         }
-                        if (!res.ok) return res.text().then(text => { throw new Error(text); });
+                        if (!res.ok) throw refusalError(res, t('bonfire.failedToJoin'));
                         this.loadBonfireStatus(content, apiClient, masterToken);
                     })
                     .catch(err => {
@@ -7912,26 +12184,26 @@
                         errDiv.style.display = 'block';
                         joinBtn.disabled = false;
                         joinBtn.textContent = t('common.join');
+                        if (hadFocus) joinBtn.focus();
                     });
                 };
 
                 joinBtn.addEventListener('click', performJoin);
                 joinInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') performJoin();
+                    if (isKey(e, 'Enter')) performJoin();
                 });
             }
 
-            // Settings checkbox listeners — debounced 300ms to prevent race conditions
-            // when the user toggles both checkboxes in quick succession.
+            // Settings checkbox listeners, debounced 300 ms so two quick toggles don't race.
             const hideMineCb = container.querySelector('#bonfire-hide-mine-checkbox');
             const hideOthersCb = container.querySelector('#bonfire-hide-others-checkbox');
             const lanBypassCb = container.querySelector('#bonfire-lan-bypass-checkbox');
             let _settingsDebounceTimer = null;
             const statusDiv = container.querySelector('#bonfire-settings-status');
 
-            // The last state the server acknowledged. A failed save is reverted to this, so
-            // the boxes always show what is actually stored rather than what was attempted.
-            // Seeded from the values this panel was rendered with, which came from the server.
+            // The last state the server acknowledged. A failed save reverts to this, so the
+            // boxes show what is stored, not what was attempted. Seeded from the values the
+            // panel was rendered with.
             const lastSaved = {
                 hideMine: hideMineCb ? hideMineCb.checked : false,
                 hideOthers: hideOthersCb ? hideOthersCb.checked : false,
@@ -7957,25 +12229,31 @@
                 }, 2500);
             };
 
+            // True while the "allow household switching" question is on screen. The box is
+            // already ticked by then, and a debounced save from another box would send that
+            // tick and skip the question (a PIN-skip setting); Cancel would then "revert" to a
+            // lastSaved that had just become true.
+            let lanConfirmPending = false;
+
             const saveSettings = () => {
                 clearTimeout(_settingsDebounceTimer);
                 _settingsDebounceTimer = setTimeout(() => {
                     const hideMineVal = hideMineCb ? hideMineCb.checked : false;
                     const hideOthersVal = hideOthersCb ? hideOthersCb.checked : false;
-                    const lanBypassVal = lanBypassCb ? lanBypassCb.checked : false;
+                    const lanBypassVal = lanBypassCb ? (lanConfirmPending ? lastSaved.lanBypass : lanBypassCb.checked) : false;
 
                     const body = {
                         hideMySubProfilesFromOthers: hideMineVal,
                         hideOthersSubProfilesFromMe: hideOthersVal
                     };
-                    // Omitted rather than sent as false when the toggle is not on screen, so a
-                    // standalone account saving the hide flags cannot clear a setting it never
-                    // rendered. The server treats a missing value as "leave alone".
+                    // Omitted, not sent as false, when the toggle is not on screen, so a standalone
+                    // account saving the hide flags cannot clear a setting it never rendered. The
+                    // server leaves a missing value alone.
                     if (lanBypassCb) body.allowHouseholdLanBypass = lanBypassVal;
 
-                    // Locked while the request is in flight. Toggling again mid-save would
-                    // queue a second write whose result arrives in whatever order the network
-                    // decides, and a revert would then restore a state neither click asked for.
+                    // Locked while the request is in flight. A second toggle mid-save would queue a
+                    // write that lands in network order, and a revert could restore a state neither
+                    // click asked for.
                     settingsBoxes.forEach(cb => { cb.disabled = true; });
                     clearTimeout(_statusClearTimer);
 
@@ -7983,10 +12261,11 @@
 
                     fetch(apiClient.getUrl('plugins/profiles/bonfire/settings'), {
                         method: 'POST',
-                        headers: this.jsonHeaders(masterToken),
+                        headers: this.manageHeaders(masterToken),
                         body: JSON.stringify(body)
                     })
                     .then(res => {
+                        this.checked(res);
                         if (!res.ok) throw new Error('HTTP ' + res.status);
                         lastSaved.hideMine = hideMineVal;
                         lastSaved.hideOthers = hideOthersVal;
@@ -7995,11 +12274,10 @@
                         flashSaved();
                     })
                     .catch(err => {
-                        // This used to be a console.error and nothing else. The box stayed
-                        // where the user put it while the server still held the old value —
-                        // and for the LAN bypass that means the panel can read "household
-                        // switching allowed" when it is not, or the other way round. Whichever
-                        // way it lands, the person believes a security setting that is not true.
+                        // This was once only a console.error: the box stayed where the user put it while
+                        // the server kept the old value. For the LAN bypass the panel could then read
+                        // "household switching allowed" when it is not, or the reverse, so the person
+                        // believes a security setting that is not true.
                         console.error('Error saving Bonfire settings:', err);
                         if (hideMineCb) hideMineCb.checked = lastSaved.hideMine;
                         if (hideOthersCb) hideOthersCb.checked = lastSaved.hideOthers;
@@ -8015,10 +12293,9 @@
 
             if (lanBypassCb) {
                 lanBypassCb.addEventListener('change', () => {
-                    // Turning it off is always safe and saves straight away. Turning it on
-                    // widens who can reach the account, so it is confirmed first — the checkbox
-                    // reverts if the user backs out, otherwise it would look enabled while the
-                    // server still had it off.
+                    // Turning it off is always safe and saves at once. Turning it on widens who can
+                    // reach the account, so it is confirmed first. The checkbox reverts if the user
+                    // backs out, else it would look enabled while the server still had it off.
                     if (!lanBypassCb.checked) {
                         saveSettings();
                         return;
@@ -8028,11 +12305,13 @@
                         ? `<br><br><strong style="color:var(--jpf-warn);">${t('bonfire.adminAccountWarning')}</strong> ${t('bonfire.adminAccountWarningBody')}`
                         : '';
 
+                    lanConfirmPending = true;
                     this.showConfirmDialog(
                         t('bonfire.allowHouseholdTitle'),
                         t('bonfire.allowHouseholdBody') + adminLine,
-                        () => saveSettings(),
-                        () => { lanBypassCb.checked = lastSaved.lanBypass; }
+                        () => { lanConfirmPending = false; saveSettings(); },
+                        () => { lanConfirmPending = false; lanBypassCb.checked = lastSaved.lanBypass; },
+                        true // adminLine is markup built above from translations only
                     );
                 });
             }
@@ -8048,34 +12327,29 @@
 
 
         // ── Native-mode entry points ───────────────────────────────────────────────
-        // Native mode drops the forced gate, so the switcher has to be reachable from
-        // Jellyfin's own interface instead. Two places, deliberately:
+        // Native mode drops the forced gate, so the switcher must be reachable from
+        // Jellyfin's own interface. Two places:
         //
-        //   1. The user menu, which is what issue #8 actually asks for.
-        //   2. The profile page, as the fallback — the menu is built dynamically by React
-        //      and every selector below is a guess about markup we do not control. When a
-        //      theme defeats the menu injection, the profile page still works.
+        //   1. The user menu, which is what issue #8 asks for.
+        //   2. The profile page, as the fallback: the menu is built dynamically by React
+        //      and every selector below is a guess about markup we do not control.
         //
-        // Both are additive: nothing is removed from Jellyfin's own UI, so a failed match
-        // costs a missing entry rather than a broken menu.
+        // Both are additive, so a failed match costs a missing entry, not a broken menu.
 
-        // Jellyfin 10.11's user menu is AppUserMenu.tsx — a MUI <Menu id="app-user-menu">
-        // of <MenuItem> rows, NOT the .actionSheet component older builds used. It also
-        // sets keepMounted, so the menu lives in the DOM from first render even while
-        // closed, which is why this can be a plain periodic check rather than an observer
-        // racing the menu open.
+        // Jellyfin 10.11's user menu is AppUserMenu.tsx, a MUI <Menu id="app-user-menu"> of
+        // <MenuItem> rows, not the .actionSheet component older builds used. It sets
+        // keepMounted, so the menu is in the DOM from first render even while closed, which
+        // is why a periodic check works instead of an observer racing the menu open.
         //
-        // Everything below degrades to "no entry appears" if the markup moves. The
-        // #/userprofile section is the deliberate fallback for that case.
+        // If the markup moves, no entry appears; the #/userprofile section is the fallback.
         USER_MENU_SELECTOR: '#app-user-menu',
 
-        /// Re-asserts the "Switch Profile" row in Jellyfin's user menu. Cheap and
-        /// idempotent — React re-renders the menu freely, so this runs from checkRoute
-        /// rather than trying to catch every rebuild.
+        /// Re-asserts the "Switch Profile" row in Jellyfin's user menu. React re-renders the
+        /// menu freely, so this runs from checkRoute instead of catching every rebuild.
         syncUserMenuEntry: function () {
-            // Cheap guard first, for the same reason as syncPreferencesMenuEntry: this runs
-            // from the route poll, and in button mode the only reason to touch the menu is
-            // to remove a row a previous menu-mode session left behind.
+            // Cheap guard first, as in syncPreferencesMenuEntry: this runs from the route poll,
+            // and in button mode the only reason to touch the menu is to remove a row a
+            // previous menu-mode session left.
             const menuMode = this.isMenuLocation();
             if (!menuMode && !this._userEntryPlaced) return;
 
@@ -8085,7 +12359,7 @@
             const existing = menu.querySelector('#profiles-user-menu-item');
 
             if (!menuMode) {
-                // Location switched back to the floating button — take the row out again.
+                // Switched back to the floating button: take the row out.
                 if (existing) existing.remove();
                 this._userEntryPlaced = false;
                 return;
@@ -8095,12 +12369,11 @@
             const items = Array.from(menu.querySelectorAll('li.MuiMenuItem-root, [role="menuitem"]'));
             if (!items.length) return;
 
-            // Anchor on the Sign out row. It is the only item in this menu with no
-            // navigation target, and matching it by position instead would break the
-            // moment an optional row (Quick Connect, Select Server, Exit) appears.
-            // Translated UIs are the normal case — issue #14 came with a Polish
-            // screenshot — so text matching alone is not enough; the MUI Logout icon
-            // is language-independent and checked first.
+            // Anchor on the Sign out row, the only item in this menu with no navigation target.
+            // Matching by position would break when an optional row (Quick Connect, Select
+            // Server, Exit) appears. Translated UIs are the normal case (issue #14 came with a
+            // Polish screenshot), so text alone is not enough: the MUI Logout icon is
+            // language-independent and checked first.
             const signOut = items.find(el => el.querySelector('[data-testid="LogoutIcon"]'))
                 || items.find(el => {
                     if (el.getAttribute('href') || el.querySelector('a[href]')) return false;
@@ -8109,9 +12382,8 @@
                 });
             if (!signOut) return;
 
-            // Clone a real row so the entry inherits the active theme's MUI classes
-            // instead of carrying styling of our own that would not match. Cloning does
-            // not copy listeners, so React's logout handler does not come with it.
+            // Clone a real row so it inherits the active theme's MUI classes. Cloning does not
+            // copy listeners, so React's logout handler does not come along.
             const entry = signOut.cloneNode(true);
             entry.id = 'profiles-user-menu-item';
             entry.removeAttribute('aria-controls');
@@ -8119,10 +12391,10 @@
 
             const iconSlot = entry.querySelector('.MuiListItemIcon-root');
             if (iconSlot) {
-                // Replace the MUI SVG with a Material Icons glyph — Jellyfin already
-                // loads that font, and we cannot construct a MUI icon component here.
-                // The glyph comes from the class, not the text: jellyfin-web bundles
-                // material-design-icons-iconfont, whose CSS sets :before content per name.
+                // Replace the MUI SVG with a Material Icons glyph: Jellyfin already loads that font
+                // and we can't build a MUI icon component here. The glyph comes from the class, not
+                // the text: jellyfin-web bundles material-design-icons-iconfont, whose CSS sets
+                // :before content per name.
                 iconSlot.innerHTML = '';
                 const glyph = document.createElement('span');
                 glyph.className = 'material-icons switch_account';
@@ -8139,12 +12411,12 @@
                 e.preventDefault();
                 e.stopPropagation();
                 this.closeUserMenu();
-                // Let MUI finish its close transition before the overlay mounts, so the
-                // menu is not still fading out on top of the switcher.
+                // Let MUI finish its close transition before the overlay mounts, so the menu is
+                // not still fading out over the switcher.
                 setTimeout(() => this.handleBubbleClick(), 80);
             });
             entry.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entry.click(); }
+                if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); entry.click(); }
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
@@ -8152,23 +12424,22 @@
         },
 
         /// Re-asserts the "Switch Profile" row on the Settings page (#/mypreferencesmenu),
-        /// which is the list users actually mean by "the menu" — the header dropdown above
-        /// is a different component and only some layouts show it.
+        /// the list users mean by "the menu"; the header dropdown is a different component
+        /// that only some layouts show.
         ///
-        /// Source of truth: src/apps/legacy/routes/user/settings/index.tsx, page id
+        /// Source: src/apps/legacy/routes/user/settings/index.tsx, page id
         /// myPreferencesMenuPage. The row goes in the "User" section above Sign out.
         syncPreferencesMenuEntry: function () {
-            // Cheap guard first. This runs from the route poll, so in button mode — the
-            // default — it used to query the document and read offsetParent (which forces
-            // layout) twice a second purely to discover it had nothing to do. Reading a
-            // cached preference costs nothing, and the only reason to look at the page in
-            // button mode is to take away a row a previous menu-mode session left behind,
-            // which _prefsEntryPlaced already knows about.
+            // Cheap guard first. This runs from the route poll, and in button mode (the default)
+            // it used to query the document and read offsetParent (which forces layout) twice a
+            // second just to find it had nothing to do. A cached preference costs nothing; the
+            // only reason to look at the page in button mode is to remove a row a previous
+            // menu-mode session left, which _prefsEntryPlaced knows.
             const menuMode = this.isMenuLocation();
             if (!menuMode && !this._prefsEntryPlaced) return;
 
-            // Jellyfin keeps previous views in the DOM, so match the visible one or the
-            // row lands on a page nobody is looking at.
+            // Jellyfin keeps previous views in the DOM, so match the visible one or the row
+            // lands on a page nobody sees.
             const page = Array.from(document.querySelectorAll('#myPreferencesMenuPage'))
                 .find(el => el.offsetParent !== null || el.classList.contains('is-active'));
             if (!page) return;
@@ -8186,15 +12457,15 @@
             if (!signOut) return;
 
             // Clone a real row so it inherits the active theme's classes. React dispatches
-            // through fiber props stored on the node, which cloneNode does not copy, so the
-            // logout handler does not come along.
+            // through fiber props on the node, which cloneNode does not copy, so the logout
+            // handler does not come along.
             const entry = signOut.cloneNode(true);
             entry.id = 'profiles-preferences-menu-item';
             entry.classList.remove('btnLogout');
             entry.removeAttribute('href');
-            // An <a> with no href is not focusable, and this row has none — Jellyfin's own
-            // Sign out is a click handler rather than a link. Without this the keyboard and
-            // D-pad can never reach the entry and its Enter handler is dead code.
+            // An <a> with no href is not focusable, and this row has none (Jellyfin's Sign out
+            // is a click handler). Without this the keyboard and D-pad can't reach the entry
+            // and its Enter handler is dead code.
             entry.setAttribute('tabindex', '0');
             entry.setAttribute('role', 'button');
 
@@ -8215,28 +12486,27 @@
                 this.handleBubbleClick();
             });
             entry.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entry.click(); }
+                if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); entry.click(); }
             });
 
             signOut.parentNode.insertBefore(entry, signOut);
             this._prefsEntryPlaced = true;
         },
 
-        /// Closes the MUI menu. Our cloned row has no React handler, so nothing would
-        /// dismiss it otherwise. Escape is what MUI itself listens for; clicking the
-        /// backdrop is the fallback for builds where that listener is not attached.
+        /// Closes the MUI menu. Our cloned row has no React handler, so nothing else would
+        /// dismiss it. Escape is what MUI listens for; clicking the backdrop is the fallback
+        /// for builds where that listener is not attached.
         closeUserMenu: function () {
             const menu = document.getElementById('app-user-menu');
 
-            // Dispatched INSIDE the menu, not on the document.
+            // Dispatched inside the menu, not on the document.
             //
-            // MUI's Modal handles Escape with an onKeyDown on its own root element, so the
-            // event has to travel through that element to be seen. Dispatched on
-            // `document` — which is what this did — the propagation path is [window,
-            // document] and the modal is never on it, so the call has never once closed
-            // anything. Only the backdrop click below has, and when that missed too the
-            // menu stayed open with its focus trap live, fighting ours for focus until the
-            // stack overflowed. See onFocusIn.
+            // MUI's Modal handles Escape with onKeyDown on its own root, so the event must
+            // travel through that element. Dispatched on `document` (as this once was), the
+            // path is [window, document] and the modal is never on it, so it never closed
+            // anything. Only the backdrop click below did, and when that missed too the menu
+            // stayed open with its focus trap live, fighting ours for focus until the stack
+            // overflowed. See onFocusIn.
             //
             // Dispatched on a node inside the menu and allowed to bubble, it passes through
             // the modal root whether the id sits on that root or on the paper within it.
@@ -8257,25 +12527,27 @@
             }, 60);
         },
 
-        /// Adds a Profiles section to Jellyfin's own profile page (#/userprofile).
-        /// Re-checked on every route change because React replaces the view wholesale.
+        /// Adds a Profiles section to Jellyfin's own profile page (#/userprofile). Checked on
+        /// every route change because React replaces the view wholesale.
         injectProfilePageSection: function () {
             if (document.getElementById('profiles-userprofile-section')) return;
+            // #/userprofile?userId=… is an administrator editing someone else: the section
+            // switches the signed-in person's profile, so it is not offered there (R-1250).
+            if (/[?&]userId=/i.test(window.location.hash || '')) return;
 
-            // The visible page, not a cached off-screen view: Jellyfin keeps previous views
-            // in the DOM, and appending to a hidden one puts the section nowhere.
+            // The visible page, not a cached off-screen view: Jellyfin keeps previous views in
+            // the DOM, and appending to a hidden one puts the section nowhere.
             const page = Array.from(document.querySelectorAll('#userProfilePage, .userProfilePage, .page'))
                 .find(el => el.offsetParent !== null || el.classList.contains('is-active'));
             if (!page) return;
 
-            // The padded page container, deliberately — our section is a sibling of the
-            // avatar block and of the password form, not a part of either.
+            // The padded page container: our section is a sibling of the avatar block and the
+            // password form, not part of either.
             //
-            // This used to be one querySelector with all three in the list, which reads
-            // like a preference order and is not one: querySelector returns the first match
-            // in DOCUMENT order, and .padded-left is the parent of .readOnlyContent, so the
-            // answer was the parent whatever order they were written in. Right answer,
-            // wrong reason — asked one at a time now so the intent is the behaviour.
+            // This was one querySelector with all three in the list, which reads like a
+            // preference order but isn't: querySelector returns the first match in document
+            // order, and .padded-left is the parent of .readOnlyContent, so the parent won
+            // whatever the order. Asked one at a time now so the intent is the behavior.
             const host = page.querySelector('.padded-left')
                 || page.querySelector('.readOnlyContent')
                 || page.querySelector('form')
@@ -8284,12 +12556,12 @@
             const activeInfo = this.getCachedActiveProfile();
             const section = document.createElement('div');
             section.id = 'profiles-userprofile-section';
-            // Geometry lives in the stylesheet, so it can be checked and so it matches
-            // what the page around it does — see .jpf-userprofile-section.
+            // Geometry lives in the stylesheet so it can be checked and matches the page around
+            // it. See .jpf-userprofile-section.
             section.className = 'verticalSection jpf-userprofile-section';
             section.innerHTML = `
-                <h2 class="sectionTitle" style="display:flex; align-items:center; gap:0.4em;">
-                    <span class="material-icons local_fire_department" aria-hidden="true" style="color:var(--jpf-warn);"></span>
+                <h2 class="sectionTitle jpf-row-gap-em" style="display:flex; align-items:center; gap:0.4em;">
+                    ${bonfireMark('jpf-userprofile-mark', 'color:var(--jpf-warn);')}
                     ${t('profilePage.title')}
                 </h2>
                 <p style="opacity:0.7; margin:0 0 1em 0; line-height:1.5;">
@@ -8308,7 +12580,7 @@
                 this.handleBubbleClick();
             });
             btn.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (isKey(e, 'Enter') || isKey(e, ' ')) {
                     e.preventDefault();
                     btn.click();
                 }
@@ -8317,11 +12589,14 @@
 
         // ── Bubble visibility helpers ──────────────────────────────────────────
         _bubbleHide: function (bubble) {
-            if (!bubble || bubble.dataset.profilesHiding === '1') return;
+            // Already hidden or on its way: nothing to do. Without the display check the 160 ms
+            // timer cleared the flag, and the next route tick (twice a second on a page that
+            // stays hidden) added the class and a timer again.
+            if (!bubble || bubble.dataset.profilesHiding === '1' || bubble.style.display === 'none') return;
             bubble.dataset.profilesHiding = '1';
             bubble.classList.add('profiles-bubble-hiding');
             setTimeout(() => {
-                // Only commit display:none if still in hiding state
+                // Commit display:none only if still hiding.
                 if (bubble.dataset.profilesHiding === '1') {
                     bubble.style.display = 'none';
                     bubble.classList.remove('profiles-bubble-hiding');
@@ -8331,66 +12606,73 @@
         },
         _bubbleShow: function (bubble) {
             if (!bubble) return;
+            // Already showing: this runs every route tick, and a requestAnimationFrame twice a
+            // second for an unchanged button is pure cost.
+            if (bubble.dataset.profilesHiding !== '1' && bubble.style.display !== 'none'
+                && !bubble.classList.contains('profiles-bubble-hiding')) return;
             delete bubble.dataset.profilesHiding;
             bubble.style.display = '';
-            // Tick so the browser has a chance to paint display:'' before removing
-            // the opacity class, triggering the CSS transition.
+            // Tick so the browser paints display:'' before the opacity class is removed and
+            // the CSS transition runs.
             requestAnimationFrame(() => bubble.classList.remove('profiles-bubble-hiding'));
         },
 
         evaluateFloatingBubbleVisibility: function (viewType) {
             let bubble = document.getElementById('profiles-floating-bubble');
 
-            // Nobody is signed in here, whatever storage says — see isSignIn in checkRoute.
-            // Forget the previous account the first time the screen is seen, exactly as
-            // validateSessionState would have on a reload: its profile session, its master,
-            // and the in-memory list, which would otherwise be the next account's first grid
-            // (and, through _syncMasterFromProfiles, its master). Ahead of the menu-location
-            // check because menu mode carries the same state.
+            // Nobody is signed in here, whatever storage says (see isSignIn in checkRoute).
+            // Forget the previous account the first time the screen is seen, as
+            // validateSessionState would on a reload: its profile session, its master, and the
+            // in-memory list, which would otherwise be the next account's first grid (and,
+            // through _syncMasterFromProfiles, its master). Before the menu-location check
+            // because menu mode carries the same state.
             if (viewType === 'signin') {
                 if (!this._signInScreenCleared) {
                     this._signInScreenCleared = true;
-                    try { localStorage.removeItem(this.config.masterStorageKey); } catch (e) { /* blocked */ }
+                    try { this.clearMasterState(); } catch (e) { /* blocked */ }
                     this.clearProfileSession();
                     this.invalidateProfileCache();
+                    // The previous account's gate and menu-mode choice, and whether it saw the
+                    // emergency link, are not the next account's. Same pair the usersignedout handler
+                    // clears.
+                    this._switcherPrefs = null;
+                    this._panicLinkAvailable = null;
                 }
                 if (bubble) bubble.remove();
                 return;
             }
             this._signInScreenCleared = false;
 
-            // With the switcher in Jellyfin's menu, keeping the floating button as well
-            // would be two controls doing one job — and the second portrait beside the
-            // native user icon is precisely what issue #14 reported as confusing.
+            // With the switcher in Jellyfin's menu, the floating button too would be two
+            // controls for one job, and a second portrait beside the native user icon is what
+            // issue #14 reported as confusing.
             if (this.isMenuLocation()) {
                 if (bubble) bubble.remove();
                 return;
             }
 
-            // Hide during active playback/OSD or on any server-management page.
+            // Hide during playback/OSD or on any server-management page.
             if (viewType === 'videoosd' || viewType === 'dashboard') {
                 this._bubbleHide(bubble);
                 return;
             }
 
-            // The active-profile marker is set by the gate and lives in sessionStorage, so it
-            // is gone on every fresh load. With "Ask who's watching on startup" off nobody
-            // passes through the gate, the marker never exists, and in button mode that left
-            // no switcher at all — no button, and no menu row either. So with the gate off the
-            // button stands whenever someone is signed in; handleBubbleClick already copes
-            // with no marker, because menu mode never has one.
+            // The active-profile marker is set by the gate and lives in sessionStorage, so it is
+            // gone on every fresh load. With "Ask who's watching on startup" off nobody passes
+            // the gate, the marker never exists, and in button mode that left no switcher at
+            // all (no button, no menu row). So with the gate off the button stands whenever
+            // someone is signed in; handleBubbleClick copes with no marker, since menu mode
+            // never has one.
             //
-            // The access token is required as well as the preferences: the preference cache
-            // outlives sign-out (it matches the stored master), and on its own would keep the
-            // button on screen with nobody behind it. getSwitcherPrefs costs nothing extra
-            // here — isMenuLocation has just asked it the same question.
+            // The access token is required too: the preference cache outlives sign-out (it
+            // matches the stored master) and alone would keep the button on screen with nobody
+            // behind it. getSwitcherPrefs costs nothing extra, as isMenuLocation just asked it.
             if (!this.isProfileSessionActive()) {
                 let signedIn = false;
                 try { signedIn = !!(typeof ApiClient !== 'undefined' && ApiClient && ApiClient.accessToken()); } catch (e) { /* no client yet */ }
                 const gateOff = signedIn && this.getSwitcherPrefs() !== null && !this.shouldAskOnStartup();
                 if (!gateOff) {
-                    // No session and the gate will provide one — remove entirely (it is
-                    // re-created when needed).
+                    // No session and the gate will provide one: remove entirely (re-created when needed).
                     if (bubble) bubble.remove();
                     return;
                 }
@@ -8409,7 +12691,7 @@
                         bubble.remove();
                         bubble = null;
                     } else if (!headerContainer.contains(bubble)) {
-                        // Button is in the DOM but drifted outside the header — re-insert.
+                        // In the DOM but drifted outside the header: re-insert.
                         this._insertBeforeUserBtn(headerContainer, bubble);
                     }
                 }
@@ -8420,39 +12702,39 @@
                 }
 
             } else {
-                // Nothing named matched. If a named anchor may still be on its way, wait
-                // rather than guess — see HEADER_ANCHOR_GRACE_MS. Only when there is
-                // nothing on screen yet: a button already placed is left exactly where it
-                // is, because removing it here would trade the jump for a flicker.
+                // Nothing named matched. If a named anchor may still be on its way, wait rather
+                // than guess (see HEADER_ANCHOR_GRACE_MS). Only when nothing is on screen yet: a
+                // button already placed stays put, since removing it would trade the jump for a
+                // flicker.
                 if (!bubble && this._withinAnchorGrace()) return;
 
                 // ── Strategy 2: geometry-based anchor ────────────────────────────────
-                // If no named container matched (e.g. a custom Skin Manager theme),
-                // find the rightmost visible button in the top 80px of the viewport
-                // and insert next to it.  Works for ANY theme regardless of class names.
-                // Cached like the header container, and for a sharper reason: this walks
-                // every button and link in the document and reads getBoundingClientRect on
-                // each one, which forces layout. Running it twice a second was the most
-                // expensive thing the plugin did, and it only ever runs on themes where no
-                // named container matched — so the worst case fell on the people already
-                // worst served. Re-found when it leaves the page or the viewport changes.
+                // If no named container matched (e.g. a custom Skin Manager theme), find the
+                // rightmost visible button in the top 80px and insert next to it. Works for any
+                // theme regardless of class names. Cached like the header container: this walks
+                // every button and link in the document and reads getBoundingClientRect on each,
+                // which forces layout. Twice a second it was the most expensive thing the plugin
+                // did, and it only runs on themes where no named container matched, so the worst
+                // case fell on the people already worst served. Re-found when it leaves the page
+                // or the viewport changes.
                 if (this._geoAnchor && !document.contains(this._geoAnchor)) {
                     this._geoAnchor = null;
                 }
                 //
-                // A failed search backs off for the same three seconds the named search
-                // does. Without it, a page with no buttons at all in the top 80px — which
-                // is where this ends up — would re-run the whole walk on every tick
-                // forever, having already established there is nothing to find.
+                // A failed search backs off for the same three seconds as the named search. Without
+                // it, a page with no buttons in the top 80px would re-run the whole walk every tick,
+                // having already found nothing.
                 const geoNow = Date.now();
                 const geoStale = !this._geoSearchedAt || geoNow - this._geoSearchedAt >= 3000;
-                if (!this._geoAnchor && (geoStale || this._fallbackPosDirty)) {
-                    this._geoSearchedAt = geoNow;
-                    this._geoAnchor = this._findGeometricHeaderAnchor();
-                } else if (this._fallbackPosDirty) {
+                if ((!this._geoAnchor && geoStale) || this._fallbackPosDirty) {
                     this._geoSearchedAt = geoNow;
                     this._geoAnchor = this._findGeometricHeaderAnchor();
                 }
+                // The resize has been answered, so the flag is spent. It was cleared only on the
+                // corner-pill path below, so where this search found an anchor, one resize left it
+                // set and the branch above re-ran the whole walk every tick for the session. With
+                // no anchor the pill path still needs it to re-place the pill, and clears it there.
+                if (this._geoAnchor) this._fallbackPosDirty = false;
                 const anchor = this._geoAnchor;
                 if (anchor) {
                     if (bubble && bubble.classList.contains('profiles-floating-fallback')) {
@@ -8460,9 +12742,7 @@
                         bubble = null;
                     }
                     if (bubble) {
-                        if (!document.contains(bubble)) {
-                            bubble.remove(); bubble = null;
-                        } else if (!anchor.parentElement.contains(bubble)) {
+                        if (!document.contains(bubble) || !anchor.parentElement.contains(bubble)) {
                             bubble.remove(); bubble = null;
                         }
                     }
@@ -8474,8 +12754,8 @@
 
                 } else {
                     // ── Strategy 3: true corner-pill fallback ────────────────────────
-                    // Appended to <html> (outside the body transform chain) so
-                    // position:fixed works correctly regardless of CSS transforms.
+                    // Appended to <html> (outside the body transform chain) so position:fixed works
+                    // despite CSS transforms.
                     if (bubble && !bubble.classList.contains('profiles-floating-fallback')) {
                         bubble.remove();
                         bubble = null;
@@ -8484,8 +12764,7 @@
                         bubble = this._buildFallbackBubble();
                         document.documentElement.appendChild(bubble);
                         this.attachBubbleClickHandler(bubble);
-                        // _buildFallbackBubble positions it as it builds it, so it starts
-                        // clean rather than asking for the same computation twice.
+                        // _buildFallbackBubble positions it as it builds, so it starts clean.
                         this._fallbackPosDirty = false;
                     }
                 }
@@ -8493,12 +12772,10 @@
 
             if (bubble && bubble.classList.contains('profiles-floating-fallback')
                 && this._fallbackPosDirty !== false) {
-                // Where the corner pill goes depends on the viewport, not on the route.
-                // This ran on every tick — a document-wide button query plus several
-                // elementFromPoint calls, each one forcing layout — twice a second, on
-                // precisely the themes where the header search had already failed and was
-                // therefore costing the most. Recomputed when the pill is built and when
-                // the viewport changes, which is when the answer can actually differ.
+                // Where the corner pill goes depends on the viewport, not the route. This ran every
+                // tick (a document-wide button query plus several elementFromPoint calls, each
+                // forcing layout), twice a second, on exactly the themes where the header search
+                // had failed. Recomputed when the pill is built and when the viewport changes.
                 const pos = this._findBestFallbackPosition();
                 bubble.style.top = pos.top;
                 bubble.style.bottom = pos.bottom;
@@ -8509,22 +12786,26 @@
 
             this._bubbleShow(bubble);
 
-            // Pre-fetch the profile list while the button is visible so the overlay
-            // appears instantly (no network wait) when the user clicks it.
+            // Pre-fetch the profile list while the button is visible so the overlay opens
+            // without a network wait.
             if (viewType === 'home' && !this._profilePrefetchPending) {
                 this._prefetchProfiles();
             }
         },
 
-        // Fetches /list using the master token and caches the result in this.cachedProfiles.
-        // Called proactively by evaluateFloatingBubbleVisibility; the cached result is
-        // consumed by fetchAndRenderProfiles for instant, flash-free overlay display.
+        // Fetches /list with the master token and caches it in this.cachedProfiles. Called
+        // by evaluateFloatingBubbleVisibility; fetchAndRenderProfiles uses the cache so the
+        // overlay appears at once without a flash.
         _prefetchProfiles: function () {
             if (this._profilePrefetchPending || (this.cachedProfiles && this.cachedProfiles.length)) return;
-            // With the gate off the button stands without a profile session, so this is
-            // reached on every home tick before any master state exists — a storage read and
-            // a JSON.parse twice a second, for nothing. Back off three seconds after finding
-            // none, the same interval the header searches use.
+            // The pending flag below was cleared on any failure with nothing to slow the next
+            // attempt, so a failing server got a /list from every open home screen every
+            // 500 ms. The shared guard also stops this racing the gate's request.
+            if (!this._listPollMayRequest()) return;
+            // With the gate off the button stands without a profile session, so this is reached
+            // on every home tick before any master state exists: a storage read and a
+            // JSON.parse twice a second for nothing. Back off three seconds after finding none,
+            // as the header searches do.
             if (this._prefetchNoMasterAt && Date.now() - this._prefetchNoMasterAt < 3000) return;
             const masterState = this.readMasterState();
             if (!masterState || !masterState.token) {
@@ -8534,16 +12815,25 @@
             this._prefetchNoMasterAt = 0;
 
             this._profilePrefetchPending = true;
-            const url = ApiClient.getUrl('plugins/profiles/list');
-            fetch(url, { headers: this.getAuthHeaders(masterState.token) })
+            const gen = this._profileCacheGen || 0;
+            this._requestList(ApiClient, masterState.token)
                 .then(res => {
+                    // A 401 was swallowed with every other failure, leaving a dead session on screen
+                    // with a button that could not open anything. It is the same expired session the
+                    // gate's request handles.
+                    if (res.status === 401) {
+                        this.handleSessionExpired();
+                        throw new Error('Unauthorized');
+                    }
                     if (!res.ok) throw new Error();
                     return res.json();
                 })
                 .then(profiles => {
+                    // Invalidated while this was in flight: the answer predates the change.
+                    if ((this._profileCacheGen || 0) !== gen) return;
                     const normalized = this.normalizeProfiles(profiles);
                     this.cachedProfiles = normalized;
-                    localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(normalized));
+                    try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(this._cacheableProfiles(normalized))); } catch (e) { /* full or blocked: the in-memory copy is set */ }
                     this._profilePrefetchPending = false;
 
                     // Sync sessionStorage if matches current active user
@@ -8566,75 +12856,76 @@
                     const currentRouteType = this._lastRouteType || 'other';
                     this.evaluateFloatingBubbleVisibility(currentRouteType);
                 })
-                .catch(() => { this._profilePrefetchPending = false; });
+                .catch(() => {
+                    // A stale answer's failure must not clear the flag of a newer prefetch.
+                    if ((this._profileCacheGen || 0) === gen) this._profilePrefetchPending = false;
+                    // Also set by _requestList for a failed request; this covers a body that would
+                    // not parse.
+                    this._listRetryAt = Date.now() + this.POLL_RETRY_MS;
+                });
         },
 
         // ── Header-container detection ───────────────────────────────────────────
 
-        /**
-         * The container the floating switcher button is placed in.
-         *
-         * Cached, because this is reached from evaluateFloatingBubbleVisibility on every
-         * route tick while a profile is active — which is essentially always — and the
-         * header is built once per page. It was re-running the entire search twice a
-         * second to arrive at the same answer: six document queries on a stock install and
-         * ten on a theme where nothing matched, two of them full-document walks.
-         * tests/js/routetick.js measures it.
-         *
-         * The cache is invalidated by the element leaving the document, which is what
-         * React rebuilding the header looks like from out here.
-         */
-        /// True when an element is actually laid out — not merely present in the document.
+        /// True when an element is actually laid out, not merely present in the document.
         ///
-        /// getClientRects() is empty for anything inside a display:none subtree, and unlike
-        /// offsetParent it stays correct for a position:fixed element. Both matter here.
+        /// getClientRects() is empty inside a display:none subtree and, unlike offsetParent,
+        /// stays correct for a position:fixed element. Both matter here.
         ///
         /// jellyfin-web keeps its whole legacy header in the DOM and hides it whenever the
-        /// modern layout is active — the default in 12.0, and an option in 10.11. Its own
-        /// comment in components/AppHeader.tsx says why: "these components are not used
-        /// with the new layouts, but legacy views interact with the elements directly so
-        /// they need to be present in the DOM. We use display: none to hide them and
-        /// prevent errors." RootAppRouter renders it as
+        /// modern layout is active (the default in 12.0, an option in 10.11). Its comment in
+        /// components/AppHeader.tsx: "these components are not used with the new layouts, but
+        /// legacy views interact with the elements directly so they need to be present in the
+        /// DOM. We use display: none to hide them and prevent errors." RootAppRouter renders
         /// <AppHeader isHidden={layoutManager.modern || isNewLayoutPath} />, and
         /// libraryMenu.js still fills that hidden .skinHeader with .headerRight,
         /// .headerButton and .headerUserButton.
         ///
-        /// So on the modern layout every named strategy below matched, and the button went
-        /// into a container nobody could see. From outside that is indistinguishable from
-        /// the injection having failed — and the geometric fallback, which would have found
-        /// the real toolbar, never ran because the search had already "succeeded".
+        /// So on the modern layout every named strategy below matched and the button went into
+        /// a container nobody could see, which looks like the injection failing. The geometric
+        /// fallback, which would have found the real toolbar, never ran because the search had
+        /// already "succeeded".
         _isLaidOut: function (el) {
             return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0;
         },
 
-        /// How long a named anchor gets to appear before geometry is allowed to guess.
+        /// How long a named anchor gets to appear before geometry may guess.
         ///
-        /// A named anchor is strictly better than a guessed one — it is the account button
-        /// itself rather than whatever happened to be furthest right — so the guess waits
-        /// for it. The modern toolbar renders progressively, and on the first tick the
-        /// account button is not there yet while the Cast button is.
+        /// A named anchor beats a guessed one (it is the account button itself, not whatever
+        /// is furthest right), so the guess waits. The modern toolbar renders progressively:
+        /// on the first tick the account button is missing while the Cast button is there.
         ///
-        /// The cost is borne by custom themes where nothing named will ever match: their
-        /// button now appears this much later, and then stays put. That is the better
-        /// trade. One late arrival beats a visible jump on every single page load, and
-        /// three seconds is well inside how long the rest of the page takes to settle.
+        /// Custom themes where nothing named will ever match get their button this much
+        /// later, and then it stays put. One late arrival beats a visible jump on every page
+        /// load, and three seconds is well inside how long the page takes to settle.
         HEADER_ANCHOR_GRACE_MS: 3000,
 
-        /// True while a named anchor may still be about to appear and nothing has been
-        /// placed yet. Reset whenever the container is lost, so a React remount gets the
-        /// same head start the first load did.
+        /// True while a named anchor may still appear and nothing has been placed yet. Reset
+        /// when the container is lost, so a React remount gets the same head start as the
+        /// first load.
         _withinAnchorGrace: function () {
             return this._headerAnchorWaitFrom !== undefined
                 && Date.now() - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
         },
 
+        /**
+         * The container the floating switcher button is placed in.
+         *
+         * Cached: this is reached from evaluateFloatingBubbleVisibility on every route tick
+         * while a profile is active (nearly always), and the header is built once per page.
+         * It re-ran the whole search twice a second for the same answer: six document
+         * queries on a stock install and ten on a theme where nothing matched, two of them
+         * full-document walks. tests/js/routetick.js measures it.
+         *
+         * The cache is invalidated by the element leaving the document, which is what React
+         * rebuilding the header looks like from here.
+         */
         _findHeaderContainer: function () {
             const cachedNow = Date.now();
             if (this._headerContainer && document.contains(this._headerContainer)) {
-                // Re-checked on the same three-second cadence as a fresh search, not on
-                // every tick. This is a layout read and checkRoute runs twice a second;
-                // what it is watching for — someone switching layout in Display settings —
-                // does not happen between ticks.
+                // Re-checked on the same three-second cadence as a fresh search, not every tick:
+                // it is a layout read, and what it watches for (someone switching layout in Display
+                // settings) does not happen between ticks.
                 if (cachedNow - (this._headerCheckedAt || 0) < 3000) {
                     return this._headerContainer;
                 }
@@ -8642,30 +12933,26 @@
                 if (this._isLaidOut(this._headerContainer)) {
                     return this._headerContainer;
                 }
-                // The layout changed under us and this container is now hidden. Drop it and
-                // search again rather than keeping a button nobody can see — and restart
-                // the anchor grace, so a React remount gets the same head start the first
-                // load did instead of falling straight to geometry.
+                // The layout changed and this container is now hidden. Drop it and search again
+                // rather than keep a button nobody can see, and restart the anchor grace so a React
+                // remount gets the same head start as the first load.
                 this._headerContainer = null;
                 this._headerAnchorWaitFrom = undefined;
             }
 
-            // A failed search is remembered too, briefly. Caching only successes would
-            // leave the full cost in place on exactly the themes where no strategy
-            // matches — the case that was already the most expensive. Three seconds is
-            // far below the time anyone takes to notice a missing button, and far above
-            // a React re-render.
+            // A failed search is remembered too, briefly. Caching only successes would leave
+            // the full cost on exactly the themes where no strategy matches, already the most
+            // expensive. Three seconds is far below the time anyone takes to notice a missing
+            // button and far above a React re-render.
             //
-            // Except while we are still waiting for a named anchor to appear. The modern
-            // toolbar is React and its account button is not in the DOM on the first tick,
-            // so the first search fails, the throttle then held that answer for three
-            // seconds, and the switcher spent those three seconds wherever geometry had
-            // guessed. Reported as "it loads squished next to the cast button first, then
-            // updates" — the update being this throttle expiring.
+            // Except while waiting for a named anchor. The modern toolbar is React and its
+            // account button is not in the DOM on the first tick, so the first search fails, the
+            // throttle held that answer for three seconds, and the switcher sat wherever
+            // geometry had guessed. Reported as "it loads squished next to the cast button
+            // first, then updates": the update was the throttle expiring.
             //
-            // During the grace the named search runs on every tick instead. That is four
-            // indexed queries, which is what the geometric walk it replaces costs many
-            // times over, and it only happens in the first few seconds of a page.
+            // During the grace the named search runs every tick. That is four indexed queries,
+            // far less than the geometric walk it replaces, and only in a page's first seconds.
             const now = Date.now();
             if (this._headerAnchorWaitFrom === undefined) this._headerAnchorWaitFrom = now;
             const waitingForAnchor = now - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
@@ -8679,16 +12966,15 @@
             this._headerSearchedAt = now;
             this._headerCheckedAt = now;
 
-            // Indexed strategies only while waiting. Strategy C ends in
-            // [class*="skinHeader"], [class*="topBar"] — two unqualified attribute-substring
-            // selectors, which can never use an index and always walk the whole document.
-            // Running that on every tick is precisely what the route-tick budget forbids,
-            // and it would buy nothing: it is the heuristic for custom themes, and a custom
-            // theme's header does not appear three seconds late. It runs once the grace is
-            // over, on the same tick geometry would otherwise have taken.
+            // Indexed strategies only while waiting. Strategy C ends in [class*="skinHeader"],
+            // [class*="topBar"], two unqualified attribute-substring selectors that can never
+            // use an index and always walk the whole document. The route-tick budget forbids
+            // that every tick, and it buys nothing: it is the heuristic for custom themes, whose
+            // header does not appear three seconds late. It runs once the grace is over, on the
+            // tick geometry would otherwise have taken.
             this._headerContainer = this._searchForHeaderContainer(waitingForAnchor);
-            // Found one, so the wait is over. Cleared rather than left running, so that if
-            // this container is ever lost the grace starts again from that moment.
+            // Found one, so the wait is over. Cleared, not left running, so that if this
+            // container is lost the grace starts again from that moment.
             if (this._headerContainer) this._headerAnchorWaitFrom = undefined;
             return this._headerContainer;
         },
@@ -8696,53 +12982,48 @@
         _searchForHeaderContainer: function (indexedOnly) {
             // Strategy A: Jellyfin's own right-hand button container.
             //
-            // Five other class names were tried before this one — .headerRightButtons,
-            // .headerSelfView, .skinHeader-rightButtons, .headerButtons-right and
-            // .viewHeaderRight. Every one is absent from jellyfin-web 10.11, so on a
-            // stock install the browser resolved five selectors that could not match
-            // before reaching the one that does. They are recorded in
-            // tests/upstream-selectors.json.
-            // Laid out, not merely present — see _isLaidOut. On the modern layout this
-            // element exists and is inside a display:none wrapper.
+            // Five other class names were tried before this one (.headerRightButtons,
+            // .headerSelfView, .skinHeader-rightButtons, .headerButtons-right,
+            // .viewHeaderRight). All are absent from jellyfin-web 10.11, so a stock install
+            // resolved five selectors that could not match before reaching the one that does.
+            // They are recorded in tests/upstream-selectors.json.
+            // Laid out, not merely present (see _isLaidOut): on the modern layout this element
+            // exists inside a display:none wrapper.
             const byClass = document.querySelector('.headerRight');
             if (this._isLaidOut(byClass)) return byClass;
 
-            // Strategy B: the parent of a header button. A theme that renames the
-            // container usually keeps Jellyfin's own buttons inside it.
-            //
-            // .headerButton rather than [class*="headerButton"]: every header button
-            // upstream carries the bare class alongside its specific one
-            // (headerCastButton castButton headerButton headerButtonRight), so the plain
-            // class selector matches exactly the same elements while letting the engine
-            // use the class index instead of walking the document. .btnCurrentUser,
-            // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
-            // also tried here and none of them exists upstream either — the cast button
-            // is .headerCastButton.
             // Strategy A2: the modern toolbar's user-menu button.
             //
-            // Named, not geometric, and that is the point. The first attempt at the modern
-            // layout let the geometric fallback place the button, and it landed in a
-            // different slot on every other load — between SyncPlay and Cast one time,
-            // beside the avatar the next. React fills that toolbar progressively, so
-            // "rightmost button in the top 80px" answers whatever happened to be rendered
-            // at the instant the search ran, and the answer was then cached.
+            // Named, not geometric. The first attempt at the modern layout let the geometric
+            // fallback place the button, and it landed in a different slot on every other load
+            // (between SyncPlay and Cast one time, beside the avatar the next). React fills that
+            // toolbar progressively, so "rightmost button in the top 80px" answered whatever was
+            // rendered when the search ran, and the answer was cached.
             //
             // components/toolbar/UserMenuButton.tsx renders
             //   <IconButton aria-controls={ID} aria-haspopup='true'>  where ID is
-            // 'app-user-menu' — the same contract as the #app-user-menu we already inject
-            // the menu entry into, and byte-identical in 10.11 and 12.0. So the account
-            // button can be named outright, and the switcher lands beside the avatar every
-            // time. An exact-match attribute selector indexes; the [class*=] kind is what
-            // cannot.
+            // 'app-user-menu': the same contract as the #app-user-menu we inject the menu entry
+            // into, byte-identical in 10.11 and 12.0. So the account button can be named
+            // outright and the switcher lands beside the avatar every time. An exact-match
+            // attribute selector indexes; the [class*=] kind cannot.
             const modernUserBtn = document.querySelector('[aria-controls="app-user-menu"]');
             if (this._isLaidOut(modernUserBtn) && this._isLaidOut(modernUserBtn.parentElement)) {
                 return modernUserBtn.parentElement;
             }
 
+            // Strategy B: the parent of a header button. A theme that renames the container
+            // usually keeps Jellyfin's own buttons inside it.
             //
-            // Every match is considered, not just the first: on the modern layout the
-            // hidden legacy header supplies the first .headerButton in document order, and
-            // taking it would rule out a visible one a theme had put further down.
+            // .headerButton rather than [class*="headerButton"]: every upstream header button
+            // carries the bare class (headerCastButton castButton headerButton
+            // headerButtonRight), so the plain selector matches the same elements and lets the
+            // engine use the class index. .btnCurrentUser, .headerButtonUser,
+            // .headerButton-user, .btnCast and .headerButton-cast were also tried and none exists
+            // upstream either; the cast button is .headerCastButton.
+            //
+            // Every match is considered, not just the first: on the modern layout the hidden
+            // legacy header supplies the first .headerButton in document order, and taking it
+            // would rule out a visible one further down.
             const knownBtns = document.querySelectorAll(
                 '.headerButton:not(#profiles-floating-bubble)'
             );
@@ -8753,17 +13034,16 @@
             }
 
             // Strategy C: find the button cluster inside a custom skin/theme header.
-            // ElegantFin and Skin Manager themes wrap everything in .skinHeader or
-            // a similarly named element; we pick the child that contains the most
-            // icon buttons (likely the right-side group).
-            // Strategy C walks the document and is skipped while a named anchor may still
-            // be coming — see the call site.
+            // ElegantFin and Skin Manager themes wrap everything in .skinHeader or a similarly
+            // named element; we pick the child that contains the most icon buttons (likely the
+            // right-side group). It walks the document, so it is skipped while a named anchor
+            // may still be coming (see the call site).
             if (indexedOnly) return null;
 
-            // querySelectorAll, and the first one that is laid out. Stock jellyfin-web's
-            // own .skinHeader comes first in document order and is display:none on the
-            // modern layout, so querySelector would hand back the one candidate that
-            // cannot work and stop before reaching a theme's visible header.
+            // querySelectorAll, and the first one that is laid out. Stock jellyfin-web's own
+            // .skinHeader comes first in document order and is display:none on the modern
+            // layout, so querySelector would return the one candidate that cannot work and stop
+            // before a theme's visible header.
             let skinHeader = null;
             const headers = document.querySelectorAll(
                 '.skinHeader, .jellyfinHeader, [class*="skinHeader"], [class*="topBar"]'
@@ -8773,10 +13053,10 @@
             }
             if (!skinHeader) return null;
 
-            // Two queries, not one per candidate. This used to ask for every div, nav, ul
-            // and span under the header and then run a second query *inside each one*, so
-            // the same buttons were counted once for every ancestor they had. Counting
-            // upwards from each button gives the identical answer in one pass.
+            // Two queries, not one per candidate. This asked for every div, nav, ul and span
+            // under the header and ran a second query inside each, so the same buttons were
+            // counted once per ancestor. Counting upward from each button gives the same answer
+            // in one pass.
             const counts = new Map();
             for (const btn of skinHeader.querySelectorAll('button, a[role="button"]')) {
                 for (let el = btn.parentElement; el && el !== skinHeader; el = el.parentElement) {
@@ -8784,8 +13064,8 @@
                 }
             }
 
-            // Walked in document order, and ties go to the first — the same result the
-            // nested version produced, since it iterated the same node list.
+            // Walked in document order, ties to the first: the same result the nested version
+            // gave, since it iterated the same node list.
             let best = null, bestCount = 0;
             for (const el of skinHeader.querySelectorAll('div, nav, ul, span')) {
                 const n = counts.get(el) || 0;
@@ -8794,13 +13074,13 @@
                     best = el;
                 }
             }
-            // A visible header can still hold a hidden cluster — a theme's collapsed
-            // overflow menu counts buttons just as well as its visible row does.
+            // A visible header can still hold a hidden cluster: a theme's collapsed overflow
+            // menu counts buttons as well as its visible row does.
             return this._isLaidOut(best) ? best : null;
         },
 
-        // Finds the rightmost visible button within the top 80px of the viewport.
-        // Theme-agnostic: works even when class names are completely non-standard.
+        // Finds the rightmost visible button within the top 80px of the viewport. Works
+        // even when class names are completely non-standard.
         _findGeometricHeaderAnchor: function () {
             const candidates = document.querySelectorAll(
                 'button:not(#profiles-floating-bubble), a[role="button"]:not(#profiles-floating-bubble)'
@@ -8820,10 +13100,10 @@
         _buildHeaderBubble: function () {
             const b = document.createElement('button');
             b.id = 'profiles-floating-bubble';
-            // `focusable` is what Jellyfin's own focusManager looks for on TV layouts
-            // (focusableQuery in src/components/focusManager.js is the standard tags plus
-            // `.focusable`). A bare <button> qualifies on paper; carrying the class as well
-            // costs nothing and is what every other header control does.
+            // `focusable` is what Jellyfin's focusManager looks for on TV layouts (focusableQuery
+            // in src/components/focusManager.js: the standard tags plus `.focusable`). A bare
+            // <button> qualifies on paper; the class costs nothing and every other header
+            // control carries it.
             b.className = 'paper-icon-button-light headerButton focusable';
             b.title = t('switcher.switchProfile');
             b.setAttribute('aria-label', t('switcher.switchProfile'));
@@ -8832,7 +13112,7 @@
             b.innerHTML = `
                 <div class="profiles-header-avatar" style="background-color: ${
                     activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(activeInfo.color)
-                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: ${onAvatarColor(activeInfo.color)}; border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
@@ -8858,7 +13138,7 @@
             b.innerHTML = `
                 <div class="profiles-header-avatar" style="background-color: ${
                     activeInfo.profileImage && activeInfo.transparent ? 'transparent' : safeColor(activeInfo.color)
-                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
+                }; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: ${onAvatarColor(activeInfo.color)}; border: 1.5px solid rgba(255,255,255,0.25); box-sizing: border-box; overflow: hidden; position: relative;">
                     ${avatarInner(activeInfo.profileImage, activeInfo.initial, /* useThumb */ true)}
                 </div>
             `;
@@ -8896,25 +13176,23 @@
         // Inserts bubble before the user-account button, or appends if not found.
         _insertBeforeUserBtn: function (container, bubble) {
             // .headerUserButton is the real class. This asked for .headerButton-user,
-            // .btnCurrentUser and .headerButtonUser, none of which exists in jellyfin-web,
-            // so the query never matched and the function has always fallen through to
-            // lastElementChild — placing the switcher at the end of the header rather than
-            // beside the account icon it is named for. Verified in
-            // src/scripts/libraryMenu.js: "headerButton headerButtonRight headerUserButton"
-            // and the headerUserButtonRound variant.
-            // The third is the modern toolbar's account button — see Strategy A2 in
-            // _searchForHeaderContainer for why aria-controls is the right handle on it.
+            // .btnCurrentUser and .headerButtonUser, none of which exists in jellyfin-web, so
+            // the query never matched and the function fell through to lastElementChild,
+            // placing the switcher at the end of the header, not beside the account icon.
+            // Verified in src/scripts/libraryMenu.js: "headerButton headerButtonRight
+            // headerUserButton" and the headerUserButtonRound variant.
+            // The third is the modern toolbar's account button; see Strategy A2 in
+            // _searchForHeaderContainer for why aria-controls is the handle.
             const userBtn =
                 container.querySelector(
                     '.headerUserButton, .headerUserButtonRound, [aria-controls="app-user-menu"]'
                 ) ||
                 container.lastElementChild;
 
-            // Sized against whatever it ends up standing next to. The modern toolbar puts a
-            // 40px MUI Avatar in an IconButton with padding:0 (UserAvatar.tsx renders
-            // <Avatar> at its default size), and a 28px circle beside that read as an
-            // afterthought rather than a control. The legacy header's buttons are smaller,
-            // so this is a class rather than a new default.
+            // Sized against whatever it ends up beside. The modern toolbar puts a 40px MUI
+            // Avatar in an IconButton with padding:0 (UserAvatar.tsx renders <Avatar> at its
+            // default size), and a 28px circle beside that looked like an afterthought. The
+            // legacy header's buttons are smaller, so this is a class, not a new default.
             const modern = !!(userBtn && userBtn.getAttribute
                 && userBtn.getAttribute('aria-controls') === 'app-user-menu');
             bubble.classList.toggle('jpf-modern-toolbar-btn', modern);
@@ -8928,27 +13206,25 @@
 
         /// Opens the profile selector over whatever page the user is on.
         ///
-        /// Every entry point routes through here — the header bubble, the sidebar link, the
-        /// user-menu item and the profile page — so they cannot drift apart. There is no
-        /// page reload: the overlay is drawn on top of the current view, which is what
-        /// removed the white flash the old reload-based button caused.
-        handleBubbleClick: function () {
-            // Every entry point into the switcher funnels through here, so this is where the
-            // emergency disable has to hold. An entry that survived the teardown — a menu row
-            // a theme rebuilt, say — must not be able to raise the gate again.
+        /// Every entry point routes through here (header bubble, sidebar link, user-menu item,
+        /// profile page) so they cannot drift apart. There is no page reload: the overlay is
+        /// drawn over the current view, which removed the white flash the old reload-based
+        /// button caused.
+        handleBubbleClick: function (opener) {
+            // Every entry point funnels through here, so this is where the emergency disable
+            // has to hold. An entry that survived the teardown (a menu row a theme rebuilt)
+            // must not be able to raise the gate again.
             if (this._panicDisabled) return;
 
-            // Opening the switcher deliberately is a reversible act, so remember enough to
-            // undo it. Nothing is signed out and no credentials change — the list is fetched
-            // with the session in use, which the server resolves to its household — so
-            // backing out costs no PIN and no reload. Without this there is no way off the
-            // picker at all once it is open, which on a TV means the Back button lands on a
-            // dead end.
+            // Opening the switcher on purpose is reversible, so remember enough to undo it.
+            // Nothing is signed out and no credentials change: the list is fetched with the
+            // session in use, which the server resolves to its household, so backing out costs
+            // no PIN and no reload. Without this there is no way off the picker once it is open,
+            // and on a TV Back lands on a dead end.
             //
-            // This used to put the master's credentials back in memory first, on the belief
-            // that a profile's token could not list its siblings. /list resolves the caller's
-            // master and always could; the swap only meant the master account was live
-            // behind the picker for as long as it was open.
+            // This once put the master's credentials back in memory first, believing a profile's
+            // token could not list its siblings. /list resolves the caller's master and always
+            // could; the swap only left the master account live behind the picker.
             const priorUserId = ApiClient.getCurrentUserId();
             const priorToken = this._sessionGet(this.config.activeSessionKey);
             this._resumeState = (priorToken && priorUserId)
@@ -8957,10 +13233,14 @@
                     userId: priorUserId,
                     info: this._sessionGet('jellyfin_profiles_active_info')
                 }
-                // No profile session marked active, which is the normal case in menu mode:
-                // nobody passed through the gate. Closing is still a valid answer, and
-                // without it there is no way off the picker at all.
+                // No profile session marked active, the normal case in menu mode: nobody passed
+                // the gate. Closing is still a valid answer; without it there is no way off the
+                // picker.
                 : { closeOnly: true };
+            // Opened on purpose is what makes Back close the picker, and the opening control is
+            // where focus returns. A menu row is gone by then, so the header button stands in
+            // (see resumePreviousProfile).
+            this._resumeState.opener = opener || null;
 
             this.clearProfileSession();
             this.interceptHomeAndShowProfiles();
@@ -8968,16 +13248,16 @@
 
         /// Puts back the profile that was active before the switcher was opened.
         ///
-        /// Nothing was signed out to get here — handleBubbleClick only swapped the master's
-        /// credentials into memory so the profile list could be fetched — so the profile's
-        /// own token is still good and this needs neither a PIN nor a reload.
+        /// Nothing was signed out to get here (handleBubbleClick only swapped the master's
+        /// credentials into memory to fetch the list), so the profile's own token is still
+        /// good and this needs no PIN and no reload.
         resumePreviousProfile: function () {
             const prior = this._resumeState;
             if (!prior) return;
             this._resumeState = null;
 
-            // closeOnly means there was no profile session to put back — the credentials
-            // in play are already the right ones.
+            // closeOnly means no profile session to put back; the credentials in play are
+            // already right.
             if (!prior.closeOnly) {
                 this._sessionSet(this.config.activeSessionKey, prior.token);
                 if (prior.info) this._sessionSet('jellyfin_profiles_active_info', prior.info);
@@ -8990,6 +13270,14 @@
             this.masterPin = null;
             this.removeProfileOverlay();
             this.checkRoute();
+
+            // Back to the control that opened the picker. A remote has no pointer, so without
+            // this focus is on nothing and the next arrow starts from the top. The user-menu
+            // row is already gone, so the header button is next best. document.contains is not
+            // used: Node.isConnected is Chromium 54.
+            let back = prior.opener;
+            if (!back || !document.body.contains(back)) back = document.getElementById('profiles-floating-bubble');
+            if (back && typeof back.focus === 'function') back.focus();
         },
 
         attachBubbleClickHandler: function (bubble) {
@@ -9001,10 +13289,9 @@
                 bubble.style.opacity = '0.45';
                 bubble.style.cursor = 'wait';
 
-                this.handleBubbleClick();
+                this.handleBubbleClick(bubble);
 
-                // Re-enable after the overlay has appeared so the button is ready again if
-                // the user dismisses it.
+                // Re-enable after the overlay appears so the button is ready if it is dismissed.
                 setTimeout(() => {
                     bubble.disabled = false;
                     bubble.style.opacity = '';
@@ -9014,27 +13301,304 @@
 
             bubble.addEventListener('click', activate);
 
-            // Explicit D-pad/keyboard Enter+Space handler.
-            // Native <button> fires click on Enter in most browsers, but some TV browsers
-            // (notably older Tizen and webOS) skip this for non-focused or injected elements.
+            // Explicit D-pad/keyboard Enter+Space handler. A native <button> fires click on
+            // Enter in most browsers, but some TV browsers (older Tizen and webOS) skip it for
+            // non-focused or injected elements.
             bubble.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') activate(e);
+                if (isKey(e, 'Enter') || isKey(e, ' ')) activate(e);
             });
         },
 
         injectStyles: function () {
-            // Idempotent: a second evaluation of this script (a re-injected tag, a client
-            // that loads it twice) would otherwise append a second full copy of the sheet.
+            // Idempotent: a second evaluation of this script (a re-injected tag, a client that
+            // loads it twice) would otherwise append a second copy of the sheet.
             if (document.getElementById('jpf-styles')) return;
 
             const style = document.createElement('style');
             style.id = 'jpf-styles';
-            // textContent, not innerHTML. A <style> element's contents are CSS, not markup,
-            // so HTML-parsing them buys nothing and can only misread the text.
-            style.textContent = BONFIRE_STYLES;
+            // textContent, not innerHTML: a <style> element's contents are CSS, not markup.
+            // The themes go after the stylesheet. Nothing should depend on that order: a theme
+            // rule and a sheet rule tying on one element changed winner when the themes left
+            // the sheet, and tests/js/themes.js fails on every such tie.
+            style.textContent = BONFIRE_STYLES + '\n' + allThemesCss();
             document.head.appendChild(style);
+            // After the stylesheet, as the copy restored at startup could not be.
+            this.applyCustomThemesCss();
+            this.injectFonts();
+        },
+
+        /// The served fonts, once, in a <style> of their own. Called again from
+        /// _setThemeSettings: a packaged client (Tizen) has no ApiClient when this script
+        /// starts, and a root-relative address there asks the app, not the server. A browser
+        /// fetches a font only when text needs it, so declaring all of them is free.
+        injectFonts: function () {
+            if (document.getElementById('jpf-fonts')) return;
+            const inBrowser = /^https?:$/.test(window.location.protocol);
+            const hasClient = typeof ApiClient !== 'undefined' && ApiClient && typeof ApiClient.getUrl === 'function';
+            if (!inBrowser && !hasClient) return;
+            let variable = false;
+            try { variable = !!(window.CSS && CSS.supports && CSS.supports('font-variation-settings', 'normal')); } catch (e) { /* old engine */ }
+            if (!variable) return;
+            const css = fontFaceCss(pluginUrl);
+            if (!css) return;
+            const style = document.createElement('style');
+            style.id = 'jpf-fonts';
+            style.textContent = css;
+            document.head.appendChild(style);
+        },
+
+        // ── Custom themes (1.7.2) ────────────────────────────────────────────────────
+
+        /// The copy of the last answer kept on this device, used before anything is drawn.
+        /// Read once at startup.
+        restoreCustomThemes: function () {
+            let raw = null;
+            try { raw = JSON.parse(localStorage.getItem(this.config.customThemesKey) || 'null'); } catch (e) { /* unreadable */ }
+            if (raw) this.useCustomThemes(raw, false);
+        },
+
+        /// GET themes?part=custom, once per page load and never from checkRoute. Anonymous,
+        /// so it works on the gate before anyone has signed in. Sent no-cache with an ETag,
+        /// so the browser turns an unchanged answer into a 304. A failure keeps what the
+        /// device already had.
+        loadCustomThemes: function () {
+            if (this._customThemesLoad) return this._customThemesLoad;
+            this._customThemesLoad = fetch(pluginUrl('/plugins/profiles/themes?part=custom'))
+                .then(res => (res.ok ? res.json() : null))
+                .then(answer => { if (answer) this.useCustomThemes(answer, true); })
+                .catch(() => {
+                    // Offline: keep the cached copy and let the next call ask again. The failure was
+                    // once kept as the answer for the life of the page (R-1251).
+                    this._customThemesLoad = null;
+                    // Nothing more is coming on this load: stop waiting for a theme.
+                    this._customThemesSettled();
+                });
+            return this._customThemesLoad;
+        },
+
+        /// Puts an answer in place: the list, the CSS in a style element of its own, the
+        /// device's copy, and the theme the page was asked for, which may be one of these.
+        useCustomThemes: function (answer, store) {
+            const next = readCustomThemes(answer);
+            const text = JSON.stringify(next);
+            const changed = text !== this._customThemesText;
+            this._customThemesText = text;
+            CUSTOM_THEMES = next;
+
+            if (store) {
+                try {
+                    // The answer as it came, not `next`: restoreCustomThemes reads the copy with the
+                    // same reader, and the reader's output is a different shape. Kept as `next`, every
+                    // uploaded font came back from the copy as nothing, so a theme's text drew in its
+                    // fallback until the server answered.
+                    //
+                    // Up to forty themes of up to 64 KB each could crowd out everything else this
+                    // origin keeps. Past that the copy is dropped; the theme still arrives with the
+                    // answer, a moment after the first frame.
+                    const copy = JSON.stringify(answer);
+                    if (copy.length <= 512 * 1024) localStorage.setItem(this.config.customThemesKey, copy);
+                    else localStorage.removeItem(this.config.customThemesKey);
+                } catch (e) { /* storage full or blocked */ }
+            }
+            if (!changed) {
+                if (store) this._customThemesSettled();
+                return;
+            }
+            if (store) this._customThemesAnswered = true;
+
+            this.drawLogo(null);
+            // Not before the stylesheet is in: injectStyles puts this block after it.
+            if (document.getElementById('jpf-styles')) this.applyCustomThemesCss();
+            if (this._lastThemePrefs) this._setThemeSettings(this._lastThemePrefs);
+            else if (this._wantedTheme) this.applyTheme(this._wantedTheme);
+            // The same theme id may now have other colors.
+            this.fitLogoBacking();
+        },
+
+        /// The server has answered themes?part=custom (or cannot, this load) with nothing
+        /// new: a theme applyTheme was waiting for is put on now, which for a name the answer
+        /// does not hold is Bonfire.
+        _customThemesSettled: function () {
+            this._customThemesAnswered = true;
+            if (!this._themeDeferred) return;
+            if (this._lastThemePrefs) this._setThemeSettings(this._lastThemePrefs);
+            else if (this._wantedTheme) this.applyTheme(this._wantedTheme);
+        },
+
+        /// The server's logo, top right of the gate (1.7.2). On the gate itself, not inside
+        /// .profiles-modal-content, so every screen that swaps the content (PIN, settings,
+        /// the theme page) keeps it, and it scrolls away with the page instead of sitting over
+        /// a form. Built with the DOM, never markup: the text and alt are whatever an
+        /// administrator typed. Called when the gate is drawn and when the answer changes;
+        /// never from checkRoute. `overlay` may be null to mean the one on screen.
+        drawLogo: function (overlay) {
+            const gate = overlay || document.getElementById('profiles-gate-overlay');
+            const logo = CUSTOM_THEMES.logo;
+            let box = document.getElementById('profiles-logo');
+            const key = logo ? (logo.image || '') + '|' + (logo.text || '') + '|' + (logo.alt || '') + '|' + (logo.corners || '') : '';
+            if (box && (!gate || box.parentNode !== gate || box.getAttribute('data-logo') !== key)) {
+                if (box.parentNode) box.parentNode.removeChild(box);
+                box = null;
+            }
+            // The logo is absolute, so it drew over the title and tiles on a short screen. The
+            // class gives the gate's content room above it (see styles.css).
+            if (gate && gate.classList && !logo) gate.classList.remove('jpf-has-logo');
+            if (!gate || !logo || box) return;
+
+            box = document.createElement('div');
+            box.id = 'profiles-logo';
+            box.setAttribute('data-logo', key);
+            box.setAttribute('data-corners', logo.corners === 'square' ? 'square' : 'rounded');
+            const asText = () => {
+                while (box.firstChild) box.removeChild(box.firstChild);
+                if (!logo.text) {
+                    if (box.parentNode) box.parentNode.removeChild(box);
+                    if (gate.classList) gate.classList.remove('jpf-has-logo');
+                    return;
+                }
+                box.className = 'is-text';
+                box.textContent = logo.text;
+            };
+            if (logo.image) {
+                const img = document.createElement('img');
+                img.alt = logo.alt || '';
+                // A logo replaced since this device's copy was kept 404s: use the text, if any.
+                img.onerror = asText;
+                img.onload = () => {
+                    img._jpfLums = logoLums(img);
+                    this.fitLogoBacking();
+                };
+                img.src = pluginUrl(logo.image);
+                box.appendChild(img);
+            } else {
+                // Neither a picture nor words: nothing to draw, and an empty box on the gate would
+                // only reserve room above the tiles (R-1251).
+                if (!logo.text) {
+                    if (gate.classList) gate.classList.remove('jpf-has-logo');
+                    return;
+                }
+                asText();
+            }
+            gate.appendChild(box);
+            if (gate.classList && box.parentNode === gate) gate.classList.add('jpf-has-logo');
+        },
+
+        /// A see-through logo sits straight on the gate, and one logo serves every theme: a
+        /// white one vanished on Jellyfin Light, a black one on every dark theme. Its visible
+        /// pixels are read once, when it loads (logoLums), and held against the solid colors
+        /// of the theme's background (gateColours) at load and whenever the theme changes.
+        /// If a third or more fall under 3:1, WCAG's floor for graphics, the logo gets a
+        /// backing: dark behind a light logo, light behind a dark one. Not the theme's panel
+        /// color, which on a dark theme is as dark as its background and would hide a dark
+        /// logo just the same. A logo that reads is left bare, and so is a solid picture. A
+        /// theme's background picture counts at its worst under the dim (gatePhotoColours),
+        /// alongside the solid colors, which show until it loads.
+        /// Only from drawLogo and applyTheme, never from checkRoute.
+        fitLogoBacking: function () {
+            const box = document.getElementById('profiles-logo');
+            const img = box && box.querySelector('img');
+            if (!img || !box.classList) return;
+            const px = img._jpfLums;
+            let want = '';
+            if (px && px.length) {
+                const id = document.documentElement.getAttribute('data-jpf-theme') || 'bonfire';
+                const backs = gateColours(gateBackground(id)).concat(gatePhotoColours(id)).map(relLum);
+                if (backs.length) {
+                    const lo = Math.min.apply(null, backs), hi = Math.max.apply(null, backs);
+                    let lost = 0, lostSum = 0;
+                    px.forEach(L => {
+                        const near = L < lo ? lo : L > hi ? hi : L;
+                        if (contrastOf(L, near) < 3) { lost++; lostSum += L; }
+                    });
+                    // 0.179 is where black and white contrast equally with a color.
+                    if (lost / px.length >= 1 / 3) want = lostSum / lost > 0.179 ? 'dark' : 'light';
+                }
+            }
+            box.classList.toggle('jpf-logo-back-dark', want === 'dark');
+            box.classList.toggle('jpf-logo-back-light', want === 'light');
+        },
+
+        /// The custom themes and their fonts in <style id="jpf-themes-custom">, after the
+        /// stylesheet. Rewritten only when what it holds changes.
+        applyCustomThemesCss: function () {
+            if (!document.head) return;
+            let variable = false;
+            try { variable = !!(window.CSS && CSS.supports && CSS.supports('font-variation-settings', 'normal')); } catch (e) { /* old engine */ }
+            const css = customThemesCss() + customFontFaceCss(pluginUrl, variable);
+            let style = document.getElementById('jpf-themes-custom');
+            if (!css) {
+                if (style) style.parentNode.removeChild(style);
+                return;
+            }
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'jpf-themes-custom';
+                document.head.appendChild(style);
+            }
+            if (style.textContent !== css) style.textContent = css;
+            // Only the picture of the theme the page wears. Every custom theme's picture was
+            // fetched here, so with forty themes every device, a TV included, downloaded forty
+            // pictures per page load to show one. applyTheme and the profile form's picker fetch
+            // the others when they are put on; the dashboard's lists and editor ask through
+            // BonfireThemePreview.photo.
+            this.loadThemePhotoOf(document.documentElement.getAttribute('data-jpf-theme'));
+        },
+
+        /// The background picture of one custom theme, if it has one. Nothing for a built-in.
+        loadThemePhotoOf: function (id) {
+            const c = customTheme(String(id || ''));
+            this.loadThemePhoto(c && c.background && c.background.image && c.background.image.file);
+        },
+
+        /// Fetches a custom theme's background picture and, once loaded, adds its name to
+        /// <html data-jpf-photos>, which themeCss's picture rule waits for. Nothing is marked
+        /// for one that fails, so its theme stays as it is without one. Once per picture per
+        /// page; a failed one is retried the next time the themes change.
+        loadThemePhoto: function (file) {
+            if (typeof file !== 'string' || !/^[0-9a-f]{32}\.(png|jpg|webp)$/.test(file)) return;
+            const asked = this._themePhotos || (this._themePhotos = {});
+            if (asked[file]) return;
+            asked[file] = true;
+            const img = new Image();
+            img.onload = () => {
+                const root = document.documentElement;
+                const have = String(root.getAttribute('data-jpf-photos') || '').split(' ').filter(Boolean);
+                if (have.indexOf(file) === -1) root.setAttribute('data-jpf-photos', have.concat([file]).join(' '));
+            };
+            img.onerror = () => { delete asked[file]; };
+            img.src = pluginUrl('/plugins/profiles/themes/backgrounds/' + file);
         }
     };
+
+    /// For the settings page's theme editor (1.7.2), which loads inside jellyfin-web after
+    /// this script. Previews are drawn by themeCss, the one generator, so a preview is what
+    /// the theme will look like, not a second copy's guess. css() returns text and writes
+    /// nothing; builtIns() is a copy, so the editor can start from a hidden built-in, which
+    /// GET /themes leaves out; refresh() is the startup fetch again, so a theme just saved
+    /// reaches this window's pickers without a reload. fit() sizes and balances a copy of
+    /// the picker (the editor's expanded preview) like the real one, so a phone shows two
+    /// tiles a row there too. The page works without this, minus the preview, when the
+    /// script was not injected.
+    if (typeof window !== 'undefined') {
+        // With the plugin turned off, init returns before injectStyles, and the previews'
+        // own rules (.jpf-theme-preview) and the gate's rules the expanded view copies from
+        // #jpf-styles live in that sheet: the Themes tab drew unstyled. So the first preview
+        // call puts it in, and only then, so an ordinary page while off gets nothing of ours.
+        // injectStyles is idempotent, so on it is a lookup.
+        const previewSheet = () => { if (BONFIRE_OFF) ProfilesPlugin.injectStyles(); };
+        window.BonfireThemePreview = {
+            css: theme => { previewSheet(); return themeCss(theme, BONFIRE_THEMES.patterns || {}); },
+            // A background picture the editor's preview names, fetched and marked like the
+            // pickers', so the preview shows it exactly when they would.
+            photo: file => ProfilesPlugin.loadThemePhoto(file),
+            fit: el => { previewSheet(); return ProfilesPlugin.fitGateToScreen(el); },
+            builtIns: () => JSON.parse(JSON.stringify(Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])),
+            refresh: () => {
+                ProfilesPlugin._customThemesLoad = null;
+                return ProfilesPlugin.loadCustomThemes();
+            }
+        };
+    }
 
     ProfilesPlugin.init();
 })();

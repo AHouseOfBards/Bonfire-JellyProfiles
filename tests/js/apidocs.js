@@ -1,25 +1,22 @@
 /*
  * The API reference has to still describe the API.
  *
- * docs/developer-api.md is the contract other people build against, and nothing has
- * ever checked it against the controller. The plan says "41 routes"; there are 42 —
- * P2 added POST admin/settings and the count in the plan, in the working notes and in the
- * document itself all drifted apart without anyone noticing. That is the whole failure
- * mode: documentation rots silently, and the only signal is a confused reader.
+ * docs/developer-api.md is the contract other people build against, and nothing checked it
+ * against the controller. The plan said "41 routes"; there were 42 (P2 added POST
+ * admin/settings), and the plan, the working notes and the document drifted apart unnoticed.
+ * Documentation rots silently and the only signal is a confused reader.
  *
- * So this enumerates both sides and matches them pairwise. Not counts — a count going
- * green while one route was swapped for another is exactly the aggregate mistake the
- * house rules warn about.
+ * So both sides are enumerated and matched pairwise, not counted: a count can stay green
+ * while one route is swapped for another.
  *
- * It checks three things:
  *   1. every route in the controller is documented, and every documented route exists;
- *   2. every route states its authorisation level, in a fixed place;
+ *   2. every route states its authorization level, in a fixed place;
  *   3. the level the document claims is the level the code actually enforces.
  *
- * (3) is the one worth having. A route documented as admin-only that in fact only
- * checks for a signed-in user is a security bug wearing a documentation bug's clothes,
- * and this is a controller with a class-level [AllowAnonymous] and hand-rolled checks —
- * a new route without an explicit check is silently public.
+ * (3) is the one worth having. A route documented as admin-only that only checks for a
+ * signed-in user is a security bug wearing a documentation bug's clothes. The controller has
+ * a class-level [AllowAnonymous] and hand-rolled checks, so a new route without an explicit
+ * check is silently public.
  *
  *   node tests/js/apidocs.js
  */
@@ -39,82 +36,30 @@ function ok(name, cond, detail) {
     }
 }
 
-const cs = fs.readFileSync(path.join(L.ROOT, 'Controllers', 'ProfilesController.cs'), 'utf8');
+// The extractor lives in _routes.js, shared with openapi.js.
+const { PREFIX, controllerFiles, routes } = require('./_routes');
 const doc = fs.readFileSync(path.join(L.ROOT, 'docs', 'developer-api.md'), 'utf8');
 
-const PREFIX = '/plugins/profiles';
-
-/* ── the routes the controller actually exposes ──────────────────────────────── */
-
-/*
- * Read the attribute, then the method that follows it, then classify the body.
- *
- * Auth is hand-rolled per endpoint here, so it has to be read from the body rather
- * than from an attribute:
- *   admin      - checks Policy.IsAdministrator, or carries [Authorize] with the
- *                administrator policy
- *   user       - calls GetCurrentUserId() and returns 401 when it is null
- *   anonymous  - neither, and therefore public whether or not that was intended
- */
-function routes() {
-    const out = [];
-    const re = /\[Http(Get|Post|Put|Delete|Patch)(?:\("([^"]*)"\))?\]/g;
-    let m;
-    while ((m = re.exec(cs)) !== null) {
-        const method = m[1].toUpperCase();
-        const tail = m[2] || '';
-
-        /* Scan the WHOLE file from the attribute, not a fixed window. The first
-         * version of this took a 6,000-character slice, which is shorter than
-         * CreateProfile — so its body was truncated before the GetCurrentUserId call
-         * and it was classified anonymous. Four routes were reported as public that
-         * are not, which in a security table is the worst possible direction to be
-         * wrong in. */
-        const sigRe = /\n\s*public\s+(?:async\s+)?[^\n]*?\s(\w+)\s*\(/g;
-        sigRe.lastIndex = m.index;
-        const sig = sigRe.exec(cs);
-        const name = sig ? sig[1] : '(unknown)';
-
-        let level = 'anonymous';
-        if (sig) {
-            const open = cs.indexOf('{', sig.index + sig[0].length - 1);
-            let depth = 0, end = cs.length;
-            for (let i = open; i < cs.length; i++) {
-                if (cs[i] === '{') depth++;
-                else if (cs[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
-            }
-            const body = cs.slice(open, end + 1);
-            const attrs = cs.slice(Math.max(0, m.index - 400), m.index);
-            // `.IsAdministrator`, a member access — not the bare word.
-            //
-            // This was /IsAdministrator/, which is the same substring trap that made
-            // `.navMenu` "verify" against `navMenuOption` in the selector ledger. A route
-            // that read an account's admin flag as DATA — to warn that its PIN opens an
-            // account which can reach server settings — was reported as admin-only, because
-            // the helper it called was named IsAdministratorAccount.
-            //
-            // Every real check in this codebase reaches the flag through a policy
-            // (`policy.IsAdministrator`, `Policy?.IsAdministrator`), so requiring the dot
-            // keeps all of them and drops identifiers that merely contain the word. The
-            // documented admin routes are what prove it still detects them: loosen this and
-            // they flip to "user" and this very assertion fails.
-            // A CHECK, not the token. This matched any ".IsAdministrator", and two route
-            // bodies wrote "targetPolicy.IsAdministrator = false" — data, the opposite of a
-            // check — so /create and /switch were reported, and documented, as
-            // administrator-only when any signed-in user can call them. A detector that cannot
-            // tell data from a check will one day call a public route gated.
-            if (/!\s*\w+\.Policy\.IsAdministrator\b/.test(body) || /RequireAdministrator\(/.test(attrs + body)) {
-                level = 'admin';
-            } else if (/GetCurrentUserId\(\)/.test(body)) {
-                level = 'user';
-            }
-        }
-        out.push({ method, path: PREFIX + (tail ? '/' + tail : ''), name, level });
-    }
-    return out;
-}
 
 const R = routes();
+
+{
+    const stray = [];
+    (function walk(dir) {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) {
+                // .claude holds other checkouts of the repo, half-edited, with routes of their own.
+                if (!/^(bin|obj|tests|node_modules|\.git|\.claude)$/.test(e.name)) walk(full);
+            } else if (e.name.endsWith('.cs') && !controllerFiles.includes(e.name)
+                       && /\[Http(Get|Post|Put|Delete|Patch)\b/.test(fs.readFileSync(full, 'utf8'))) {
+                stray.push(path.relative(L.ROOT, full));
+            }
+        }
+    })(L.ROOT);
+    ok('every route is in a ProfilesController*.cs file this reads (' + controllerFiles.join(', ') + ')',
+       stray.length === 0, stray.join(', '));
+}
 
 console.log();
 console.log('── the controller ─────────────────────────────────────────────');
@@ -152,11 +97,10 @@ ok('no documented route is a ghost', ghosts.length === 0, ghosts.join('; '));
 
 /* The anonymous set, matched pairwise against the table that promises what it is.
  *
- * This is the assertion worth having in the whole file. The controller carries a
- * class-level [AllowAnonymous] and every check is hand-rolled, so a new route with no
- * check is silently public — and the only place that fact is written down is a table a
- * human maintains. If the two disagree, either a route lost its check or the table is
- * lying to integrators about what is safe to expose. */
+ * The controller has a class-level [AllowAnonymous] and hand-rolled checks, so a new route
+ * with no check is silently public, and the only record of that is a table a human
+ * maintains. If the two disagree, either a route lost its check or the table misleads
+ * integrators about what is safe to expose. */
 const anonTable = new Set();
 {
     const sec = doc.slice(doc.indexOf('| Endpoint | Why it is anonymous |'));
@@ -181,10 +125,9 @@ ok('and the table claims no route that is actually gated', overclaimedAnon.lengt
 console.log();
 console.log('── authorisation, as documented and as enforced ───────────────');
 
-/* The level line sits in a fixed slot directly under the heading. A fixed slot is the
- * point: 17 of 42 stated their level somewhere in prose, so for the other 25 a reader
- * had to infer it from a sentence. */
-const LEVEL_RE = /^\*\*Authorisation:\*\*\s+(administrator|signed-in user|anonymous)\b/im;
+/* The level line sits in a fixed slot directly under the heading. 17 of 42 stated their
+ * level somewhere in prose, so for the other 25 a reader had to infer it. */
+const LEVEL_RE = /^\*\*Authorization:\*\*\s+(administrator|signed-in user|anonymous)\b/im;
 
 let stated = 0;
 const unstated = [];
@@ -235,17 +178,15 @@ console.log();
 console.log('── entry shape (P7-17, reported, not yet a gate) ──────────────');
 
 /*
- * Reported rather than asserted, deliberately.
+ * Reported rather than asserted, on purpose.
  *
- * P7-17 wants every entry to show auth, request, response and errors. Auth is done and
- * IS gated above: all 42, in a fixed slot, cross-checked against the code. The other
- * three are not, and the honest reason is that filling them in means reading each
- * endpoint and writing what it really returns. A gate here would tempt whoever hits it
- * into inventing a response, and a documented response that the endpoint does not
- * return is worse than an acknowledged gap.
+ * P7-17 wants every entry to show auth, request, response and errors. Auth is done and gated
+ * above: all 42, in a fixed slot, cross-checked against the code. The other three are not:
+ * filling them in means reading each endpoint and writing what it really returns, and a gate
+ * here would tempt whoever hits it into inventing a response. A documented response the
+ * endpoint does not return is worse than an acknowledged gap.
  *
- * The counts are printed so the gap stays visible and shrinks on purpose. Turn this
- * into a gate when it reaches zero.
+ * The counts are printed so the gap stays visible. Turn this into a gate when it reaches zero.
  */
 {
     const heads = [...doc.matchAll(/^#{3}\s+`(GET|POST|PUT|DELETE|PATCH) (\/plugins\/profiles[^`]*)`/gm)];
@@ -270,14 +211,13 @@ console.log('── the docs say true things about the API ───────
 
 const readme = fs.readFileSync(path.join(L.ROOT, 'README.md'), 'utf8');
 
-// Both counts used to be asserted against the README. They moved to the API reference
-// when the README was trimmed, and they are CHECKED THERE rather than dropped — a
-// number in prose that nothing checks is a number that will be wrong, wherever it
-// lives. "All 41 endpoints" was in the README while the controller had 42, and neither
-// the plan nor the working notes agreed with either.
+// Both counts used to be asserted against the README. They moved to the API reference when
+// the README was trimmed, and are checked there rather than dropped: a number in prose that
+// nothing checks will be wrong. "All 41 endpoints" sat in the README while the controller
+// had 42.
 //
-// Asserted against docs/developer-api.md, which is the document that now owns the
-// claim. If a count is moved again, move the assertion with it; do not delete it.
+// Asserted against docs/developer-api.md, which now owns the claim. If a count moves again,
+// move the assertion with it.
 const apiClaims = fs.readFileSync(path.join(L.ROOT, 'docs', 'developer-api.md'), 'utf8');
 
 const claimed = /All (\d+) endpoints/.exec(apiClaims);
@@ -285,11 +225,13 @@ ok('the API reference names an endpoint count', !!claimed, claimed ? claimed[1] 
 ok('and it is the real one', !!claimed && Number(claimed[1]) === R.length,
     claimed ? 'the doc says ' + claimed[1] + ', controller has ' + R.length : '');
 
-// Whitespace-tolerant: the file is hard-wrapped, and this phrase can span two lines.
-// A single-line regex found nothing and reported the document as silent on a count it
-// states plainly — the checker being wrong reads exactly like the document being wrong.
+// Whitespace-tolerant: the file is hard-wrapped and this phrase can span two lines. A
+// single-line regex found nothing and reported the document silent on a count it states
+// plainly; a wrong checker reads like a wrong document.
 const anonClaim = /(\w+)\s+routes\s+are\s+reachable\s+without\s+a\s+token/.exec(apiClaims);
-const WORDS = { five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+// A word the table does not know reads as undefined, which never equals a count, so a
+// count past the list fails loudly rather than passing; extend it as the set grows.
+const WORDS = { five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14 };
 ok('the API reference names the anonymous count', !!anonClaim);
 ok('and it matches the code',
     !!anonClaim && WORDS[anonClaim[1].toLowerCase()] === anonCode.size,
@@ -310,13 +252,40 @@ ok('the README does not present the default limit as a cap',
 // that does not carry it has been deleted, whatever the commit says.
 for (const [file, needle, what] of [
     ['docs/beta-channel.md', 'Beta builds are unfinished', 'the beta risk warning'],
-    ['docs/troubleshooting.md', 'does not edit `index.html` by default', 'the injection headline'],
+    ['docs/troubleshooting.md', 'Bonfire does not edit `index.html`.', 'the injection headline'],
 ]) {
     const p = path.join(L.ROOT, file);
     ok(file + ' exists', fs.existsSync(p));
     ok('  and still carries ' + what,
         fs.existsSync(p) && fs.readFileSync(p, 'utf8').indexOf(needle) !== -1);
     ok('  and the README links to it', readme.indexOf('(' + file + ')') !== -1);
+}
+
+// The Stability section promises that a field left out keeps its stored value (R-1144,
+// R-1159, R-1326). It used to carve out an exception, and three routes broke the promise
+// without saying so: their request types had plain bool and int fields, which read a
+// left-out field as false or 0. So it is checked against the types, field by field: on
+// routes that change stored settings, a value-type field must be nullable, or it cannot
+// tell "left out" from "off". ProfileId is the route's key, not a setting.
+const stability = (doc.split('## Stability')[1] || '').split('\n---')[0];
+ok('Stability promises a left-out field keeps its value', /leave out[\s\S]{0,40}keep their stored value/.test(stability));
+ok('  and names no exception to it', !/exception|unless the field/i.test(stability));
+for (const [file, cls] of [
+    ['UpdateProfileRequest.cs', 'UpdateProfileRequest'],
+    ['UpdateBonfireSettingsRequest.cs', 'UpdateBonfireSettingsRequest'],
+    ['ViewingRequests.cs', 'SetViewingRulesRequest'],
+]) {
+    const src = fs.readFileSync(path.join(L.ROOT, 'Models', file), 'utf8');
+    const start = src.indexOf('class ' + cls);
+    const body = start === -1 ? '' : src.slice(start, src.indexOf('\n    }', start));
+    ok(cls + ' is where it was', start !== -1);
+    // Only what JSON can set: `{ get; private set; }` (WeekendMinutesSent) is bookkeeping.
+    const re = /public\s+(bool|int|long|double|decimal|DateTime)\s+(\w+)\s*\{\s*get;\s*set;/g;
+    const plain = [];
+    let m;
+    while ((m = re.exec(body))) if (m[2] !== 'ProfileId') plain.push(m[1] + ' ' + m[2]);
+    ok('  ' + cls + ': every value-type setting can be left out', plain.length === 0,
+        plain.join(', ') + ' — make it nullable');
 }
 
 console.log();

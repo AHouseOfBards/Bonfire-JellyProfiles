@@ -2,7 +2,8 @@
  * Themes: one look per profile for Bonfire's own screens.
  *
  * A theme is an id in three places that nothing else ties together — Themes.All on the
- * server, THEMES in profiles.js, and a [data-jpf-theme] block in styles.css — plus the
+ * server, THEMES in profiles.js, and a file in Web/themes/ that themeCss turns into a
+ * [data-jpf-theme] block (styles.css until 1.7.2) — plus the
  * administrator's list on the dashboard. Miss one and nothing errors: the server stores a
  * theme the sheet has no block for, and the page renders in Bonfire's tokens with every
  * accent tint resolving to nothing, because rgba(var(--jpf-accent-rgb), …) has no
@@ -38,7 +39,12 @@ function ok(name, cond, detail) {
 }
 
 const SRC = fs.readFileSync(process.argv[2] || L.profilesPath(), 'utf8');
-const CSS_RAW = fs.readFileSync(process.argv[3] || L.stylesPath(), 'utf8');
+// What the browser has: the sheet, then (since 1.7.2) the blocks themeCss writes from
+// Web/themes/. A sheet named on the command line is read with the blocks of the script
+// named with it, so an older pair is checked as it shipped.
+const CSS_RAW = process.argv[3]
+    ? fs.readFileSync(process.argv[3], 'utf8') + (SRC.indexOf(L.THEMES_MARKER) === -1 ? '' : '\n' + L.themesCss(SRC))
+    : L.extractCss(SRC);
 const DASH = fs.readFileSync(process.argv[4] || path.join(L.ROOT, 'Web', 'profilesDashboard.html'), 'utf8');
 const SERVER = fs.readFileSync(process.argv[5]
     || path.join(L.ROOT, 'Configuration', 'PluginConfiguration.cs'), 'utf8');
@@ -80,7 +86,7 @@ const RULES = (function () {
 function winning(selector, prop) {
     let v = null;
     RULES.forEach(r => {
-        if (r.at && /prefers-color-scheme|max-width|min-width/.test(r.at)) return;
+        if (r.at && /prefers-color-scheme|prefers-reduced-motion|max-width|min-width/.test(r.at)) return;
         if (r.selectors.indexOf(selector) !== -1 && r.decls[prop] !== undefined) v = r.decls[prop];
     });
     return v;
@@ -108,9 +114,21 @@ function contrast(a, b) {
     const x = lum(a), y = lum(b);
     return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
-/** Every colour stop in a background value: one for a flat colour, each stop of a gradient. */
+/**
+ * Every colour a background shows: one for a flat colour, each stop of a gradient.
+ *
+ * A see-through stop is never seen on its own; it is painted over the layers beneath it.
+ * Until 1.7.2 one was read as if opaque: harmless while every see-through stop was dark
+ * (Glass's), wrong once a glow arrived (Campfire's orange at 28%, read as solid orange).
+ * So each see-through stop is laid over every opaque stop in the value, one pair at a
+ * time, which is at least as strict as the layer actually under it. Opaque stops are
+ * checked as they are, as before.
+ */
 function stops(v) {
-    return (String(v).match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\([^)]*\)/g) || []).map(parseColour).filter(Boolean);
+    const all = (String(v).match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\([^)]*\)/g) || []).map(parseColour).filter(Boolean);
+    const solid = all.filter(c => c.a >= 1);
+    if (!solid.length) return all;
+    return all.reduce((out, c) => out.concat(c.a >= 1 ? [c] : solid.map(s => over(c, s))), []);
 }
 
 // ── 1. The lists agree ──────────────────────────────────────────────────────────
@@ -118,30 +136,34 @@ console.log('\n── Every list names the same themes ────────�
 
 const serverIds = (function () {
     const consts = {};
-    const re = /public const string (\w+) = "([a-z]+)";/g;
+    const re = /public const string (\w+) = "([a-z0-9-]+)";/g;
     const block = SERVER.slice(SERVER.indexOf('public static class Themes'));
     const body = block.slice(0, block.indexOf('public static readonly string[] All') + 400);
     let m;
     while ((m = re.exec(body)) !== null) consts[m[1]] = m[2];
-    const all = /public static readonly string\[\] All = \{([^}]*)\}/.exec(body);
+    const all = /public static readonly string\[\] All\s*=\s*\{([^}]*)\}/.exec(body);
     return all ? all[1].split(',').map(x => consts[x.trim()]).filter(Boolean) : [];
 })();
 const clientIds = (function () {
     const m = /const THEMES = \[([^\]]*)\]/.exec(SRC);
-    return m ? (m[1].match(/'([a-z]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
+    return m ? (m[1].match(/'([a-z0-9-]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
 })();
-const cssIds = Array.from(new Set((CSS.match(/\[data-jpf-theme="([a-z]+)"\]/g) || [])
-    .map(x => /"([a-z]+)"/.exec(x)[1])));
+const cssIds = Array.from(new Set((CSS.match(/\[data-jpf-theme="([a-z0-9-]+)"\]/g) || [])
+    .map(x => /"([a-z0-9-]+)"/.exec(x)[1])));
 const dashIds = (function () {
     const sel = /<select[^>]*id="defaultTheme"[^>]*>([\s\S]*?)<\/select>/.exec(DASH);
-    return sel ? (sel[1].match(/value="([a-z]+)"/g) || []).map(x => /"([a-z]+)"/.exec(x)[1]) : [];
+    return sel ? (sel[1].match(/value="([a-z0-9-]+)"/g) || []).map(x => /"([a-z0-9-]+)"/.exec(x)[1]) : [];
 })();
 const dashNormalize = (function () {
     const m = /function normalizeTheme[\s\S]*?const ids = \[([^\]]*)\]/.exec(DASH);
-    return m ? (m[1].match(/'([a-z]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
+    return m ? (m[1].match(/'([a-z0-9-]+)'/g) || []).map(x => x.replace(/'/g, '')) : [];
 })();
 
-ok('the server lists nine themes (' + serverIds.join(', ') + ')', serverIds.length === 9);
+const fileIds = fs.readdirSync(path.join(__dirname, '..', '..', 'Web', 'themes'))
+    .filter(f => /\.json$/.test(f) && f !== 'fonts.json').map(f => f.replace(/\.json$/, ''));
+ok('the server lists twelve themes (' + serverIds.join(', ') + ')', serverIds.length === 12);
+serverIds.forEach(id => ok('Web/themes/' + id + '.json exists', fileIds.indexOf(id) !== -1));
+fileIds.forEach(id => ok('Web/themes/' + id + '.json is a server theme', serverIds.indexOf(id) !== -1));
 ok('bonfire is one of them, and first', serverIds[0] === 'bonfire');
 [['profiles.js THEMES', clientIds], ['styles.css blocks', cssIds],
  ['the dashboard select', dashIds], ['the dashboard normalizeTheme', dashNormalize]].forEach(([where, ids]) => {
@@ -173,16 +195,21 @@ const THEME_TOKENS = [
     '--jpf-sheet-bg', '--jpf-sheet-border', '--jpf-sheet-shadow',
     '--jpf-card-bg', '--jpf-card-border', '--jpf-input-bg', '--jpf-input-border', '--jpf-input-r'
 ];
-// The panel behind each household's tiles: Bonfire's own, and none for every other theme,
-// so these are set once in the shared block rather than in each theme.
+// The panel behind each household's tiles (layout.households in the file).
 const SECTION_TOKENS = ['--jpf-section-bg', '--jpf-section-border', '--jpf-section-shadow',
     '--jpf-section-pad', '--jpf-section-rule'];
-// What Bonfire's own block restates so a Bonfire preview inside another theme is Bonfire.
-// Its accent, hover and corners come from the definitions at the top, which that block
-// cannot repeat without moving them.
-const BONFIRE_TOKENS = THEME_TOKENS
-    .filter(tk => ['--jpf-accent', '--jpf-accent-rgb', '--jpf-accent-hover', '--jpf-r-sm', '--jpf-r-md', '--jpf-r-lg'].indexOf(tk) === -1)
-    .concat(SECTION_TOKENS);
+// What every theme used to inherit from one shared block: the neutrals and the accent
+// tints. Since 1.7.2 each block carries its own, because a light theme's neutrals are
+// not a dark theme's, and a shared block's two attribute selectors outranked a theme's.
+const NEUTRAL_TOKENS = ['--jpf-accent-a08', '--jpf-accent-a18', '--jpf-accent-a30', '--jpf-accent-a40',
+    '--jpf-accent-a45', '--jpf-accent-a50', '--jpf-accent-a60',
+    '--jpf-surface-1', '--jpf-surface-2', '--jpf-surface-3', '--jpf-border-1', '--jpf-border-2', '--jpf-border-3',
+    '--jpf-text-1', '--jpf-text-2', '--jpf-text-3', '--jpf-shadow-1', '--jpf-shadow-2', '--jpf-shadow-3',
+    '--jpf-danger', '--jpf-danger-quiet', '--jpf-danger-deep', '--jpf-warn', '--jpf-deco', '--jpf-deco-size',
+    '--jpf-danger-a15', '--jpf-danger-a25', '--jpf-danger-a40', '--jpf-chevron'];
+// Bonfire is a theme like the rest since 1.7.2: a fixed look, not the server's accent, so
+// its block owes everything any block owes.
+const BLOCK_TOKENS = THEME_TOKENS.concat(SECTION_TOKENS, NEUTRAL_TOKENS);
 
 function themeBlock(id) {
     const want = id === 'bonfire'
@@ -198,50 +225,86 @@ serverIds.forEach(id => {
        blocks.length === 1, blocks.length + ' found');
     const decls = blocks.length ? blocks[0].decls : {};
     theme[id] = decls;
-    (id === 'bonfire' ? BONFIRE_TOKENS : THEME_TOKENS).forEach(tk =>
+    BLOCK_TOKENS.forEach(tk =>
         ok(id + ' sets ' + tk, decls[tk] !== undefined));
 });
-ok('Bonfire puts its own accent back on a preview',
-   RULES.some(r => !r.at && r.selectors.length === 1 && r.selectors[0] === '[data-jpf-theme="bonfire"]'
-       && r.decls['--jpf-accent'] === 'var(--jpf-bonfire-accent)'));
 
-// Every theme block must come after the light-scheme block, which ties with it on html.
-const lightIndex = RULES.findIndex(r => r.at && /prefers-color-scheme: light/.test(r.at));
-serverIds.filter(id => id !== 'bonfire').forEach(id => {
-    const b = themeBlock(id)[0];
-    ok(id + ' comes after the light-scheme block, so it wins the tie on html',
-       !!b && lightIndex !== -1 && b.index > lightIndex);
-});
+// Bonfire stopped following the server's accent and the desktop's light or dark setting
+// in 1.7.2 (a fixed look of its own). Either one coming back would put a second set of
+// tokens over every theme on some machines and not others.
+ok('nothing redefines a theme token for a light desktop', RULES.every(r =>
+    !(r.at && /prefers-color-scheme/.test(r.at) && Object.keys(r.decls).some(k => BLOCK_TOKENS.indexOf(k) !== -1))));
+ok('and nothing points Bonfire\'s accent at Jellyfin\'s', !/var\(--jpf-bonfire-accent\)|--jpf-bonfire-accent\s*:/.test(CSS));
+// A theme's tokens are set by its own block and nowhere else. A second rule that sets
+// them, on any selector naming a theme, is the shared block of 1.7.1 coming back.
+const stray = RULES.filter(r => r.selectors.some(s => /data-jpf-theme/.test(s))
+    && !serverIds.some(id => themeBlock(id)[0] === r)
+    // A theme with a pattern writes opaque fills for a phone, on its own selectors, in a
+    // max-width: 480px block of its own (tests/js/decostack.js measures them). Still never a
+    // shared block: it has to name exactly one theme's attribute and body, and only fills.
+    && !(r.at && /max-width:\s*480px/.test(r.at) && serverIds.some(id =>
+        r.selectors.indexOf('[data-jpf-theme="' + id + '"]') !== -1 && r.selectors.indexOf('[data-jpf-theme="' + id + '"] body') !== -1)
+        && Object.keys(r.decls).every(k => /^--jpf-(surface-\d|btn2-bg|add-bg|add-hover-bg|sheet-bg|card-bg|input-bg)$/.test(k)))
+    && Object.keys(r.decls).some(k => BLOCK_TOKENS.indexOf(k) !== -1));
+ok('no rule but a theme\'s own block sets its tokens' + (stray.length ? ' (' + stray[0].selectors[0] + ')' : ''),
+   stray.length === 0);
 
-// The tints. Shared by every non-Bonfire theme, built from --jpf-accent-rgb, which is
-// only right if it is the accent.
-const shared = RULES.find(r => !r.at && r.selectors.indexOf('[data-jpf-theme]:not([data-jpf-theme="bonfire"])') !== -1);
-ok('the dark neutrals and tints are shared by every theme but Bonfire', !!shared);
-['a08', 'a18', 'a30', 'a40', 'a45', 'a50', 'a60'].forEach(a =>
-    ok('the shared block builds tint ' + a + ' from --jpf-accent-rgb',
-       !!shared && /^rgba\(var\(--jpf-accent-rgb\), 0?\.\d+\)$/.test(shared.decls['--jpf-accent-' + a] || '')));
-SECTION_TOKENS.forEach(tk =>
-    ok('the shared block sets ' + tk + ', so no theme but Bonfire puts a panel behind the tiles',
-       !!shared && shared.decls[tk] !== undefined));
-['--jpf-surface-1', '--jpf-border-1', '--jpf-text-1', '--jpf-text-3'].forEach(tk =>
-    ok('and restates the dark ' + tk + ', so a light desktop cannot wash a dark theme out',
-       !!shared && /^rgba\(255, 255, 255,/.test(shared.decls[tk] || '')));
-
-serverIds.filter(id => id !== 'bonfire').forEach(id => {
+// The tints are built from the accent, which is only right if they are of the accent.
+serverIds.forEach(id => {
     const d = theme[id];
     const accent = parseColour(d['--jpf-accent']);
     const rgb = String(d['--jpf-accent-rgb'] || '').split(',').map(x => +x.trim());
     ok(id + ': --jpf-accent-rgb is its accent (' + d['--jpf-accent-rgb'] + ' vs ' + d['--jpf-accent'] + ')',
        !!accent && rgb.length === 3 && rgb[0] === accent.r && rgb[1] === accent.g && rgb[2] === accent.b);
+    ['a08', 'a18', 'a30', 'a40', 'a45', 'a50', 'a60'].forEach(a => {
+        const tint = parseColour(d['--jpf-accent-' + a]);
+        ok(id + ': tint ' + a + ' is its accent at ' + (+a.slice(1) / 100),
+           !!accent && !!tint && tint.r === accent.r && tint.g === accent.g && tint.b === accent.b
+           && Math.abs(tint.a - +a.slice(1) / 100) < 1e-9);
+    });
+});
+
+// The red tints are of the theme's own danger colour, for the same reason the accent's are.
+serverIds.forEach(id => {
+    const d = theme[id];
+    const danger = parseColour(d['--jpf-danger']);
+    ['a15', 'a25', 'a40'].forEach(a => {
+        const tint = parseColour(d['--jpf-danger-' + a]);
+        ok(id + ': danger tint ' + a + ' is its danger colour at ' + (+a.slice(1) / 100),
+           !!danger && !!tint && tint.r === danger.r && tint.g === danger.g && tint.b === danger.b
+           && Math.abs(tint.a - +a.slice(1) / 100) < 1e-9);
+    });
+    // The select's arrow was one fixed white picture: invisible on Jellyfin Light's white
+    // fields. It is the theme's text colour now, so it reads wherever the text does.
+    const chev = /fill='%23([0-9a-fA-F]{6})'/.exec(String(d['--jpf-chevron'] || ''));
+    const field = parseColour(d['--jpf-input-bg']);
+    const panelC = parseColour(d['--jpf-panel']);
+    const fieldSolid = field && panelC ? over(field, panelC) : null;
+    const arrow = chev ? parseColour('#' + chev[1]) : null;
+    ok(id + ': the select arrow is drawn in a colour and reads on the field'
+       + (arrow && fieldSolid ? ' (' + contrast(arrow, fieldSolid).toFixed(2) + ':1, 3 needed)' : ''),
+       !!arrow && !!fieldSolid && contrast(arrow, fieldSolid) >= 3);
 });
 
 // ── 3. Each theme can be read ───────────────────────────────────────────────────
 console.log('\n── Each theme can be read on its own background ──────────────');
 
-const text1 = parseColour(shared ? shared.decls['--jpf-text-1'] : '');
-const text3 = parseColour(shared ? shared.decls['--jpf-text-3'] : '');
-serverIds.filter(id => id !== 'bonfire').forEach(id => {
+// Every theme, Bonfire included now that its colours are its own, against its own text.
+//
+// Known failures, tracked rather than hidden; each entry FAILS once its button passes, so
+// none can outlive its problem. Empty since the 1.7.2 theme review: Bonfire's button was
+// Jellyfin's white on #00a4dc, 2.86:1, until Campfire gave it dark text on gold.
+const KNOWN_ON_ACCENT = {};
+Object.keys(KNOWN_ON_ACCENT).forEach(id => {
+    const d = theme[id] || {};
+    const a = parseColour(d['--jpf-accent']), o = parseColour(d['--jpf-on-accent']);
+    ok(id + '\'s button is still a known contrast failure (' + KNOWN_ON_ACCENT[id] + '); remove the entry if not',
+       !!a && !!o && contrast(o, a) < 4.5);
+});
+serverIds.forEach(id => {
     const d = theme[id];
+    const text1 = parseColour(d['--jpf-text-1']);
+    const text3 = parseColour(d['--jpf-text-3']);
     const accent = parseColour(d['--jpf-accent']);
     const onAccent = parseColour(d['--jpf-on-accent']);
     const hover = parseColour(d['--jpf-accent-hover']);
@@ -255,18 +318,32 @@ serverIds.filter(id => id !== 'bonfire').forEach(id => {
         return;
     }
     const r = (x) => x.toFixed(2);
-    ok(id + ': button text on the accent, ' + r(contrast(onAccent, accent)) + ':1 (4.5 needed)',
-       contrast(onAccent, accent) >= 4.5);
-    ok(id + ': button text on the hovered accent, ' + r(contrast(onAccent, hover)) + ':1 (4.5 needed)',
-       contrast(onAccent, hover) >= 4.5);
+    if (!KNOWN_ON_ACCENT[id]) {
+        ok(id + ': button text on the accent, ' + r(contrast(onAccent, accent)) + ':1 (4.5 needed)',
+           contrast(onAccent, accent) >= 4.5);
+        ok(id + ': button text on the hovered accent, ' + r(contrast(onAccent, hover)) + ':1 (4.5 needed)',
+           contrast(onAccent, hover) >= 4.5);
+    }
     ok(id + ': body text on its panel, ' + r(contrast(over(text1, panel), panel)) + ':1 (7 needed)',
        contrast(over(text1, panel), panel) >= 7);
+    // The accent is also text: "Forgot PIN?", the "current" badge, the announcement icon
+    // and a few section headings. Text, so 4.5, against the panel they sit on.
+    const accentText = parseColour(d['--jpf-accent-text']);
+    ok(id + ': the accent as text is a colour (' + d['--jpf-accent-text'] + ')', !!accentText);
+    if (!accentText) return;
+    ok(id + ': the accent as text on its panel, ' + r(contrast(accentText, panel)) + ':1 (4.5 needed)',
+       contrast(accentText, panel) >= 4.5);
+    // Hints, subtitles and result messages are drawn in text-3 on the panel too.
+    ok(id + ': the faintest text on its panel, ' + r(contrast(over(text3, panel), panel)) + ':1 (4.5 needed)',
+       contrast(over(text3, panel), panel) >= 4.5);
     bg.forEach((stop, n) => {
         const label = id + ' background stop ' + (n + 1);
         ok(label + ': the title, ' + r(contrast(over(text1, stop), stop)) + ':1 (7 needed)',
            contrast(over(text1, stop), stop) >= 7);
-        ok(label + ': the faintest text, ' + r(contrast(over(text3, stop), stop)) + ':1 (3 needed)',
-           contrast(over(text3, stop), stop) >= 3);
+        ok(label + ': the faintest text, ' + r(contrast(over(text3, stop), stop)) + ':1 (4.5 needed)',
+           contrast(over(text3, stop), stop) >= 4.5);
+        ok(label + ': the accent as text (the "current" badge), ' + r(contrast(over(accentText, stop), stop)) + ':1 (4.5 needed)',
+           contrast(over(accentText, stop), stop) >= 4.5);
         // The accent is the focus outline on a television and the "current" ring; the
         // ring is the hover and D-pad frame. Both are non-text, so 3:1.
         ok(label + ': the accent as a focus outline, ' + r(contrast(accent, stop)) + ':1 (3 needed)',
@@ -285,29 +362,31 @@ console.log('\n── The screens read the tokens instead of literals ───�
     ['.profiles-title', 'font-weight', 'var(--jpf-title-weight)'],
     ['.profiles-title', 'letter-spacing', 'var(--jpf-title-spacing)'],
     ['.profiles-title', 'text-shadow', 'var(--jpf-title-shadow)'],
-    ['.profile-avatar', 'border-radius', 'var(--jpf-avatar-r)'],
-    ['.profile-avatar-overlay-wrap', 'border-radius', 'var(--jpf-avatar-r)'],
-    ['.profile-card:hover .profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
-    ['.profile-card:focus .profile-avatar', 'box-shadow', 'var(--jpf-hover-glow)'],
-    ['.profile-card:focus-within .profile-avatar', 'border-color', 'var(--jpf-ring)'],
-    ['.profile-card.manage-mode:hover .profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
-    ['.btn-primary', 'color', 'var(--jpf-on-accent)'],
-    ['.btn-primary:hover', 'background-color', 'var(--jpf-accent-hover)'],
-    ['.create-profile-container > .profile-dialog-actions', 'background', 'var(--jpf-panel)'],
-    ['.form-group select option', 'background-color', 'var(--jpf-panel)'],
-    ['.devices-dropdown-list', 'background', 'var(--jpf-panel)'],
+    ['.jpf-profile-avatar', 'border-radius', 'var(--jpf-avatar-r)'],
+    ['.jpf-profile-avatar-overlay-wrap', 'border-radius', 'var(--jpf-avatar-r)'],
+    ['.jpf-profile-card:hover .jpf-profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
+    ['.jpf-profile-card:focus .jpf-profile-avatar', 'box-shadow', 'var(--jpf-hover-glow)'],
+    ['.jpf-profile-card:focus-within .jpf-profile-avatar', 'border-color', 'var(--jpf-ring)'],
+    ['.jpf-profile-card.jpf-manage-mode:hover .jpf-profile-avatar', 'transform', 'scale(var(--jpf-hover-scale))'],
+    ['.jpf-btn-primary', 'color', 'var(--jpf-on-accent)'],
+    ['.jpf-text-link', 'color', 'var(--jpf-accent-text, var(--jpf-accent))'],
+    ['.jpf-profile-current-badge', 'color', 'var(--jpf-accent-text, var(--jpf-accent))'],
+    ['.jpf-btn-primary:hover', 'background-color', 'var(--jpf-accent-hover)'],
+    ['.jpf-create-profile-container > .jpf-profile-dialog-actions', 'background', 'var(--jpf-panel)'],
+    ['.jpf-form-group select option', 'background-color', 'var(--jpf-panel)'],
+    ['.jpf-devices-dropdown-list', 'background', 'var(--jpf-panel)'],
     ['.profiles-home-section', 'background', 'var(--jpf-section-bg)'],
-    ['.profile-avatar', 'border', 'var(--jpf-ring-w) solid transparent'],
-    ['.profile-name', 'color', 'var(--jpf-name-color)'],
+    ['.jpf-profile-avatar', 'border', 'var(--jpf-ring-w) solid transparent'],
+    ['.jpf-profile-name', 'color', 'var(--jpf-name-color)'],
     ['.profiles-btn', 'border-radius', 'var(--jpf-btn-radius)'],
-    ['.btn-secondary', 'text-transform', 'var(--jpf-btn2-case)'],
-    ['.btn-secondary:focus', 'background', 'var(--jpf-btn2-hover-bg)'],
-    ['.add-avatar', 'border', 'var(--jpf-add-border)'],
-    ['.create-profile-container', 'background', 'var(--jpf-sheet-bg)'],
-    ['.profile-section', 'background', 'var(--jpf-card-bg)'],
+    ['.profiles-btn', 'text-transform', 'var(--jpf-btn2-case)'],
+    ['.jpf-btn-secondary:focus', 'background', 'var(--jpf-btn2-hover-bg)'],
+    ['.jpf-add-avatar', 'border', 'var(--jpf-add-border)'],
+    ['.jpf-create-profile-container', 'background', 'var(--jpf-sheet-bg)'],
+    ['.jpf-profile-section', 'background', 'var(--jpf-card-bg)'],
     ['.jpf-choice', 'background', 'var(--jpf-card-bg)'],
-    ['.form-group select', 'border-radius', 'var(--jpf-input-r)'],
-    ['#profile-pin-input', 'background', 'var(--jpf-input-bg)']
+    ['.jpf-form-group select', 'border-radius', 'var(--jpf-input-r)'],
+    ['#jpf-profile-pin-input', 'background', 'var(--jpf-input-bg)']
 ].forEach(([sel, prop, want]) => {
     const got = winning(sel, prop);
     ok(sel + ' { ' + prop + ' } is ' + want + (got === want ? '' : ' (wins: ' + got + ')'), got === want);
@@ -341,11 +420,13 @@ function method(name) {
 
 const constants = (function () {
     const a = /const THEMES = \[[^\]]*\];/.exec(SRC);
-    const b = /const THEME_NAMES = \{[\s\S]*?\};/.exec(SRC);
+    const b = /function themeName\(id\) \{[\s\S]*?\n    \}/.exec(SRC);
     const c = /function normalizeTheme\(value\) \{[\s\S]*?\n    \}/.exec(SRC);
-    return a && b && c ? a[0] + '\n' + b[0] + '\n' + c[0] : null;
+    // The checks above say the three are there; what runs is every helper they now lean
+    // on (custom themes, 1.7.2), from the one list in _lib.
+    return a && b && c ? L.themeHelpers(SRC) : null;
 })();
-ok('THEMES, THEME_NAMES and normalizeTheme are in the client', !!constants);
+ok('THEMES, themeName and normalizeTheme are in the client', !!constants);
 
 const names = ['applyTheme', '_readThemeCache', 'applyCachedTheme', '_setThemeSettings', 'renderThemePreview', 'renderThemePicker', 'readThemePicker'];
 const methods = {};
@@ -374,10 +455,27 @@ if (constants && names.every(n => methods[n])) {
         const obj = {
             config: { themeKey: 'jellyfin_profiles_theme' },
             _themeSettings: null,
+            fontCalls: 0,
+            injectFonts() { this.fontCalls++; },
+            // applyTheme re-judges the logo's backing; that is measured in a browser by
+            // logobacking.js, and there is no logo in this world.
+            fitLogoBacking() {},
+            // ...and cross-fades from the old look when a gate is up; measured in a browser
+            // by themefade.js, and there is no gate in this world.
+            fadeThemeFrom() {},
+            // applyTheme fetches the picture of a custom theme it puts on; which picture is
+            // fetched, and when, is customthemes.js's. No theme here has one.
+            loadThemePhotoOf() {},
             normalizeGuid: g => String(g || '').replace(/-/g, '').toLowerCase()
         };
+        // Since 1.7.2 _setThemeSettings caches each theme's gate background, which it gets
+        // by running themeCss over the theme files.
+        const generator = SRC.indexOf('function gateBackground(') === -1 ? ''
+            : 'const BONFIRE_THEMES = ' + JSON.stringify(L.themesPayload()) + ';\n'
+              + ['themeCss', 'servedFontName', 'gateBackground'].filter(n => SRC.indexOf('function ' + n + '(') !== -1)
+                  .map(n => L.extractFunction(SRC, n)).join('\n') + '\n';
         const factory = new Function('document', 'localStorage', 'ApiClient', 't', 'obj',
-            constants + '\n' + names.map(n =>
+            generator + constants + '\n' + names.map(n =>
                 'obj.' + n + ' = function (' + methods[n].params + ') {' + methods[n].body + '};').join('\n')
             + '\nreturn obj;');
         const tStub = (key, vars) => key + (vars ? JSON.stringify(vars) : '');
@@ -389,7 +487,13 @@ if (constants && names.every(n => methods[n])) {
     w.obj.applyTheme('CRIMSON');
     ok('applyTheme lowercases a known id', w.attrs['data-jpf-theme'] === 'crimson');
     w.obj.applyTheme('neon');
-    ok('and turns an unknown one into bonfire, never an id the sheet lacks', w.attrs['data-jpf-theme'] === 'bonfire');
+    // Before themes?part=custom has answered, an unknown name may be a theme an
+    // administrator made that is still on its way: the page is left as it was.
+    ok('an unknown one before the custom themes answer: left as it was, never an id the sheet lacks',
+        w.attrs['data-jpf-theme'] === 'crimson', String(w.attrs['data-jpf-theme']));
+    w.obj._customThemesAnswered = true;
+    w.obj.applyTheme('neon');
+    ok('and after they answer it turns into bonfire, never an id the sheet lacks', w.attrs['data-jpf-theme'] === 'bonfire');
 
     w = makeWorld('aaaa-1111');
     w.obj._setThemeSettings({ askOnStartup: true });
@@ -398,9 +502,16 @@ if (constants && names.every(n => methods[n])) {
 
     w.obj._setThemeSettings({ theme: 'glass', defaultTheme: 'harbor', allowProfileThemes: true });
     ok('the server\'s theme is applied', w.attrs['data-jpf-theme'] === 'glass');
+    // A packaged client has an ApiClient by now and may not have had one at startup.
+    ok('and the served fonts are declared then, if they were not already', w.obj.fontCalls === 1);
     const cached = JSON.parse(w.store.jellyfin_profiles_theme || 'null');
     ok('and cached for this account', !!cached && !!cached.users && cached.users.aaaa1111 === 'glass'
        && cached.last === 'glass');
+    // The startup cover's colour. The head script reads it from here, and it has to be the
+    // gate's background exactly, or the cover and the gate are two colours a beat apart.
+    ok('with the gate\'s background for it, as the stylesheet has it',
+       !!cached && !!cached.bg && cached.bg.glass === theme.glass['--jpf-gate-bg'],
+       cached && cached.bg ? String(cached.bg.glass).slice(0, 60) : 'no bg');
 
     // One entry per account. With one for the device, moving from the main account to a
     // child's profile replaced the parent's theme, and the next start drew the gate in
@@ -418,6 +529,12 @@ if (constants && names.every(n => methods[n])) {
     const nobody = makeWorld('', shared);
     nobody.obj.applyCachedTheme();
     ok('before sign-in, the last one used on this device', nobody.attrs['data-jpf-theme'] === 'starlight');
+    const bgs = JSON.parse(shared.jellyfin_profiles_theme).bg || {};
+    ok('and a background is kept for each theme an account uses (' + Object.keys(bgs).join(', ') + ')',
+       bgs.crimson === theme.crimson['--jpf-gate-bg'] && bgs.starlight === theme.starlight['--jpf-gate-bg']);
+    makeWorld('aaaa-1111', shared).obj._setThemeSettings({ theme: 'harbor', defaultTheme: 'bonfire', allowProfileThemes: true });
+    const pruned = Object.keys(JSON.parse(shared.jellyfin_profiles_theme).bg || {}).sort().join(', ');
+    ok('and only for those: one nobody uses any more is dropped (' + pruned + ')', pruned === 'harbor, starlight');
 
     const many = {};
     for (let i = 0; i < 25; i++) {
@@ -454,10 +571,10 @@ if (constants && names.every(n => methods[n])) {
     ok('no picker when the server does not let profiles choose', w.obj.renderThemePicker('edit', 'glass') === '');
     w.obj._themeSettings = { theme: 'bonfire', defaultTheme: 'harbor', allow: true };
     const html = w.obj.renderThemePicker('edit', 'Glass');
-    const options = (html.match(/<option value="([a-z]*)"/g) || []).map(x => /"([a-z]*)"/.exec(x)[1]);
+    const options = (html.match(/<option value="([a-z0-9-]*)"/g) || []).map(x => /"([a-z0-9-]*)"/.exec(x)[1]);
     ok('it offers "server default" first, then every theme (' + options.join(', ') + ')',
        options[0] === '' && serverIds.every(id => options.indexOf(id) !== -1) && options.length === serverIds.length + 1);
-    ok('the default option names the server default', /profileForm\.themeDefault\{"name":"Harbor"\}/.test(html));
+    ok('the default option names the server default', /profileForm\.themeDefault\{"name":"theme\.harbor"\}/.test(html));
     ok('the stored choice is selected', /<option value="glass" selected>/.test(html));
     ok('and the preview wears it', /id="edit-theme-preview" data-jpf-theme="glass"/.test(html));
     const followHtml = w.obj.renderThemePicker('create', null);
@@ -489,24 +606,21 @@ const headBody = (function () {
         .replace(/^<script id="jpf-eh">/, '').replace(/<\/script>$/, '');
 })();
 
-const headBackgrounds = (function () {
-    const m = /var tb=\{([\s\S]*?)\},tc=/.exec(headBody);
-    const out = {};
-    if (!m) return out;
-    const re = /([a-z]+):'([^']*)'/g;
-    let x;
-    while ((x = re.exec(m[1])) !== null) out[x[1]] = x[2];
-    return out;
-})();
-const squash = v => String(v || '').replace(/\s+/g, '');
-serverIds.forEach(id => {
-    const sheet = theme[id] && theme[id]['--jpf-gate-bg'];
-    ok('the head script\'s ' + id + ' background is the stylesheet\'s',
-       headBackgrounds[id] !== undefined && squash(headBackgrounds[id]) === squash(sheet),
-       'head: ' + headBackgrounds[id] + ' / sheet: ' + sheet);
-});
-Object.keys(headBackgrounds).forEach(id =>
-    ok('the head script\'s ' + id + ' is a server theme', serverIds.indexOf(id) !== -1));
+// Until 1.7.2 the head script carried a copy of every built-in's background, checked
+// here against the sheet. A theme an administrator makes could never be in that copy, so
+// it reads them from the cache profiles.js writes (checked in section 5) instead.
+// The one colour it may hold is jellyfin-web's own page colour, its fallback for a stored
+// background that is not a colour; Jellyfin Dark's plain background is that same #101010,
+// so that single assignment is taken out before looking, and nothing else is.
+// The cover's plain rule, for a page with no theme known yet, is that same colour; its two
+// exact declarations are taken out the same way.
+const headWithoutFallback = headBody.split("b='#101010';").join('')
+    .split('z-index:99998;background:#101010;').join('').split('var(--jpf-gate-bg,#101010)').join('');
+ok('the head script\'s one fallback colour is jellyfin-web\'s #101010, once',
+   headBody.split("b='#101010';").length === 2);
+ok('the head script carries no theme\'s background of its own',
+   headBody.length > 0 && !/tb=\{[a-z]/.test(headBody) && serverIds.every(id =>
+       !theme[id] || headWithoutFallback.indexOf(String(theme[id]['--jpf-gate-bg']).slice(0, 40)) === -1));
 
 if (headBody) {
     const vm = require('vm');
@@ -544,26 +658,54 @@ if (headBody) {
         return { attrs: attrs, css: styles.map(s => s.textContent).join('') };
     }
 
-    const mine = runHead({ last: 'glass', users: { cccc3333: 'glass', aaaa1111: 'crimson' } });
+    // Every built-in's background, as profiles.js would have cached them.
+    const allBg = {};
+    serverIds.forEach(id => { allBg[id] = theme[id]['--jpf-gate-bg']; });
+    const rule = (id, bg) => 'html[data-jpf-cover][data-jpf-theme="' + id + '"]::before{background:' + bg + '}';
+
+    const mine = runHead({ last: 'glass', users: { cccc3333: 'glass', aaaa1111: 'crimson' }, bg: allBg });
     ok('the cover goes up on a signed-in home page that asks', 'data-jpf-cover' in mine.attrs);
     ok('and wears this account\'s cached theme', mine.attrs['data-jpf-theme'] === 'crimson');
-    ok('with a rule giving each theme its own cover colour',
-       serverIds.every(id => mine.css.indexOf('html[data-jpf-cover][data-jpf-theme=' + id + ']::before{background:') !== -1));
-    const theirs = runHead({ last: 'glass', users: { bbbb2222: 'glass' } });
+    ok('with a rule giving each cached theme its gate\'s background, exactly',
+       serverIds.every(id => mine.css.indexOf(rule(id, allBg[id])) !== -1));
+    const made = runHead({ users: { aaaa1111: '9lives' }, bg: { '9lives': 'linear-gradient(90deg, #102030 0%, #304050 100%)' } });
+    ok('a theme an administrator made gets its cover too, its id quoted though it starts with a digit',
+       made.attrs['data-jpf-theme'] === '9lives'
+       && made.css.indexOf(rule('9lives', 'linear-gradient(90deg, #102030 0%, #304050 100%)')) !== -1);
+    const theirs = runHead({ last: 'glass', users: { bbbb2222: 'glass' }, bg: allBg });
     ok('someone else\'s cached theme is not applied', theirs.attrs['data-jpf-theme'] === undefined
        && 'data-jpf-cover' in theirs.attrs);
-    const unknown = runHead({ users: { aaaa1111: 'neon' } });
-    ok('a theme the head script does not know is not applied', unknown.attrs['data-jpf-theme'] === undefined);
+    const unknown = runHead({ users: { aaaa1111: 'neon' }, bg: allBg });
+    ok('a theme with no cached background is not applied', unknown.attrs['data-jpf-theme'] === undefined);
     const none = runHead(undefined);
-    ok('no cache: the cover is Bonfire\'s, as before', none.attrs['data-jpf-theme'] === undefined
+    // Was Bonfire's gradient: the wrong theme on screen before the household's own. What
+    // it paints is measured in a real browser by tests/js/coverframe.js.
+    ok('no cache: the cover goes up with no theme on it', none.attrs['data-jpf-theme'] === undefined
        && 'data-jpf-cover' in none.attrs);
+    const older = runHead({ last: 'glass', users: { aaaa1111: 'glass' } });
+    ok('a cache from before 1.7.2, with no backgrounds: Bonfire\'s cover, no theme put on early',
+       older.attrs['data-jpf-theme'] === undefined && 'data-jpf-cover' in older.attrs);
+
+    // Storage is same-origin, so not a threat boundary; but whatever is in it is written
+    // into a style rule, and a value that ends the rule or fetches something must not be.
+    [['ends the rule', 'red}html{display:none'], ['quotes', "#000'"], ['fetches', 'url(x.png)'],
+     ['fetches by image()', 'image(#000)'], ['is not a string', 7]].forEach(([what, bad]) => {
+        const r = runHead({ users: { aaaa1111: 'evil' }, bg: { evil: bad } });
+        ok('a cached background that ' + what + ' is not used', r.css.indexOf('evil') === -1
+           && r.attrs['data-jpf-theme'] === undefined);
+    });
+    const badId = runHead({ users: { aaaa1111: 'x"]{}' }, bg: { 'x"]{}': '#000' } });
+    ok('nor one under an id that is not an id', badId.css.indexOf('x"') === -1);
 }
 
 // ── 7. Wiring ───────────────────────────────────────────────────────────────────
 console.log('\n── Wiring ────────────────────────────────────────────────────');
 
-ok('the create form renders the picker', /renderThemePicker\('create', null\)/.test(SRC));
-ok('the edit form renders it with the profile\'s choice', /renderThemePicker\('edit', profile\.theme\)/.test(SRC));
+// Since 1.7.2 through renderThemeSection, which wraps the picker in a titled section and
+// draws nothing when profiles may not choose.
+ok('the create form renders the picker', /renderThemeSection\('create', null\)/.test(SRC)
+   && /renderThemeSection: function \(prefix, stored\) \{\s*const picker = this\.renderThemePicker\(prefix, stored\);/.test(SRC));
+ok('the edit form renders it with the profile\'s choice', /renderThemeSection\('edit', profile\.theme\)/.test(SRC));
 ok('the create save sends it', /theme: this\.readThemePicker\('create'\)/.test(SRC));
 ok('the edit save sends it', /theme: this\.readThemePicker\('edit'\)/.test(SRC));
 ok('both previews follow their select',
@@ -592,8 +734,24 @@ const SHAPE = ['--jpf-avatar-r', '--jpf-ring-w', '--jpf-hover-scale', '--jpf-tit
     '--jpf-btn2-weight', '--jpf-add-border', '--jpf-input-r', '--jpf-font'];
 const MIN_SHAPE_DIFFERENCES = 5;
 const lookIds = serverIds.filter(id => id !== 'bonfire');
+// A light and a dark version of one look are meant to share every shape, so a pair named
+// here is held to the opposite: identical in shape, different in colour. Named pairs
+// only, so nothing else can slip in under it.
+const SCHEME_PAIRS = [['jellyfin-dark', 'jellyfin-light']];
+const isPair = (x, y) => SCHEME_PAIRS.some(p => (p[0] === x && p[1] === y) || (p[0] === y && p[1] === x));
+SCHEME_PAIRS.forEach(([x, y]) => {
+    const a = theme[x] || {}, b = theme[y] || {};
+    // A border token is "width style colour"; the colour is the scheme's, so only the
+    // width and style are shape.
+    const shapeOf = (tk, v) => (/border/.test(tk) ? String(v).split(' ').slice(0, 2).join(' ') : v);
+    const differ = SHAPE.filter(tk => shapeOf(tk, a[tk]) !== shapeOf(tk, b[tk]));
+    ok(x + ' and ' + y + ' share every shape token' + (differ.length ? ' (not ' + differ.join(', ') + ')' : ''),
+       !!theme[x] && !!theme[y] && differ.length === 0);
+    ok(x + ' and ' + y + ' differ in background', !!theme[x] && !!theme[y] && a['--jpf-gate-bg'] !== b['--jpf-gate-bg']);
+});
 for (let i = 0; i < lookIds.length; i++) {
     for (let j = i + 1; j < lookIds.length; j++) {
+        if (isPair(lookIds[i], lookIds[j])) continue;
         const a = theme[lookIds[i]], b = theme[lookIds[j]];
         const differ = SHAPE.filter(tk => a[tk] !== undefined && b[tk] !== undefined && a[tk] !== b[tk]);
         ok(lookIds[i] + ' and ' + lookIds[j] + ' differ in ' + differ.length + ' of ' + SHAPE.length
@@ -607,7 +765,7 @@ lookIds.forEach(id => {
     ok(id + ' differs from Bonfire in ' + differ.length + ' shape tokens', differ.length >= MIN_SHAPE_DIFFERENCES);
 });
 ok('only Bonfire puts a panel behind the tiles',
-   !!shared && shared.decls['--jpf-section-bg'] === 'transparent'
+   lookIds.every(id => theme[id]['--jpf-section-bg'] === 'transparent')
    && theme.bonfire['--jpf-section-bg'] === 'var(--jpf-surface-1)');
 
 // ── 9. A change shows without a reload ──────────────────────────────────────────
@@ -670,8 +828,9 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
        !!menu && /this\._themeSettings && this\._themeSettings\.allow\s*\?\s*entry\('settings-theme'/.test(menu.body));
     ok('and opens the Theme page from it', !!menu && /open\('settings-theme', \(\) => this\.showThemeSettings\(null\)\)/.test(menu.body));
     const page = method('showThemeSettings');
-    ok('the Theme page saves through /theme, which touches nothing else on the profile',
-       !!page && /plugins\/profiles\/theme/.test(page.body) && !/plugins\/profiles\/update/.test(page.body));
+    ok('the Theme page saves through /update, which leaves what it does not send as it is',
+       !!page && /plugins\/profiles\/update/.test(page.body) && !/plugins\/profiles\/theme['"`]/.test(page.body)
+       && /profileName: person\.profileName/.test(page.body));
     // A remote's Back key clicks the screen's own back button, from a fixed list. A screen
     // missing from it swallows Back with nothing happening, which on Tizen is a dead remote.
     const dismiss = method('_dismissSurface');
@@ -680,7 +839,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
     ok('and its cards take the thick focus ring a television needs',
        /\.jpf-tv \.jpf-theme-option:focus/.test(CSS) && /\.jpf-tv \.jpf-theme-person:focus/.test(CSS)
        && /\.jpf-tv \.jpf-choice:focus/.test(CSS));
-    ok('it sends the main account\'s PIN, which /theme checks', !!page && /masterPin: this\.masterPin/.test(page.body));
+    ok('it sends the main account\'s PIN, which /update checks', !!page && /masterPin: this\.masterPin/.test(page.body));
     ok('and puts the theme on now when the profile is the one signed in',
        !!page && /=== signedIn\)\s*\{\s*this\._setThemeSettings\(/.test(page.body));
 
@@ -710,7 +869,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
             factory(doc, { getCurrentUserId: () => 'aaaa' }, (k, v) => k + (v ? JSON.stringify(v) : ''),
                 s => String(s), () => {}, obj).showThemeSettings(null);
             const cards = [];
-            html.replace(/<button type="button" class="jpf-theme-option[^"]*"[^>]*data-theme="([a-z]*)"\s+aria-checked="(true|false)">\s*<div class="jpf-theme-preview"[^>]*data-jpf-theme="([a-z]+)"/g,
+            html.replace(/<button type="button" class="jpf-theme-option[^"]*"[^>]*data-theme="([a-z0-9-]*)"\s+aria-checked="(true|false)">\s*<div class="jpf-theme-preview"[^>]*data-jpf-theme="([a-z0-9-]+)"/g,
                 (m, value, checked, shows) => { cards.push({ value: value, checked: checked === 'true', shows: shows }); return m; });
             return { html: html, cards: cards };
         };
@@ -724,7 +883,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
            !!dflt && dflt.value === '' && follow.cards.filter(c => c.value === '').length === 1);
         ok('and it carries the Default tag, once',
            (follow.html.match(/themeSettings\.default/g) || []).length === 1
-           && /Crimson <span class="jpf-theme-option-tag">themeSettings\.default<\/span>/.test(follow.html));
+           && /theme\.crimson <span class="jpf-theme-option-tag">themeSettings\.default<\/span>/.test(follow.html));
         ok('a profile following the default has that card ticked, and only that one',
            follow.cards.filter(c => c.checked).length === 1 && dflt && dflt.checked);
         const chose = render('glass', 'crimson');
@@ -734,7 +893,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
         const same = render('crimson', 'crimson');
         ok('one that chose the default theme by name still shows one ticked card',
            same.cards.filter(c => c.checked).length === 1);
-        ok('the page draws no sheet of its own', /class="create-profile-container jpf-theme-page"/.test(follow.html));
+        ok('the page draws no sheet of its own', /class="jpf-create-profile-container jpf-theme-page"/.test(follow.html));
     }
     ok('a pick says nothing on success: the tick moving is the answer',
        !!page && !/themeSettings\.saved/.test(page.body) && !/themeSettings\.saved/.test(SRC));
@@ -743,17 +902,20 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
     // Resolved, not string-matched: the page rule has to beat every rule that gives the
     // container a sheet, in every theme, including Glass's frost.
     {
-        const pageRule = /\.create-profile-container\.jpf-theme-page\s*\{([^}]*)\}/.exec(CSS);
+        const pageRule = /\.jpf-create-profile-container\.jpf-theme-page\s*\{([^}]*)\}/.exec(CSS);
         const body = pageRule ? pageRule[1] : '';
         ok('the Theme page drops the sheet in every theme',
            /background:\s*transparent/.test(body) && /border-color:\s*transparent/.test(body)
            && /box-shadow:\s*none/.test(body) && /(^|[^-])backdrop-filter:\s*none/.test(body));
         const at = pageRule ? pageRule.index : -1;
         const rivals = [];
-        CSS.replace(/([^{}]*\.create-profile-container[^{}]*)\{([^}]*)\}/g, (m, sel, decl, idx) => {
+        CSS.replace(/([^{}]*\.jpf-create-profile-container[^{}]*)\{([^}]*)\}/g, (m, sel, decl, idx) => {
             if (/jpf-theme-page|::|is-two-col|>/.test(sel)) return m;
-            if (!/background|border|box-shadow|backdrop-filter|padding/.test(decl)) return m;
-            sel.split(',').map(s => s.trim()).filter(s => /\.create-profile-container$/.test(s)).forEach(s => {
+            // A rival is a rule that draws something. "box-shadow: none" draws nothing, and
+            // the flat look's .jpf-flat rule is exactly that: it ties this page's own
+            // "box-shadow: none" and cannot give the container a sheet.
+            if (!/background|border|backdrop-filter|padding|box-shadow:(?!\s*none)/.test(decl)) return m;
+            sel.split(',').map(s => s.trim()).filter(s => /\.jpf-create-profile-container$/.test(s)).forEach(s => {
                 const spec = [(s.match(/#/g) || []).length,
                               (s.match(/\.|\[|:(?!:)/g) || []).length];
                 const beats = spec[0] > 0 || spec[1] > 2 || (spec[1] === 2 && idx > at);
@@ -768,7 +930,7 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
     // A picture marked as a cut-out is not clipped to the avatar's box, so an opaque square
     // one stood outside Nightfall's round ring. It has to stay inside the theme's shape.
     {
-        const rule = /\.profile-avatar\.is-transparent img\s*\{([^}]*)\}/.exec(CSS);
+        const rule = /\.jpf-profile-avatar\.is-transparent img\s*\{([^}]*)\}/.exec(CSS);
         ok('a cut-out picture is rounded to the theme\'s avatar shape',
            !!rule && /border-radius:\s*var\(--jpf-avatar-r\)/.test(rule[1]));
         const missing = serverIds.filter(id => !theme[id] || !theme[id]['--jpf-avatar-r']);
@@ -788,23 +950,24 @@ console.log('\n── Settings has a Theme page when profiles may choose ──�
 }
 
 // ── 11. The seasonal themes' decoration ─────────────────────────────────────────
-console.log('\n── Harvest, Snowfall and Bloom carry their season ─────────────');
+console.log('\n── The seasonal themes carry their season, Starlight its stars ─');
 {
-    const SEASONAL = { harvest: 'leaves', snowfall: 'snow', bloom: 'blossoms' };
+    // Named "seasonal" for the three it began with; Starlight's sparse starfield joined
+    // them in the 1.7.2 theme review.
+    const SEASONAL = { harvest: 'leaves', snowfall: 'snow', bloom: 'blossoms', starlight: 'stars' };
     Object.keys(SEASONAL).forEach(id => {
         const d = theme[id] || {};
         ok(id + ' draws its ' + SEASONAL[id] + ' as an inline picture, nothing fetched',
            /^url\("data:image\/svg\+xml,/.test(d['--jpf-deco'] || '') && /px$/.test(d['--jpf-deco-size'] || ''));
     });
     // A theme that forgets to say "none" inherits the page's: a Crimson preview on a
-    // Snowfall page would snow. Each says it in its own block. Not the shared block: its
+    // Snowfall page would snow. Each says it in its own block. Not a shared block: its
     // two attribute selectors outrank a theme block's one, so a none there beat the snow
-    // everywhere, which is how the first build of this shipped no decoration at all.
+    // everywhere, which is how the first build of this shipped no decoration at all. The
+    // "no rule but a theme's own block" check above holds that.
     const plain = serverIds.filter(id => !SEASONAL[id] && theme[id]['--jpf-deco'] !== 'none');
     ok('every other theme says none in its own block' + (plain.length ? ' (not ' + plain.join(', ') + ')' : ''),
        plain.length === 0);
-    ok('and the shared block, which would outrank every theme, does not set it',
-       !!shared && shared.decls['--jpf-deco'] === undefined);
 
     const layer = RULES.filter(r => !r.at && r.selectors.indexOf('#profiles-gate-overlay::before') !== -1)[0];
     ok('the decoration is a layer under the gate\'s content, which it never takes a click from',
@@ -815,18 +978,49 @@ console.log('\n── Harvest, Snowfall and Bloom carry their season ───�
     const prev = RULES.filter(r => !r.at && r.selectors.indexOf('.jpf-theme-preview::before') !== -1)[0];
     ok('a preview wears its season too', !!prev && /var\(--jpf-deco\)/.test(prev.decls['background-image'] || ''));
 
-    // The snow moves. Only where that is cheap and wanted.
-    const anim = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\[data-jpf-theme="snowfall"\]:not\(\.jpf-tv\) #profiles-gate-overlay::before\s*\{([^}]*)\}/.exec(CSS);
-    ok('the snow falls only for people who have not asked for less motion, and not on a TV',
-       !!anim && /animation:\s*jpf-snowfall/.test(anim[1]));
+    // The snow moves. Only where that is cheap and wanted: not for reduced motion, not on a
+    // TV, and (2.0) only when the administrator has turned richer theme motion on.
+    // Since the 2.0 motion work a television that is not flat moves too, so the hold is
+    // :not(.jpf-flat) (the TV that cannot afford blur) and no longer :not(.jpf-tv).
+    const anim = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\[data-jpf-theme="snowfall"\]\.jpf-rich-motion:not\(\.jpf-flat\) #profiles-gate-overlay::before\s*\{([^}]*)\}/.exec(CSS);
+    // The keyframes are named for the tile they travel, since any theme's pattern may drift.
+    ok('the snow falls only for people who have not asked for less motion, and not on a flat TV',
+       !!anim && /animation:\s*jpf-drift-240 /.test(anim[1]));
     ok('by transform, which the compositor moves without repainting',
-       /@keyframes jpf-snowfall\s*\{\s*from\s*\{\s*transform:\s*translateY\(0\);\s*\}\s*to\s*\{\s*transform:\s*translateY\(240px\);/.test(CSS)
+       /@keyframes jpf-drift-240\s*\{\s*from\s*\{\s*transform:\s*translateY\(0\);\s*\}\s*to\s*\{\s*transform:\s*translateY\(240px\);/.test(CSS)
        && !!anim && /top:\s*-240px/.test(anim[1]));
     ok('and loops on one tile of it, so it joins up', theme.snowfall['--jpf-deco-size'] === '240px');
-    const unguarded = /animation:\s*jpf-snowfall/g;
+    const unguarded = /animation:\s*jpf-drift-/g;
     let m, count = 0;
     while ((m = unguarded.exec(CSS)) !== null) count++;
-    ok('nowhere else starts it', count === 2);
+    // Snowfall, Bloom and Harvest drift, each as a -webkit- and a plain declaration.
+    ok('three themes drift, and nowhere else starts it (' + count + ' declarations)', count === 6);
+    // The same hold, one theme at a time, so a theme that lost it is named. Pairwise: a count
+    // of guarded rules would let one unguarded theme hide behind another's two.
+    ['snowfall', 'bloom', 'harvest'].forEach(id => {
+        const r = new RegExp('@media \\(prefers-reduced-motion: no-preference\\)\\s*\\{\\s*\\[data-jpf-theme="' + id
+            + '"\\]\\.jpf-rich-motion:not\\(\\.jpf-flat\\) #profiles-gate-overlay::before\\s*\\{([^}]*animation:\\s*jpf-drift-[^}]*)\\}').exec(CSS);
+        ok(id + ' drifts, only with richer motion on, not under reduced motion, not on a flat TV', !!r);
+    });
+    // Starlight's stars twinkle: opacity only, behind the same three conditions, on the
+    // layer itself and on a second one so the stars do not all dim together.
+    ['before', 'after'].forEach(which => {
+        const r = new RegExp('@media \\(prefers-reduced-motion: no-preference\\)\\s*\\{[^@]*?\\[data-jpf-theme="starlight"\\]\\.jpf-rich-motion:not\\(\\.jpf-flat\\) #profiles-gate-overlay::' + which
+            + '\\s*\\{([^}]*animation:\\s*jpf-twinkle[^}]*)\\}').exec(CSS);
+        ok('starlight twinkles on ::' + which + ', behind the same three conditions', !!r);
+    });
+    ok('the twinkle is a change of opacity, which the compositor does without repainting',
+       (function () {
+           const blocks = [];
+           const re = /@keyframes jpf-twinkle(-b)?\s*\{([\s\S]*?)\n\}/g;
+           let k;
+           while ((k = re.exec(CSS)) !== null) blocks.push(k[2]);
+           return blocks.length >= 2 && blocks.every(function (s) {
+               return /opacity/.test(s) && !/(top|left|right|bottom|width|height|background|transform)\s*:/.test(s);
+           });
+       })());
+    ok('no theme holds its motion off with :not(.jpf-tv) any more',
+       !/jpf-rich-motion:not\(\.jpf-tv\)/.test(CSS));
 }
 
 // ── 12. Previews fit their cards on a phone ─────────────────────────────────────
@@ -869,6 +1063,69 @@ console.log('\n── A preview fits the narrowest card ────────
     ok('its button stays inside the preview, and wraps rather than being cut to MANAGE PR...',
        !!btn && btn.decls['max-width'] === '100%' && btn.decls['white-space'] === 'normal'
        && get('.jpf-theme-preview-button', 'white-space') === null);
+}
+
+// ── 13. What themeCss writes does not win by coming last ────────────────────────
+console.log('\n── The generated rules win on specificity, never on order ────');
+/* Until 1.7.2 the theme rules sat inside styles.css, before the rules that override them.
+ * Now themeCss writes them after the whole sheet, so every tie on specificity that the
+ * sheet used to win is now won by the theme. The first build of this put Glass's frost
+ * back on the Theme page that way, past a check that string-matched the page rule.
+ *
+ * So, one pair at a time: a generated rule and a sheet rule that name the same element
+ * (the leading class or id of the last compound, and its pseudo-element) and set a
+ * property in common must not be equal on specificity. Equal means the outcome is decided
+ * by where the files sit, which nobody reading either one can see. Only checked when the
+ * script writes themes; an older build's rules are all in the sheet and ordered there. */
+if (SRC.indexOf(L.THEMES_MARKER) !== -1) {
+    const strip = css => css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const flat = css => {
+        const out = [];
+        let i = 0, start = 0, at = null;
+        while (i < css.length) {
+            const c = css[i];
+            if (c === '{') {
+                const head = css.slice(start, i).trim();
+                if (head.charAt(0) === '@') { at = head; start = i + 1; i++; continue; }
+                const end = css.indexOf('}', i);
+                const decls = {};
+                css.slice(i + 1, end).split(';').forEach(d => {
+                    const k = d.indexOf(':');
+                    if (k > 0) decls[d.slice(0, k).trim()] = true;
+                });
+                head.split(',').map(s => s.trim().replace(/\s+/g, ' ')).forEach(s => out.push({ s: s, decls: decls, at: at }));
+                i = end + 1; start = i; continue;
+            }
+            if (c === '}') { at = null; start = i + 1; }
+            i++;
+        }
+        return out;
+    };
+    // :not() counts as its argument, as in the spec.
+    const spec = s => {
+        const x = s.replace(/:not\(([^)]*)\)/g, ' $1');
+        return [(x.match(/#[\w-]+/g) || []).length,
+            (x.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) || []).length,
+            (x.replace(/\[[^\]]*\]/g, '').match(/(^|[\s>+~])[a-z]+/g) || []).length].join(',');
+    };
+    const subject = s => {
+        const parts = s.replace(/\[data-jpf-theme[^\]]*\]/g, '').trim().split(/[\s>+~]+/);
+        const tail = parts[parts.length - 1];
+        const m = /^[#.]?[\w-]+/.exec(tail.replace(/:not\([^)]*\)/g, ''));
+        return (m ? m[0] : '') + ((/::[\w-]+/.exec(tail) || [''])[0]);
+    };
+    const sheet = flat(strip(L.stylesOnly())).filter(r => !/data-jpf-theme/.test(r.s));
+    const generated = flat(strip(L.themesCss(SRC))).filter(r =>
+        !/^(:root|body|\[data-jpf-theme="[a-z0-9-]+"\]( body)?|from|to)$/.test(r.s));
+    ok('there are generated rules to compare (' + generated.length + ')', generated.length >= 20);
+    const ties = [];
+    generated.forEach(g => sheet.forEach(q => {
+        if (subject(g.s) !== subject(q.s) || spec(g.s) !== spec(q.s)) return;
+        const common = Object.keys(g.decls).filter(k => q.decls[k]);
+        if (common.length) ties.push(g.s + '  vs  ' + q.s + ' [' + common.join(', ') + ']');
+    }));
+    ok('no generated rule ties with a sheet rule on the same element and property'
+       + (ties.length ? ' (' + ties.length + ': ' + ties[0] + ')' : ''), ties.length === 0);
 }
 
 console.log('');

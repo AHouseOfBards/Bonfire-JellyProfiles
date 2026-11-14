@@ -75,9 +75,9 @@ function makeContent() {
         return (byId[id] = node);
     };
     content.querySelectorAll = sel => {
-        // '.cls:checked' is the same nodes, filtered on .checked — so a harness can tick
-        // a box by setting .checked on the node '.cls' gave it. Without this the forms'
-        // ticked-library lists always came back empty.
+        // '.cls:checked' is the same nodes filtered on .checked, so a harness can tick a box
+        // by setting .checked on the node '.cls' gave it. Without it the forms' ticked-library
+        // lists always came back empty.
         if (/^\.[\w-]+:checked$/.test(sel)) {
             return content.querySelectorAll(sel.slice(0, -':checked'.length)).filter(n => n.checked);
         }
@@ -142,13 +142,14 @@ function loadPlugin(src) {
             return Promise.resolve({
                 ok: r.status >= 200 && r.status < 300,
                 status: r.status,
+                headers: { get: name => (r.headers && r.headers[name]) || null },
                 json: () => Promise.resolve(r.body),
                 text: () => Promise.resolve(typeof r.body === 'string' ? r.body : JSON.stringify(r.body))
             });
         },
         document: {
-            // Everything drawn here is on the page; a screen that checks before drawing
-            // late (the account's Email section) draws.
+            // Everything drawn here is on the page; a screen that checks before drawing late
+            // (the account's Email section) draws.
             head: makeNode({}), body: makeNode({}, { contains: () => true }), documentElement: makeNode({}),
             createElement: () => makeNode({}),
             querySelector: sel => (sel === '.profiles-modal-content' ? content : null),

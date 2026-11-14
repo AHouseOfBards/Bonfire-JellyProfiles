@@ -2,14 +2,14 @@
  * Adding a household to the login screen's user list.
  *
  * `/Users/Public` is how every client on the server signs in. Editing it is a bigger
- * commitment than the script tag we splice into index.html: get the shape wrong and
- * nobody logs in, on any client, including the forty people who have never heard of
- * Bonfire. So this file checks the properties that make that impossible rather than the
- * happy path — the parts of PublicUserInjector that decide whether to touch a response at
- * all, and the parts of the middleware that decide whether to buffer one.
+ * commitment than the script tag spliced into index.html: get the shape wrong and nobody
+ * logs in on any client, including people who have never heard of Bonfire. So this file
+ * checks the properties that make that impossible rather than the happy path: the parts
+ * of PublicUserInjector that decide whether to touch a response, and the parts of the
+ * middleware that decide whether to buffer one.
  *
- * The behaviour itself is exercised in C# against the real assembly; this is the source
- * gate for the invariants a runtime test cannot see, in the style of checkdash.
+ * The behavior is exercised in C# against the real assembly; this is the source gate for
+ * the invariants a runtime test cannot see, in the style of checkdash.
  *
  *   node tests/js/publicusers.js [path/to/Auth/PublicUserInjector.cs]
  */
@@ -36,8 +36,8 @@ const middleware = fs.readFileSync(
 const config = fs.readFileSync(
     path.join(L.ROOT, 'Configuration', 'PluginConfiguration.cs'), 'utf8');
 
-// Comments in these files discuss every hazard at length, and a check that searched raw
-// text would be satisfied by the prose describing the rule rather than by the rule.
+// Comments in these files discuss every hazard at length, and a check on raw text would
+// be satisfied by prose describing the rule rather than by the rule.
 const strip = s => s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
 const inj = strip(injector);
 const mw = strip(middleware);
@@ -49,9 +49,9 @@ ok('the configuration has its own flag, separate from PIN login',
 ok('and it defaults to off — no `= true` on it',
    !/EnableClientProfileList\s*\{\s*get;\s*set;\s*\}\s*=\s*true/.test(config));
 
-// Two gates, deliberately: the middleware must not even buffer the body of an endpoint
-// this important when the feature is off, and the injector must not act if it is somehow
-// reached anyway. Checked separately because either one alone is a single point of failure.
+// Two gates: the middleware must not buffer the body of an endpoint this important when
+// the feature is off, and the injector must not act if it is reached anyway. Checked
+// separately because either alone is a single point of failure.
 ok('the middleware refuses the path when the flag is off',
    /EnableClientProfileList\s*!=\s*true/.test(mw));
 ok('and the injector checks it again before doing anything',
@@ -59,17 +59,23 @@ ok('and the injector checks it again before doing anything',
 
 console.log('\n── it adds, and never removes ──────────────────────────────────');
 
-// The whole safety argument. Filtering would mean every one of the server's users depends
-// on our code being right; adding means the worst case is that nothing appears.
+// The safety argument. Filtering would make every one of the server's users depend on our
+// code being right; adding means the worst case is that nothing appears.
 ok('the injector only ever appends to the array', /array\.Add\(/.test(inj));
+// A tripwire for the obvious, not the proof. A regex cannot follow an alias or a rename;
+// the proof is tests/cs/publicusers: four entries with fields we know nothing of come back
+// byte for byte, in order, with ours last. The patterns are wide on purpose: any receiver,
+// any Remove*/Clear/Insert, the array replaced, or LINQ that filters it.
 ok('and never removes from it',
-   !/array\.Remove|\.RemoveAt\(|array\.Clear\(/.test(inj),
+   !/\.(?:Remove\w*|Clear|Insert\w*)\s*\(/.test(inj)
+   && !/\barray\s*=[^=>]/.test(inj)
+   && !/\barray\s*\.\s*(?:Where|Except|Skip|Take|Distinct|OfType)\s*\(/.test(inj),
    'removing from this list would decide who may sign in');
 
 console.log('\n── every failure returns what Jellyfin produced ─────────────────');
 
-// Enumerated, because "it handles errors" is exactly the aggregate that hides which case
-// does not. Each of these is a distinct way the request can go wrong.
+// Enumerated, because "it handles errors" is the aggregate that hides which case does not.
+// Each is a distinct way the request can go wrong.
 const handler = mw.slice(mw.indexOf('InjectPublicUsersAsync'));
 [
     ['a household that cannot be resolved falls through', /catch[\s\S]{0,220}?await _next\(context\)/],
@@ -83,13 +89,17 @@ const handler = mw.slice(mw.indexOf('InjectPublicUsersAsync'));
 
 console.log('\n── the shape it writes ─────────────────────────────────────────');
 
-// Hand-rolling a UserDto is how a client ends up unable to parse its own login screen,
-// and GetUserDto is also what fills HasPassword from the authentication provider.
+// Hand-rolling a UserDto leaves a client unable to parse its own login screen, and
+// GetUserDto also fills HasPassword from the authentication provider.
 ok('the DTO comes from Jellyfin, not from us', /userManager\.GetUserDto\(/.test(inj));
-ok('and nothing constructs a UserDto by hand', !/new UserDto/.test(inj));
+// Qualified (new MediaBrowser.Model.Dto.UserDto) and target-typed (UserDto x = new())
+// forms count too: the bare `new UserDto` was one using-directive from missing both.
+ok('and nothing constructs a UserDto by hand',
+   !/\bnew\s+(?:[\w.]+\.)?UserDto\b/.test(inj)
+   && !/\bUserDto\??\s+\w+\s*=\s*new\s*\(/.test(inj));
 
-// Jellyfin serves this endpoint in two casings by content negotiation. Assuming one would
-// hand some clients an array whose last entries they silently cannot read.
+// Jellyfin serves this endpoint in two casings by content negotiation; assuming one would
+// give some clients an array whose last entries they cannot read.
 ok('casing is taken from the response, not assumed',
    /CamelCase/.test(inj) && /responseContentType|contentType/.test(inj));
 

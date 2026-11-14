@@ -2,9 +2,9 @@
  * A profile's audio and subtitle language belong to the profile once it exists.
  *
  * Creating a profile seeds AudioLanguagePreference, SubtitleLanguagePreference and
- * SubtitleMode from the master, which is a sensible starting point. Switching into the
- * profile used to copy them again, so a child set to Polish under an English master was
- * back on English after every switch (issue #36). The switch path must not write them.
+ * SubtitleMode from the master. Switching into the profile used to copy them again, so a
+ * child set to Polish under an English master was back on English after every switch
+ * (issue #36). The switch path must not write them.
  *
  *   node tests/js/profilelanguage.js [path/to/ProfilesController.cs]
  */
@@ -24,7 +24,7 @@ function ok(name, cond, detail) {
     }
 }
 
-// Strip comments so the prose explaining the rule cannot satisfy or break the check.
+// Strip comments so prose about the rule cannot satisfy or break the check.
 const CONTROLLER = process.argv[2]
     || path.join(L.ROOT, 'Controllers', 'ProfilesController.cs');
 const src = fs.readFileSync(CONTROLLER, 'utf8')
@@ -33,9 +33,9 @@ const src = fs.readFileSync(CONTROLLER, 'utf8')
 
 const prefs = ['AudioLanguagePreference', 'SubtitleLanguagePreference', 'SubtitleMode'];
 
-// Assignments to an existing configuration object (targetConfig.X = ...) are the switch-time
-// copy. The creation path builds a new UserConfiguration with object-initialiser syntax
-// (X = masterConfig.X,), which is deliberately still allowed.
+// Assignments to an existing configuration object (targetConfig.X = ...) are the
+// switch-time copy. The creation path builds a new UserConfiguration with initializer
+// syntax (X = masterConfig.X,), which stays allowed.
 for (const p of prefs) {
     const assigned = new RegExp('\\b\\w+\\.' + p + '\\s*=(?!=)').test(src);
     ok('nothing assigns ' + p + ' onto an existing configuration', !assigned);

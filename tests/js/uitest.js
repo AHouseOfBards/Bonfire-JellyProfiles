@@ -56,8 +56,14 @@ ok(count(html, '\r\r') === 0, 'dashboard has no doubled CR');
 // Markup, the "everything but the Add card" selector, and the handler.
 // Counted in the script only: a stylesheet rule styling the card (Nightfall leaves the ring
 // off it) renders nothing, and is not a fourth place the card could appear.
-ok(count(jsOnly, 'action-add-profile') === 3, 'the Add card has exactly its three references');
-const addBlock = js.slice(js.indexOf('// Manage Profiles only.'), js.indexOf('sectionsHtml +='));
+// Since 1.7.2 that rule is written by themeCss, inside the script, so the generator is
+// left out of the count for the same reason the sheet always was.
+const jsNoThemeCss = jsOnly.indexOf('function themeCss(') === -1 ? jsOnly
+    : jsOnly.replace(L.extractFunction(jsOnly, 'themeCss'), '');
+ok(count(jsNoThemeCss, 'action-add-profile') === 3, 'the Add card has exactly its three references');
+// From the local group's cards to where the section is written. Anchored on code, not on a
+// comment, so rewording a comment cannot move it.
+const addBlock = js.slice(js.indexOf("let cardsHtml = groupProfiles.map(p => renderCard(p)).join('');"), js.indexOf('sectionsHtml +='));
 has(addBlock, 'if (this.isManageMode) {', 'Add card is gated on manage mode');
 has(addBlock, 'action-add-profile', 'the Add card is inside that gate');
 has(addBlock, 'profiles-limit-notice', 'the limit notice is inside it too');
@@ -78,42 +84,42 @@ has(js, "if (removeBtn) removeBtn.style.display = src ? 'inline-flex' : 'none';"
 has(js, 'if (removeBtn) removeBtn.addEventListener(\'click\', clearPicture);', 'Remove clears');
 has(js, 'clear: clearPicture', 'the returned handle clears the same way');
 // Change picture and Remove must be the same class, or they are two different shapes.
-const actionsBlock = js.slice(js.indexOf('<div class="image-upload-actions">'),
+const actionsBlock = js.slice(js.indexOf('<div class="jpf-image-upload-actions">'),
     js.indexOf('id="${prefix}-picture-sources"'));
-ok(count(actionsBlock, 'profiles-btn btn-secondary image-upload-btn') === 2,
+ok(count(actionsBlock, 'profiles-btn jpf-btn-secondary jpf-image-upload-btn') === 2,
     'both actions carry the same button class');
 
 // The disclosure has to be visible, not just announced. Both states key off the same
 // aria-expanded the click handler already maintains, so there is no second source of
 // truth to drift.
-has(js, 'class="material-icons picture-caret" aria-hidden="true">expand_more',
+has(js, 'class="material-icons jpf-picture-caret" aria-hidden="true">expand_more',
     'the button carries a chevron');
-has(js, '.picture-change-btn[aria-expanded="true"] .picture-caret', 'which turns over when open');
-has(js, '.picture-change-btn[aria-expanded="true"] {', 'and the button stays visibly held');
+has(js, '.jpf-picture-change-btn[aria-expanded="true"] .jpf-picture-caret', 'which turns over when open');
+has(js, '.jpf-picture-change-btn[aria-expanded="true"] {', 'and the button stays visibly held');
 has(js, "changeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');",
     'aria-expanded is what drives both, and the handler sets it');
-ok(/@media \(prefers-reduced-motion: reduce\)[^}]*\{\s*\.picture-caret/.test(js.replace(/\r\n/g, '\n')),
+ok(/@media \(prefers-reduced-motion: reduce\)[^}]*\{\s*\.jpf-picture-caret/.test(js.replace(/\r\n/g, '\n')),
     'the rotation is dropped for reduced motion');
 
-has(js, '.picture-source-block + .picture-source-block', 'sources are separated by a rule');
-has(js, '.picture-sources .avatar-library-grid', 'the grid drops its own frame inside the panel');
-ok(count(js, 'picture-source-title') === 3, 'two source headings and one style rule');
+has(js, '.jpf-picture-source-block + .jpf-picture-source-block', 'sources are separated by a rule');
+has(js, '.jpf-picture-sources .jpf-avatar-library-grid', 'the grid drops its own frame inside the panel');
+ok(count(js, 'jpf-picture-source-title') === 3, 'two source headings and one style rule');
 
 // ── The library list ───────────────────────────────────────────────────────
 // The wrapper is what makes a checkbox reachable by remote: initTVCheckboxes binds
-// to .library-check-label and OK arrives as Enter, which no native checkbox acts on.
-const rowBlock = js.slice(js.indexOf('<div class="libart-row"'), js.indexOf('libart-choose">Choose'));
-has(rowBlock, '<label class="library-check-label libart-check">', 'library rows keep the label wrapper');
+// to .jpf-library-check-label and OK arrives as Enter, which no native checkbox acts on.
+const rowBlock = js.slice(js.indexOf('<div class="jpf-libart-row"'), js.indexOf('jpf-libart-choose">Choose'));
+has(rowBlock, '<label class="jpf-library-check-label jpf-libart-check">', 'library rows keep the label wrapper');
 has(rowBlock, '<input type="checkbox" class="library-checkbox"', 'the checkbox is inside it');
-has(js, '<label class="library-check-label libart-toggle">',
+has(js, '<label class="jpf-library-check-label jpf-libart-toggle">',
     'the artwork switch is remote-reachable too');
 
-has(js, 'row.classList.toggle("libart-has-art", entry.mode !== "inherit");',
+has(js, 'row.classList.toggle("jpf-libart-has-art", entry.mode !== "inherit");',
     'the thumbnail slot is class-driven, not an inline display');
-has(js, '.libart-list.show-artwork .libart-row.libart-has-art .libart-thumb',
+has(js, '.jpf-libart-list.jpf-show-artwork .jpf-libart-row.jpf-libart-has-art .jpf-libart-thumb',
     'a thumbnail shows only with artwork on and set');
 // Presence of the hiding rule is not enough, and asserting only that is what let the
-// placeholder ship: .libart-thumb declared display:flex in its own block further down
+// placeholder ship: .jpf-libart-thumb declared display:flex in its own block further down
 // the sheet, same specificity, so the later one won. Resolve the cascade instead.
 // Comments out first: a "why" comment sits directly above most rules here, and the
 // naive block regex below would otherwise capture it as part of the selector list —
@@ -121,7 +127,7 @@ has(js, '.libart-list.show-artwork .libart-row.libart-has-art .libart-thumb',
 const CSS = L.extractCss(js).replace(/\/\*[\s\S]*?\*\//g, '');
 function lastDisplayFor(selector) {
     // Rules whose selector list names this class on its own — a descendant rule like
-    // '.libart-list.show-artwork .libart-thumb' is more specific and does not count.
+    // '.jpf-libart-list.jpf-show-artwork .jpf-libart-thumb' is more specific and does not count.
     const re = /([^{}]+)\{([^{}]*)\}/g;
     let m, winner = null;
     while ((m = re.exec(CSS)) !== null) {
@@ -132,25 +138,30 @@ function lastDisplayFor(selector) {
     }
     return winner;
 }
-['.libart-thumb', '.libart-mode', '.libart-choose'].forEach(function (sel) {
+['.jpf-libart-thumb', '.jpf-libart-mode', '.jpf-libart-choose'].forEach(function (sel) {
     ok(lastDisplayFor(sel) === 'none', sel + ' resolves to display:none with artwork off');
 });
-ok(lastDisplayFor('.picture-sources') === 'none', '.picture-sources resolves to display:none');
+ok(lastDisplayFor('.jpf-picture-sources') === 'none', '.jpf-picture-sources resolves to display:none');
 
 // width:100% plus padding overflows a content-box parent. This sheet has no global
 // box-sizing rule, so any padded full-width block has to declare its own.
-ok(/\.picture-sources \{[^}]*box-sizing: border-box;[^}]*padding:/.test(CSS.replace(/\r\n/g, '\n')),
+ok(/\.jpf-picture-sources \{[^}]*box-sizing: border-box;[^}]*padding:/.test(CSS.replace(/\r\n/g, '\n')),
     'the sources panel is border-box, so padding does not push it out of its card');
 has(js, 'const anyArt = rows.some(', 'a profile that already uses artwork opens the section');
 has(js, 'showArtwork(false);', 'and it is off otherwise');
-has(js, 'Tick nothing and this profile sees every library your account does.',
+has(js, 'Check none to allow every library your account has.',
     'the list says what an empty list means');
-has(js, 'A library tile takes its picture from whatever is inside the library',
+has(js, 'Library tiles show what',
     'and the artwork explainer is separate from it');
-has(js, 'class="libart-head"', 'the artwork column is labelled');
+has(js, 'class="jpf-libart-head"', 'the artwork column is labelled');
 
 // ── The admin page ─────────────────────────────────────────────────────────
-const tabNames = ['general', 'tv', 'avatars', 'accounts', 'activity', 'advanced'];
+// In strip order. Setup sits next to Status: it is the first place a new install needs.
+const tabNames = ['status', 'setup', 'households', 'devices', 'security', 'look', 'clients', 'messages', 'activity', 'troubleshoot'];
+const stripOrder = (html.match(/class="jpf-tab" role="tab" data-tab="[^"]+"/g) || []).map(function (s) { return /data-tab="([^"]+)"/.exec(s)[1]; });
+tabNames.forEach(function (n, i) {
+    ok(stripOrder[i] === n, 'tab ' + (i + 1) + ' in the strip is ' + n + ' (found ' + stripOrder[i] + ')');
+});
 tabNames.forEach(function (n) {
     ok(count(html, 'data-tab="' + n + '"') === 1, 'one tab button for ' + n);
     ok(count(html, 'data-panel="' + n + '"') === 1, 'one panel for ' + n);
@@ -161,8 +172,11 @@ tabNames.forEach(function (n) {
 const panels = tabNames.length;
 ok(count(html, 'role="tabpanel"') === panels,
    'every panel is announced as one (' + panels + ')');
-ok(count(html, 'jpf-tab-panel') === panels + 3,
-   'one class per panel, plus the three style rules');
+// The markup class, counted exactly. It counted every mention of the name, plus a fixed
+// three for the style rules and initTabs; the settings link added a closest() lookup and
+// the fixed number went stale.
+ok(count(html, 'class="jpf-tab-panel"') === panels,
+   'one panel element per tab (' + panels + ')');
 ok(count(html, ' hidden>') === panels,
    'panels start hidden; show() opens exactly one');
 // aria-controls must name a real element or the strip lies to a screen reader.
@@ -187,12 +201,31 @@ ok(html.indexOf('<style>') > html.indexOf('<div id="profilesConfigurationPage"')
 ok(html.indexOf('</style>') < html.indexOf('<div data-role="content">'),
     'and ahead of the content it styles');
 has(html, 'background-color: transparent;', 'the tab reset kills the UA background');
-has(html, '>General</button>', 'the first tab is General, not Settings inside Settings');
+// Status first: it's what an administrator opens the page to read, and a stored tab that
+// no longer exists falls back to it.
+ok(html.indexOf('data-tab="status"') !== -1 && html.indexOf('data-tab="status"') < html.indexOf('data-tab="households"'),
+   'the first tab is Status');
+// Each tab with settings has its own Save, and every one is bound.
+ok(count(html, 'jpf-save-settings"') >= 4, 'the settings tabs each have a Save');
+has(html, "page.querySelectorAll('.jpf-save-settings').forEach", 'and each is bound');
+// A Status link only switches to a tab on the strip, like a stored tab name.
+has(html, 'page._showTab = function (name) { if (names.indexOf(name) >= 0) show(name); };',
+    'a Status link cannot name a tab that is not there');
 
-// The banners that say whether the plugin works at all stay outside the tabs.
+// The banners that say something is wrong stay outside the tabs, where any tab shows them.
 const beforeTabs = html.slice(0, html.indexOf('<div class="jpf-tabs"'));
-['injectionWarningContainer', 'staleVersionWarningContainer', 'betaNoticeContainer', 'injectionOkContainer']
+['injectionWarningContainer', 'restartRequiredContainer']
     .forEach(function (id) { has(beforeTabs, 'id="' + id + '"', id + ' is above the tabs'); });
+// Owner decision (1.9.0.4 eye test): no banner when all is well, and none for a pre-release.
+// Both only repeated a Status row on every tab.
+['betaNoticeContainer', 'injectionOkContainer', 'admin.banner.okTitle', 'admin.banner.betaTitle']
+    .forEach(function (id) { ok(html.indexOf(id) === -1, id + ' is not on the page: Status lists it'); });
+// Owner decision (1.9.0.4 eye test): API access is documented in docs/developer-api.md only.
+ok(html.indexOf('admin.security.api') === -1 && !/>API access</.test(html), 'the Security tab has no API access section');
+// The stale-tag banner and the chmod/chown panels are gone: isVersionStale is always false
+// and the failure banner hid its file fix whenever it showed (the file is never patched).
+['staleVersionWarningContainer', 'dismissStaleBtn', 'injectionFileFix', 'linuxChownCmd', 'dockerChmodCmd', 'windowsFixCmd']
+    .forEach(function (id) { ok(html.indexOf(id) === -1, id + ' is not on the page any more'); });
 
 // Container balance across the page body: a missed </div> silently swallows a panel.
 // The page's own closing </div> sits after the inline script, so the script is cut

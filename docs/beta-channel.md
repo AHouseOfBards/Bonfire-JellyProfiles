@@ -4,8 +4,8 @@ Beta builds let you try new work before it reaches everyone.
 
 | Channel | Repository URL |
 | --- | --- |
-| **Stable** | `https://ahouseofbards.github.io/Bonfire-JellyProfiles/manifest.json` |
-| **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` |
+| **Stable** | `https://ahouseofbards.github.io/Campground-Jellyfin/manifest.json` (Campground) |
+| **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire/beta/manifest.json` |
 
 > [!WARNING]
 > **Beta builds are unfinished and features in them may be broken.** Settings added in a
@@ -14,12 +14,12 @@ Beta builds let you try new work before it reaches everyone.
 > can switch Bonfire off. Don't run a beta on a server your household needs that evening.
 
 Please report what you find on
-[GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues).
+[GitHub Issues](https://github.com/AHouseOfBards/Bonfire/issues).
 
 ## Using it
 
 In Jellyfin, open **Dashboard → Plugins → Repositories → ＋**, add the beta URL and save.
-The beta builds then appear under **Plugins → Catalog**.
+The beta builds then appear under **Dashboard → Plugins → Catalog**.
 
 **Add it alongside the stable repository, not instead of it.** Each version is listed in
 only one of the two, so the beta repository on its own never offers stable releases.
@@ -28,7 +28,8 @@ Remove the beta repository to go back to stable only.
 ## What's in each
 
 **Stable** lists milestone releases only: 1.0, 1.1, 1.1.13, 1.2, 1.2.12, 1.3, 1.4, 1.5,
-1.6, 1.6.1, 1.6.2, 1.6.3, 1.6.4, 1.6.5, 1.6.6, 1.7 and 1.7.1.
+1.6, 1.6.1, 1.6.2, 1.6.3, 1.6.4, 1.6.5, 1.6.6, 1.7, 1.7.1, 1.7.2, 1.7.3, 1.7.4, 1.7.5
+and 2.0.
 
 **Beta** lists every pre-release, plus point releases that never became milestones.
 

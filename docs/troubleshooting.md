@@ -2,6 +2,11 @@
 
 ## The switcher doesn't appear
 
+### Turn Bonfire on
+
+A new install starts with Bonfire off. Turn it on at the top of
+**Dashboard → Plugins → Bonfire → Status**.
+
 ### Restart the server
 
 Jellyfin can't unload a plugin. After you install or update Bonfire, the old version
@@ -16,12 +21,12 @@ failed, while the switcher keeps working. A restart fixes that too.
 
 ### No script tag in `index.html` is normal
 
-Bonfire does not edit `index.html` by default, and hasn't since 1.4.1. It adds its
-script as the page is served, so nothing is written to disk and nothing needs redoing
-after a Jellyfin update.
+Bonfire does not edit `index.html`. It adds its script as the page is served, so nothing
+is written to disk and nothing needs redoing after a Jellyfin update. Tags an older
+version wrote into the file are removed once the first page has been served.
 
-To check it's working, open **Dashboard → Plugins → Bonfire → Advanced → Client Script**.
-It shows which method is in use and how many pages it has served.
+To check it's working, open **Dashboard → Plugins → Bonfire → Troubleshoot → Advanced → Client script**.
+It shows how many pages it has served.
 
 ### It works in a browser but not in an app
 
@@ -30,22 +35,6 @@ ship their own copy never see it. See [Apps](clients.md) for which apps
 work and how.
 
 Parental controls still apply in every app, because the server enforces them.
-
-## Writing to `index.html` (legacy modes)
-
-Under **Advanced → Client Script** you can choose how the script is added:
-
-| Method | What it does |
-| --- | --- |
-| **Serve it live, never touch index.html** | The default. Removes any tags an older version wrote. |
-| **Patch index.html, fall back to serving it live** *(legacy)* | For setups that need the tag in the file, such as a proxy that caches the page. |
-| **Patch index.html only** *(legacy)* | How every release up to 1.4 worked. |
-
-Both legacy modes need Jellyfin to be able to write to its own web files, which it often
-can't on Docker, Linux packages or protected Windows folders. If the write fails, the
-settings page shows the command to fix it for your system.
-
-If you haven't chosen a legacy mode, you don't need to grant that access.
 
 ## Samsung Tizen
 
@@ -76,47 +65,87 @@ profile. That's what restores a profile after Jellyfin resets a user's settings.
 Adding or removing a library in **Dashboard → Users** sticks from 1.7.2: the profile's
 list follows it. Two exceptions:
 
-- A profile set to every library (nothing ticked in **Edit Profile → Libraries**) always
+- A profile set to every library (nothing ticked in **Edit profile → Libraries**) always
   gets every library its main account has. Tick the ones it should have instead.
 - On a profile not entered since the upgrade, a removal made before its first sign-in
   comes back once. Remove it again.
 
-A profile can never get a library its main account doesn't have.
+A profile can never get a library its main account doesn't have. A library a profile was
+given, and that its main account later loses, is kept in reserve and comes back if the
+main account regains it.
 
 ## I can't use the interface or reach the settings page
 
 Set an **emergency disable code** before you need it, under
-**Dashboard → Plugins → Bonfire → Advanced**. Entering it on any Bonfire screen, or
+**Dashboard → Plugins → Bonfire → Security**. Entering it on any Bonfire screen, or
 pressing `Ctrl+Shift+B`, turns Bonfire off until Jellyfin restarts.
 
 If Bonfire's script doesn't load at all, the code can't run. Restart Jellyfin or delete
 the plugin folder. See [Limitations](limitations.md) for what the code
 does and doesn't unlock.
 
+## I rolled Bonfire back and my settings are gone
+
+An older version drops settings it doesn't know when it saves. Each time the version
+changes, Bonfire first copies `PluginConfiguration.xml` to
+`PluginConfiguration.xml.<version>.bak`, in the same folder (`plugins/configurations`).
+The last three are kept. To get a newer version's settings back, stop Jellyfin, copy that
+file over `PluginConfiguration.xml`, and start the newer version.
+
+## I deleted the settings file and it came back
+
+Bonfire keeps a copy of its settings beside the file, as `PluginConfiguration.xml.lastgood`. If `PluginConfiguration.xml` is deleted, Bonfire restores it from that copy, so to start over with default settings, stop Jellyfin and delete both.
+
+> [!WARNING]
+> Deleting both files erases every Bonfire setting.
+
+
+## Quick Connect still shows on my Android TV
+
+If anyone outside a household has signed in on a TV with the same name, Bonfire stops hiding
+Quick Connect on every TV with that name, because two sets of the same model look the same.
+
+An account with no password, such as an SSO account, keeps Quick Connect on its own TV.
+
+## LDAP and SSO accounts
+
+- An LDAP or SSO main account can't use its main PIN on a TV sign-in screen. Its profiles'
+  PINs work.
+- An LDAP or SSO main account can't be added to another household's switcher by password.
+  An administrator adds it.
+- Turning an LDAP-linked account into a profile and renaming it isn't supported.
+- A profile's PIN on a TV sign-in screen is first tried under its short name by every other
+  sign-in plugin. If a directory user has that name, LDAP may count the PIN as a failed
+  attempt for them, so give profiles names no directory user has.
+
+## Can't sign in with the password after removing Bonfire
+
+If **Let profiles sign in with their PIN** was on, Bonfire set some accounts to its own sign-in provider. Uninstalling puts them back. If one was missed, or Bonfire failed to load, go to **Dashboard → Users →** the user **→ Authentication provider** and choose **Default**.
+
 ## Where do I get avatars?
 
 Bonfire includes thirty starter avatars from Microsoft's Fluent Emoji. You can turn them
 off with **Include the starter avatars** under
-**Dashboard → Plugins → Bonfire → Avatar Library**. Profiles already using one keep it.
+**Dashboard → Plugins → Bonfire → Setup → Avatar library**. Profiles already using one keep it.
 
 Film and TV characters aren't included, because they belong to their studios. Add your
 own on the same page:
 
 - **Upload a folder** from the computer you're on.
-- **Import from folder** copies from a path on the server, such as `/config/avatars` on
+- **Copy from folder** copies from a path on the server, such as `/config/avatars` on
   Docker. Easier for a large set.
 
-JPEG, PNG, WebP and GIF all work. Pictures are cropped and resized when added. Turn on
+JPEG, PNG, WebP and GIF all work. Images are cropped and resized when added. Turn on
 **Only allow avatars from this library** to make profiles choose from your set instead
 of uploading their own.
 
 ## Reporting a problem
 
-Open an issue at <https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues> and
+Open an issue at <https://github.com/AHouseOfBards/Bonfire/issues> and
 include:
 
 - the Bonfire version, and whether it's from the stable or beta channel
 - your Jellyfin version, and how it's installed (Docker, package, Windows)
 - the browser, app or TV model
-- what **Advanced → Client Script** says
+- the text from **Dashboard → Plugins → Bonfire → Troubleshoot → Copy report**
 - whether the server has been restarted since installing or updating

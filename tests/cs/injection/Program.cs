@@ -1,10 +1,10 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-// Locate the repository root by walking up from this binary until the plugin's project
-// file appears. This was a hardcoded absolute path, so these harnesses could only run on
-// one machine — they failed on the first CI run.
+// Find the repository root by walking up from this binary to the plugin's project file.
+// A hardcoded path made these harnesses fail on the first CI run.
 static string RepoRoot()
 {
     var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
@@ -20,44 +20,76 @@ static string RepoPath(params string[] parts)
     return System.IO.Path.Combine(all.ToArray());
 }
 
-// Exercises the 1.4.1 injection path against the compiled plugin:
-//   - WebInjection.Inject / Remove / IsFullyInjected  — the shared HTML surgery
-//   - IndexInjectionModes                             — which mechanism is live
+// Exercises the injection path against the compiled plugin:
+//   - Campground.Shared IndexHtml.Apply, with Bonfire's own WebInjection.Registration
+//     — the HTML surgery done to every page served (2.0; WebInjection.Inject until then)
+//   - WebInjection.Remove                             — the cleanup of a file patched on disk
 //   - ProfilesIndexMiddleware.IsIndexPath             — what the middleware answers
+//
+// Apply is called with no browser runtime, so what is asserted is exactly Bonfire's two
+// fragments; tests/cs/pipeline covers the runtime.
 //
 // The point of most of these is the double-injection hazard: the on-disk patcher and the
 // middleware can both act on the same document, and the failure mode is two copies of
 // profiles.js at different versions, which means two gates fighting each other.
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build to load. This harness's output sits in bin/Release/<tfm>/, so its folder name
+// is the framework the csproj resolved: no second place to keep in step. tests/run.sh cs10
+// runs the whole set against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 var asm = Assembly.LoadFrom(RepoPath("bin", "Release", tfm, "Jellyfin.Profiles.dll"));
 var wi = asm.GetType("Jellyfin.Profiles.WebInjection", true);
-var modes = asm.GetType("Jellyfin.Profiles.Configuration.IndexInjectionModes", true);
+var modes = asm.GetType("Jellyfin.Profiles.Configuration.IndexInjectionModes", false);
 var mw = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);
 
 const BindingFlags Flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
 
-var injectM = wi.GetMethod("Inject", Flags) ?? throw new Exception("Inject not found");
+var indexHtml = asm.GetType("Campground.Shared.Injection.IndexHtml", true);
+var regType = asm.GetType("Campground.Shared.Injection.ScriptRegistration", true);
+// The overload the middleware calls (0.10.0): runtime and head snippets as files. The five-argument
+// one is the inline form an older owner writes, which no 0.10.0 middleware serves any more.
+var applyM = indexHtml.GetMethods(Flags).FirstOrDefault(m => m.Name == "Apply" && m.GetParameters().Length == 6
+        && m.GetParameters()[4].ParameterType == typeof(bool))
+    ?? throw new Exception("IndexHtml.Apply(..., asFiles, out) not found");
 var removeM = wi.GetMethod("Remove", Flags) ?? throw new Exception("Remove not found");
-var fullyM = wi.GetMethod("IsFullyInjected", Flags) ?? throw new Exception("IsFullyInjected not found");
 var isPathM = mw.GetMethod("IsIndexPath", Flags) ?? throw new Exception("IsIndexPath not found");
-var normM = modes.GetMethod("Normalize", Flags);
-var patchesM = modes.GetMethod("PatchesFile", Flags);
-var usesM = modes.GetMethod("UsesMiddleware", Flags);
+var registration = wi.GetProperty("Registration", Flags)?.GetValue(null)
+    ?? throw new Exception("WebInjection.Registration not found");
 
 string ScriptVersion = (string)wi.GetProperty("ScriptVersion", Flags).GetValue(null);
 
+// A typed array, because Apply takes IReadOnlyList<ScriptRegistration>.
+var tags = Array.CreateInstance(regType, 1);
+tags.SetValue(registration, 0);
+
+// The inline form, which is what a file patched on disk by an older Bonfire holds. Remove is the
+// cleanup of those files, so its round trips start from this form, not from what the middleware
+// serves now.
+var applyInlineM = indexHtml.GetMethods(Flags).First(m => m.Name == "Apply" && m.GetParameters().Length == 5);
+string InjectInline(string html)
+{
+    var args = new object[] { html, null, tags, null, null };
+    applyInlineM.Invoke(null, args);
+    return (string)args[4];
+}
+
 (bool Changed, string Html) Inject(string html)
 {
-    var args = new object[] { html, null };
-    var changed = (bool)injectM.Invoke(null, args);
-    return (changed, (string)args[1]);
+    var args = new object[] { html, null, tags, null, true, null };
+    var changed = (bool)applyM.Invoke(null, args);
+    return (changed, (string)args[5]);
 }
+
+// What WebInjection.IsFullyInjected meant: both fragments there, once, naming this build —
+// and the coordinator agreeing there is nothing left to do, which is how it decides to pass
+// a page through. The second half alone is not enough: a document with a <head> and no
+// </body> leaves it nothing it CAN do, which is not the same as being injected.
+bool IsFullyInjected(string html) =>
+    !Inject(html).Changed
+    && CountScriptTags(html) == 1
+    && CountHeadScripts(html) == 1
+    && html.Contains($"profiles.js?v={ScriptVersion}", StringComparison.Ordinal);
 
 (bool Changed, string Html) Remove(string html)
 {
@@ -66,7 +98,6 @@ string ScriptVersion = (string)wi.GetProperty("ScriptVersion", Flags).GetValue(n
     return (changed, (string)args[1]);
 }
 
-bool IsFullyInjected(string html) => (bool)fullyM.Invoke(null, new object[] { html });
 bool IsIndexPath(string path, string baseUrl) => (bool)isPathM.Invoke(null, new object[] { path, baseUrl });
 
 int pass = 0, fail = 0;
@@ -159,13 +190,18 @@ Console.WriteLine("── An old head script is replaced, not duplicated ──�
 Console.WriteLine();
 Console.WriteLine("── A tag written by hand is recognised ──────────────────────");
 {
-    // Different quoting and attribute order — the version regex must still find it, or the
-    // dashboard reports "stale" forever and the middleware injects a second copy.
+    // Different quoting and attribute order must still be recognized as ours, or the page gets a
+    // second copy: two scripts, two gates.
+    //
+    // Until 2.0 it was left exactly as written, because WebInjection read the version back and
+    // found it current. The coordinator compares whole tags and rewrites it to its own form:
+    // still one tag in the served page, the file on disk untouched.
     var hand = Clean.Replace("</body>",
         $"<script defer src='/plugins/profiles/profiles.js?v={ScriptVersion}'></script>\n</body>");
     var withHead = Inject(hand).Html;
     Check("only one body tag after injection", CountScriptTags(withHead), 1);
-    Check("hand-written tag was left in place", withHead.Contains("defer src='"), true);
+    Check("and it is this build's tag, in the coordinator's form",
+        withHead.Contains($"<script src=\"/plugins/profiles/profiles.js?v={ScriptVersion}\" defer></script>"), true);
 }
 
 Console.WriteLine();
@@ -185,7 +221,7 @@ Console.WriteLine("── Documents we do not understand are left alone ──�
 Console.WriteLine();
 Console.WriteLine("── Remove puts the document back ────────────────────────────");
 {
-    var injected = Inject(Clean).Html;
+    var injected = InjectInline(Clean);
     var (changed, cleaned) = Remove(injected);
     Check("reports a change", changed, true);
     Check("no body tag left", CountScriptTags(cleaned), 0);
@@ -197,13 +233,11 @@ Console.WriteLine("── Remove puts the document back ────────
     Check("removing twice reports no change", second.Changed, false);
     Check("removing a clean document is a no-op", second.Html, Clean);
 
-    // Clean has no blank lines, which is why this went unnoticed: the tidy-up pass that
-    // used to run after the two removals was unanchored over the whole document, so it
-    // only showed itself on a file that had blank lines to collapse. Jellyfin's real
-    // index.html does. The consequence was not cosmetic — Remove reported a change for a
-    // document it had never patched, and middleware-only mode (the default) took that as
-    // reason to rewrite index.html on its first served page, in the mode whose entire
-    // promise is that the file is never touched.
+    // Clean has no blank lines, which hid this: the tidy-up pass after the two removals was
+    // unanchored over the whole document, so it only showed on a file with blank lines to
+    // collapse (Jellyfin's real index.html has them). Remove then reported a change for a
+    // document it never patched, and middleware-only mode (the default) rewrote index.html on
+    // the first served page, though that mode promises never to touch the file.
     const string Spaced =
         "<html>\n<head>\n\n<title>Jellyfin</title>\n\n</head>\n"
         + "<body>\n\n<div id=\"app\"></div>\n\n<script src=\"main.jellyfin.bundle.js\"></script>\n\n</body>\n</html>";
@@ -212,7 +246,7 @@ Console.WriteLine("── Remove puts the document back ────────
     Check("an unpatched document reports no change", untouched.Changed, false);
     Check("and comes back byte for byte", untouched.Html, Spaced);
 
-    var spacedRound = Remove(Inject(Spaced).Html);
+    var spacedRound = Remove(InjectInline(Spaced));
     Check("a patched document with blank lines still round-trips", spacedRound.Html, Spaced);
     Check("its blank lines are all still there",
         spacedRound.Html.Split("\n\n").Length, Spaced.Split("\n\n").Length);
@@ -220,7 +254,7 @@ Console.WriteLine("── Remove puts the document back ────────
     // CRLF is what a Windows server writes; the round trip has to hold there too.
     var crlf = Spaced.Replace("\n", "\r\n");
     Check("CRLF: unpatched is untouched", Remove(crlf).Html, crlf);
-    Check("CRLF: patched round-trips", Remove(Inject(crlf).Html).Html, crlf);
+    Check("CRLF: patched round-trips", Remove(InjectInline(crlf)).Html, crlf);
 }
 
 Console.WriteLine();
@@ -232,38 +266,19 @@ Console.WriteLine("── IsFullyInjected is strict about the version ───�
     var wrongVersion = injected.Replace($"?v={ScriptVersion}", "?v=0.0.0.1");
     Check("old version is NOT fully injected", IsFullyInjected(wrongVersion), false);
 
-    var noHead = Regex.Replace(injected, @"<script id=""jpf-eh"">[\s\S]*?</script>", string.Empty);
+    var noHead = Regex.Replace(injected, @"<script id=""jpf-eh""[^>]*>[\s\S]*?</script>", string.Empty);
     Check("missing head script is NOT fully injected", IsFullyInjected(noHead), false);
 }
 
 Console.WriteLine();
-Console.WriteLine("── Which mechanism is live ──────────────────────────────────");
+Console.WriteLine("── Only the middleware remains ──────────────────────────────");
 {
-    string Norm(string v) => (string)normM.Invoke(null, new object[] { v });
-    bool Patches(string v) => (bool)patchesM.Invoke(null, new object[] { v });
-    bool Uses(string v) => (bool)usesM.Invoke(null, new object[] { v });
-
-    // The default moved from "both" to "middleware" once the pipeline hook was
-    // confirmed working on hardware. Not writing to index.html is the behaviour
-    // worth defaulting to — that write is the whole reason #17, #11 and #3 exist.
-    Check("null defaults to middleware", Norm(null), "middleware");
-    Check("empty defaults to middleware", Norm(""), "middleware");
-    Check("nonsense defaults to middleware", Norm("harmony"), "middleware");
-    Check("case and padding tolerated", Norm("  MiddleWare "), "middleware");
-    Check("file survives", Norm("file"), "file");
-    Check("both is still selectable", Norm("both"), "both");
-
-    // A configuration written before 1.4.1 has no value at all. It now stops
-    // patching the file and is served from the pipeline instead.
-    Check("upgrade from an older build stops patching", Patches(null), false);
-    Check("both patches", Patches("both"), true);
-    Check("file patches", Patches("file"), true);
-    Check("middleware does NOT patch", Patches("middleware"), false);
-
-    Check("both uses middleware", Uses("both"), true);
-    Check("middleware uses middleware", Uses("middleware"), true);
-    Check("file does NOT use middleware", Uses("file"), false);
-    Check("upgrade from 1.4.0 gets the fallback", Uses(null), true);
+    // The "file" and "both" modes are gone, and with them the choice: nothing in the plugin
+    // can ask for index.html to be written. A server saved in either mode is served by the
+    // middleware like every other, and its old tags are taken out once a page has been served.
+    // (That the configuration has no such property is checked by goldenconfig and
+    // configimport, which load PluginConfiguration; this one has no Jellyfin references.)
+    Check("there is no mode class to choose from", modes == null, true);
 }
 
 Console.WriteLine();
@@ -295,12 +310,10 @@ Console.WriteLine("── What the middleware answers ────────�
 Console.WriteLine();
 Console.WriteLine("-- Which version is running, and which one is waiting (issue #25) --");
 {
-    // "A restart is required" on its own is unfalsifiable from the reader's side. An
-    // administrator who has already restarted — or who pressed Jellyfin's own Restart
-    // button, which on most Docker images does not restart the process — cannot tell a
-    // stale banner from a live one. Two version numbers can be checked against what they
-    // just did. Jellyfin keeps every installed version in its own {Name}_{Version} folder
-    // and loads one of them, so the answer is in the folder names.
+    // "A restart is required" alone cannot be checked by an administrator who already restarted,
+    // or pressed Jellyfin's Restart button, which on most Docker images does not restart the
+    // process. Two version numbers can be checked. Jellyfin keeps each installed version in its
+    // own {Name}_{Version} folder and loads one, so the answer is in the folder names.
     var task = asm.GetType("Jellyfin.Profiles.ProfilesBootstrapTask", true);
     var newestBeside = task.GetMethod("NewestVersionBeside",
         System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic

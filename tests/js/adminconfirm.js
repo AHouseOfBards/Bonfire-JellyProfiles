@@ -2,13 +2,13 @@
  * Every confirmation on the settings page has to reach the action behind it (#44).
  *
  * jellyfin-web's Dashboard.confirm is confirm(message, title, callback) and returns nothing
- * (src/utils/dashboard.js, the same on release-10.11.z and master). The page called it with
- * two arguments and chained .then on the result. The dialog still appeared, because the
- * chain only throws after it is on screen, so Reset PIN looked as though it worked: OK did
- * nothing, and the same went for every other button that asks first.
+ * (src/utils/dashboard.js, same on release-10.11.z and master). The page called it with two
+ * arguments and chained .then on the result. The dialog still appeared, because the chain
+ * only throws once it is on screen, so Reset PIN looked as though it worked: OK did nothing,
+ * and so did every other button that asks first.
  *
  * Runs the page's real helper against a stub that behaves like upstream's, then goes through
- * every call site one at a time.
+ * every call site.
  *
  *   node tests/js/adminconfirm.js [path/to/profilesDashboard.html]
  */
@@ -132,10 +132,16 @@ const settle = () => new Promise(r => setTimeout(r, 5));
     });
 
     const asks = callsOf('askFirst').filter(c => c.args[0] !== 'message');
-    ok('the buttons that ask first still do (at least 3)', asks.length >= 3, asks.length + ' found');
+    ok('the buttons that ask first still do (at least 12)', asks.length >= 12, asks.length + ' found');
     asks.forEach(c => {
         ok('line ' + c.line + ': the action hangs off askFirst', c.after.indexOf('.then') === 0, c.after);
     });
+
+    // R-1237: the Reset PIN question names the profile; the same button sits on main accounts
+    // and profiles, and "this profile" names nobody.
+    const reset = asks.filter(c => c.args[0].indexOf('admin.households.resetConfirm') !== -1);
+    ok('the Reset PIN confirm is asked once', reset.length === 1, reset.length + ' found');
+    ok('and is given the name of whose PIN it clears', reset.length === 1 && /\bname\b/.test(reset[0].args[0]), reset[0] && reset[0].args[0]);
 
     console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
     process.exit(fails.length ? 1 : 0);

@@ -1,16 +1,15 @@
 // How many PIN guesses typing a PIN costs (R-1203).
 //
 // The server counts every PIN check against one allowance per account: five a quarter
-// hour, twenty a day, shared by web, apps and the picker. It has to count a "silent"
-// check too, or that check would be a free way to try PINs. Both PIN boxes — a
-// profile's and the main account's — used to POST verify-pin on every keystroke from the
-// fourth digit, so an eight-digit PIN typed correctly spent four wrong prefixes before
-// the right one, and a single typo then locked it: the activity line, the PinLocked
-// email, and a fifth of the day's guesses, for somebody who knew their PIN.
+// hour, twenty a day, shared by web, apps and the picker. A "silent" check counts too,
+// or it would be a free way to try PINs. Both PIN boxes (a profile's and the main
+// account's) used to POST verify-pin on every keystroke from the fourth digit, so a
+// correct eight-digit PIN spent four wrong prefixes first, and one typo then locked it:
+// the activity line, the PinLocked email, and a fifth of the day's guesses.
 //
-// Runs the real promptPinEntry and promptMasterPinEntry against a stub DOM, types into
-// the box one digit at a time, and counts what was sent. Timers are held, and only run
-// when this file says the typing has paused.
+// Runs the real promptPinEntry and promptMasterPinEntry against a stub DOM, types one
+// digit at a time and counts what was sent. Timers are held until this file says the
+// typing has paused.
 //
 //   node tests/js/pinprefix.js [path/to/profiles.js]
 
@@ -68,8 +67,8 @@ const RIGHT = '24681357';
 
 (async () => {
     for (const box of [
-        { name: 'profile PIN', open: PP => PP.promptPinEntry('kid'), input: 'profile-pin-input', path: 'verify-pin' },
-        { name: 'main PIN', open: PP => PP.promptMasterPinEntry('manage', () => {}), input: 'master-pin-input', path: 'verify-pin' }
+        { name: 'profile PIN', open: PP => PP.promptPinEntry('kid'), input: 'jpf-profile-pin-input', path: 'verify-pin' },
+        { name: 'main PIN', open: PP => PP.promptMasterPinEntry('manage', () => {}), input: 'jpf-master-pin-input', path: 'account/verify-pin' }
     ]) {
         console.log('\n── The ' + box.name + ' box ' + '─'.repeat(Math.max(0, 50 - box.name.length)));
 
@@ -86,7 +85,7 @@ const RIGHT = '24681357';
         ok('and it is the whole PIN, not a prefix',
            sent.length >= 1 && sent.every(p => p.body.pin === RIGHT), sent.map(p => p.body.pin).join(','));
 
-        // 2. Six digits, then a pause: one check. Wrong, and Enter then sends nothing more.
+        // 2. Six digits, then a pause: one check. If wrong, Enter sends nothing more.
         env = setup();
         env.setRespond(() => ({ status: 400, body: 'Incorrect PIN.' }));
         box.open(env.PP);
@@ -102,20 +101,34 @@ const RIGHT = '24681357';
         ok('Enter on the value just refused spends no second guess ('
            + (env.posts.length - before) + ' more requests, ' + env.switches.length + ' switches)',
            env.posts.length === before && env.switches.length === 0);
-        const err = env.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
-        ok('and says it was wrong', !!err && err.style.display === 'block' && /Incorrect/.test(err.textContent),
+        const err = env.content.querySelector(box.input === 'jpf-profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
+        ok('and says it was wrong', !!err && err.style.display === 'block' && /^Wrong (main )?PIN\. Try again\.$/.test(err.textContent),
            err ? err.textContent : 'no error node');
 
         // 3. A 429 stops the box from checking by itself.
         env = setup();
-        env.setRespond(() => ({ status: 429, body: 'Too many tries. Try again in 15 minutes.' }));
+        // The server's sentence is English. The client builds the wait from Retry-After
+        // through t(), so the server's words are not shown.
+        env.setRespond(() => ({ status: 429, headers: { 'Retry-After': '90' }, body: 'Too many tries. Try again in 2 minutes.' }));
         box.open(env.PP);
         input = env.content.querySelector('#' + box.input);
         await type(env, input, '1234');
         await env.pause();
-        const lockErr = env.content.querySelector(box.input === 'profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
-        ok('a 429 shows the server\'s answer', !!lockErr && /Too many tries/.test(lockErr.textContent),
+        const lockErr = env.content.querySelector(box.input === 'jpf-profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
+        ok('a 429 shows the wait built from Retry-After, not the server\'s sentence',
+           !!lockErr && lockErr.textContent === 'Too many wrong PINs. Try again in 2 minutes.',
            lockErr ? lockErr.textContent : '');
+        for (const [secs, want] of [['30', 'in 30 seconds.'], ['1', 'in a moment.'], ['60', 'in a minute.'], [null, 'in a moment.']]) {
+            const e2 = setup();
+            const h = secs === null ? {} : { 'Retry-After': secs };
+            e2.setRespond(() => ({ status: 429, headers: h, body: 'x' }));
+            box.open(e2.PP);
+            const i2 = e2.content.querySelector('#' + box.input);
+            await type(e2, i2, '1234');
+            await e2.pause();
+            const m2 = e2.content.querySelector(box.input === 'jpf-profile-pin-input' ? '#pin-error-msg' : '#master-pin-error-msg');
+            ok('Retry-After ' + secs + ' reads "' + want + '"', !!m2 && m2.textContent.indexOf(want) > 0, m2 ? m2.textContent : '');
+        }
         await type(env, input, '5678');
         await env.pause();
         ok('and the box stops checking by itself (' + env.verifies(box.path).length + ' sent)',
@@ -125,12 +138,12 @@ const RIGHT = '24681357';
         env = setup();
         let opened = false;
         env.setRespond(() => ({ status: 200, body: {} }));
-        if (box.name === 'profile PIN') env.PP.promptPinEntry('kid');
+        if (box.path === 'verify-pin') env.PP.promptPinEntry('kid');
         else env.PP.promptMasterPinEntry('manage', () => { opened = true; });
         input = env.content.querySelector('#' + box.input);
         await type(env, input, '4321');
         await env.pause();
-        if (box.name === 'profile PIN') opened = env.switches.length === 1 && env.switches[0] === '4321';
+        if (box.path === 'verify-pin') opened = env.switches.length === 1 && env.switches[0] === '4321';
         ok('a right PIN still opens once the typing stops', opened);
     }
 

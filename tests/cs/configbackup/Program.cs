@@ -1,13 +1,13 @@
 // configbackup: a configuration file that won't read must not cost every household (R-1127).
 //
-// Jellyfin's BasePlugin.LoadConfiguration, on any exception reading the file, creates a
-// default configuration and SAVES it over the file. Every household, PIN, link and theme
-// went, with no copy kept. A crash mid-write is enough, and so is an enum value the
-// running Jellyfin doesn't know.
+// Jellyfin's BasePlugin.LoadConfiguration, on any exception reading the file, creates a default
+// configuration and SAVES it over the file. Every household, PIN, link and theme went, with no
+// copy kept. A crash mid-write is enough, and so is an enum value the running Jellyfin does
+// not know.
 //
-// Driven through the real Plugin and Jellyfin's real BasePlugin<T>, with a serializer that
-// reads and writes XML the way Jellyfin's does, so the load path that does the damage is
-// Jellyfin's own code, not a model of it.
+// Driven through the real Plugin and Jellyfin's real BasePlugin<T>, with a serializer that reads
+// and writes XML the way Jellyfin's does, so the load path that does the damage is Jellyfin's
+// own code.
 //
 //   dotnet run --project tests/cs/configbackup -c Release
 
@@ -90,30 +90,187 @@ Ok("with no good copy to go back to it starts empty", orphan.Configuration.Mappi
 Ok("but the unreadable file is still kept", Directory.GetFiles(nothing, "*.unreadable-*").Length == 1);
 
 Console.WriteLine();
-Console.WriteLine("── A device record from before owners existed (R-1050) ─────────");
+Console.WriteLine("── The main PIN is required on a new install only (P2-703) ─────");
 
-// What 1.7.3 wrote: a device with a MasterUserId and no Owners element at all.
+var brandNew = NewDir();
+var newServer = new Plugin(new StubPaths(brandNew), new RealXml());
+Ok("a new install requires a main PIN", newServer.Configuration.RequireMainPin);
+
+// RequireMainPin arrived in 1.7.2, so a server that last saved under 1.7.1 has no element.
+var older = NewDir();
+var writer = new Plugin(new StubPaths(older), new RealXml());
+_ = writer.Configuration;
+var olderPath = writer.ConfigurationFilePath;
+writer.Configuration.RequireMainPin = false;
+writer.SaveConfiguration();
+File.Delete(olderPath + ".lastgood");
+var text = File.ReadAllText(olderPath);
+var withoutElement = System.Text.RegularExpressions.Regex.Replace(text, @"\s*<RequireMainPin>[^<]*</RequireMainPin>", "");
+Ok("the older file really has no element", withoutElement != text && !withoutElement.Contains("RequireMainPin"));
+File.WriteAllText(olderPath, withoutElement);
+var upgraded = new Plugin(new StubPaths(older), new RealXml());
+Ok("a server upgrading from a file without the setting stays off", !upgraded.Configuration.RequireMainPin);
+
+var turnedOff = NewDir();
+var admin = new Plugin(new StubPaths(turnedOff), new RealXml());
+admin.Configuration.RequireMainPin = false;
+admin.SaveConfiguration();
+var restarted = new Plugin(new StubPaths(turnedOff), new RealXml());
+Ok("an administrator who turned it off is not overruled at the next start", !restarted.Configuration.RequireMainPin);
+
+// Only the last good copy left: an administrator deleted the file to reset (r2-19-03). That
+// used to read as "being recovered", which skipped the new-install branch, so Bonfire came up
+// on with no main PIN rule and the first save overwrote the copy. Now it is a new install and
+// the copy is moved aside.
+var recovering = NewDir();
+var saver = new Plugin(new StubPaths(recovering), new RealXml());
+saver.Configuration.RequireMainPin = false;
+saver.SaveConfiguration();
+Ok("the good copy exists", File.Exists(saver.ConfigurationFilePath + ".lastgood"));
+File.Delete(saver.ConfigurationFilePath);
+var recovered = new Plugin(new StubPaths(recovering), new RealXml());
+Ok("a missing file with a good copy beside it is a new install: main PIN required",
+   recovered.Configuration.RequireMainPin);
+Ok("and Bonfire starts off", !recovered.Configuration.BonfireOn);
+var asideCopies = Directory.GetFiles(recovering, "*.lastgood-*");
+Ok("the good copy is kept aside as .lastgood-<stamp>, not restored and not overwritten",
+   asideCopies.Length == 1 && File.ReadAllText(asideCopies[0]).Contains("<RequireMainPin>false</RequireMainPin>"),
+   asideCopies.Length + " copies");
+
+// r2-19-04: .unreadable-<stamp> copies are pruned like .bak ones.
+var piled = NewDir();
+var pileInstall = new Plugin(new StubPaths(piled), new RealXml());
+_ = pileInstall.Configuration;
+var pileConfig = pileInstall.ConfigurationFilePath;
+for (var n = 1; n <= 6; n++) File.WriteAllText(pileConfig + ".unreadable-2026010100000" + n, "old " + n);
+File.WriteAllText(pileInstall.ConfigurationFilePath, "<PluginConfiguration><Mappings><Prof");
+var pileAfter = new Plugin(new StubPaths(piled), new RealXml());
+_ = pileAfter.Configuration;
+var pileKept = Directory.GetFiles(piled, "*.unreadable-*");
+Ok("the unreadable copies are pruned to a few (" + pileKept.Length + ")", pileKept.Length == 3,
+   pileKept.Length + " kept");
+Ok("and the newest one, the one just made, is among them",
+   pileKept.Any(f => File.ReadAllText(f).StartsWith("<PluginConfiguration><Mappings><Prof")));
+
+// Jellyfin's LoadConfiguration saves the plain defaults the moment it finds no file, so a value
+// the constructor set only in memory was gone at the next restart.
+var restartedNew = new Plugin(new StubPaths(brandNew), new RealXml());
+Ok("a new install that restarts before anything is saved still requires a main PIN",
+   restartedNew.Configuration.RequireMainPin);
+
+Console.WriteLine();
+Console.WriteLine("── Bonfire is off on a new install only ────────────────────────");
+
+var offDir = NewDir();
+var offServer = new Plugin(new StubPaths(offDir), new RealXml());
+Ok("a new install starts with Bonfire off", !offServer.Configuration.BonfireOn);
+Ok("and everything that stops for the emergency code stops", Plugin.IsOff);
+var offRestart = new Plugin(new StubPaths(offDir), new RealXml());
+Ok("it is still off after a restart with nothing saved", !offRestart.Configuration.BonfireOn);
+Ok("the file says so", File.ReadAllText(offRestart.ConfigurationFilePath).Contains("<BonfireOn>false</BonfireOn>"));
+
+// BonfireOn arrived in 2.0, so a server that last saved under 1.7 has no element.
+var olderOn = NewDir();
+var olderWriter = new Plugin(new StubPaths(olderOn), new RealXml());
+olderWriter.Configuration.BonfireOn = false;
+olderWriter.SaveConfiguration();
+File.Delete(olderWriter.ConfigurationFilePath + ".lastgood");
+var onText = File.ReadAllText(olderWriter.ConfigurationFilePath);
+var noOnElement = System.Text.RegularExpressions.Regex.Replace(onText, @"\s*<BonfireOn>[^<]*</BonfireOn>", "");
+Ok("the older file really has no BonfireOn element", noOnElement != onText && !noOnElement.Contains("BonfireOn"));
+File.WriteAllText(olderWriter.ConfigurationFilePath, noOnElement);
+var upgradedOn = new Plugin(new StubPaths(olderOn), new RealXml());
+Ok("a server upgrading from a file without the setting stays on", upgradedOn.Configuration.BonfireOn);
+Ok("and nothing reads it as off", !Plugin.IsOff);
+
+var adminOff = NewDir();
+var offAdmin = new Plugin(new StubPaths(adminOff), new RealXml());
+offAdmin.Configuration.BonfireOn = true;
+offAdmin.SaveConfiguration();
+Ok("an administrator who turned it on is not overruled at the next start",
+   new Plugin(new StubPaths(adminOff), new RealXml()).Configuration.BonfireOn);
+offAdmin = new Plugin(new StubPaths(adminOff), new RealXml());
+offAdmin.Configuration.BonfireOn = false;
+offAdmin.SaveConfiguration();
+Ok("nor one who turned it off again",
+   !new Plugin(new StubPaths(adminOff), new RealXml()).Configuration.BonfireOn);
+
+var recoveringOn = NewDir();
+var onSaver = new Plugin(new StubPaths(recoveringOn), new RealXml());
+onSaver.Configuration.BonfireOn = true;
+onSaver.SaveConfiguration();
+File.Delete(onSaver.ConfigurationFilePath);
+// r2-19-03: deleting the file is a reset, so it comes back off even with a good copy beside it.
+Ok("a missing file with a good copy beside it comes back off (a new install)",
+   !new Plugin(new StubPaths(recoveringOn), new RealXml()).Configuration.BonfireOn);
+
+Console.WriteLine();
+Console.WriteLine("── A different version starts: the file is copied first (R-1319) ──");
+
+// Rolling the plugin back loads a file written by a newer one, and the first save writes it
+// back without every setting the older version does not know, so re-upgrading finds them gone.
+// The version that last ran is written beside the file; when the running version differs, the
+// file is copied to <file>.<old version>.bak before anything in this start can save. The
+// newest few are kept.
+//
+// The version comes from an internal constructor so this can play several. Against a build
+// without it the public one is used and the version never changes, which is the bug.
+Plugin AtVersion(string folder, string version)
+{
+    var ctor = typeof(Plugin).GetConstructor(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,
+        new[] { typeof(MediaBrowser.Common.Configuration.IApplicationPaths), typeof(MediaBrowser.Model.Serialization.IXmlSerializer), typeof(string) }, null);
+    return ctor != null
+        ? (Plugin)ctor.Invoke(new object[] { new StubPaths(folder), new RealXml(), version })
+        : new Plugin(new StubPaths(folder), new RealXml());
+}
+string[] Backups(string folder) => Directory.GetFiles(folder, "*.bak").Select(Path.GetFileName).OrderBy(n => n).ToArray();
+
+var vdir = NewDir();
+var v18 = AtVersion(vdir, "1.8.0");
+v18.Configuration.Mappings.Add(new ProfileMapping { ProfileUserId = HOUSE, MasterUserId = HOUSE, ProfileName = "Bard" });
+v18.Configuration.Mappings.Add(new ProfileMapping { ProfileUserId = KID, MasterUserId = HOUSE, ProfileName = "kids" });
+v18.Configuration.MaxProfilesPerUser = 9;   // a setting the older version won't have
+v18.SaveConfiguration();
+var vpath = v18.ConfigurationFilePath;
+var as18 = File.ReadAllText(vpath);
+Ok("a first start has nothing to copy", Backups(vdir).Length == 0, string.Join(",", Backups(vdir)));
+
+var again18 = AtVersion(vdir, "1.8.0");
+Ok("the same version starting again copies nothing", Backups(vdir).Length == 0, string.Join(",", Backups(vdir)));
+
+// Rolled back to 1.7.9, which saves a smaller file.
+var v17 = AtVersion(vdir, "1.7.9");
+var bak18 = Backups(vdir).Where(n => n.Contains("1.8.0")).ToArray();
+Ok("rolling back copies the file the newer version wrote, named for it", bak18.Length == 1, string.Join(",", Backups(vdir)));
+Ok("as it was, before anything could save", bak18.Length == 1 && File.ReadAllText(Path.Combine(vdir, bak18[0])) == as18);
+v17.Configuration.Mappings.Clear();
+v17.Configuration.MaxProfilesPerUser = 5;
+v17.SaveConfiguration();
+Ok("the older version's save does lose them from the live file", !File.ReadAllText(vpath).Contains(KID.ToString()));
+Ok("the copy still has the households and the setting",
+   bak18.Length == 1 && File.ReadAllText(Path.Combine(vdir, bak18[0])).Contains(KID.ToString())
+   && new RealXml().DeserializeFromFile(typeof(PluginConfiguration), Path.Combine(vdir, bak18[0])) is PluginConfiguration old && old.MaxProfilesPerUser == 9);
+
+// Upgraded again: the copy of the 1.7.9 file is added, the 1.8.0 one stays.
+AtVersion(vdir, "1.8.0");
+Ok("upgrading again keeps the first copy and adds the other",
+   Backups(vdir).Any(n => n.Contains("1.8.0")) && Backups(vdir).Any(n => n.Contains("1.7.9")), string.Join(",", Backups(vdir)));
+
+// Bounded.
+foreach (var ver in new[] { "1.9.0", "1.9.1", "1.9.2", "1.9.3", "1.9.4" }) AtVersion(vdir, ver);
+Ok("only the newest few copies are kept", Backups(vdir).Length is > 0 and <= 3, Backups(vdir).Length + ": " + string.Join(",", Backups(vdir)));
+Ok("and the newest is the one just made", Backups(vdir).Any(n => n.Contains("1.9.3")), string.Join(",", Backups(vdir)));
+
+// A file from a build that never wrote the version down.
 var legacy = NewDir();
-var legacyHost = new Plugin(new StubPaths(legacy), new RealXml());
-_ = legacyHost.Configuration;
-File.WriteAllText(legacyHost.ConfigurationFilePath,
-    "<?xml version=\"1.0\" encoding=\"utf-8\"?><PluginConfiguration><KnownDevices><KnownDevice>"
-    + "<DeviceId>tv-1</DeviceId><DeviceName>TV</DeviceName><MasterUserId>" + HOUSE + "</MasterUserId>"
-    + "</KnownDevice></KnownDevices></PluginConfiguration>");
-var legacyLoaded = new Plugin(new StubPaths(legacy), new RealXml());
-var legacyRow = legacyLoaded.Configuration.KnownDevices.Single();
-Ok("it loads, with an empty owners list", legacyRow.Owners != null && legacyRow.Owners.Count == 0);
-Ok("and is owned by the household that last used it, and nobody else", legacyRow.OwnedBy(HOUSE) && !legacyRow.OwnedBy(KID));
-Ok("and the list of cross-household entries, new in 1.7.4, is empty rather than missing", legacyLoaded.Configuration.CrossHouseholdEntries != null && legacyLoaded.Configuration.CrossHouseholdEntries.Count == 0);
-legacyLoaded.Configuration.CrossHouseholdEntries.Add(new CrossHouseholdEntry { EnteredBy = HOUSE, ProfileUserId = KID, DeviceId = "tv-1", WithoutPin = true });
-legacyRow.Owners = new System.Collections.Generic.List<Guid> { HOUSE, KID };
-legacyLoaded.SaveConfiguration();
-var roundTrip = new Plugin(new StubPaths(legacy), new RealXml()).Configuration.KnownDevices.Single();
-Ok("owners survive a save and a load", roundTrip.OwnedBy(HOUSE) && roundTrip.OwnedBy(KID) && roundTrip.Owners.Count == 2);
-var entryBack = new Plugin(new StubPaths(legacy), new RealXml()).Configuration.CrossHouseholdEntries.SingleOrDefault();
-Ok("and so does a cross-household entry", entryBack != null && entryBack.EnteredBy == HOUSE && entryBack.ProfileUserId == KID && entryBack.DeviceId == "tv-1" && entryBack.WithoutPin);
+var seed = AtVersion(legacy, "1.0.0");
+seed.Configuration.Mappings.Add(new ProfileMapping { ProfileUserId = HOUSE, MasterUserId = HOUSE, ProfileName = "Bard" });
+seed.SaveConfiguration();
+File.Delete(seed.ConfigurationFilePath + ".version");
+AtVersion(legacy, "2.0.0");
+Ok("a file from before the version was recorded is copied too", Backups(legacy).Length == 1, string.Join(",", Backups(legacy)));
 
-foreach (var d in new[] { dir, fresh, cleared, nothing, legacy }) { try { Directory.Delete(d, true); } catch { } }
+foreach (var d in new[] { dir, fresh, cleared, nothing, vdir, legacy }) { try { Directory.Delete(d, true); } catch { } }
 
 Console.WriteLine();
 Console.WriteLine($"{passed} passed, {failed} failed");

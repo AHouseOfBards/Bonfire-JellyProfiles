@@ -1,19 +1,17 @@
 /*
  * Does the client script actually start up?
  *
- * Written against the defect that shipped in 1.5.2 and 1.5.3-beta: two unescaped
- * backticks inside injectStyles' CSS template literal ended the literal early. The file
- * stayed valid JavaScript — `node --check` passed and the release went out — but at
- * runtime the expression became a tagged template on an undeclared identifier and threw
- * ReferenceError. injectStyles is the third call in init(), so the nine steps after it
- * never ran.
+ * Written against the defect that shipped in 1.5.2 and 1.5.3-beta: two unescaped backticks
+ * inside injectStyles' CSS template literal ended the literal early. The file stayed valid
+ * JavaScript (`node --check` passed), but at runtime the expression became a tagged
+ * template on an undeclared identifier and threw ReferenceError. injectStyles is the third
+ * call in init(), so the nine steps after it never ran.
  *
- * The lesson this file exists to enforce: "does it parse" is not "does it run". Every
- * assertion below executes the shipped code rather than inspecting its text.
+ * "Does it parse" is not "does it run": every assertion here executes the shipped code.
  *
- * init() now wraps each step in _step(), which catches. That is right for production and
- * wrong for a test, so this calls every step DIRECTLY and unwrapped — otherwise the guard
- * we just added would hide the very failure we are checking for.
+ * init() wraps each step in _step(), which catches. That is right for production and wrong
+ * for a test, so this calls every step DIRECTLY, or the guard would hide the failure being
+ * checked.
  *
  *   node tests/js/inject.test.js                 # checks Web/profiles.js
  *   node tests/js/inject.test.js <path>          # or any other checkout, to prove it fails there
@@ -114,9 +112,9 @@ function installDom() {
         setAuthenticationInfo() {},
         getPluginConfiguration: () => Promise.resolve({})
     };
-    // bindEvents() installs the 500ms route poll. Left on the real timers the process
-    // never exits, so the run hangs rather than reporting. Record instead of schedule —
-    // the counts are worth asserting on later (see P3, the tick work).
+    // bindEvents() installs the 500ms route poll. On real timers the process never exits and
+    // the run hangs, so record instead of schedule; the counts are asserted later (see P3,
+    // the tick work).
     global.__timers = { intervals: 0, timeouts: 0 };
     global.setInterval = () => { global.__timers.intervals++; return 0; };
     global.setTimeout = () => { global.__timers.timeouts++; return 0; };
@@ -144,14 +142,14 @@ function loadPlugin(source) {
 
 // ── run ─────────────────────────────────────────────────────────────────────
 //
-// The bundle, exactly as the server sends it: profiles.js with Web/styles.css spliced
-// into BONFIRE_STYLES. This harness EXECUTES the startup path, so it has to run what a
-// browser runs — the file on its own now carries an empty stylesheet by design, and
-// asserting against that would test a script nobody is served.
+// The bundle, exactly as the server sends it: profiles.js with Web/styles.css spliced into
+// BONFIRE_STYLES. This harness executes the startup path, so it runs what a browser runs;
+// the file alone carries an empty stylesheet by design and would test a script nobody is served.
 const source = require('./_lib').readClientBundle(fs.readFileSync(SRC, 'utf8'));
 installDom();
 
 let P = null;
+let sheetText = null;
 try {
     P = loadPlugin(source);
 } catch (e) {
@@ -175,22 +173,28 @@ if (P) {
 
     if (sheet) {
         const css = sheet.textContent || sheet.innerHTML || '';
-        // A floor, and the reason for it has changed. It used to guard against a literal
-        // cut off at the first stray backtick — the defect that shipped 1.5.2 dead — and
-        // 60,000 sat just under the inline sheet's ~68,500. The stylesheet is a real .css
-        // file now and cannot be truncated that way, and de-indenting it out of the
-        // JavaScript took ~25,000 characters of leading whitespace off, so the true size
-        // is ~58,700. What the floor still catches is the splice failing: the marker
-        // edited away, styles.css missing from the build, an empty resource. All of those
-        // leave a sheet of a few hundred characters at most.
+        sheetText = css;
+        // A floor. It once guarded against a literal cut off at a stray backtick (the 1.5.2
+        // defect), with 60,000 just under the inline sheet's ~68,500. The stylesheet is a
+        // real .css file now and cannot be truncated that way; de-indenting it out of the
+        // JavaScript brought it to ~58,700. What the floor still catches is the splice
+        // failing (marker edited away, styles.css missing, an empty resource), which leaves
+        // a sheet of a few hundred characters at most.
         ok(css.length > 40000, 'the stylesheet is a full sheet, not an empty splice',
             'got ' + css.length + ' characters, expected > 40000');
+        // The length floor cannot tell the stylesheet from the themes: the themes alone are
+        // over 40,000 characters and carry the same sentinel selectors, so dropping
+        // BONFIRE_STYLES stayed green. Ask for the file itself.
+        if (source.indexOf('let BONFIRE_STYLES = "') !== -1) {
+            ok(css.indexOf(require('./_lib').stylesOnly()) !== -1,
+                'the sheet contains Web/styles.css whole, not only the themes');
+        }
         ok(sheet.id === 'jpf-styles', 'the style element carries id="jpf-styles"',
             'got id="' + sheet.id + '"');
 
         // Sentinel selectors: a sheet that is long enough but missing the gate would
         // still be broken.
-        ['.profile-card', '.profile-avatar', '.profiles-grid', '#profiles-gate-overlay']
+        ['.jpf-profile-card', '.jpf-profile-avatar', '.profiles-grid', '#profiles-gate-overlay']
             .forEach(sel => ok(css.indexOf(sel) !== -1,
                 'the stylesheet defines ' + sel));
     } else {
@@ -217,12 +221,11 @@ if (P) {
     ok(steps.length >= 10, 'init() routes its startup calls through _step()',
         'found ' + steps.length + ' _step() calls, expected at least 10');
 
-    // Library artwork (issue #19) has never been seen working by anybody, and its two
-    // startup calls were among the nine the 1.5.2 backtick killed — so for two releases
-    // the feature could not have run at all, whatever its own harness said about rule
-    // generation. tests/js/libartest.js calls those functions directly and so cannot
-    // notice if init() stops reaching them; a count of steps would not notice either.
-    // These name them.
+    // Library artwork (issue #19) has never been seen working by anybody, and its two startup
+    // calls were among the nine the 1.5.2 backtick killed, so for two releases it could not
+    // have run whatever its own harness said. tests/js/libartest.js calls those functions
+    // directly and cannot notice if init() stops reaching them; a count of steps would not
+    // either. These name them.
     ['applyCachedLibraryArtwork', 'loadLibraryArtwork'].forEach(name => {
         ok(steps.includes(name),
             'init() still runs ' + name + '() — library artwork reaches the page',
@@ -246,6 +249,71 @@ if (P) {
     // 4. _step must actually contain the guard, or item 3 proves nothing about production.
     ok(/_step:\s*function[\s\S]{0,400}?try\s*\{[\s\S]{0,200}?catch/.test(source),
         '_step() wraps its call in try/catch');
+    // The text above also matches a catch that rethrows, and a try that never calls fn.
+    // Run it: it must call the step, and must swallow what the step throws.
+    {
+        let called = 0, stepErr = null;
+        const realErr = console.error;
+        console.error = function () {};
+        try {
+            P._step('probe', () => { called++; throw new Error('boom'); });
+        } catch (e) { stepErr = e; }
+        console.error = realErr;
+        ok(called === 1, '_step() calls the step it is given', 'called ' + called + ' times');
+        ok(!stepErr, '_step() swallows a throwing step, so one broken step cannot stop the rest',
+            stepErr ? stepErr.message : '');
+    }
+
+    // 6. Run init() itself. The steps above are called one by one, which cannot notice init()
+    //    no longer reaching one, reaching it unwrapped, or stopping early: the step count only
+    //    has to stay >= 10 and the names come from init's own text, so deleting a step deleted
+    //    its test too. Spy on the methods, run init(), and require every step of this list to
+    //    have been called. The list is pinned on purpose: removing a startup step is a
+    //    decision made here. A step added to init() is still covered by item 3.
+    const REQUIRED_STEPS = [
+        'bindEvents', 'applyDeviceClasses', 'restoreCustomThemes', 'applyCachedTheme',
+        'injectStyles', 'loadCustomThemes', '_adoptCover', 'applyCachedLibraryArtwork',
+        'loadLibraryArtwork', 'loadSwitcherPrefs', 'bindPanicShortcut',
+        '_bindOverlayFocusTrap', 'checkPersistedPanic',
+        // reached through _startPageChecks, which init() calls last
+        'checkMaintenance', 'validateSessionState'
+    ];
+    const order = [];
+    // Item 3 already ran the steps by hand, and one started the once-per-load page checks, so
+    // init() would skip them. Put the guard back as a fresh page has it.
+    P._pageChecksStarted = false;
+    // Likewise something in that loop left the plugin in its emergency-disabled state,
+    // which makes init() return before the page checks.
+    P._panicDisabled = false;
+    localStorage.clear();
+    REQUIRED_STEPS.forEach(name => {
+        if (typeof P[name] !== 'function') return;   // reported by item 3 / below
+        const real = P[name];
+        P[name] = function () { order.push(name); return real.apply(this, arguments); };
+    });
+    let initErr = null;
+    const realErr2 = console.error;
+    const stepErrors = [];
+    console.error = function () { stepErrors.push(Array.prototype.join.call(arguments, ' ')); };
+    try { P.init(); } catch (e) { initErr = e; }
+    console.error = realErr2;
+    ok(!initErr, 'init() runs to the end without throwing',
+        initErr ? initErr.name + ': ' + initErr.message : '');
+    REQUIRED_STEPS.forEach(name => {
+        ok(typeof P[name] === 'function' && order.indexOf(name) !== -1,
+            'init() reaches ' + name + '()',
+            'init() called, in order: ' + order.join(', '));
+    });
+    ok(stepErrors.length === 0, 'no startup step fails when init() runs it',
+        stepErrors.join(' | '));
+    // The three orders init()'s own comments say matter.
+    [['applyDeviceClasses', 'injectStyles'],
+     ['restoreCustomThemes', 'applyCachedTheme'],
+     ['injectStyles', 'validateSessionState']].forEach(pair => {
+        const a = order.indexOf(pair[0]), b = order.indexOf(pair[1]);
+        ok(a !== -1 && b !== -1 && a < b, 'init() runs ' + pair[0] + '() before ' + pair[1] + '()',
+            'order: ' + order.join(', '));
+    });
 }
 
 // 5. No stray backtick can hide in the stylesheet literal again.
@@ -263,6 +331,67 @@ if (at !== -1) {
     }
 }
 
+// 5b. What a stray character in Web/styles.css can still break.
+//
+// Assertion 5 is dead code since the stylesheet left the script: PublishStyles splices it
+// in as a JSON string, so no CSS character can end a JavaScript literal, and the
+// `injectStyles: function` / backtick search finds nothing. What is left is CSS's own
+// grammar, which fails silently in the browser: an unterminated /* comment, an
+// unterminated string, or one unbalanced brace makes the parser swallow everything after
+// it. The sheet injected is styles.css + '\n' + the themes' CSS, so that means the themes
+// (every screen's colors) and every rule below the defect. Nothing throws or logs, and
+// injectStyles() reports success.
+function cssDefects(css) {
+    const out = [];
+    const stack = [];
+    let line = 1;
+    for (let i = 0; i < css.length; i++) {
+        const c = css[i];
+        if (c === '\n') line++;
+        if (c === '/' && css[i + 1] === '*') {
+            const end = css.indexOf('*/', i + 2);
+            if (end === -1) { out.push('unterminated comment opened on line ' + line); return out; }
+            for (let k = i; k < end; k++) if (css[k] === '\n') line++;
+            i = end + 1;
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            let j = i + 1;
+            while (j < css.length && css[j] !== c && css[j] !== '\n') j += css[j] === '\\' ? 2 : 1;
+            if (css[j] !== c) { out.push('unterminated string opened on line ' + line); return out; }
+            i = j;
+            continue;
+        }
+        if (c === '{' || c === '(' || c === '[') stack.push({ c: c, line: line });
+        else if (c === '}' || c === ')' || c === ']') {
+            const want = c === '}' ? '{' : c === ')' ? '(' : '[';
+            const top = stack.pop();
+            if (!top || top.c !== want) { out.push('stray ' + c + ' on line ' + line); return out; }
+        }
+    }
+    if (stack.length) out.push('unclosed ' + stack[stack.length - 1].c + ' opened on line ' + stack[stack.length - 1].line);
+    return out;
+}
+{
+    const L = require('./_lib');
+    // The detector has to be able to go red, or the checks below are decoration.
+    ok(cssDefects('a { b: c; /* open').length === 1, 'cssDefects sees an unterminated comment');
+    ok(cssDefects('a { b: "c; }').length === 1, 'cssDefects sees an unterminated string');
+    ok(cssDefects('a { b: c; }}').length === 1, 'cssDefects sees a stray close brace');
+    ok(cssDefects('a { b: c; ').length === 1, 'cssDefects sees an unclosed brace');
+    ok(cssDefects('a { content: "}{/*"; } /* } */ b[x="y"] { c: d(e) }').length === 0,
+        'cssDefects leaves braces inside strings and comments alone');
+
+    const own = cssDefects(L.stylesOnly());
+    ok(own.length === 0, 'Web/styles.css has no unterminated comment or string and balanced braces',
+        own.join('; ') + ' - everything after it, themes included, is swallowed by the browser');
+    if (typeof sheetText === 'string') {
+        const whole = cssDefects(sheetText);
+        ok(whole.length === 0, 'the sheet injectStyles writes (styles.css + themes) is well formed',
+            whole.join('; '));
+    }
+}
+
 // ── report ──────────────────────────────────────────────────────────────────
 const total = passed + failures.length;
 console.log('inject.test.js  ' + path.relative(process.cwd(), SRC));
@@ -273,4 +402,4 @@ if (failures.length) {
     console.log('');
     process.exit(1);
 }
-console.log('  OK');
+console.log('  ' + passed + ' passed, 0 failed');

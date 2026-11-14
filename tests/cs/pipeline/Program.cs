@@ -13,20 +13,26 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Model.Configuration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// Drives ProfilesIndexMiddleware through a real ASP.NET request, which nothing has ever
-// done outside a live server. This is the path that produces /web/index.html for every
-// user of the plugin: if it writes the wrong thing, nobody's Jellyfin loads at all.
+// Drives ProfilesIndexMiddleware through a real ASP.NET request. This is the path that
+// produces /web/index.html for every user: if it writes the wrong thing, Jellyfin does not load.
 //
-// From 1.4.4 the middleware buffers the downstream response instead of answering the
-// request itself, so that jellyfin-plugin-file-transformation — which swaps the static
-// file providers underneath us — still gets to produce the document we then edit. Most of
-// what follows is about that: the capture has to survive SendFileAsync, a PipeWriter, and
-// another plugin's markup, and it has to hand back anything it cannot transform exactly
-// as it arrived.
+// From 1.4.4 the middleware buffers the downstream response instead of answering itself, so
+// jellyfin-plugin-file-transformation (which swaps the static file providers underneath us)
+// still produces the document we edit. The capture has to survive SendFileAsync, a PipeWriter
+// and another plugin's markup, and hand back anything it cannot transform exactly as it came.
+//
+// From 2.0 the Campground coordinator (Campground.Shared) edits the document from inside
+// ProfilesIndexMiddleware. So Run() constructs neither middleware: it asks the plugin's
+// PluginServiceRegistrator what to register and composes the startup filters as ASP.NET's
+// GenericWebHostService does (last registered innermost).
 
 int pass = 0;
 var fails = new List<string>();
@@ -71,9 +77,42 @@ var indexFile = Path.Combine(tempDir, "index.html");
 await File.WriteAllTextAsync(indexFile, PlainIndex);
 
 // ── Harness ────────────────────────────────────────────────────────────────
+// What Jellyfin's host would have: the plugin's registrations plus the services the
+// middlewares take per request. The user-list injection takes the user, device, session and
+// network managers; the index path never touches them, and the proxies throw on any call,
+// so a change in that shows up here.
+var services = new ServiceCollection();
+new PluginServiceRegistrator().RegisterServices(services, appHost);
+services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+services.AddSingleton(serverConfig);
+services.AddSingleton(userManager);
+services.AddSingleton(deviceManager);
+services.AddSingleton(sessionManager);
+services.AddSingleton(networkManager);
+services.AddSingleton(appHost);
+var provider = services.BuildServiceProvider();
+var startupFilters = provider.GetServices<IStartupFilter>().ToList();
+
+// GenericWebHostService: foreach (var filter in StartupFilters.Reverse()) configure =
+// filter.Configure(configure). The first filter registered ends up outermost.
+RequestDelegate Pipeline(RequestDelegate downstream)
+{
+    var app = new ApplicationBuilder(provider);
+    Action<IApplicationBuilder> configure = a => a.Run(downstream);
+    foreach (var filter in Enumerable.Reverse(startupFilters))
+    {
+        configure = filter.Configure(configure);
+    }
+
+    configure(app);
+    return app.Build();
+}
+
 async Task<Result> Run(string path, RequestDelegate downstream, Action<HttpContext> arrange = null)
 {
     var context = new DefaultHttpContext();
+    context.RequestServices = provider;
     context.Request.Method = "GET";
     context.Request.Path = path;
     arrange?.Invoke(context);
@@ -88,27 +127,13 @@ async Task<Result> Run(string path, RequestDelegate downstream, Action<HttpConte
         seen.IfNoneMatch = ctx.Request.Headers.ContainsKey("If-None-Match");
         seen.Range = ctx.Request.Headers.ContainsKey("Range");
         seen.Called = true;
+        seen.Calls++;
         return downstream(ctx);
     };
 
-    var middleware = new ProfilesIndexMiddleware(next, NullLogger<ProfilesIndexMiddleware>.Instance);
-    // The user-list injection takes these; the index path this file exercises never
-    // touches them, and both proxies throw on any call — so if that ever stops being true,
-    // these tests say so loudly instead of quietly exercising a different path.
-    //
-    // Arguments are matched to Invoke's parameters by type, so the harness builds against
-    // an older middleware (which does not take IServerApplicationHost) as well as this one.
-    var invokeArgs = typeof(ProfilesIndexMiddleware).GetMethod("Invoke").GetParameters()
-        .Select(p => p.ParameterType == typeof(HttpContext) ? (object)context
-            : p.ParameterType == typeof(IServerConfigurationManager) ? serverConfig
-            : p.ParameterType == typeof(IUserManager) ? userManager
-            : p.ParameterType == typeof(IDeviceManager) ? deviceManager
-            : p.ParameterType == typeof(MediaBrowser.Controller.Session.ISessionManager) ? sessionManager
-            : p.ParameterType == typeof(MediaBrowser.Common.Net.INetworkManager) ? networkManager
-            : p.ParameterType == typeof(MediaBrowser.Controller.IServerApplicationHost) ? appHost
-            : throw new InvalidOperationException("Invoke takes " + p.ParameterType.Name))
-        .ToArray();
-    await (Task)typeof(ProfilesIndexMiddleware).GetMethod("Invoke").Invoke(middleware, invokeArgs);
+    // Invoke's parameters are resolved from RequestServices by type, as in the server, so
+    // this builds against an older middleware with a different Invoke as well as this one.
+    await Pipeline(next)(context);
 
     return new Result
     {
@@ -232,6 +257,61 @@ Check("and its head script is not duplicated either",
     Count(already.Body, "id=\"jpf-eh\"") == 1);
 
 Console.WriteLine();
+Console.WriteLine("── One coordinator for every Campground plugin ─────────────────");
+
+// Bonfire's middleware must stay outermost: the sign-in gates, the proxy switcher and the
+// user-list edits run there, ahead of everything, and the coordinator buffers the document
+// from inside it. Named by type, because a count would pass with the two the wrong way round.
+var filterNames = startupFilters.Select(f => f.GetType().Name).ToList();
+Check("Bonfire's startup filter is registered first (outermost), got " + string.Join(", ", filterNames),
+    filterNames.Count > 0 && filterNames[0] == "ProfilesStartupFilter");
+Check("and the Campground coordinator's comes after it",
+    filterNames.IndexOf("CampgroundStartupFilter") > 0);
+
+// The browser runtime goes in once, ahead of Bonfire's head script.
+Check("the Campground runtime arrives once", Count(sent.Body, "id=\"campground-runtime\"") == 1);
+// 0.10.0 serves it as a file, so a Content-Security-Policy of script-src 'self' does not drop it,
+// and Bonfire's theme head snippet the same.
+Check("as a file, /Campground/runtime.js, not inline code",
+    Count(sent.Body, "/Campground/runtime.js?v=") == 1 && sent.Body.IndexOf("window.Campground", StringComparison.Ordinal) < 0);
+Check("and Bonfire's theme head snippet arrives as a file too, once",
+    Count(sent.Body, "/Campground/head/jpf-eh.js?v=") == 1);
+Check("ahead of Bonfire's head script",
+    sent.Body.IndexOf("id=\"campground-runtime\"", StringComparison.Ordinal) >= 0
+    && sent.Body.IndexOf("id=\"campground-runtime\"", StringComparison.Ordinal)
+        < sent.Body.IndexOf("id=\"jpf-eh\"", StringComparison.Ordinal));
+Check("the runtime is not added a second time either", Count(already.Body, "id=\"campground-runtime\"") == 1);
+
+// Another plugin's script arrives in the same pass. Registered through the coordinator the
+// way that plugin's own registrator would, then taken back out so the counts below hold.
+var asmP = typeof(ProfilesIndexMiddleware).Assembly;
+var coordinator = asmP.GetType("Campground.Shared.Injection.InjectionCoordinator");
+var regType = asmP.GetType("Campground.Shared.Injection.ScriptRegistration");
+Check("the coordinator is compiled into the plugin", coordinator != null && regType != null);
+if (coordinator != null && regType != null)
+{
+    var otherPlugin = Activator.CreateInstance(regType, "gametent", "/plugins/gametent/gametent.js", "3.1.0", 200, null, null);
+    const BindingFlags CoordFlags = BindingFlags.Static | BindingFlags.NonPublic;
+    coordinator.GetMethod("Register", CoordFlags).Invoke(null, new[] { otherPlugin });
+    try
+    {
+        var shared = await Run("/web/index.html", WriteBody(PlainIndex));
+        Check("a second plugin's script is added in the same pass",
+            Count(shared.Body, "/plugins/gametent/gametent.js?v=3.1.0") == 1);
+        Check("beside Bonfire's, once each",
+            Count(shared.Body, "/plugins/profiles/profiles.js") == 1 && Count(shared.Body, "id=\"jpf-eh\"") == 1);
+        Check("in order: Bonfire (100) before it (200)",
+            shared.Body.IndexOf("/plugins/profiles/profiles.js", StringComparison.Ordinal)
+            < shared.Body.IndexOf("/plugins/gametent/gametent.js", StringComparison.Ordinal));
+        Check("and the document was asked for once", shared.Seen.Calls == 1);
+    }
+    finally
+    {
+        coordinator.GetMethod("Unregister", CoordFlags).Invoke(null, new object[] { "gametent" });
+    }
+}
+
+Console.WriteLine();
 Console.WriteLine("── Content negotiation is suspended, then restored ─────────────");
 
 var negotiated = await Run("/web/index.html", SendFile(indexFile), ctx =>
@@ -295,14 +375,10 @@ Check("passing an already-injected page through clears it too", LastError() == n
 Console.WriteLine();
 Console.WriteLine("── Which requests this middleware answers itself ──────────────");
 
-// The middleware now intercepts three paths besides the index document, and each is
-// matched by a private predicate. Those predicates had no coverage at all while the
-// functions on either side of them had eighty-odd assertions between them — which is the
-// shape of every defect this project has shipped: the code that DECIDES whether a feature
-// runs is the code nobody tests.
-//
-// Driven by reflection because they are private, and with a real DefaultHttpContext so
-// the path and method are read the way a request presents them.
+// The middleware intercepts three paths besides the index document, each matched by a
+// private predicate. These had no coverage while the functions around them had eighty-odd
+// assertions: the code that decides whether a feature runs is the code nobody tests.
+// Driven by reflection (they are private) with a real DefaultHttpContext.
 var mwType = typeof(ProfilesIndexMiddleware);
 const System.Reflection.BindingFlags Priv =
     System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
@@ -336,11 +412,10 @@ Check("and not a path that merely starts the same way",
 Check("and not another verb entirely",
       !Ask("IsQuickConnectInitiatePath", "DELETE", "/QuickConnect/Initiate"));
 
-// The device id is captured for the provider to read during authentication, and ONLY on
-// user routes. The first version captured on every request, which put a quote-aware
-// character scan with a UrlDecode in front of every video segment and image on the server.
-// Too narrow is worse than too wide here: a missed capture makes the provider see no
-// device and refuse a PIN-less profile, silently.
+// The device id is captured for the provider to read during authentication, and only on
+// user routes. The first version captured on every request, which put a UrlDecode scan in
+// front of every video segment and image. Too narrow is worse: a missed capture makes the
+// provider see no device and refuse a PIN-less profile, silently.
 Check("the capture predicate exists", mwType.GetMethod("IsUserRoute", Priv) != null);
 
 Check("POST /Users/AuthenticateByName is captured for",
@@ -362,10 +437,8 @@ Check("an audio stream is not", !Ask("IsUserRoute", "GET", "/Audio/8e3cdfa5/univ
 Check("and the plugin's own script is not",
       !Ask("IsUserRoute", "GET", "/plugins/profiles/profiles.js"));
 
-// The own-user responses are gated on the setting, and with no plugin configured at all
-// there is nothing to rename — so every answer here must be false. That is worth pinning
-// on its own: a predicate that said yes with no configuration would buffer every
-// /Users/Me on the server for nothing.
+// The own-user responses are gated on the setting, and with no plugin configured every
+// answer must be false. A predicate that said yes would buffer every /Users/Me for nothing.
 Check("with no configuration, /Users/Me is not ours",
       !Ask("IsOwnUserPath", "GET", "/Users/Me"));
 Check("nor is the authentication endpoint",
@@ -374,31 +447,24 @@ Check("nor is the authentication endpoint",
 Console.WriteLine();
 Console.WriteLine("── The emergency disable reaches all of it ────────────────────");
 
-// Panic exists to recover a server the plugin has made unusable, and it used to have one
-// job: serve an inert client script, so the switcher disappears on the next page load.
-//
-// That was enough while everything Bonfire did happened in its own script. It is not
-// enough now: the plugin edits Jellyfin's OWN responses — the sign-in user list, the two
-// responses naming the signed-in account, and Quick Connect. If one of those is the thing
-// misbehaving, an inert script recovers nothing, and the switch an administrator reaches
-// for in an emergency would not turn it off.
+// Panic used to do one thing: serve an inert client script, so the switcher disappears on
+// the next page load. That is not enough now that the plugin edits Jellyfin's own responses
+// (the sign-in user list, the two responses naming the signed-in account, Quick Connect).
+// If one of those misbehaves, an inert script recovers nothing.
 var panicField = typeof(Plugin).GetField("_panicDisabled",
     System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
 Check("the panic flag is reachable", panicField != null);
 
 if (panicField != null)
 {
-    // Set directly rather than through TripPanicDisable, which by design has no way back —
-    // "there is no code path that clears it". A harness is not a code path, but it does
-    // have to leave the process as it found it.
+    // Set directly, not through TripPanicDisable, which has no way back. The harness has to
+    // leave the process as it found it.
     panicField.SetValue(null, true);
     try
     {
-        // Only Quick Connect is asserted here. The other two predicates also require
-        // EnableClientProfileList, and this harness has no plugin instance to switch it on
-        // with — so they read false whether panic works or not, which is an assertion that
-        // cannot fail. They live in tests/cs/publicusers, where the setting can be true and
-        // panic is the only thing left making the difference.
+        // Only Quick Connect is asserted here. The other two predicates also need
+        // EnableClientProfileList, which this harness cannot switch on, so they read false either
+        // way. They live in tests/cs/publicusers, where panic is the only thing left deciding.
         Check("panic stops refusing Quick Connect",
               !Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/Initiate"));
     }
@@ -418,11 +484,34 @@ var servedProp = typeof(ProfilesIndexMiddleware)
     .GetProperty("ServedCountValue", System.Reflection.BindingFlags.Static
         | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
 var served = (long)servedProp.GetValue(null);
-// Five documents were actually rewritten above: SendFile, Response.Body, PipeWriter, the
-// file-transformation one, and the conditional request. The 404, the JSON, the encoded
-// body, the 304, the already-injected document, /web/main.js and the POST must not count
-// — the dashboard reports this number as "pages served".
-Check("served count is one per document actually rewritten (got " + served + ")", served == 6);
+// Seven documents were rewritten above: SendFile, Response.Body, PipeWriter, the
+// file-transformation one, the one with a second plugin's script, the conditional request,
+// and the success that clears the last error. The 404, the JSON, the encoded body, the 304,
+// the already-injected documents, the two that cannot be injected into, /web/main.js and the
+// POST must not count: the dashboard shows this as "pages served", read through its own property.
+Check("served count is one per document actually rewritten (got " + served + ")", served == 7);
+
+// ni-S-B1: with Bonfire off nothing of Bonfire's goes into index.html; on, it does. (The
+// emergency flag stands in for the setting: both reach every reader through Plugin.IsOff.)
+if (panicField != null)
+{
+    panicField.SetValue(null, true);
+    try
+    {
+        var offPage = await Run("/web/index.html", SendFile(indexFile));
+        Check("off: no Bonfire script tag in index.html", !offPage.Body.Contains("/plugins/profiles/profiles.js"));
+        Check("off: no Bonfire head script either", !offPage.Body.Contains("jpf-eh"));
+        Check("off: the page itself is still served", offPage.Body.Contains("<div id=\"app\">"));
+    }
+    finally
+    {
+        panicField.SetValue(null, false);
+    }
+
+    var onPage = await Run("/web/index.html", SendFile(indexFile));
+    Check("on again: the script tag is back", onPage.Body.Contains("/plugins/profiles/profiles.js"));
+    Check("on again: and the head script", onPage.Body.Contains("jpf-eh"));
+}
 
 Console.WriteLine();
 Console.WriteLine("── A Base URL (R-1093) ─────────────────────────────────────────");
@@ -465,10 +554,10 @@ static string ScriptVersionNow() =>
 Console.WriteLine();
 Console.WriteLine("── HTTPS required (R-1094) ─────────────────────────────────────");
 
-// Jellyfin redirects to HTTPS only when RequireHttps is set AND it is itself listening with
+// Jellyfin redirects to HTTPS only when RequireHttps is set and it is itself listening with
 // HTTPS (Startup.cs: config.RequireHttps && ListenWithHttps). This middleware runs before
-// forwarded headers are applied, so behind a TLS-terminating proxy IsHttps is false on
-// every request; stepping aside on RequireHttps alone meant nothing was ever injected.
+// forwarded headers are applied, so behind a TLS-terminating proxy IsHttps is false; stepping
+// aside on RequireHttps alone meant nothing was ever injected.
 networkConfig.BaseUrl = "";
 networkConfig.RequireHttps = true;
 
@@ -530,6 +619,71 @@ Check("/Users/Me: Jellyfin's body reaches the client",
     await RunPrivate("RewriteOwnNameAsync", "/Users/Me", "GET", Started(UserJson, "application/json")) == UserJson);
 Check("AuthenticateByName: Jellyfin's body reaches the client",
     await RunPrivate("RewriteOwnNameAsync", "/Users/AuthenticateByName", "POST", Started(UserJson, "application/json")) == UserJson);
+Check("QuickConnect/Initiate: Jellyfin's body reaches the client",
+    await RunPrivate("RememberQuickConnectAsync", "/QuickConnect/Initiate", "POST", Started(UserJson, "application/json")) == UserJson);
+
+Console.WriteLine();
+Console.WriteLine("── The on-disk cleanup waits for a page that was served (R-1101) ──");
+
+// The old tags come out of index.html once the middleware is known to work. That used to
+// be on the first index request, before it was answered: a request that then failed left
+// neither the file nor the middleware supplying the script.
+var cleanedFlag = typeof(ProfilesBootstrapTask).GetField("_cleanedForMiddleware",
+    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+Check("the cleanup's one-shot flag is where this harness looks", cleanedFlag != null);
+if (cleanedFlag != null)
+{
+    cleanedFlag.SetValue(null, 0);
+    await Run("/web/index.html", async ctx => { ctx.Response.StatusCode = 500; await ctx.Response.WriteAsync("broken"); });
+    Check("a failed index request does not trigger it", (int)cleanedFlag.GetValue(null) == 0);
+    await Run("/web/index.html", WriteBody(PlainIndex));
+    Check("a served one does", (int)cleanedFlag.GetValue(null) == 1);
+}
+
+Console.WriteLine();
+Console.WriteLine("── The sign-in capture runs only for requests that can sign somebody in ──");
+
+// RequestDevice is read by the authentication provider and the session listener, never on a
+// GET. Capture costs an address check, two header parses and three AsyncLocal sets, and a
+// client makes tens of /Users GETs a page, so a read must not pay it. Every POST under
+// /Users still does: AuthenticateByName, {id}/Authenticate and the password change.
+async Task<(string Device, string Client, bool HasNote)> Captured(string verb, string path)
+{
+    Jellyfin.Profiles.Auth.RequestDevice.Capture(null, null, false);
+    (string, string, bool) seenInside = (null, null, false);
+    await Run(path, ctx =>
+    {
+        seenInside = (Jellyfin.Profiles.Auth.RequestDevice.Current,
+            Jellyfin.Profiles.Auth.RequestDevice.Client,
+            Jellyfin.Profiles.Auth.RequestDevice.SignIn != null);
+        ctx.Response.StatusCode = 200;
+        return Task.CompletedTask;
+    }, c =>
+    {
+        c.Request.Method = verb;
+        c.Request.Headers["Authorization"] =
+            "MediaBrowser Client=\"Jellyfin Web\", Device=\"Chrome\", DeviceId=\"dev-123\", Version=\"10.11.0\"";
+    });
+    return seenInside;
+}
+
+foreach (var read in new[] { "/Users/11111111111111111111111111111111/Items", "/Users/Me", "/Users/Public" })
+{
+    var got = await Captured("GET", read);
+    Check("GET " + read + " does not capture the device", got.Device == null && got.Client == null);
+    Check("GET " + read + " does not start a sign-in note", !got.HasNote);
+}
+
+foreach (var signIn in new[] { "/Users/AuthenticateByName", "/Users/11111111111111111111111111111111/Authenticate",
+    "/Users/11111111111111111111111111111111/Password", "/users/authenticatebyname" })
+{
+    var got = await Captured("POST", signIn);
+    Check("POST " + signIn + " captures the device and the app", got.Device == "dev-123" && got.Client == "Jellyfin Web");
+    Check("POST " + signIn + " starts a sign-in note", got.HasNote);
+}
+
+var postElsewhere = await Captured("POST", "/Sessions/Playing/Progress");
+Check("a POST outside /Users does not capture", postElsewhere.Device == null && !postElsewhere.HasNote);
 
 try { Directory.Delete(tempDir, true); } catch { /* best effort */ }
 
@@ -549,6 +703,7 @@ static int Count(string haystack, string needle)
 sealed class SeenHeaders
 {
     public bool Called;
+    public int Calls;
     public bool AcceptEncoding;
     public bool IfNoneMatch;
     public bool Range;
@@ -566,12 +721,11 @@ sealed class Result
     public SeenHeaders Seen;
 }
 
-// Both interfaces gain and lose members between Jellyfin patch releases, and the harness
-// has no interest in any of them. A proxy answers the one call the middleware actually
-// makes and throws on everything else. The middleware no longer takes IApplicationPaths
-// at all, which is the strongest possible form of "it does not read index.html off disk".
-// IServerApplicationHost, answering only ListenWithHttps: true when Jellyfin has a
-// certificate and HTTPS enabled, which is the only time its HTTPS redirect is in the pipeline.
+// Both interfaces gain and lose members between Jellyfin patch releases. A proxy answers the
+// one call the middleware makes and throws on everything else. The middleware no longer takes
+// IApplicationPaths, so it cannot read index.html off disk.
+// IServerApplicationHost answers only ListenWithHttps: true when Jellyfin has a certificate
+// and HTTPS enabled, the only time its HTTPS redirect is in the pipeline.
 public class AppHostProxy : DispatchProxy
 {
     public static bool ListenWithHttps;

@@ -2,11 +2,10 @@
  * Survey tool, not a harness: enumerate every CSS feature in the injected stylesheet
  * that is newer than the TV baseline, and say which rule each one is in.
  *
- * The plan asserted "27 flex containers relying on gap". `gap:` appears 68 times in
- * the file, and the distinction matters in both directions: flexbox gap needs
- * Chrome 84, but grid gap has worked since Chrome 66, so adding margin fallbacks to
- * a grid container would double its spacing on every modern browser while fixing
- * nothing on a TV. Enumerate and classify; do not count occurrences.
+ * The plan asserted "27 flex containers relying on gap", but `gap:` appears 68 times in the
+ * file. Flexbox gap needs Chrome 84 while grid gap works from Chrome 66, so margin fallbacks
+ * on a grid container would double its spacing on modern browsers and fix nothing on a TV.
+ * Enumerate and classify; do not count occurrences.
  *
  * Run:  node tests/js/cssbaseline.scan.js [path/to/profiles.js]
  */
@@ -16,13 +15,12 @@ const lib = require('./_lib.js');
 
 const css = lib.extractCss(lib.readProfiles());
 
-/* Blank comments out, keeping every newline so reported line numbers stay true.
- * Without this a rule's "selector" is whatever comment happened to precede it, and
- * three rules came back unclassifiable for that reason alone. */
+/* Blank comments out, keeping every newline so line numbers stay true. Otherwise a rule's
+ * "selector" is whatever comment preceded it (three rules came back unclassifiable). */
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
 
-/* Split into rule blocks. Nested at-rules (@media, @supports) are kept as context so
- * a declaration guarded by @supports can be told apart from an unguarded one. */
+/* Split into rule blocks. Nested at-rules (@media, @supports) are kept as context so a
+ * declaration guarded by @supports can be told from an unguarded one. */
 function blocks(text) {
     const out = [];
     const stack = [];
@@ -76,9 +74,9 @@ function lineOf(index) {
 
 const gapRules = rules.filter(r => /(^|[;\s])(gap|row-gap|column-gap)\s*:/.test(r.body));
 
-/* A rule may set gap without setting display -- the display can live on the same
- * selector in another rule, or be inherited from the element's role. Resolve by
- * looking at every rule sharing the selector. */
+/* A rule may set gap without display: the display can live on the same selector in another
+ * rule, or come from the element's role. Resolve by looking at every rule sharing the
+ * selector. */
 const displayBySelector = new Map();
 for (const r of rules) {
     const m = r.body.match(/(^|[;\s])display\s*:\s*(inline-)?(flex|grid)/);
@@ -102,11 +100,10 @@ for (const r of gapRules) {
         }
         if (modes.size === 1) mode = [...modes][0];
     }
-    /* `display:none` in the base rule with a state rule flipping it on --
-     * `.picture-sources { display:none; flex-direction:column; gap:... }` plus
-     * `.picture-sources.is-open { display:flex }`. Both of these are flex
-     * containers that lay out with gap; missing them would leave two panels with
-     * no spacing on a TV and nothing to show for the scan. */
+    /* `display:none` in the base rule with a state rule flipping it on, as in
+     * `.jpf-picture-sources { display:none; flex-direction:column; gap:... }` plus
+     * `.jpf-picture-sources.is-open { display:flex }`. Both are flex containers that lay
+     * out with gap; missing them would leave two panels unspaced on a TV. */
     if (!mode && /display\s*:\s*none/.test(r.body)) {
         for (const sel of r.selector.split(',').map(s => s.trim())) {
             for (const [other, m] of displayBySelector) {
@@ -138,13 +135,11 @@ report('UNRESOLVED -- display not found; classify by hand', unknown);
 
 /* Matched as whole tokens, and never inside an at-rule prelude.
  *
- * Substring matching gave two false findings on the first run and both looked real:
- * `max(` matched inside `minmax(` (grid, Chrome 57), and `color-mix(` matched the
- * text of the very `@supports (color: color-mix(...))` line that guards the eight
- * real uses -- reporting the guard as the thing needing a guard. This is the same
- * bug the selector ledger had twice, where `.navMenu` "verified" against
- * `navMenuOption`. A function name must be preceded by a non-identifier character;
- * a property must sit at the start of a declaration.
+ * Substring matching gave two false findings on the first run: `max(` matched inside
+ * `minmax(` (grid, Chrome 57), and `color-mix(` matched the `@supports (color: color-mix(...))`
+ * line that guards the eight real uses. The selector ledger had the same bug twice
+ * (`.navMenu` "verified" against `navMenuOption`). A function name must be preceded by a
+ * non-identifier character; a property must sit at the start of a declaration.
  */
 const FEATURES = [
     { name: 'clamp()', since: 79, re: /(^|[^\w-])clamp\s*\(/g },
@@ -158,8 +153,8 @@ const FEATURES = [
     { name: 'position:sticky', since: 56, re: /position\s*:\s*sticky/g },
 ];
 
-/* Offsets covered by an at-rule prelude -- the text between `@` and its `{`. A
- * feature named there is being tested for, not used. */
+/* Offsets covered by an at-rule prelude (the text between `@` and its `{`). A feature named
+ * there is being tested for, not used. */
 const preludes = [];
 for (const m of bare.matchAll(/@(?:media|supports)[^{]*\{/g)) {
     preludes.push([m.index, m.index + m[0].length]);
@@ -193,11 +188,11 @@ for (const f of FEATURES) {
 console.log('\n\nflex containers, with what a margin fallback would need');
 const detail = [];
 for (const r of rules) {
-    // Allow leading whitespace before the property. Requiring `;` or `{` skipped any
-    // declaration sitting first in a body, which silently lost both media-query gap
-    // overrides -- and one of those also flips flex-direction, so the fallback margin
-    // has to change axis there. The classification pass above already allowed \s;
-    // the two matchers disagreeing is what showed 34 in one place and 32 in the other.
+    // Allow leading whitespace before the property. Requiring `;` or `{` skipped a
+    // declaration sitting first in a body, which lost both media-query gap overrides (one also
+    // flips flex-direction, so the fallback margin must change axis). The classification pass
+    // above already allowed \s; the two matchers disagreeing showed 34 in one place and 32
+    // in the other.
     if (!/(^|[;{\s])(row-|column-)?gap\s*:/.test(r.body)) continue;
     const own = r.body.match(/display\s*:\s*(inline-)?(flex|grid)/);
     const sel = r.selector.trim();

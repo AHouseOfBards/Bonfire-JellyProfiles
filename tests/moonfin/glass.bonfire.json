@@ -1,0 +1,237 @@
+{
+  "schema": 1,
+  "id": "pine-glass",
+  "revision": 1,
+  "scheme": "dark",
+  "name": {
+    "text": "Pine Glass"
+  },
+  "aliases": [],
+  "colors": {
+    "accent": "#4fd1a5",
+    "accentFocus": "#72dab7",
+    "onAccent": "#06201a",
+    "text1": "#f0f7f4",
+    "text2": "#f0f7f4bf",
+    "text3": "#f0f7f499",
+    "surface1": "#ffffff08",
+    "surface2": "#ffffff0f",
+    "surface3": "#ffffff1c",
+    "border1": "#ffffff14",
+    "border2": "#ffffff26",
+    "border3": "#ffffff42",
+    "panel": "#16282a",
+    "ring": "#9be8cf",
+    "name": "#f0f7f4",
+    "nameFocus": "#f0f7f4",
+    "shadow": "#000000",
+    "danger": "#ff7b7b",
+    "warning": "#ff9900"
+  },
+  "background": {
+    "fill": "#0e1a17",
+    "layers": [
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 15,
+        "y": 20,
+        "stops": [
+          {
+            "color": "#5a3f45",
+            "at": 0
+          },
+          {
+            "color": "#5a3f4500",
+            "at": 55
+          }
+        ]
+      },
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 85,
+        "y": 10,
+        "stops": [
+          {
+            "color": "#2f4d6e",
+            "at": 0
+          },
+          {
+            "color": "#2f4d6e00",
+            "at": 60
+          }
+        ]
+      },
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 70,
+        "y": 95,
+        "stops": [
+          {
+            "color": "#3a3560",
+            "at": 0
+          },
+          {
+            "color": "#3a356000",
+            "at": 55
+          }
+        ]
+      },
+      {
+        "type": "linear",
+        "angle": 160,
+        "stops": [
+          {
+            "color": "#2e3f57",
+            "at": 0
+          },
+          {
+            "color": "#24324a",
+            "at": 60
+          },
+          {
+            "color": "#1a2537",
+            "at": 100
+          }
+        ]
+      }
+    ]
+  },
+  "shape": {
+    "radius": {
+      "small": 8,
+      "medium": 12,
+      "large": 22
+    },
+    "avatar": {
+      "kind": "square",
+      "radius": 18
+    },
+    "ringWidth": 4,
+    "button": {
+      "kind": "pill",
+      "radius": 12
+    },
+    "input": {
+      "radius": 10
+    }
+  },
+  "type": {
+    "font": {
+      "family": "Quicksand",
+      "fallback": "rounded"
+    },
+    "title": {
+      "weight": 500,
+      "spacing": -0.01,
+      "scale": 0.75
+    },
+    "name": {
+      "weight": 500,
+      "scale": 0.8,
+      "opacity": 0.85
+    },
+    "button": {
+      "case": "none",
+      "spacing": 0,
+      "weight": 600
+    }
+  },
+  "depth": {
+    "avatar": {
+      "x": 0,
+      "y": 8,
+      "blur": 20,
+      "opacity": 0.251
+    },
+    "title": {
+      "x": 0,
+      "y": 2,
+      "blur": 12,
+      "color": "#00000080"
+    },
+    "sheet": {
+      "x": 0,
+      "y": 30,
+      "blur": 60,
+      "opacity": 0.349
+    }
+  },
+  "focus": {
+    "scale": 1.1,
+    "glow": {
+      "x": 0,
+      "y": 8,
+      "blur": 24,
+      "color": "#4fd1a566",
+      "spread": 2
+    }
+  },
+  "parts": {
+    "button2": {
+      "fill": "#aabbcc33",
+      "text": "#f0f7f4",
+      "border": {
+        "width": 2,
+        "style": "solid",
+        "color": "#aabbcc66"
+      },
+      "focus": {
+        "fill": "#4fd1a5",
+        "text": "#06201a",
+        "border": {
+          "width": 1,
+          "style": "solid",
+          "color": "#4fd1a5"
+        },
+        "glow": {
+          "x": 0,
+          "y": 10,
+          "blur": 24,
+          "opacity": 0.349
+        }
+      }
+    },
+    "addTile": {
+      "fill": "#ffffff2e",
+      "border": {
+        "width": 2,
+        "style": "solid",
+        "color": "#00000000"
+      },
+      "text": "#ffffff",
+      "focusFill": "#ffffff38"
+    },
+    "card": {
+      "fill": "#ffffff12",
+      "line": "#ffffff2e"
+    },
+    "sheet": {
+      "fill": "#ffffff12",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#ffffff1f"
+      }
+    },
+    "input": {
+      "fill": "#1c2f31",
+      "line": "#ffffff40"
+    }
+  },
+  "layout": {
+    "households": "open",
+    "profiles": "tiles",
+    "align": "center",
+    "size": "medium",
+    "logo": "top-right"
+  },
+  "decorations": [
+    {
+      "name": "frost",
+      "blur": 24
+    }
+  ]
+}

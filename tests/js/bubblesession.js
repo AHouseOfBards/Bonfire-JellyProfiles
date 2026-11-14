@@ -1,22 +1,22 @@
 /*
  * Who the Switch Profile button belongs to, and when it is there at all.
  *
- * Four defects in 1.6.4, all reported from one household's iPad and fixed first in
+ * Four defects in 1.6.4, reported from one household's iPad and fixed first in
  * OleRaehcke/Bonfire-JellyProfiles, a fork that tracks this repository:
  *
- *   1. With "Ask who's watching on startup" off there was no button, ever. The bubble
- *      needed an active-profile marker, only the gate sets one, and it lives in
- *      sessionStorage — so in button mode with the gate off there was no way to switch.
+ *   1. With "Ask who's watching on startup" off there was no button. The bubble needed an
+ *      active-profile marker, only the gate sets one, and it lives in sessionStorage, so with
+ *      the gate off there was no way to switch.
  *   2. The iOS app signs out without reloading. validateSessionState forgets the previous
- *      account on the sign-in screen, but only at init, so the old account's bubble sat on
+ *      account on the sign-in screen, but only at init, so the old account's bubble stayed on
  *      the sign-in screen and the next account inherited its master.
  *   3. With the stored master id missing, the household's own profiles were drawn as a
  *      linked "Kindred's Bonfire" and Manage Profiles told the master to open the master.
  *   4. jellyfin-web scales every div inside .paper-icon-button-light by 1.8 for icon
  *      glyphs, and the header avatar is such a div.
  *
- * Each section is behavioural: the plugin is loaded whole and driven through checkRoute or
- * its real click handler, and what is asserted is what a person would see — whether the
+ * Each section is behavioral: the plugin is loaded whole and driven through checkRoute or
+ * its real click handler, and what is asserted is what a person would see: whether the
  * button exists, which group is "yours", whether Manage Profiles refuses.
  *
  *   node tests/js/bubblesession.js                                   # the working tree
@@ -95,9 +95,9 @@ function build(opts) {
             getClientRects: () => [{}],
             offsetParent: {},
             textContent: '',
-            // Markup assigned here is what a person would see. Every id it declares
-            // becomes findable, so the plugin can bind its handlers the way it does in a
-            // browser — and the harness can then press them.
+            // Markup assigned here is what a person would see. Every id it declares becomes
+            // findable, so the plugin can bind its handlers as in a browser and the harness
+            // can press them.
             set innerHTML(html) {
                 el._html = html;
                 const re = /id="([^"]+)"/g;
@@ -140,7 +140,7 @@ function build(opts) {
         innerWidth: 1024, innerHeight: 768,
         requestAnimationFrame: () => 0,
         setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
-        fetch: () => new Promise(() => {}),
+        fetch: opts.fetch || (() => new Promise(() => {})),
         getComputedStyle: () => ({ backgroundColor: 'rgb(16, 16, 16)', display: 'block',
                                    getPropertyValue: () => '' }),
         MutationObserver: function () { this.observe = () => {}; this.disconnect = () => {}; },
@@ -184,8 +184,8 @@ function build(opts) {
     const p = sandbox.__PP;
 
     // Out of scope: the network, and the search for a header to stand in. The header is
-    // handed over directly, so what is under test is the decision to show the button and
-    // not the long search that follows it (headerinject.js owns that).
+    // handed over directly, so the test is the decision to show the button, not the long
+    // search after it (headerinject.js owns that).
     p.loadSwitcherPrefs = () => {};
     p.loadLibraryArtwork = () => {};
     p.validateSessionState = () => {};
@@ -243,9 +243,9 @@ console.log('\n── With "Ask who\'s watching" off, there is still a way to sw
 }
 
 {
-    // The guard against "always show it": with the gate on, the gate is what provides the
-    // session, and a button standing beside a gate that is about to cover the page is two
-    // ways in where there should be one.
+    // The guard against "always show it": with the gate on, the gate provides the session,
+    // and a button beside a gate that is about to cover the page is two ways in where there
+    // should be one.
     const e = build({ prefs: GATE_ON });
     e.go('#/movies.html');
     e.p.checkRoute();
@@ -275,8 +275,9 @@ console.log('\n── With "Ask who\'s watching" off, there is still a way to sw
 }
 
 {
-    // A device keeping its own answer outranks the account's, and this must agree with
-    // the gate: a television told to ask must not also grow a button.
+    // A per-device answer left by 1.6–1.7.1, which let a device keep its own. 1.7.2 cut
+    // that, so the account's answer decides here too: gate off, so the button stands.
+    // Red against 1.7.1, where this entry outranked the account and hid the button.
     const e = build({
         prefs: GATE_OFF,
         storage: {
@@ -286,9 +287,9 @@ console.log('\n── With "Ask who\'s watching" off, there is still a way to sw
         }
     });
     e.go('#/movies.html');
-    ok('(the device\'s own answer is in force)', e.p.shouldAskOnStartup() === true);
+    ok('a leftover per-device answer is ignored', e.p.shouldAskOnStartup() === false);
     e.p.checkRoute();
-    ok('a device that asks on startup gets no button, whatever the account says', !e.bubble());
+    ok('and the account\'s answer decides: the button is there', !!e.bubble());
 }
 
 {
@@ -304,7 +305,7 @@ console.log('\n── With "Ask who\'s watching" off, there is still a way to sw
 
 console.log('\n── Signing out without a reload forgets the previous account ───');
 
-// Every spelling validateSessionState recognises. 10.11 moved routes into the path.
+// Every spelling validateSessionState recognizes. 10.11 moved routes into the path.
 const SIGN_IN = [
     ['#/login.html', '/web/'],
     ['#/selectserver.html', '/web/'],
@@ -335,6 +336,10 @@ SIGN_IN.forEach(([hash, pathname]) => {
     ok(where + ': and its prefetched list, which would be the next account\'s first grid',
        !(e.p.cachedProfiles && e.p.cachedProfiles.length));
     ok(where + ': and the button is gone, though the client still holds a token', !e.bubble());
+    // R-1246: the next account must not inherit the last one's gate or menu mode.
+    ok(where + ': and its switcher preferences and emergency-link answer (R-1246)',
+       e.p._switcherPrefs === null && e.p._panicLinkAvailable === null,
+       JSON.stringify(e.p._switcherPrefs));
 });
 
 {
@@ -364,10 +369,10 @@ SIGN_IN.forEach(([hash, pathname]) => {
 }
 
 {
-    // Nothing that merely contains "login" in a query string or an item name should be
-    // taken for the sign-in screen — but the plugin's own test is a substring test, and
-    // this harness pins that the bubble and validateSessionState agree on it rather than
-    // pretending it is precise. Ordinary pages must not be.
+    // Nothing that merely contains "login" in a query string or an item name should be taken
+    // for the sign-in screen. The plugin's own test is a substring test, so this pins that the
+    // bubble and validateSessionState agree on it instead of pretending it is precise.
+    // Ordinary pages must not be.
     const e = build({ prefs: GATE_OFF, storage: { [MASTER_KEY]: masterState(MASTER) } });
     ['#/home.html', '#/movies.html', '#/details?id=abc', '#/mypreferencesmenu.html']
         .forEach(h => { e.go(h); e.p.checkRoute(); });
@@ -407,19 +412,24 @@ function renderGrid(e) {
         let threw = null;
         try { html = renderGrid(e); } catch (err) { threw = err; }
         ok(label + ': the grid renders', !threw, threw && threw.stack.split('\n').slice(0, 3).join(' | '));
-        ok(label + ': your own profiles are "Your Bonfire"', html.indexOf('Your Bonfire') !== -1);
-        ok(label + ': and not "Kindred\'s Bonfire"', html.indexOf('Kindred&#39;s Bonfire') === -1
-           && html.indexOf("Kindred's Bonfire") === -1);
-        ok(label + ': a linked household is still somebody else\'s ("Ash\'s Bonfire")',
-           html.indexOf('Ash&#39;s Bonfire') !== -1 || html.indexOf("Ash's Bonfire") !== -1);
+        // A main account and its profiles are a household. "Bonfire" is the product, and the
+        // name of an invite-code group; it was the picker heading here until this was reworded
+        // ("Your Bonfire" and "Ash's Bonfire" became "Your household" and "Ash's household").
+        ok(label + ': your own profiles are "Your household"', html.indexOf('Your household') !== -1);
+        ok(label + ': and not "Kindred\'s household"', html.indexOf('Kindred&#39;s household') === -1
+           && html.indexOf("Kindred's household") === -1);
+        ok(label + ': a linked household is still somebody else\'s ("Ash\'s household")',
+           html.indexOf('Ash&#39;s household') !== -1 || html.indexOf("Ash's household") !== -1);
+        ok(label + ': and neither heading says Bonfire any more', html.indexOf('Your Bonfire') === -1 && html.indexOf("'s Bonfire") === -1
+           && html.indexOf('s Bonfire') === -1);
         ok(label + ': the stored master is now this household\'s',
            e.store[MASTER_KEY] && JSON.parse(e.store[MASTER_KEY]).masterUserId === MASTER);
     });
 
 {
-    // A linked Bonfire's master is isMaster too. Only the one that is not a Bonfire is
-    // this household's, and that is the only one that may be stored — a list holding
-    // nothing but linked households must store nothing.
+    // A linked Bonfire's master is isMaster too. Only the one that is not a Bonfire is this
+    // household's and may be stored; a list holding nothing but linked households must store
+    // nothing.
     const e = build({ prefs: GATE_OFF });
     const overlay = e.makeEl('div');
     overlay.__attached = true;
@@ -430,7 +440,15 @@ function renderGrid(e) {
 {
     // The manage check reads the stored id at the moment of the press, which can be well
     // after the grid was drawn. On the iPad it was gone by then.
-    const e = build({ prefs: GATE_OFF });
+    //
+    // The master here has no PIN, so whether it may manage first asks /info if the server
+    // requires one. It doesn't: answered, it is in manage mode once that has resolved.
+    const e = build({
+        prefs: GATE_OFF,
+        fetch: (url) => /plugins\/profiles\/info$/.test(url)
+            ? Promise.resolve({ ok: true, json: () => Promise.resolve({ features: { requireMainPin: false } }) })
+            : new Promise(() => {})
+    });
     renderGrid(e);
     delete e.store[MASTER_KEY];
     const btn = e.byId['profiles-toggle-manage-btn'];
@@ -439,7 +457,8 @@ function renderGrid(e) {
     const refused = e.alerts.filter(a => /first, then choose Manage Profiles/.test(a));
     ok('the master pressing Manage Profiles is not told to open the master first'
        + (refused.length ? ' — "' + refused[0] + '"' : ''), refused.length === 0);
-    ok('and is in manage mode', e.p.isManageMode === true);
+    // Queued before the summary below, so it is counted.
+    setImmediate(() => ok('and is in manage mode', e.p.isManageMode === true));
 }
 
 {
@@ -457,7 +476,7 @@ function renderGrid(e) {
 
 console.log('\n── The header avatar is not scaled by jellyfin-web\'s icon rule ──');
 
-// jellyfin-web, src/elements/emby-button/emby-button.scss — identical in release-10.11.z
+// jellyfin-web, src/elements/emby-button/emby-button.scss, identical in release-10.11.z
 // and master, read 2026-10-13:
 //
 //     .paper-icon-button-light > div { max-height: 100%; transform: scale(1.8); ... }
@@ -522,7 +541,7 @@ function compoundMatches(compound, node) {
     if (compound.indexOf('[') !== -1) return false;
     return cls.every(c => node.classes.indexOf(c) !== -1);
 }
-// Avatar, then its button, then "some ancestor" — which, as the worst case, matches any
+// Avatar, then its button, then "some ancestor", which as the worst case matches any
 // compound naming no id. A rule scoped to a root class (.jpf-tv, say) can apply.
 function selectorMatchesAvatar(sel, button) {
     const parts = sel.split(/\s*([>\s])\s*/).filter(s => s !== '');
@@ -572,10 +591,13 @@ const inline = (builder.match(/class="profiles-header-avatar" style="([^"]*)/) |
 ok('(the avatar\'s inline style was found)', inline.length > 0);
 ok('and sets neither transform nor max-height', !/transform|max-height/.test(inline));
 
-console.log('');
-if (fails.length) {
-    fails.forEach(f => console.log('   - ' + f));
-    console.log(pass + ' passed, ' + fails.length + ' failed');
-    process.exit(1);
-}
-console.log(pass + ' passed, 0 failed');
+// After any check queued above that waits on a promise.
+setImmediate(() => {
+    console.log('');
+    if (fails.length) {
+        fails.forEach(f => console.log('   - ' + f));
+        console.log(pass + ' passed, ' + fails.length + ' failed');
+        process.exit(1);
+    }
+    console.log(pass + ' passed, 0 failed');
+});

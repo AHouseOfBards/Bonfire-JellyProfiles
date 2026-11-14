@@ -1,0 +1,406 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging.Abstractions;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Machine-readable errors and GET /info, the two things a native app needs before it can
+// be written against Bonfire without matching on English text.
+//
+//  - Every error from a Bonfire route carries X-Bonfire-Error.
+//  - A refusal to a signed-in caller is 403, so "your token is dead" (401) means one thing.
+//  - Every literal error message in the controllers is checked, one by one, against the
+//    codes: none may fall through to the code for a different status, and the ones an
+//    app acts on must have their own.
+//  - GET /info answers without a token and says only server-wide things.
+//
+// Against 1.7.1.1 the first assertion fails: there is no ErrorCodes and no header.
+//
+// Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
+// ─────────────────────────────────────────────────────────────────────────────
+
+int pass = 0;
+var fails = new List<string>();
+void Ok(string name, bool cond, string detail = null)
+{
+    if (cond) { pass++; Console.WriteLine("  PASS  " + name); }
+    else
+    {
+        fails.Add(name + (detail is null ? "" : "  — " + detail));
+        Console.WriteLine("  FAIL  " + name + (detail is null ? "" : "  — " + detail));
+    }
+}
+
+static string RepoRoot()
+{
+    var d = AppContext.BaseDirectory;
+    while (d != null && !File.Exists(Path.Combine(d, "Jellyfin.Profiles.csproj")))
+        d = Path.GetDirectoryName(d);
+    return d ?? throw new Exception("could not find the repository root");
+}
+
+var root = RepoRoot();
+var tfm = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
+    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
+var asm = Assembly.LoadFrom(Path.Combine(root, "bin", "Release", tfm, "Jellyfin.Profiles.dll"));
+
+var codes = asm.GetType("Jellyfin.Profiles.Controllers.ErrorCodes");
+var filterType = asm.GetType("Jellyfin.Profiles.Controllers.BonfireErrorsAttribute");
+Ok("there is one place that gives errors a code", codes != null && filterType != null, "no ErrorCodes in this build");
+if (codes == null || filterType == null) return Finish();
+
+var forMethod = codes.GetMethod("For");
+string For(int status, string message) => (string)forMethod.Invoke(null, new object[] { status, message });
+
+Console.WriteLine();
+Console.WriteLine("── The filter, on real results ─────────────────────────────────");
+
+(int status, string code) Run(IActionResult result, string preset = null, bool apiKey = false)
+{
+    var http = new DefaultHttpContext();
+    if (apiKey)
+    {
+        // What Jellyfin's handler builds for an API key: authenticated, the administrator
+        // role, the key marker, and an all-zero user id.
+        var id = new System.Security.Claims.ClaimsIdentity(new[]
+        {
+            new System.Security.Claims.Claim("Jellyfin-IsApiKey", "True"),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "Administrator"),
+            new System.Security.Claims.Claim("Jellyfin-UserId", Guid.Empty.ToString()),
+        }, "CustomAuthentication");
+        http.User = new System.Security.Claims.ClaimsPrincipal(id);
+    }
+    if (preset != null) http.Response.Headers["X-Bonfire-Error"] = preset;
+    var action = new ActionContext(http, new RouteData(), new ActionDescriptor());
+    var ctx = new ResultExecutingContext(action, new List<IFilterMetadata>(), result, controller: null);
+    var filter = (IResultFilter)Activator.CreateInstance(filterType);
+    filter.OnResultExecuting(ctx);
+    var status = ctx.Result switch
+    {
+        ObjectResult o => o.StatusCode ?? 0,
+        StatusCodeResult s => s.StatusCode,
+        _ => 0,
+    };
+    return (status, http.Response.Headers["X-Bonfire-Error"].ToString());
+}
+
+var dead = Run(new UnauthorizedResult());
+Ok("a rejected token stays 401, coded unauthenticated", dead == (401, "unauthenticated"), dead.ToString());
+
+// An API key is signed in, so a route that needs a person refuses it with a 403. The route
+// answers an empty 401 (a key has no user id); the filter is what says which it is.
+var keyOnPersonRoute = Run(new UnauthorizedResult(), apiKey: true);
+Ok("an API key on a route that needs a person gets 403, not 401", keyOnPersonRoute.status == 403, keyOnPersonRoute.ToString());
+Ok("coded forbidden", keyOnPersonRoute.code == "forbidden", keyOnPersonRoute.code);
+var strangerEmpty = Run(new UnauthorizedResult());
+Ok("an empty 401 from nobody stays 401", strangerEmpty == (401, "unauthenticated"), strangerEmpty.ToString());
+
+var notMain = Run(new UnauthorizedObjectResult("Only the master profile can manage profiles."));
+Ok("a signed-in caller who isn't allowed gets 403, not 401", notMain.status == 403, notMain.ToString());
+Ok("coded not_main_account", notMain.code == "not_main_account", notMain.code);
+
+var pin = Run(new BadRequestObjectResult("Invalid PIN code."));
+Ok("a wrong PIN is 400 pin_wrong", pin == (400, "pin_wrong"), pin.ToString());
+
+var missing = Run(new NotFoundResult());
+Ok("a bare 404 is not_found", missing == (404, "not_found"), missing.ToString());
+
+var limited = Run(new ObjectResult("Too many failed PIN attempts.") { StatusCode = 429 });
+Ok("a 429 is rate_limited", limited == (429, "rate_limited"), limited.ToString());
+
+// Maintenance sets its own: the message is the administrator's words, with nothing to match.
+var own = Run(new ObjectResult("Back at 3.") { StatusCode = 503 }, preset: "maintenance");
+Ok("a code the route set is kept", own == (503, "maintenance"), own.ToString());
+
+// ASP.NET's own 400 for an unbindable body ([ApiController]) is a ProblemDetails object with
+// no message: it still carries a code. And a server error is its own code (R-1130).
+var auto = Run(new BadRequestObjectResult(new ValidationProblemDetails()));
+Ok("an automatic 400 is invalid_request", auto == (400, "invalid_request"), auto.ToString());
+var boom = Run(new ObjectResult("Something broke.") { StatusCode = 500 });
+Ok("a 500 is server_error", boom == (500, "server_error"), boom.ToString());
+var boomPlain = Run(new StatusCodeResult(500));
+Ok("a bare 500 is server_error", boomPlain == (500, "server_error"), boomPlain.ToString());
+var okContent = Run(new ContentResult { Content = "{}", StatusCode = 200 });
+Ok("a 200 Content() carries no error code", okContent.code == "", okContent.ToString());
+
+var fine = Run(new OkObjectResult("done"));
+Ok("a success carries no error code", fine.code == "" && fine.status == 200, fine.ToString());
+
+Console.WriteLine();
+Console.WriteLine("── Every message in the controllers ────────────────────────────");
+
+// Read the source, not a list: a message added tomorrow is checked tomorrow.
+var calls = new Regex(@"\b(BadRequest|Unauthorized|NotFound|TooManyAttempts|StatusCode)\((.*?)\)\s*;", RegexOptions.Singleline);
+var literal = new Regex(@"\$?""((?:[^""\\]|\\.)*)""");
+var seen = new List<(string kind, string text)>();
+foreach (var file in Directory.GetFiles(Path.Combine(root, "Controllers"), "*.cs"))
+{
+    foreach (Match m in calls.Matches(File.ReadAllText(file)))
+    {
+        var text = string.Concat(literal.Matches(m.Groups[2].Value).Select(l => l.Groups[1].Value));
+        if (text.Length > 0) seen.Add((m.Groups[1].Value, text));
+    }
+}
+
+Ok("the controllers were read", seen.Count > 60, seen.Count + " messages");
+
+// ── Pinned: what each message is coded as, and the rule table itself ──────────────────
+// Codes come from message text, so rewording a message silently recodes it (R-1129).
+// Every literal message and rule is in messages.golden / rules.golden. A change fails here
+// until the golden is regenerated on purpose: BONFIRE_UPDATE_GOLDEN=1 dotnet run -c Release
+{
+    var here = Path.Combine(root, "tests", "cs", "errorcodes");
+    var update = Environment.GetEnvironmentVariable("BONFIRE_UPDATE_GOLDEN") == "1";
+    int StatusOf(string kind) => kind == "Unauthorized" ? 403 : kind == "NotFound" ? 404 : kind == "TooManyAttempts" ? 429 : 400;
+
+    var messageLines = seen
+        .Select(s => s.kind + "|" + For(StatusOf(s.kind), s.text) + "|" + s.text)
+        .Distinct().OrderBy(l => l, StringComparer.Ordinal).ToList();
+
+    var rulesField = codes.GetField("Rules", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+    var ruleLines = new List<string>();
+    foreach (var r in (System.Collections.IEnumerable)rulesField.GetValue(null))
+    {
+        var rt = r.GetType();
+        ruleLines.Add(rt.GetField("Item2").GetValue(r) + "|" + rt.GetField("Item1").GetValue(r));
+    }
+
+    void Pin(string label, string file, List<string> now)
+    {
+        var path = Path.Combine(here, file);
+        if (update) File.WriteAllText(path, string.Join("\n", now) + "\n");
+        if (!File.Exists(path)) { Ok(label + ": " + file + " exists", false, "run with BONFIRE_UPDATE_GOLDEN=1"); return; }
+        var pinned = File.ReadAllLines(path).Where(l => l.Length > 0).ToList();
+        var changed = now.Except(pinned).Concat(pinned.Except(now).Select(p => "gone: " + p)).ToList();
+        Ok(label + ": nothing recoded, reworded, added or removed since it was pinned",
+           changed.Count == 0, changed.Count + " differ: " + string.Join(" || ", changed.Take(6)));
+    }
+    // Those are only the messages written inside BadRequest(...); others are built elsewhere
+    // (Announcements.Validate, the base controller) and passed as variables. So every rule must
+    // also match a string literal in the plugin source, or a reworded message leaves its rule
+    // matching nothing and falls to the code for its status.
+    var sourceText = new System.Text.StringBuilder();
+    foreach (var f in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
+    {
+        var rel = Path.GetRelativePath(root, f).Replace('\\', '/');
+        if (rel.StartsWith("tests/") || rel.StartsWith("obj/") || rel.StartsWith("bin/") || rel.StartsWith(".scratch")
+            || rel.Contains("/obj/") || rel.Contains("/bin/") || rel == "Controllers/ErrorCodes.cs") continue;
+        // Join "a" + "b" so a message written over two lines is one literal.
+        var joined = Regex.Replace(File.ReadAllText(f), @"""\s*\+\s*\$?""", "");
+        // Line by line, comments skipped: one stray quote in a comment would otherwise pair
+        // every literal after it the wrong way round for the rest of the file.
+        foreach (var line in joined.Split('\n'))
+        {
+            if (line.TrimStart().StartsWith("//")) continue;
+            foreach (Match l in literal.Matches(line)) sourceText.Append(l.Groups[1].Value.Replace("\\'", "'")).Append('\n');
+        }
+    }
+    var allLiterals = sourceText.ToString();
+    var deadRules = new List<string>();
+    foreach (var r in (System.Collections.IEnumerable)rulesField.GetValue(null))
+    {
+        var rt = r.GetType();
+        var contains = (string)rt.GetField("Item1").GetValue(r);
+        if (allLiterals.IndexOf(contains, StringComparison.OrdinalIgnoreCase) < 0) deadRules.Add(contains);
+    }
+    Ok("every rule still matches a message in the source", deadRules.Count == 0, deadRules.Count + " dead: " + string.Join(" | ", deadRules));
+
+    Pin("every literal message and its code", "messages.golden", messageLines);
+    Pin("every rule and its code", "rules.golden", ruleLines);
+}
+
+// A message refusing a signed-in caller must never be coded as a dead token.
+var badForbidden = seen.Where(s => s.kind == "Unauthorized" && For(401, s.text) == "unauthenticated").ToList();
+Ok("no refusal with a message is coded unauthenticated", badForbidden.Count == 0, string.Join(" | ", badForbidden.Select(b => b.text)));
+
+// The ones an app branches on, each with its own code.
+var wanted = new Dictionary<string, string>
+{
+    ["Only the master profile can"] = "not_main_account",
+    ["Only administrators can"] = "admin_only",
+    ["Unauthorized profile"] = "not_your_profile",
+    ["Invalid PIN"] = "pin_wrong",
+    ["PIN code must be"] = "pin_format",
+    ["Maximum profile limit"] = "profile_limit",
+    ["already exists"] = "name_taken",
+    ["account is turned off"] = "profile_disabled",
+    ["Invalid Bonfire Code"] = "bonfire_code_wrong",
+    ["does not let profiles choose a theme"] = "themes_locked",
+    ["No such announcement"] = "announcement_not_found",
+    ["Delete an announcement first"] = "announcement_limit",
+    ["maintenance message can be at most"] = "maintenance_invalid",
+    ["time maintenance ends must be"] = "maintenance_invalid",
+    ["Only the main account can do that"] = "not_main_account",
+    ["Set up email and send a test first"] = "email_unavailable",
+    ["PIN reset by email isn't available"] = "pin_reset_unavailable",
+    ["The email couldn't be sent"] = "email_send_failed",
+    ["Port 465 isn't supported"] = "email_settings_invalid",
+    ["This is the only device allowed for"] = "device_in_use",
+    ["A viewing window isn't valid"] = "limits_invalid",
+    ["A daily limit is between"] = "limits_invalid",
+    ["More time is between"] = "limits_invalid",
+    ["That time zone isn't known"] = "time_zone_invalid",
+};
+foreach (var (contains, code) in wanted)
+{
+    var matches = seen.Where(s => s.text.Contains(contains)).ToList();
+    var wrong = matches.Where(s => For(s.kind == "Unauthorized" ? 403 : s.kind == "NotFound" ? 404 : 400, s.text) != code).ToList();
+    Ok("\"" + contains + "…\" is " + code, matches.Count > 0 && wrong.Count == 0,
+       matches.Count == 0 ? "no such message any more" : string.Join(" | ", wrong.Select(w => w.text)));
+}
+
+// Messages that are built elsewhere and handed in as a variable.
+foreach (var (text, code) in new[]
+{
+    ("This profile is not allowed on this device.", "device_not_allowed"),
+    ("This device did not identify itself, so it cannot be checked against the profile's device list.", "device_not_allowed"),
+    ("This profile isn't allowed on this device.", "device_not_allowed"),
+    ("This profile has too many active sessions.", "too_many_sessions"),
+    ("Enter a name for the profile.", "name_invalid"),
+    ("A user with this name already exists.", "name_taken"),
+    ("This profile has no viewing limits.", "not_limited"),
+    ("That's past the 4 hours of extra time allowed in a day.", "grant_cap"),
+    ("Email isn't set up on this server.", "email_unavailable"),
+    ("That code isn't right.", "code_wrong"),
+    ("That code has expired. Send a new one.", "code_expired"),
+    ("Send a code first.", "code_missing"),
+    ("Limits are for profiles, not main accounts.", "limits_for_profiles"),
+    ("This profile has no PIN, so it cannot be opened from a shared Bonfire. Its owner must…", "pin_needed_for_bonfire"),
+})
+{
+    Ok("\"" + text[..Math.Min(40, text.Length)] + "…\" is " + code, For(400, text) == code, For(400, text));
+}
+
+// r2-07-05: a message that echoes a name somebody chose is coded by its sentence, not by the
+// name. Each echoing message is built with every other rule's text as the name, one at a time.
+foreach (var (template, code) in new[]
+{
+    ("This is the only device allowed for {0}. Allow another device for those profiles first, or clear their device list.", "device_in_use"),
+    ("Bonfire already has a font called {0}.", "font_taken"),
+    ("Bonfire already has a font called {0}. Delete it first.", "font_taken"),
+})
+{
+    var swallowed = new List<string>();
+    foreach (var r in (System.Collections.IEnumerable)codes.GetField("Rules", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).GetValue(null))
+    {
+        var needle = (string)r.GetType().GetField("Item1").GetValue(r);
+        // The two echoing sentences come first and are told apart by nothing but order, so
+        // one named after the other is the one case left out.
+        var ruleCode = (string)r.GetType().GetField("Item2").GetValue(r);
+        if (ruleCode == code || ruleCode == "device_in_use" || ruleCode == "font_taken") continue;
+        var got = For(400, string.Format(template, needle));
+        if (got != code) swallowed.Add(needle + " -> " + got);
+    }
+    Ok("\"" + template[..30] + "…\" stays " + code + " whatever the name says",
+       swallowed.Count == 0, swallowed.Count + " names change it, first: " + swallowed.FirstOrDefault());
+}
+
+// Announcement refusals come from Announcements.Validate, handed in as a variable. Ask the
+// validator for each one rather than copying its wording here, so a reworded message is
+// checked as it now reads.
+var annType = asm.GetType("Jellyfin.Profiles.Configuration.Announcement");
+var annRules = asm.GetType("Jellyfin.Profiles.Configuration.Announcements");
+Ok("announcements exist in this build", annType != null && annRules != null);
+if (annType != null && annRules != null)
+{
+    var validate = annRules.GetMethod("Validate");
+    object Make(string message, string severity, DateTime? starts, DateTime? ends)
+    {
+        var a = Activator.CreateInstance(annType);
+        annType.GetProperty("Message").SetValue(a, message);
+        annType.GetProperty("Severity").SetValue(a, severity);
+        annType.GetProperty("StartsUtc").SetValue(a, starts);
+        annType.GetProperty("EndsUtc").SetValue(a, ends);
+        return a;
+    }
+    var t0 = new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
+    foreach (var (label, bad) in new[]
+    {
+        ("an empty message", Make("  ", "info", null, null)),
+        ("a long message", Make(new string('x', 281), "info", null, null)),
+        ("an unknown severity", Make("hi", "red", null, null)),
+        ("an end before the start", Make("hi", "info", t0, t0.AddHours(-1))),
+    })
+    {
+        var msg = (string)validate.Invoke(null, new[] { bad });
+        Ok(label + " is announcement_invalid", msg != null && For(400, msg) == "announcement_invalid", msg + " → " + (msg == null ? "" : For(400, msg)));
+    }
+}
+
+Console.WriteLine();
+Console.WriteLine("── GET /info ───────────────────────────────────────────────────");
+
+var ctrlType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
+var info = ctrlType.GetMethod("GetInfo");
+Ok("the route exists", info != null);
+if (info != null)
+{
+    var get = info.GetCustomAttributes().FirstOrDefault(a => a.GetType().Name == "HttpGetAttribute");
+    Ok("at /plugins/profiles/info", (string)get?.GetType().GetProperty("Template")?.GetValue(get) == "info");
+
+    var ctor = ctrlType.GetConstructors().First();
+    var ctorArgs = ctor.GetParameters().Select(p => p.ParameterType.Name.StartsWith("ILogger")
+        ? Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(ctrlType)) : null).ToArray();
+    var controller = (ControllerBase)ctor.Invoke(ctorArgs);
+    controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+
+    var result = info.Invoke(controller, null);
+    var value = (result.GetType().GetProperty("Result")?.GetValue(result) as ObjectResult)?.Value;
+    var json = JsonSerializer.Serialize(value);
+    Ok("answers without a signed-in caller", value != null, json);
+    Ok("names itself and its version", json.Contains("\"Name\":\"Bonfire\"") && json.Contains("\"Version\":\""), json);
+    Ok("carries an API version", json.Contains("\"ApiVersion\":2"), json);
+    // Matched key by key: a substring test caught "SkipQuickConnectOnKnownDevices" as a
+    // device list, and "ClientPinLogin" as a PIN.
+    var keys = new List<string>();
+    void Walk(JsonElement e, string at)
+    {
+        if (e.ValueKind != JsonValueKind.Object) return;
+        foreach (var p in e.EnumerateObject())
+        {
+            keys.Add(at + p.Name);
+            Walk(p.Value, at + p.Name + ".");
+        }
+    }
+    Walk(JsonDocument.Parse(json).RootElement, "");
+    var allowed = new[]
+    {
+        "Name", "Version", "ApiVersion", "Disabled", "Features",
+        "Features.ClientPinLogin", "Features.ClientProfileList", "Features.SkipQuickConnectOnKnownDevices",
+        "Features.ProfileThemes", "Features.ProxyClients",
+        // A server-wide setting, so a client knows to ask for a main PIN to be set.
+        "Features.RequireMainPin",
+        // Whether the server can send mail, and whether a forgotten main PIN can be reset
+        // by it. Server-wide: whether an account has an address is in /me, never here.
+        "Features.Email", "Features.PinResetByEmail",
+        // Null unless closed for maintenance, which this harness never is.
+        "Maintenance",
+    };
+    Ok("and nothing about any household: exactly the documented fields",
+       keys.OrderBy(k => k).SequenceEqual(allowed.OrderBy(k => k)), string.Join(", ", keys));
+    Ok("is not cached", controller.Response.Headers["Cache-Control"].ToString() == "no-store");
+}
+
+return Finish();
+
+int Finish()
+{
+    Console.WriteLine();
+    if (fails.Count > 0)
+    {
+        foreach (var f in fails) Console.WriteLine("   - " + f);
+        Console.WriteLine(pass + " passed, " + fails.Count + " failed");
+        return 1;
+    }
+    Console.WriteLine(pass + " passed, 0 failed");
+    return 0;
+}

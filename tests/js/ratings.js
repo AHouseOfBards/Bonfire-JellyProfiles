@@ -3,18 +3,19 @@
  *
  * The form had four US choices fixed in the script. Jellyfin rates a library by the
  * server's Preferred metadata country and turns every rating into an age score, and a
- * profile's limit is a score too, so enforcement was already international — but a
- * Canadian owner was asked to choose between "PG-13 / TV-14" and "R / TV-MA", and a
- * German one could not pick FSK 16 at all.
+ * profile's limit is a score too, so enforcement was already international. But a Canadian
+ * owner had to choose between "PG-13 / TV-14" and "R / TV-MA", and a German one could not
+ * pick FSK 16 at all.
  *
  * The fixtures are Jellyfin's own tables (tests/fixtures/ratings, copied from
  * release-10.11.z Emby.Server.Implementations/Localization/Ratings). The server reads the
- * same tables (Configuration/RatingSystems.cs, checked against these fixtures by tests/cs/ratings);
- * serverAnswer() below is the shape GET plugins/profiles/ratings sends for one of them.
+ * same tables (Configuration/RatingSystems.cs, checked against these fixtures by
+ * tests/cs/ratings); serverAnswer() below is the shape the ratings part of GET
+ * plugins/profiles/form-options holds for one of them.
  *
- * Not /Localization/ParentalRatings, which the first version of this used: Jellyfin pads
- * that list with generic ages ("10", "13", "14", "21") the country lacks, and France has a
- * real rating named "10" at age 10, so no filter over it can be right for every country.
+ * Not /Localization/ParentalRatings, which the first version used: Jellyfin pads that list
+ * with generic ages ("10", "13", "14", "21") the country lacks, and France has a real
+ * rating named "10" at age 10, so no filter over it is right for every country.
  *
  *   node tests/js/ratings.js [profiles.js]
  */
@@ -38,7 +39,7 @@ function ok(name, cond, detail) {
 // ── What Jellyfin sends ───────────────────────────────────────────────────────
 const FIXTURES = path.join(L.ROOT, 'tests', 'fixtures', 'ratings');
 
-/** What GET plugins/profiles/ratings answers for a server in `code`. */
+/** What the ratings part of GET plugins/profiles/form-options holds for a server in `code`. */
 function serverAnswer(code) {
     const table = JSON.parse(fs.readFileSync(path.join(FIXTURES, code + '.json'), 'utf8'));
     const byScore = {};
@@ -113,7 +114,7 @@ COUNTRIES.forEach(code => {
     ok(code + ': "No restrictions" comes first and is selected',
        opts.length > 0 && opts[0].value === '' && opts[0].selected);
 
-    // Every age the country actually has, once — enumerated, not counted.
+    // Every age the country has, once; enumerated, not counted.
     const own = Array.from(new Set(table.ratings.map(r => r.ratingScore.score)))
         .filter(sc => sc < 1000).sort((a, b) => a - b);
     own.forEach(sc => ok(code + ': offers its age ' + sc, scores.indexOf(sc) !== -1));
@@ -163,7 +164,7 @@ console.log('── a stored limit is never lost ──────────�
     ok('a German FSK 16 profile has FSK 16 selected',
        kept.filter(o => o.selected).map(o => o.value).join() === '16');
     // A limit saved under the US list (14, "PG-13 / TV-14") on a server now in Germany,
-    // which has no 14. It must stay selectable as itself, or the next save clears it.
+    // which has no 14, must stay selectable as itself or the next save clears it.
     const moved = options(P.renderRatingSelect('edit', 14, de));
     ok('a limit the country has no rating for is kept and selected',
        moved.filter(o => o.selected).map(o => o.value).join() === '14'
@@ -180,8 +181,8 @@ console.log('── without the server list, the old choices ──────�
 console.log('── the forms fetch it and pass it on ───────────────────────────');
 {
     const raw = fs.readFileSync(L.profilesPath(), 'utf8');
-    ok('the shared form data asks the plugin for the country\'s ratings',
-       /getUrl\('plugins\/profiles\/ratings'\)/.test(raw));
+    ok('the shared form data asks the plugin for the country\'s ratings, in the one form-options read',
+       /getUrl\('plugins\/profiles\/form-options'\)/.test(raw) && /ratings: this\._field\(options, 'ratings'\)/.test(raw));
     ok('and not Jellyfin\'s padded list', !/Localization\/ParentalRatings'\)/.test(raw));
     ok('the create form passes them in', /renderRatingSelect\('create', null, ratings\)/.test(raw));
     ok('the edit form passes them in', /renderRatingSelect\('edit', maxRating, ratings\)/.test(raw));

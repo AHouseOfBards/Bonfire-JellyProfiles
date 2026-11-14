@@ -25,7 +25,7 @@ Jellyfin's plugins folder and restart Jellyfin. On Docker, restart the container
 3. Check it with `node Web/i18n/validate.js de`.
 4. Add the language to the list in the README and in the translation guide.
 
-The [translation guide](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/beta/Web/i18n/README.md)
+The [translation guide](https://github.com/AHouseOfBards/Bonfire/blob/beta/Web/i18n/README.md)
 has the details.
 
 ## Changing the client script

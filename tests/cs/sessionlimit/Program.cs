@@ -23,12 +23,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Issue #41: with MaxActiveSessions set, a profile's leftover sessions on the same device
-// made /switch fail, and the page reloaded into the picker in a loop.
+// Issue #41: with MaxActiveSessions set, a profile's leftover sessions on the same device made
+// /switch fail, and the page reloaded into the picker in a loop.
 //
-// What Jellyfin does (release-10.11.z, SessionManager.AuthenticateNewSessionInternal), and
-// what the stub below does exactly:
+// What Jellyfin does (release-10.11.z, SessionManager.AuthenticateNewSessionInternal), which
+// the stub below copies:
 //
 //   int sessionsCount = Sessions.Count(i => i.UserId.Equals(user.Id));
 //   if (maxActiveSessions >= 1 && sessionsCount >= maxActiveSessions)
@@ -38,19 +37,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 //                                                  // session on that deviceId
 //   LogSessionActivity(...)                        // session keyed by app + deviceId
 //
-// So the session being replaced counts against the limit first. And Jellyfin for Android
-// signs the profile in under base + mainId from the picker, while the profile's own
-// requests after the reload carry base + profileId: two sessions for one phone, and
-// another with each restart.
+// So the session being replaced counts against the limit first. Jellyfin for Android signs the
+// profile in under base + mainId from the picker, while its own requests after the reload
+// carry base + profileId: two sessions for one phone, and another with each restart.
 //
-// This holds the plugin to: before the switch, the profile's own sessions and device rows
-// on this physical device are ended. Another account's session on the same device, and
-// the profile's own session on another device, are left alone.
+// The plugin is held to this: before the switch, the profile's own sessions and device rows on
+// this physical device are ended. Another account's session on the same device, and the
+// profile's session on another device, are left alone.
 //
 // Against 7455aa6 the switch fails at the limit.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();
@@ -88,6 +85,9 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-sessionlimit-" + Guid.Ne
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
+config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 
 void Map(Guid profile, Guid master, string name)
@@ -219,8 +219,7 @@ r = Switch(MAIN, KID, "Jellyfin Web", "browser-1");
 Ok("but a limit still holds against another device", r.status == 400, Text(r));
 // Jellyfin throws MediaBrowser.Controller.Net.SecurityException, not System.Security's: the
 // catch named the wrong type and every refusal read "Couldn't sign in".
-Ok("and says so: too many active sessions", Text(r).Contains("too many active sessions"), Text(r));
-Ok("and the other device's session was not ended to make room", world.Sessions.Any(s => s.UserId == KID && s.DeviceId == "browser-2"), Live());
+Ok("and says so: too many active sessions", Text(r).Contains("too many active sessions"), Text(r));Ok("and the other device's session was not ended to make room", world.Sessions.Any(s => s.UserId == KID && s.DeviceId == "browser-2"), Live());
 
 world.Reset();
 world.DeviceRefusal = true;
@@ -242,7 +241,45 @@ if (same != null)
     Ok("base and Android TV's sha1(base + \"+\" + kid)", Same(BASE, Sha1(BASE + "+" + KID)));
     Ok("not another phone", !Same(Appended(MAIN), "aaaabbbbccccdddd" + MAIN));
     Ok("not an id that ends in a stranger's id", !Same(BASE + Guid.NewGuid(), Appended(KID)));
+
+    // Audit (wave 4): breaks that left this section green.
+    Ok("Android TV's sha1 id and the bare id, the other way round", Same(Sha1(BASE + "+" + KID), BASE));
+    Ok("a bare id too short to trust is not stripped: two accounts, one short stem", !Same("ab" + MAIN, "ab" + KID));
+    Ok("with no configuration, the same id is the same device", (bool)same.Invoke(null, new object[] { "abcdef0123456789", "ABCDEF0123456789", null }));
+    Ok("and a different one is not", !(bool)same.Invoke(null, new object[] { "abcdef0123456789", "abcdef0123456780", null }));
 }
+
+// ── 4. Which device rows go, and one failure does not stop the rest ──────────
+Section("Device rows, and a session that will not end");
+
+// A row on this phone under another id is the profile's own leftover and goes. The row for
+// the id being switched with is Jellyfin's and logs itself out a moment later. Another
+// account's row on this phone, and the profile's row on another device, stay.
+world.Reset();
+world.SetMax(KID, 5);
+world.Rows.Add(new Device(KID, ANDROID, "2.7.3", "Pixel", Appended(KID)));
+world.Rows.Add(new Device(KID, ANDROID, "2.7.3", "Pixel", Appended(MAIN)));
+world.Rows.Add(new Device(MAIN, ANDROID, "2.7.3", "Pixel", BASE));
+world.Rows.Add(new Device(KID, "Jellyfin Android TV", "0.18", "TV", "living-room-tv"));
+r = Switch(MAIN, KID, ANDROID, Appended(MAIN));
+string Gone() => string.Join(", ", world.Deleted.Select(d => Who(d.user) + "@" + d.device.Replace(BASE, "base").Replace(MAIN.ToString(), "+main").Replace(KID.ToString(), "+kid")));
+Ok("(set-up) the switch succeeds", r.status == 200, Text(r));
+Ok("the profile's row on this phone under another id is removed", world.Deleted.Contains((KID, Appended(KID))), Gone());
+Ok("the row for the id being switched with is left to Jellyfin", !world.Deleted.Any(d => d.device == Appended(MAIN)), Gone());
+Ok("the main account's row on this phone is left alone", !world.Deleted.Any(d => d.user == MAIN), Gone());
+Ok("the profile's row on another device is left alone", !world.Deleted.Any(d => d.device == "living-room-tv"), Gone());
+Ok("exactly one row went", world.Deleted.Count == 1, Gone());
+
+// One session the server will not end must not leave the rest standing.
+world.Reset();
+world.SetMax(KID, 2);
+var stuck = world.Open(KID, ANDROID, Appended(KID));
+world.Open(KID, ANDROID, BASE);
+world.FailEnd.Add(stuck.Id);
+r = Switch(MAIN, KID, ANDROID, Appended(MAIN));
+Ok("a session that will not end does not stop the next one being ended",
+   !world.Sessions.Any(s => s.UserId == KID && s.DeviceId == BASE), Live());
+Ok("and the switch still goes ahead", r.status == 200, Text(r) + " | " + world.Refusal);
 
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();
@@ -269,6 +306,10 @@ public class World
     public List<SessionInfo> Sessions = new();
     public List<Device> Rows = new();
     public List<Guid> Ended = new();
+    // Every device row the plugin itself removed (DeleteDevice), as (account, device id).
+    public List<(Guid user, string device)> Deleted = new();
+    // Session ids whose ReportSessionEnded throws.
+    public HashSet<string> FailEnd = new();
     public string Refusal;
     public bool DeviceRefusal;
     public ISessionManager SessionManager;
@@ -284,7 +325,7 @@ public class World
 
     public void SetMax(Guid id, int max) => typeof(User).GetProperty("MaxActiveSessions").SetValue(Users[id], max);
 
-    public void Reset() { Sessions.Clear(); Rows.Clear(); Ended.Clear(); Refusal = null; }
+    public void Reset() { Sessions.Clear(); Rows.Clear(); Ended.Clear(); Deleted.Clear(); FailEnd.Clear(); Refusal = null; }
 
     // SessionManager.GetSessionInfo: one session per app + device id, whoever it was.
     public SessionInfo Open(Guid user, string app, string deviceId)
@@ -301,6 +342,7 @@ public class World
 
     public void End(string sessionId)
     {
+        if (FailEnd.Contains(sessionId)) throw new InvalidOperationException("the session store refused");
         var s = Sessions.FirstOrDefault(x => x.Id == sessionId);
         if (s == null) return;
         Ended.Add(s.UserId);
@@ -359,6 +401,7 @@ public class WorldProxy : DispatchProxy
                     && (string.IsNullOrEmpty(q.DeviceId) || x.DeviceId == q.DeviceId)).ToList();
                 return new QueryResult<Device>(rows);
             case "DeleteDevice":
+                W.Deleted.Add((((Device)args[0]).UserId, ((Device)args[0]).DeviceId));
                 W.Rows.Remove((Device)args[0]);
                 return Task.CompletedTask;
 

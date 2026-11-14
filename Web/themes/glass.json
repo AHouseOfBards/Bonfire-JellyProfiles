@@ -1,0 +1,230 @@
+{
+  "schema": 1,
+  "id": "glass",
+  "revision": 3,
+  "scheme": "dark",
+  "name": {
+    "key": "theme.glass"
+  },
+  "aliases": [],
+  "colors": {
+    "accent": "#f5f5f7",
+    "accentFocus": "#ffffff",
+    "onAccent": "#1d1d1f",
+    "text1": "#ffffffeb",
+    "text2": "#ffffffb7",
+    "text3": "#ffffff9f",
+    "surface1": "#ffffff08",
+    "surface2": "#ffffff0f",
+    "surface3": "#ffffff1c",
+    "border1": "#ffffff14",
+    "border2": "#ffffff26",
+    "border3": "#ffffff42",
+    "panel": "#1f2a3b",
+    "ring": "#ffffffe6",
+    "name": "#ffffff",
+    "nameFocus": "#ffffff",
+    "shadow": "#000000",
+    "danger": "#ff6b6b",
+    "warning": "#ff9900"
+  },
+  "background": {
+    "fill": "#26344c",
+    "layers": [
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 15,
+        "y": 20,
+        "stops": [
+          {
+            "color": "#5a3f45",
+            "at": 0
+          },
+          {
+            "color": "#5a3f4500",
+            "at": 55
+          }
+        ]
+      },
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 85,
+        "y": 10,
+        "stops": [
+          {
+            "color": "#2f4d6e",
+            "at": 0
+          },
+          {
+            "color": "#2f4d6e00",
+            "at": 60
+          }
+        ]
+      },
+      {
+        "type": "radial",
+        "shape": "ellipse",
+        "x": 70,
+        "y": 95,
+        "stops": [
+          {
+            "color": "#3a3560",
+            "at": 0
+          },
+          {
+            "color": "#3a356000",
+            "at": 55
+          }
+        ]
+      },
+      {
+        "type": "linear",
+        "angle": 160,
+        "stops": [
+          {
+            "color": "#2e3f57",
+            "at": 0
+          },
+          {
+            "color": "#24324a",
+            "at": 60
+          },
+          {
+            "color": "#1a2537",
+            "at": 100
+          }
+        ]
+      }
+    ]
+  },
+  "shape": {
+    "radius": {
+      "small": 8,
+      "medium": 12,
+      "large": 22
+    },
+    "avatar": {
+      "kind": "circle"
+    },
+    "ringWidth": 2,
+    "button": {
+      "kind": "rounded",
+      "radius": 12
+    },
+    "input": {
+      "radius": 10
+    }
+  },
+  "type": {
+    "font": {
+      "family": "Inter",
+      "fallback": "sans-serif"
+    },
+    "title": {
+      "weight": 500,
+      "spacing": -0.01,
+      "scale": 0.75
+    },
+    "name": {
+      "weight": 500,
+      "scale": 0.8,
+      "opacity": 0.85
+    },
+    "button": {
+      "case": "none",
+      "spacing": 0,
+      "weight": 600
+    }
+  },
+  "depth": {
+    "avatar": {
+      "x": 0,
+      "y": 8,
+      "blur": 20,
+      "opacity": 0.251
+    },
+    "title": null,
+    "sheet": {
+      "x": 0,
+      "y": 30,
+      "blur": 60,
+      "opacity": 0.349
+    }
+  },
+  "focus": {
+    "scale": 1.1,
+    "glow": {
+      "x": 0,
+      "y": 20,
+      "blur": 40,
+      "opacity": 0.502
+    }
+  },
+  "parts": {
+    "button2": {
+      "fill": "#ffffff29",
+      "text": "#ffffff",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#ffffff2e"
+      },
+      "focus": {
+        "fill": "#f5f5f7",
+        "text": "#1d1d1f",
+        "border": {
+          "width": 1,
+          "style": "solid",
+          "color": "#f5f5f7"
+        },
+        "glow": {
+          "x": 0,
+          "y": 10,
+          "blur": 24,
+          "opacity": 0.349
+        }
+      }
+    },
+    "addTile": {
+      "fill": "#ffffff2e",
+      "border": {
+        "width": 2,
+        "style": "solid",
+        "color": "#00000000"
+      },
+      "text": "#ffffff",
+      "focusFill": "#ffffff38"
+    },
+    "card": {
+      "fill": "#ffffff12",
+      "line": "#ffffff1a"
+    },
+    "sheet": {
+      "fill": "#ffffff12",
+      "border": {
+        "width": 1,
+        "style": "solid",
+        "color": "#ffffff1f"
+      }
+    },
+    "input": {
+      "fill": "#ffffff1f",
+      "line": "#ffffff1f"
+    }
+  },
+  "layout": {
+    "households": "open",
+    "profiles": "tiles",
+    "align": "center",
+    "size": "medium",
+    "logo": "top-right"
+  },
+  "decorations": [
+    {
+      "name": "frost",
+      "blur": 24
+    }
+  ]
+}

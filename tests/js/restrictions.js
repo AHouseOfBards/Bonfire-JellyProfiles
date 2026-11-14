@@ -1,24 +1,24 @@
 /*
  * Saving a profile must never loosen a restriction the household did not touch.
  *
- * Four ways it did, each silent, each a save for some unrelated reason (a new avatar,
- * a rename) taking a limit off a child's profile:
+ * Four ways it did, each silent, each a save for an unrelated reason (a new avatar, a
+ * rename) taking a limit off a child's profile:
  *
  *   1. A rating set in Dashboard -> Users that is not one of the form's five choices
  *      (PG-13 is 13; the form's "PG-13 / TV-14" is 14) had no option to preselect, so
  *      the select showed "No Restrictions" and the save cleared it.
  *   2. The same save dropped the rating's sub-score (TV-PG vs TV-PG-V) every time.
- *   3. If the device list could not be read, the form drew no device boxes and saved
- *      the profile's allowed devices as [] — "any device".
+ *   3. If the device list could not be read, the form drew no device boxes and saved the
+ *      allowed devices as [] ("any device").
  *   4. A whitelisted device id in a different case from the device's record drew an
  *      unticked box (the server compares ids ignoring case, the form did not), and the
  *      save dropped it.
  *
  * And two on the switch path:
  *
- *   5. Every switch into a sub-profile wrote IsDisabled = false, so an account turned
- *      off in Dashboard -> Users — or by the delete route's own fallback — came back on
- *      the next time somebody picked it. AuthenticateDirect does not check IsDisabled.
+ *   5. Every switch into a sub-profile wrote IsDisabled = false, so an account turned off
+ *      in Dashboard -> Users, or by the delete route's fallback, came back on the next
+ *      pick. AuthenticateDirect does not check IsDisabled.
  *   6. A profile with no stored library list and "all libraries" on its account was
  *      migrated from its master's EnabledFolders, which is empty for an all-libraries
  *      master, so it was saved with no libraries at all.
@@ -145,14 +145,14 @@ console.log('── 4. a whitelisted id in another case ────────
 
 // ── The server, read ────────────────────────────────────────────────────────
 // These live inside two long controller actions with no seam to call, so they are read.
-// Comments are stripped so the prose explaining a rule cannot satisfy it.
+// Comments are stripped so prose about a rule cannot satisfy it.
 
 const CONTROLLER = process.argv[3] || path.join(L.ROOT, 'Controllers', 'ProfilesController.cs');
 const SYNC = process.argv[4] || path.join(L.ROOT, 'Auth', 'ProfilePolicySync.cs');
 const stripComments = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 const cs = stripComments(fs.readFileSync(CONTROLLER, 'utf8'));
-// Where the switch's inheritance block lives since it was shared with every sign-in.
-// Missing in older builds, where the block was still inside SwitchProfile.
+// Where the switch's inheritance block lives since it was shared with every sign-in;
+// missing in older builds, where it was still inside SwitchProfile.
 const sync = fs.existsSync(SYNC) ? stripComments(fs.readFileSync(SYNC, 'utf8')) : '';
 
 function method(name) {
@@ -186,7 +186,10 @@ console.log('── 6. a legacy all-libraries profile ────────�
     // Either the controller's helper, or the value it computed once for the whole sync.
     const reachable = legacy && (/GetMasterAccessibleFolders\s*\(\s*masterPolicy\s*\)/.test(legacy[1])
         || (/^\s*masterAccessible\.ToList\(\)\s*$/.test(legacy[1])
-            && /var\s+masterAccessible\s*=\s*ProfilesBaseController\.MasterAccessibleFolders\(\s*libraryManager,\s*masterPolicy\s*\)/.test(sync)));
+            && (/var\s+masterAccessible\s*=\s*ProfilesBaseController\.MasterAccessibleFolders\(\s*libraryManager,\s*masterPolicy\s*\)/.test(sync)
+                // 2.0: one pass over every profile reads it once (ProfilePolicySync.Pass).
+                || (/var\s+masterAccessible\s*=\s*pass\.MasterReach\(\s*masterUser\.Id,\s*masterPolicy\s*\)/.test(sync)
+                    && /HashSet<Guid>\s+MasterReach\([^)]*\)\s*\{[^}]*ProfilesBaseController\.MasterAccessibleFolders\(\s*masterPolicy\b/.test(sync)))));
     ok('it takes what the master can reach, not the master\'s EnabledFolders', !!reachable,
         legacy ? legacy[1].trim() : '');
 }
@@ -198,7 +201,10 @@ console.log('── 7. "tick nothing" means every library, later ones too ──
     const create = method('CreateProfileCore');
     const update = method('UpdateProfile');
     ok('creating with nothing ticked records it', /AllLibraries\s*=\s*request\.EnabledFolders\s*==\s*null/.test(create));
-    ok('and so does saving with nothing ticked', /AllLibraries\s*=\s*request\.EnabledFolders\s*==\s*null/.test(update));
+    // Since R-1144 the edit form says "every library" as allLibraries: true, and a left-out
+    // list keeps what is stored, so the record follows the flag, not a null list.
+    // tests/cs/partialupdate checks the stored record through the real route.
+    ok('and so does saving with nothing ticked', /mappingEntry\.AllLibraries\s*=\s*request\.AllLibraries\s*==\s*true/.test(update));
     const form = L.extractFunction(src.replace(/showEditProfileModal:\s*function/, 'function showEditProfileModal'), 'showEditProfileModal');
     ok('the edit form shows such a profile with nothing ticked',
         /if\s*\(\s*profile\.allLibraries\s*\)\s*\{\s*isChecked\s*=\s*false;/.test(form));
@@ -212,7 +218,8 @@ console.log('── 2. the rating\'s sub-score on save ────────�
     const writes = [...up.matchAll(/MaxParentalSubRating\s*=\s*null/g)].map(m => m.index);
     const guarded = writes.every(i => {
         const before = up.slice(Math.max(0, i - 400), i);
-        return /if\s*\(\s*requestedRating\s*!=\s*targetPolicy\.MaxParentalRating\s*\)\s*\{[^}]*$/.test(before);
+        // R-1144 put "was a rating sent at all" in front of the same comparison.
+        return /if\s*\(\s*(?:request\.MaxParentalRating\s*!=\s*null\s*&&\s*)?requestedRating\s*!=\s*targetPolicy\.MaxParentalRating\s*\)\s*\{[^}]*$/.test(before);
     });
     ok('the sub-score is only dropped when the score changes', writes.length > 0 && guarded,
         writes.length + ' write(s)');

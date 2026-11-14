@@ -5,9 +5,274 @@ what Jellyfin shows in the plugin update dialog and what the GitHub release body
 uses. That field is the source of truth; this file is the readable index of it.
 
 Versions ending in a pre-release label were published to the beta channel only.
-See [BETA-CHANNEL.md](BETA-CHANNEL.md).
+See [docs/beta-channel.md](docs/beta-channel.md).
 
 ---
+
+## 2.0.0  — 2026-11-14
+
+**Bonfire 2.0** is a long-term support release. From here, updates bring fixes, translations and support for new Jellyfin versions.
+
+**Added**
+
+- A theme editor for your own themes, with background images, more fonts, undo, and Moonfin theme files.
+- Moonfin: sign in with the main account and pick a profile on the home screen.
+- Addresses that skip PINs, for a household's own home network. (#42)
+- Bonfire can be turned off and on in the Status tab.
+
+**Changed**
+
+- The admin page has clearer tabs, with rare settings under Advanced.
+- Profile accounts no longer show in Dashboard → Users, and deleting an account removes its Bonfire records.
+- PIN tries have a daily limit, and PIN sign-in on other apps is limited to your household's devices.
+- Works better on TVs, phones and screen readers.
+- French, Spanish, Catalan, Polish and Turkish are machine translations. Corrections are welcome.
+- The options that patched index.html are gone. Bonfire loads without them.
+
+**Fixed**
+
+- Many fixes, and security and privacy fixes. Updating is recommended.
+
+Every change since 1.7.5 is in the [changelog](https://github.com/AHouseOfBards/Bonfire/blob/main/CHANGELOG.md).
+
+## 1.9.0.6-beta  — 2026-11-14
+
+**Fixed**
+
+- Pressing Generate on a second screen no longer replaces a Bonfire code you already shared.
+- A second TV of the same model gets its new-device email once it plays something.
+- Bonfire still starts on a TV or server page that takes more than a minute to load.
+- Library artwork no longer waits forever when the server doesn't answer.
+- Device names in an imported backup show correctly.
+- A profile save that fails no longer leaves its new image behind.
+- On the admin page, buttons line up with the fields beside them, and theme images no longer disappear when the server is busy.
+- Undo in the theme editor no longer joins later edits onto an interrupted drag.
+- Security fixes.
+
+**Changed**
+
+- Deleting an account in Dashboard → Users also removes its Bonfire records and profile image.
+- Administrator accounts sign in on TVs with their password, not the main PIN.
+- The admin page opens Setup right after Status.
+- French, Spanish, Catalan, Polish and Turkish are retranslated from the current English.
+
+## 1.9.0.5-beta  — 2026-11-14
+
+**Fixed**
+
+- On a TV, the line under a profile's name no longer breaks in two when two households are shown.
+- Back and Escape close a profile screen you opened, and focus goes back where it was.
+- Setup steps on a TV open on their own field or choice, not on Next.
+- The household's own theme shows from the start, not Bonfire's for a moment.
+- One TV is one device in the device list, without pressing Tidy up duplicates.
+- Hints that should be hidden on the profile form stay hidden.
+- The new-device email waits until the device is known to play media.
+- SSO households' TVs keep Quick Connect.
+- Security and privacy fixes.
+
+**Changed**
+
+- New Bonfire logo, in the app, the README and the plugin catalog.
+- With several households, Manage profiles stays at the bottom of the screen.
+- First-time setup has one layout for every step, progress dots, and Skip next to the main button. Picking a theme previews it.
+- On wide screens, the profile form puts Viewing limits side by side.
+- Choosing a theme fades instead of cutting.
+- The admin page is reorganized: Switcher, Avatar library and Email are under Setup, Viewing limits under Security, and the theme lists are a grid of cards.
+- The admin page shows a banner only when something is wrong.
+- In Households, "Show another account" is now "Add an account to this household", and the account list looks like a list.
+- Addresses that skip PINs show an example of how to write one. (#42)
+- Stable versions now install from Campground's repository.
+- The developer API changed for 2.0. See the API docs.
+
+**Added**
+
+- The theme editor has undo and redo, search in Advanced, a second pattern layer, image uploads and fourteen more fonts.
+- Theme files can be loaded from and saved for Moonfin.
+- A guide for households: Using Bonfire.
+
+## 1.9.0.4-beta  — 2026-11-12
+
+**Fixed**
+
+- Enter, Escape and the arrow keys now work on older TV browsers.
+- Viewing hours no longer run an hour long on the night the clocks go back.
+- Add Profile and Edit Profile no longer fail silently or save the wrong libraries.
+- A change to a main account now reaches its profiles straight away.
+- An eight-digit PIN no longer scrolls inside its box.
+- Errors that meant the server could not be reached now say so.
+- The admin page is readable under Jellyfin's light themes.
+- Screen readers name more buttons and lists.
+- Security and privacy fixes.
+
+**Changed**
+
+- Profile accounts no longer show in Dashboard → Users. Households links to them.
+- The Apps tab in the admin page is now Clients.
+- Shorter, plainer wording on the profile screen and the admin page.
+- Bonfire uses less server CPU and memory.
+
+**Added**
+
+- Bonfire can be turned off and on in the Status tab. New installs start off so you can finish setup first.
+- Custom themes can have a background picture, with a dim slider.
+- Custom themes can show profiles as a list, align left, and choose a tile size and logo corner.
+- The theme editor has its own colour picker and can expand its preview to the full profile screen.
+- The server logo can have rounded or square corners.
+- The switch log is kept for 90 days, and an administrator can delete it.
+
+## 1.9.0.3-beta  — 2026-11-10
+
+**Fixed**
+
+- On a phone, viewing-hours rows broke across lines and Delete Profile wrapped.
+- Buttons and form rows touched on older TVs.
+- Long names ran into the next profile on a crowded TV.
+- The library artwork picker was too small on a TV.
+- Escape now goes back on Settings and the profile forms.
+- Back did nothing on your own profile's screen, and some TV screens opened with nothing focused.
+- Opening Name and picture raised the phone keyboard.
+- Errors now say what to do, and an empty list says what to add.
+
+**Changed**
+
+- New installs require a main PIN. Existing servers keep their setting.
+- A profile can change its own name and picture from the switcher.
+- The picker has a bigger focus ring and a lock badge on TV, balanced rows, and no crown on the main account.
+- With richer animation on, Bloom and Harvest drift and Starlight twinkles.
+- Buttons in a theme all use the same letter case, and an empty PIN box shows four dots.
+- A custom logo is larger, and gets a backing on themes where it would disappear.
+- The admin theme list shows a preview of each theme.
+- On a phone, no text is smaller than 12px and every control is easy to tap.
+
+## 1.9.0.2-beta  — 2026-11-09
+
+**Fixed**
+
+- If the settings page failed to load, Save could overwrite your settings with the defaults.
+- Viewing limits set while adding a child's profile were lost if no main PIN was set yet.
+- A TV on the Moonfin picker could open the main account after a server restart.
+- Changing audio or subtitles near the daily limit ended playback early.
+- Short clips were not counted toward viewing limits.
+- A profile kept the main account's strictest rating after it was relaxed.
+- Dialogs were too narrow on a 1080p TV, and focus drew a box round round avatars.
+- A failed profile list now says so instead of showing nothing.
+- Security and privacy fixes. Updating is recommended.
+
+**Changed**
+
+- The admin page is split into clearer tabs, with rare settings under Advanced.
+- Profile and account screens keep rarely used options under More.
+- First-time setup offers every step; each can be skipped.
+- Four avatar quality levels; new installs use High.
+- Optional richer theme animation, off by default. Reduced motion and old TVs stay still.
+- A TV layout switch in Settings, and a flat look on older TVs.
+- Works on short screens, notched phones and the admin page on phones.
+- Better support for screen readers and keyboards.
+- The picker heading says "Your household".
+- The Moonfin picker is labelled beta. It logs a few yes/no lines, never tokens or account names, to help check a fix.
+
+**Removed**
+
+- The "patch index.html" injection modes, the email From name and the first-time setup step boxes.
+
+## 1.9.0.1-beta  — 2026-11-09
+
+**Fixed**
+
+- The TV Back key did nothing on the time-up, select and prompt dialogs.
+- The maintenance screen stayed up after maintenance ended. It now clears itself and has a Check again button.
+- Cancel and Submit stacked off-centre on PIN screens on a 1080p TV.
+- "Upload a picture" ran past its panel on phones.
+- Profile tiles, More options and the avatar library looked wrong on older TVs.
+- Security and privacy fixes. Updating is recommended.
+
+## 1.7.5  — 2026-11-09
+
+**Fixed**
+
+- If the settings page failed to load, Save could overwrite your settings with the defaults. Save now waits until they load, and the page offers Try again.
+
+## 1.7.4  — 2026-11-09
+
+**Fixed**
+
+- A second household's PIN was refused on a device two households share.
+- Security and privacy fixes. Updating is recommended.
+
+## 1.7.3.1-beta  — 2026-11-08
+
+**Fixed**
+
+- Wholphin and Android TV couldn't load the profile list. (#43)
+- OK did nothing on settings-page confirmations such as Reset PIN and closing for maintenance. (#44)
+- A narrower schedule set on a profile in Dashboard → Users was replaced at its next sign-in.
+
+**Changed**
+
+- On Swiftfin, Roku and other apps, the refusal when viewing time runs out or the server is closed now says what to do.
+
+## 1.7.3  — 2026-11-08
+
+**Fixed**
+
+- Wholphin and Android TV couldn't load the profile list. (#43)
+- OK did nothing on Reset PIN, signing a device out, or importing a backup. (#44)
+- Changing the main PIN in Manage Profiles made later saves fail as an incorrect PIN. (#44)
+
+## 1.7.2.1-beta  — 2026-11-07
+
+**Fixed**
+
+- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)
+- A refused switch now says why: too many sessions, or not allowed on this device.
+- Typing a long PIN used up its tries before it was finished.
+- A PIN typed after "Clear PIN" was dropped.
+- A rejected profile picture deleted the one the profile had.
+- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with "Require HTTPS" on.
+- A library removed from a profile in Dashboard -> Users came back at its next sign-in.
+- Restoring a backup dropped email, maintenance and several other settings.
+- Security and privacy fixes. Updating is recommended.
+
+**Changed**
+
+- PIN tries now have a daily limit per account. An administrator can lower it.
+- On other apps, PIN sign-in is limited to devices your household uses, and profiles with no PIN to your home network. An administrator can allow it from anywhere.
+- Making an account into a profile now asks whether deleting the profile later keeps the account.
+- A profile can't be named after a real account.
+- Versions 1.6.1.2 and 1.6.1.3 are no longer offered: they could break sign-in for the whole server.
+
+## 1.7.2  — 2026-11-07
+
+**Fixed**
+
+- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)
+- A Roku opened a profile without asking for its PIN. (#40)
+- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with "Require HTTPS" on.
+- A configuration file that couldn't be read wiped every household.
+- Typing a long PIN used up its tries before it was finished.
+- A PIN typed after "Clear PIN" was dropped.
+- A rejected profile picture deleted the one the profile had.
+- A library removed from a profile in Dashboard → Users came back at its next sign-in.
+- Security and privacy fixes. Updating is recommended.
+
+**Changed**
+
+- On other apps, PIN sign-in is limited to devices your household uses.
+
+## 1.7.1.2-beta  — 2026-11-04
+
+**Added**
+
+- Moonfin: sign in with the main account and pick a profile on the home screen. Turn it on under TVs & Apps.
+- For app developers: `GET /plugins/profiles/info`, and an error code on every error.
+
+**Changed**
+
+- A signed-in user refused an action now gets 403, not 401.
+
+**Fixed**
+
+- A Roku opened a profile without asking for its PIN. (#40)
 
 ## 1.7.1  — 2026-11-02
 
@@ -41,25 +306,54 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 - Some translations failed to load on clients that ask for them in lowercase, such as pt-br.
 - "Settings saved." on the admin page showed its title off-centre.
 
-## 1.6.6  — 2026-10-28
-
-**Fixed**
-
-- Switching profiles reset a profile's audio and subtitle language to the main account's. [#36]
+## 1.6.6.3-beta  — 2026-11-01
 
 **Added**
 
-- Turkish translation. [#35]
+- Three seasonal themes: Harvest (autumn), Snowfall (winter) and Bloom (spring).
 
-## 1.6.5  — 2026-10-13
+**Changed**
+
+- Settings → Theme lists each theme once, with the server default marked.
+- Settings → Theme no longer says "Saved." after each pick.
+- Settings → Theme is laid out the same in every theme.
 
 **Fixed**
 
-- On 2019 LG TVs (webOS 4.5), Bonfire did not start at all. [#34]
-- With "Ask who's watching on startup" off, there was no Switch Profile button and no way to switch.
-- After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.
-- On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.
-- The profile picture in the header was drawn zoomed in and blurry.
+- Theme previews spilled out of their cards on phones.
+- A profile picture with no background could stick out past its round frame.
+
+## 1.6.6.2-beta  — 2026-11-01
+
+**Added**
+
+- Choose each profile's theme under Settings → Theme.
+
+**Changed**
+
+- Each theme now looks like the service it is modelled on, including the profile, settings and Bonfire screens.
+- A theme change shows straight away, without reloading.
+- The way out of every screen is in the same place, bottom left.
+
+**Fixed**
+
+- The home screen could flash after picking a profile.
+- "Settings saved." on the admin page showed its title off-centre.
+
+## 1.6.6.1-beta  — 2026-10-31
+
+**Added**
+
+- Themes for Bonfire's screens. The server owner picks the default and whether each profile can choose its own.
+- Parental rating choices use your server's country instead of US ratings only.
+
+**Fixed**
+
+- Jellyfin's home screen flashed briefly before the profile picker, and when picking a profile.
+- A profile could go missing from a TV's sign-in screen.
+- Saving a profile could remove its rating limit or its allowed devices.
+- Switching into a disabled profile turned it back on.
+- Some translations failed to load on clients that ask for them in lowercase, such as pt-br.
 
 ## 1.6.4.1-beta  — 2026-10-13
 
@@ -69,42 +363,6 @@ See [BETA-CHANNEL.md](BETA-CHANNEL.md).
 - After signing out of the iOS app, the previous account's profile stayed on the sign-in screen and carried over to the next account.
 - On iPad, your own profiles could appear as a linked Bonfire, and Manage Profiles asked you to open yourself first.
 - The profile picture in the header was drawn zoomed in and blurry.
-
-## 1.6.4  — 2026-10-03
-
-**Fixed**
-
-- Security: any account could run script in an administrator's browser through the Bonfire settings page. Please update.
-- Security: a PIN typed into a TV or app sign-in screen could be guessed with no limit.
-- Security: someone using a profile in a browser could take over the main account behind it.
-- On Android TV, Roku and other TV apps, choosing a profile and entering its PIN was refused.
-- A profile limited to one TV could be missing from that TV's sign-in screen.
-- Skipping Quick Connect on known TVs also removed it for other people with the same TV model.
-- Signing in on a TV could occasionally fail with a server error.
-- Creating a profile could fail with "The supplied value is invalid". [#33]
-- The profile picker ran off the bottom of the screen on a TV. [#31]
-- A profile kept its old rating after its account's rating was lowered.
-- Clearing your PIN, or using the emergency disable code, could stop your password working.
-- An account with a PIN could not change its Jellyfin password.
-- Creating two profiles at once could go over the profile limit.
-- The Signed-in devices list in the dashboard could fail to load.
-- The create form showed only four libraries at a time.
-
-**Changed**
-
-- A profile keeps every restriction set on its account, such as remote access, schedules and bitrate.
-- Profiles in another household's Bonfire need a PIN, unless their owner allows switching on the home network.
-- Hidden Bonfire profiles can no longer be opened.
-- Removing someone from your Bonfire changes its code, so they cannot rejoin with the old one.
-- Reopening the app keeps the profile you were using. Going back to your main profile asks for its PIN.
-- Manage Profiles needs your main profile open.
-
-**Added**
-
-- Thirty starter avatars to pick from, on by default. Turn them off in Dashboard -> Bonfire -> Avatar Library. [#32]
-- Picture quality for profile pictures and avatars: Dashboard -> Bonfire -> Picture quality.
-- A New code button for your Bonfire.
-- A loader for the Samsung Tizen app, so Bonfire updates reach the TV without rebuilding the app. [#16]
 
 ## 1.6.3.5-beta  — 2026-10-03
 

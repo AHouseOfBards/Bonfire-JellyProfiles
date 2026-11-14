@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /*
- * The way out of every Bonfire screen is in the same place: bottom left.
+ * The way out of every Bonfire screen is in the same place: bottom right.
  *
  * Reported as: "make sure exit buttons line up in similar spots — the Done button on one
- * of our screens is on the opposite end of the UI from the Cancel button on others." It
- * was. The PIN screens, the create form and the confirm dialog put the main action first
- * and Cancel second; the prompts put Cancel first; the edit form grouped Save with Cancel
- * on one side and Delete on the other; Settings, Switcher Style, Theme and Bonfire had a
- * lone Back or Done in the middle. On a television, where the remote has to travel to it,
- * that is a different hunt on every screen.
+ * of our screens is on the opposite end of the UI from the Cancel button on others." 1.7.2
+ * put the way out first, bottom left. Reported again on 1.9.0.4-beta: "Who's watching?" had
+ * Manage profiles, Cancel (back on the right) while "Manage profiles" had Done, Settings
+ * (back on the left). The owner's rule is the first: the button that leaves is on the
+ * right, the action on the left.
  *
  * The rule, checked one button at a time rather than as a count: each exit button sits in
- * a row marked .jpf-actions, and no other button comes before it in that row. .jpf-actions
- * spreads the row to both edges, so first means left.
+ * a row of buttons (.jpf-actions, an inline .jpf-row-gap, or the gate's .profiles-footer),
+ * and no other button comes after it in that row. The row spreads to both edges, so last
+ * means right. A lone way out is pushed right too.
  *
  * Usage: node tests/js/exitbuttons.js [path/to/profiles.js] [path/to/styles.css]
  */
@@ -31,15 +31,19 @@ function ok(name, cond, detail) {
     else { fails.push(name); console.log('  FAIL  ' + name + (detail ? '  — ' + detail : '')); }
 }
 
-// Every button that leaves a screen without doing its main thing. The TV Back key's list
-// (_dismissSurface) is most of them; the prompts are the rest.
+// Every button that leaves a screen without doing its main thing: the TV Back key's list
+// (_dismissSurface) and the rest of the screens with a Cancel, Back, Skip or Done.
 const EXITS = [
     'prompt-cancel-btn', 'select-cancel-btn', 'dialog-cancel-btn',
     'pin-cancel-btn', 'master-pin-cancel-btn', 'create-cancel-btn', 'edit-cancel-btn',
-    'bonfire-back-btn', 'settings-back-btn', 'theme-settings-back-btn', 'switcher-mode-back-btn'
+    'bonfire-back-btn', 'settings-back-btn', 'theme-settings-back-btn', 'switcher-mode-back-btn',
+    'account-back-btn', 'pin-reset-back', 'self-cancel-btn', 'main-pin-skip', 'onboarding-skip',
+    'profiles-panic-cancel', 'profiles-libart-cancel', 'profiles-crop-cancel',
+    'profiles-resume-btn', 'account-email-cancel'
 ];
+const ROW = /jpf-actions|jpf-row-gap|profiles-footer|jpf-inline-row/;
 
-console.log('\n── Every screen\'s way out is first in its row ────────────────');
+console.log('\n── Every screen\'s way out is last in its row ─────────────────');
 
 /** The opening tag of the nearest <div> that contains `at`, and where it starts. */
 function enclosingDiv(src, at) {
@@ -56,32 +60,60 @@ function enclosingDiv(src, at) {
     return null;
 }
 
+/** Where the <div> opened at `row.index` closes. */
+function closeOf(src, row) {
+    const re = /<div\b[^>]*>|<\/div>/g;
+    re.lastIndex = row.index;
+    let depth = 0, m;
+    while ((m = re.exec(src)) !== null) {
+        depth += m[0] === '</div>' ? -1 : 1;
+        if (depth === 0) return m.index;
+    }
+    return src.length;
+}
+
+function check(where, at, ignore) {
+    // The row is the nearest one above it; a group inside the row (the edit form's Save
+    // and Delete) is allowed between them.
+    let row = enclosingDiv(SRC, at);
+    let guard = 0;
+    while (row && !ROW.test(row.tag) && guard++ < 3) row = enclosingDiv(SRC, row.index);
+    ok(where + ' is in a row of buttons', !!row && ROW.test(row.tag), row ? row.tag.slice(0, 90) : 'no enclosing row');
+    if (!row) return;
+    const after = SRC.slice(at + 1, closeOf(SRC, row));
+    // `ignore`: a button written after it that is never drawn with it (Cancel and Done are
+    // the two ways out of the gate, one in each mode, behind one ternary each).
+    const later = (after.match(/<button\b[^>]*>/g) || []).filter(b => !(ignore && ignore.test(b))).length;
+    ok(where + ' comes after every other button in it', later === 0, later + ' button(s) after it');
+}
+
 EXITS.forEach(id => {
-    const re = new RegExp('<button id="' + id + '"', 'g');
+    const re = new RegExp('<button (?:type="button" )?id="' + id + '"', 'g');
     let m, seen = 0;
     while ((m = re.exec(SRC)) !== null) {
         seen++;
-        // The row is the nearest .jpf-actions above it; a group inside the row (the edit
-        // form's Cancel and Delete) is allowed between them.
-        let row = enclosingDiv(SRC, m.index);
-        let guard = 0;
-        while (row && !/jpf-actions/.test(row.tag) && guard++ < 3) row = enclosingDiv(SRC, row.index);
-        const where = id + (seen > 1 ? ' (' + seen + ')' : '');
-        ok(where + ' is in a .jpf-actions row', !!row && /jpf-actions/.test(row.tag),
-           row ? row.tag.slice(0, 90) : 'no enclosing row');
-        if (!row) continue;
-        const before = SRC.slice(row.index, m.index);
-        const earlier = (before.match(/<button\b/g) || []).length;
-        ok(where + ' comes before every other button in it', earlier === 0, earlier + ' button(s) before it');
+        check(id + (seen > 1 ? ' (' + seen + ')' : ''), m.index,
+            id === 'profiles-resume-btn' ? /id="profiles-toggle-manage-btn"/ : null);
     }
     ok(id + ' exists', seen > 0);
 });
 
-console.log('\n── The row puts first on the left ────────────────────────────');
+// Done on Manage profiles is the gate's way out in manage mode; in the other mode the same
+// button is Manage profiles, which is an action and comes first.
+const manage = /this\.isManageMode \? `<button id="profiles-toggle-manage-btn"/.exec(SRC);
+ok('Done (manage mode) exists', !!manage);
+if (manage) check('Done on Manage profiles', manage.index + manage[0].indexOf('<button'));
+const open = /this\.isManageMode \? '' : `<button id="profiles-toggle-manage-btn"/.exec(SRC);
+ok('Manage profiles (the other mode) comes before Cancel', !!open
+    && open.index < SRC.indexOf('<button id="profiles-resume-btn"'));
+const settings = SRC.indexOf('<button id="profiles-settings-btn"');
+ok('Settings comes before Done on Manage profiles', settings !== -1 && manage && settings < manage.index);
+
+console.log('\n── The row puts last on the right ────────────────────────────');
 const rule = (/\.jpf-actions\s*\{([^}]*)\}/.exec(CSS) || [])[1] || '';
 ok('.jpf-actions spreads its buttons to both edges', /justify-content:\s*space-between/.test(rule));
-ok('and no lone way out is pushed back to the middle',
-   !/class="bonfire-dialog-actions[^"]*"[^>]*justify-content:\s*center/.test(SRC));
+ok('and no lone way out is pushed back to the middle or the left',
+   !/class="bonfire-dialog-actions[^"]*"[^>]*justify-content:\s*(center|flex-start)/.test(SRC));
 
 console.log('');
 if (fails.length) {

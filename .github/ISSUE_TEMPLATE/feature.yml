@@ -1,0 +1,26 @@
+name: Feature request
+description: Something Bonfire should do
+labels: []
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What do you want Bonfire to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: What are you trying to do
+      description: The situation this would help with.
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: Where you would use it
+      placeholder: "LG webOS / Firefox on Windows / Jellyfin Android app"
+    validations:
+      required: false

@@ -1,0 +1,754 @@
+{
+  "main": {
+    "Libraries": [
+      {
+        "Id": "11111111111111111111111111111111",
+        "Name": "Movies"
+      },
+      {
+        "Id": "22222222222222222222222222222222",
+        "Name": "Shows"
+      },
+      {
+        "Id": "33333333333333333333333333333333",
+        "Name": "Their shelf"
+      }
+    ],
+    "Ratings": {
+      "Ratings": []
+    },
+    "Avatars": {
+      "AllowCustomUploads": true,
+      "Image": {
+        "Quality": "maximum",
+        "MasterSize": 2048,
+        "ThumbSize": 256,
+        "JpegQuality": 0.92,
+        "MaxBytes": 8388608
+      },
+      "StarterAvatarsEnabled": true,
+      "Avatars": [
+        {
+          "Id": "a1b2c3d4e5f6",
+          "DisplayName": "Grandma",
+          "Url": "/plugins/profiles/avatars/a1b2c3d4e5f6",
+          "ThumbUrl": "/plugins/profiles/avatars/a1b2c3d4e5f6?size=thumb",
+          "IsStarter": false
+        },
+        {
+          "Id": "starter-dog",
+          "DisplayName": "Dog",
+          "Url": "/plugins/profiles/avatars/starter-dog",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-dog",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cat",
+          "DisplayName": "Cat",
+          "Url": "/plugins/profiles/avatars/starter-cat",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cat",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-fox",
+          "DisplayName": "Fox",
+          "Url": "/plugins/profiles/avatars/starter-fox",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-fox",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-panda",
+          "DisplayName": "Panda",
+          "Url": "/plugins/profiles/avatars/starter-panda",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-panda",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-lion",
+          "DisplayName": "Lion",
+          "Url": "/plugins/profiles/avatars/starter-lion",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-lion",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-tiger",
+          "DisplayName": "Tiger",
+          "Url": "/plugins/profiles/avatars/starter-tiger",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-tiger",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-koala",
+          "DisplayName": "Koala",
+          "Url": "/plugins/profiles/avatars/starter-koala",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-koala",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-frog",
+          "DisplayName": "Frog",
+          "Url": "/plugins/profiles/avatars/starter-frog",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-frog",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-unicorn",
+          "DisplayName": "Unicorn",
+          "Url": "/plugins/profiles/avatars/starter-unicorn",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-unicorn",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-penguin",
+          "DisplayName": "Penguin",
+          "Url": "/plugins/profiles/avatars/starter-penguin",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-penguin",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-owl",
+          "DisplayName": "Owl",
+          "Url": "/plugins/profiles/avatars/starter-owl",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-owl",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-monkey",
+          "DisplayName": "Monkey",
+          "Url": "/plugins/profiles/avatars/starter-monkey",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-monkey",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-rabbit",
+          "DisplayName": "Rabbit",
+          "Url": "/plugins/profiles/avatars/starter-rabbit",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-rabbit",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-bear",
+          "DisplayName": "Bear",
+          "Url": "/plugins/profiles/avatars/starter-bear",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-bear",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-hamster",
+          "DisplayName": "Hamster",
+          "Url": "/plugins/profiles/avatars/starter-hamster",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-hamster",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-pig",
+          "DisplayName": "Pig",
+          "Url": "/plugins/profiles/avatars/starter-pig",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-pig",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cow",
+          "DisplayName": "Cow",
+          "Url": "/plugins/profiles/avatars/starter-cow",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cow",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-dragon",
+          "DisplayName": "Dragon",
+          "Url": "/plugins/profiles/avatars/starter-dragon",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-dragon",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-octopus",
+          "DisplayName": "Octopus",
+          "Url": "/plugins/profiles/avatars/starter-octopus",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-octopus",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-turtle",
+          "DisplayName": "Turtle",
+          "Url": "/plugins/profiles/avatars/starter-turtle",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-turtle",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-polar-bear",
+          "DisplayName": "Polar bear",
+          "Url": "/plugins/profiles/avatars/starter-polar-bear",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-polar-bear",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-wolf",
+          "DisplayName": "Wolf",
+          "Url": "/plugins/profiles/avatars/starter-wolf",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-wolf",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-sloth",
+          "DisplayName": "Sloth",
+          "Url": "/plugins/profiles/avatars/starter-sloth",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-sloth",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-chick",
+          "DisplayName": "Chick",
+          "Url": "/plugins/profiles/avatars/starter-chick",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-chick",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-robot",
+          "DisplayName": "Robot",
+          "Url": "/plugins/profiles/avatars/starter-robot",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-robot",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-alien",
+          "DisplayName": "Alien",
+          "Url": "/plugins/profiles/avatars/starter-alien",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-alien",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-ghost",
+          "DisplayName": "Ghost",
+          "Url": "/plugins/profiles/avatars/starter-ghost",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-ghost",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cool",
+          "DisplayName": "Cool",
+          "Url": "/plugins/profiles/avatars/starter-cool",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cool",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cowboy",
+          "DisplayName": "Cowboy",
+          "Url": "/plugins/profiles/avatars/starter-cowboy",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cowboy",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-nerd",
+          "DisplayName": "Nerd",
+          "Url": "/plugins/profiles/avatars/starter-nerd",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-nerd",
+          "IsStarter": true
+        }
+      ]
+    },
+    "TimeZones": {
+      "Zones": "[zones]",
+      "Server": "[this machine]",
+      "Default": "",
+      "Household": "",
+      "Effective": "[this machine]"
+    }
+  },
+  "profile": {
+    "Libraries": [
+      {
+        "Id": "11111111111111111111111111111111",
+        "Name": "Movies"
+      }
+    ],
+    "Ratings": {
+      "Ratings": []
+    },
+    "Avatars": {
+      "AllowCustomUploads": true,
+      "Image": {
+        "Quality": "maximum",
+        "MasterSize": 2048,
+        "ThumbSize": 256,
+        "JpegQuality": 0.92,
+        "MaxBytes": 8388608
+      },
+      "StarterAvatarsEnabled": true,
+      "Avatars": [
+        {
+          "Id": "a1b2c3d4e5f6",
+          "DisplayName": "Grandma",
+          "Url": "/plugins/profiles/avatars/a1b2c3d4e5f6",
+          "ThumbUrl": "/plugins/profiles/avatars/a1b2c3d4e5f6?size=thumb",
+          "IsStarter": false
+        },
+        {
+          "Id": "starter-dog",
+          "DisplayName": "Dog",
+          "Url": "/plugins/profiles/avatars/starter-dog",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-dog",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cat",
+          "DisplayName": "Cat",
+          "Url": "/plugins/profiles/avatars/starter-cat",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cat",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-fox",
+          "DisplayName": "Fox",
+          "Url": "/plugins/profiles/avatars/starter-fox",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-fox",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-panda",
+          "DisplayName": "Panda",
+          "Url": "/plugins/profiles/avatars/starter-panda",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-panda",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-lion",
+          "DisplayName": "Lion",
+          "Url": "/plugins/profiles/avatars/starter-lion",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-lion",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-tiger",
+          "DisplayName": "Tiger",
+          "Url": "/plugins/profiles/avatars/starter-tiger",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-tiger",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-koala",
+          "DisplayName": "Koala",
+          "Url": "/plugins/profiles/avatars/starter-koala",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-koala",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-frog",
+          "DisplayName": "Frog",
+          "Url": "/plugins/profiles/avatars/starter-frog",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-frog",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-unicorn",
+          "DisplayName": "Unicorn",
+          "Url": "/plugins/profiles/avatars/starter-unicorn",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-unicorn",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-penguin",
+          "DisplayName": "Penguin",
+          "Url": "/plugins/profiles/avatars/starter-penguin",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-penguin",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-owl",
+          "DisplayName": "Owl",
+          "Url": "/plugins/profiles/avatars/starter-owl",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-owl",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-monkey",
+          "DisplayName": "Monkey",
+          "Url": "/plugins/profiles/avatars/starter-monkey",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-monkey",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-rabbit",
+          "DisplayName": "Rabbit",
+          "Url": "/plugins/profiles/avatars/starter-rabbit",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-rabbit",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-bear",
+          "DisplayName": "Bear",
+          "Url": "/plugins/profiles/avatars/starter-bear",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-bear",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-hamster",
+          "DisplayName": "Hamster",
+          "Url": "/plugins/profiles/avatars/starter-hamster",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-hamster",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-pig",
+          "DisplayName": "Pig",
+          "Url": "/plugins/profiles/avatars/starter-pig",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-pig",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cow",
+          "DisplayName": "Cow",
+          "Url": "/plugins/profiles/avatars/starter-cow",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cow",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-dragon",
+          "DisplayName": "Dragon",
+          "Url": "/plugins/profiles/avatars/starter-dragon",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-dragon",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-octopus",
+          "DisplayName": "Octopus",
+          "Url": "/plugins/profiles/avatars/starter-octopus",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-octopus",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-turtle",
+          "DisplayName": "Turtle",
+          "Url": "/plugins/profiles/avatars/starter-turtle",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-turtle",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-polar-bear",
+          "DisplayName": "Polar bear",
+          "Url": "/plugins/profiles/avatars/starter-polar-bear",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-polar-bear",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-wolf",
+          "DisplayName": "Wolf",
+          "Url": "/plugins/profiles/avatars/starter-wolf",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-wolf",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-sloth",
+          "DisplayName": "Sloth",
+          "Url": "/plugins/profiles/avatars/starter-sloth",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-sloth",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-chick",
+          "DisplayName": "Chick",
+          "Url": "/plugins/profiles/avatars/starter-chick",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-chick",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-robot",
+          "DisplayName": "Robot",
+          "Url": "/plugins/profiles/avatars/starter-robot",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-robot",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-alien",
+          "DisplayName": "Alien",
+          "Url": "/plugins/profiles/avatars/starter-alien",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-alien",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-ghost",
+          "DisplayName": "Ghost",
+          "Url": "/plugins/profiles/avatars/starter-ghost",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-ghost",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cool",
+          "DisplayName": "Cool",
+          "Url": "/plugins/profiles/avatars/starter-cool",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cool",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cowboy",
+          "DisplayName": "Cowboy",
+          "Url": "/plugins/profiles/avatars/starter-cowboy",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cowboy",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-nerd",
+          "DisplayName": "Nerd",
+          "Url": "/plugins/profiles/avatars/starter-nerd",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-nerd",
+          "IsStarter": true
+        }
+      ]
+    },
+    "TimeZones": {
+      "Zones": "[zones]",
+      "Server": "[this machine]",
+      "Default": "",
+      "Household": "",
+      "Effective": "[this machine]"
+    }
+  },
+  "otherHousehold": {
+    "Libraries": [
+      {
+        "Id": "33333333333333333333333333333333",
+        "Name": "Their shelf"
+      }
+    ],
+    "Ratings": {
+      "Ratings": []
+    },
+    "Avatars": {
+      "AllowCustomUploads": true,
+      "Image": {
+        "Quality": "maximum",
+        "MasterSize": 2048,
+        "ThumbSize": 256,
+        "JpegQuality": 0.92,
+        "MaxBytes": 8388608
+      },
+      "StarterAvatarsEnabled": true,
+      "Avatars": [
+        {
+          "Id": "a1b2c3d4e5f6",
+          "DisplayName": "Grandma",
+          "Url": "/plugins/profiles/avatars/a1b2c3d4e5f6",
+          "ThumbUrl": "/plugins/profiles/avatars/a1b2c3d4e5f6?size=thumb",
+          "IsStarter": false
+        },
+        {
+          "Id": "starter-dog",
+          "DisplayName": "Dog",
+          "Url": "/plugins/profiles/avatars/starter-dog",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-dog",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cat",
+          "DisplayName": "Cat",
+          "Url": "/plugins/profiles/avatars/starter-cat",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cat",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-fox",
+          "DisplayName": "Fox",
+          "Url": "/plugins/profiles/avatars/starter-fox",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-fox",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-panda",
+          "DisplayName": "Panda",
+          "Url": "/plugins/profiles/avatars/starter-panda",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-panda",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-lion",
+          "DisplayName": "Lion",
+          "Url": "/plugins/profiles/avatars/starter-lion",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-lion",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-tiger",
+          "DisplayName": "Tiger",
+          "Url": "/plugins/profiles/avatars/starter-tiger",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-tiger",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-koala",
+          "DisplayName": "Koala",
+          "Url": "/plugins/profiles/avatars/starter-koala",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-koala",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-frog",
+          "DisplayName": "Frog",
+          "Url": "/plugins/profiles/avatars/starter-frog",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-frog",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-unicorn",
+          "DisplayName": "Unicorn",
+          "Url": "/plugins/profiles/avatars/starter-unicorn",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-unicorn",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-penguin",
+          "DisplayName": "Penguin",
+          "Url": "/plugins/profiles/avatars/starter-penguin",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-penguin",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-owl",
+          "DisplayName": "Owl",
+          "Url": "/plugins/profiles/avatars/starter-owl",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-owl",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-monkey",
+          "DisplayName": "Monkey",
+          "Url": "/plugins/profiles/avatars/starter-monkey",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-monkey",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-rabbit",
+          "DisplayName": "Rabbit",
+          "Url": "/plugins/profiles/avatars/starter-rabbit",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-rabbit",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-bear",
+          "DisplayName": "Bear",
+          "Url": "/plugins/profiles/avatars/starter-bear",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-bear",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-hamster",
+          "DisplayName": "Hamster",
+          "Url": "/plugins/profiles/avatars/starter-hamster",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-hamster",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-pig",
+          "DisplayName": "Pig",
+          "Url": "/plugins/profiles/avatars/starter-pig",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-pig",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cow",
+          "DisplayName": "Cow",
+          "Url": "/plugins/profiles/avatars/starter-cow",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cow",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-dragon",
+          "DisplayName": "Dragon",
+          "Url": "/plugins/profiles/avatars/starter-dragon",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-dragon",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-octopus",
+          "DisplayName": "Octopus",
+          "Url": "/plugins/profiles/avatars/starter-octopus",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-octopus",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-turtle",
+          "DisplayName": "Turtle",
+          "Url": "/plugins/profiles/avatars/starter-turtle",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-turtle",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-polar-bear",
+          "DisplayName": "Polar bear",
+          "Url": "/plugins/profiles/avatars/starter-polar-bear",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-polar-bear",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-wolf",
+          "DisplayName": "Wolf",
+          "Url": "/plugins/profiles/avatars/starter-wolf",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-wolf",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-sloth",
+          "DisplayName": "Sloth",
+          "Url": "/plugins/profiles/avatars/starter-sloth",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-sloth",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-chick",
+          "DisplayName": "Chick",
+          "Url": "/plugins/profiles/avatars/starter-chick",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-chick",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-robot",
+          "DisplayName": "Robot",
+          "Url": "/plugins/profiles/avatars/starter-robot",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-robot",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-alien",
+          "DisplayName": "Alien",
+          "Url": "/plugins/profiles/avatars/starter-alien",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-alien",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-ghost",
+          "DisplayName": "Ghost",
+          "Url": "/plugins/profiles/avatars/starter-ghost",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-ghost",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cool",
+          "DisplayName": "Cool",
+          "Url": "/plugins/profiles/avatars/starter-cool",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cool",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-cowboy",
+          "DisplayName": "Cowboy",
+          "Url": "/plugins/profiles/avatars/starter-cowboy",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-cowboy",
+          "IsStarter": true
+        },
+        {
+          "Id": "starter-nerd",
+          "DisplayName": "Nerd",
+          "Url": "/plugins/profiles/avatars/starter-nerd",
+          "ThumbUrl": "/plugins/profiles/avatars/starter-nerd",
+          "IsStarter": true
+        }
+      ]
+    },
+    "TimeZones": {
+      "Zones": "[zones]",
+      "Server": "[this machine]",
+      "Default": "",
+      "Household": "",
+      "Effective": "[this machine]"
+    }
+  }
+}

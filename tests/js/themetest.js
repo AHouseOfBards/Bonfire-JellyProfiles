@@ -24,91 +24,61 @@ function check(name, actual, expected) {
     }
 }
 
-// The single <style> block, pulled out by locating its template literal.
+// What the browser has: the stylesheet, then the blocks themeCss writes from the theme
+// files. Since 1.7.2 those blocks are the definitions and the sheet only consumes them.
 const CSS = L.extractCss(SRC);
-
-// The definitions live at the top; everything after them is consuming CSS.
-const defsEnd = CSS.indexOf('@supports');
-const supportsEnd = CSS.indexOf('}', CSS.indexOf('}', CSS.indexOf('--jpf-accent-a60: color-mix')) + 1) + 1;
-const DEFS = CSS.slice(0, supportsEnd);
-const CONSUMERS = CSS.slice(supportsEnd);
+const SHEET = L.stylesOnly();
+const DEFS = L.themesCss(fs.readFileSync(L.profilesPath(), 'utf8'));
+const CONSUMERS = SHEET.replace(/\/\*[\s\S]*?\*\//g, '');
 
 const ALPHAS = ['a08', 'a18', 'a30', 'a40', 'a45', 'a50', 'a60'];
 
-console.log('── The accent is read from the theme ─────────────────────────');
-// Three deep, and the order is the assertion: Jellyfin 12.0's supported token first,
-// then 10.11's de-facto one, then the stock blue both versions use anyway. Reading
-// --accent first would pin every 12.0 install to the fallback, because 12.0 does not
-// define --accent at all — the whole palette moved to MUI cssVariables under --jf-.
-check('--jpf-accent reads 12.0 first, then 10.11, then the literal',
-    /--jpf-accent:\s*var\(--jf-palette-primary-main,\s*var\(--accent,\s*#00a4dc\)\)/.test(DEFS), true);
-check('declared on :root AND body', /:root,\s*body\s*\{/.test(DEFS), true);
-// Reading --accent only at :root would miss every theme that sets it on body,
-// because a custom property resolves against the element declaring it.
-// Three now, not two: P6 added a third that redefines the neutral tokens for a light
-// background, because every one of them is white at a low alpha and a separator at
-// rgba(255,255,255,.08) over white is white. Counting alone would pass for any third
-// block, so the block is named as well.
-check('three declaring blocks (floor + @supports + light)',
-    (CSS.match(/:root,\s*body\s*\{/g) || []).length, 3);
-check('and the third is the light-scheme redefinition',
-    /@media \(prefers-color-scheme: light\)\s*\{\s*:root,\s*body\s*\{/.test(CSS), true);
-// The point of that block is that it redefines tokens and repeats no rules — if it
-// starts restating selectors, the tokens have stopped earning their keep. Brace-matched
-// rather than sliced at the first "\n}", which finds the end of the inner rule.
-const LIGHT_BLOCK = (() => {
-    const i = CSS.indexOf('@media (prefers-color-scheme: light)');
-    if (i === -1) return '';
-    let depth = 0;
-    for (let j = CSS.indexOf('{', i); j < CSS.length; j++) {
-        if (CSS[j] === '{') depth++;
-        else if (CSS[j] === '}' && --depth === 0) return CSS.slice(i, j + 1);
-    }
-    return '';
-})();
-check('the light block only redefines tokens', (() => {
-    if (!LIGHT_BLOCK) return false;
-    // Every selector inside it, i.e. every run of text ending in '{' after the @media.
-    const inner = LIGHT_BLOCK.slice(LIGHT_BLOCK.indexOf('{') + 1);
-    const selectors = (inner.match(/([^{}]+)\{/g) || []).map(x => x.slice(0, -1).trim());
-    return selectors.length === 1 && selectors[0] === ':root, body';
+console.log('── The accent is the theme\'s ────────────────────────────────');
+/* Until 1.7.2 this section asserted the opposite: that Bonfire's accent followed
+ * Jellyfin's (--jf-palette-primary-main on 12.0, --accent on 10.11) and that a light
+ * desktop redefined the neutrals. Bonfire is a fixed look of its own now, and every
+ * theme's colours are in its file. Either mechanism coming back would put a second set
+ * of tokens over every theme, on some servers and some desktops and not others. */
+const BARE = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+check('nothing reads Jellyfin\'s accent', /--jf-palette-primary-main|var\(--accent\b/.test(BARE), false);
+check('nothing redefines a token for a light or dark desktop',
+    /@media \(prefers-color-scheme[^{]*\{\s*[^{}]*\{[^}]*--jpf-/.test(BARE), false);
+check('Bonfire\'s block is on :root and body, so the page has it before any theme is known',
+    /^:root,\s*body,\s*\[data-jpf-theme="bonfire"\],\s*\[data-jpf-theme="bonfire"\] body\s*\{/.test(DEFS), true);
+// One more block on :root, the sheet's own, for what no theme sets. Not a third: a
+// :root block anywhere else is a definition the theme files cannot see.
+check('two blocks on :root and body: Bonfire\'s and the sheet\'s tokens no theme sets',
+    (BARE.match(/:root,\s*body\b/g) || []).length, 2);
+check('and the sheet\'s sets no theme token', (() => {
+    const m = /:root,\s*body\s*\{([^}]*)\}/.exec(CONSUMERS);
+    if (!m) return false;
+    const names = (m[1].match(/--jpf-[\w-]+(?=\s*:)/g) || []);
+    return names.length > 0 && names.every(n => DEFS.indexOf(n + ':') === -1);
 })(), true);
-check('and it redefines the neutrals, not just one of them',
-    ['--jpf-surface-1', '--jpf-border-1', '--jpf-text-1', '--jpf-danger', '--jpf-warn']
-        .every(tk => LIGHT_BLOCK.includes(tk + ':')), true);
-// Black over a light ground, not the white that made them invisible.
-check('the light neutrals are black alphas',
-    /--jpf-surface-1:\s*rgba\(0, 0, 0/.test(LIGHT_BLOCK)
-    && /--jpf-border-1:\s*rgba\(0, 0, 0/.test(LIGHT_BLOCK)
-    && /--jpf-text-1:\s*rgba\(0, 0, 0/.test(LIGHT_BLOCK), true);
-check('falls back to Jellyfin stock blue', DEFS.includes('var(--accent, #00a4dc)'), true);
 
 console.log();
-console.log('── Tints degrade instead of disappearing ─────────────────────');
-check('@supports guards color-mix', /@supports \(color: color-mix\(/.test(DEFS), true);
+console.log('── Tints are literals, on every browser ──────────────────────');
+// color-mix is Chromium 111. The tints used to be literal floors upgraded by it under
+// @supports; each theme block now carries its own literal tints of its own accent
+// (tests/js/themes.js checks they are), so there is nothing left to upgrade.
+check('no color-mix anywhere', /color-mix\(/.test(CSS), false);
 for (const a of ALPHAS) {
-    // The literal floor must come first so a browser without color-mix — Tizen 6
-    // is Chromium 76 — keeps the glow rather than resolving to nothing.
-    const floor = new RegExp('--jpf-accent-' + a + ':\\s*rgba\\(0, 164, 220');
-    const mixed = new RegExp('--jpf-accent-' + a + ':\\s*color-mix\\(in srgb, var\\(--jpf-accent\\)');
-    check(a + ' has a literal floor', floor.test(DEFS), true);
-    check(a + ' upgrades under @supports', mixed.test(DEFS), true);
-    check(a + ' floor precedes the upgrade',
-        DEFS.search(floor) < DEFS.search(mixed), true);
+    check(a + ' is a literal rgba in every theme block',
+        (DEFS.match(new RegExp('--jpf-accent-' + a + ':\\s*rgba\\(\\d+, \\d+, \\d+, 0?\\.\\d+\\);', 'g')) || []).length
+        === (DEFS.match(/--jpf-accent-rgb:/g) || []).length, true);
 }
 
 console.log();
 console.log('── Nothing is left hardcoded ─────────────────────────────────');
-check('no #00a4dc outside the definitions', /#00a4dc/i.test(CONSUMERS.replace(/#00A4DC/g, '')), false);
-check('no raw accent rgba outside the definitions',
+check('no #00a4dc in the stylesheet', /#00a4dc/i.test(CONSUMERS), false);
+check('no raw accent rgba in the stylesheet',
     /rgba\(\s*0,\s*164,\s*220/.test(CONSUMERS), false);
 
-// Inline style="" attributes live outside the <style> block entirely; they are
-// the ones most easily missed.
-// CSS is a contiguous slice of SRC, so removing it leaves exactly the source that is
-// not inside the <style> block. (Was two slices around the literal's offsets, which
-// _lib.extractCss deliberately does not expose.)
+// Inline style="" attributes live outside the stylesheet entirely; they are the ones
+// most easily missed. Since the theme CSS is generated by the script, the script is
+// what is left once the sheet and the generated blocks are taken out of SRC.
 const OUTSIDE = SRC.replace(CSS, '');
+check('the script is what is left', OUTSIDE.length > 100000 && OUTSIDE.indexOf('.profiles-btn {') === -1, true);
 check('no lowercase #00a4dc in inline styles', /#00a4dc/.test(OUTSIDE), false);
 
 console.log();
@@ -127,7 +97,7 @@ console.log('── Avatar swatches stay literal data ────────�
 // repeated the literal — none of which is a swatch. What must stay literal is the
 // palette itself, so that is what is checked.
 check('the palette is literal hex and holds no var()', (() => {
-    const m = /const palette = \[([\s\S]*?)\];/.exec(SRC);
+    const m = /const AVATAR_PALETTE = \[([\s\S]*?)\];/.exec(SRC);
     if (!m) return false;
     const entries = m[1].match(/'#[0-9A-Fa-f]{6}'/g) || [];
     return entries.length === 18 && m[1].indexOf('var(') === -1;
@@ -141,15 +111,22 @@ check('the palette array is still literals',
 // a CSS comment mentioned --jf-palette-primary-main next to a var(), this went red over
 // prose. Same question, asked of the array itself.
 check('no var() reached the palette',
-    /const palette = \[[\s\S]{0,400}var\(--/.test(SRC), false);
+    /const AVATAR_PALETTE = \[[\s\S]{0,400}var\(--/.test(SRC), false);
+// The picker must draw from that palette, or the check above guards an array nobody uses.
+// The palette may be followed by the profile's own off-palette colour (renderColorPicker
+// adds it as one more swatch), so this asks that the picker's list starts from the array,
+// not that it is the array and nothing else.
+check('the picker draws from it',
+    /const palette = [^;]*\bAVATAR_PALETTE\.concat\(\[selectedColor\]\) : AVATAR_PALETTE;/.test(SRC)
+    || /const palette = AVATAR_PALETTE;/.test(SRC), true);
 
 console.log();
 console.log('── Signals mean what they look like ──────────────────────────');
 // The pills were inverted: "PIN Protected" red, "No PIN" green. Neither state is
 // an error, so neither may carry an error colour.
-const locked = CSS.slice(CSS.indexOf('.profile-pin-badge.locked'));
+const locked = CSS.slice(CSS.indexOf('.jpf-profile-pin-badge.locked'));
 const lockedRule = locked.slice(0, locked.indexOf('}'));
-const unlocked = CSS.slice(CSS.indexOf('.profile-pin-badge.unlocked'));
+const unlocked = CSS.slice(CSS.indexOf('.jpf-profile-pin-badge.unlocked'));
 const unlockedRule = unlocked.slice(0, unlocked.indexOf('}'));
 
 check('protected is not red', /230,\s*0,\s*0|#ff6b6b/.test(lockedRule), false);
@@ -169,38 +146,41 @@ check('protected reads more present than unprotected', (() => {
 
 console.log();
 console.log('── Destructive triggers are quieter than confirmations ───────');
-// btn-danger stays filled: it is the Confirm button on the dialog these open, and
+// jpf-btn-danger stays filled: it is the Confirm button on the dialog these open, and
 // the panic Disable button, where loud red IS the primary action.
-const danger = CSS.slice(CSS.indexOf('.btn-danger {'));
+const danger = CSS.slice(CSS.indexOf('.jpf-btn-danger {'));
 const dangerRule = danger.slice(0, danger.indexOf('}'));
-check('btn-danger is still filled', /background:\s*rgba\(230,0,0,0\.85\)/.test(dangerRule), true);
+check('jpf-btn-danger is still filled', /background:\s*rgba\(230,0,0,0\.85\)/.test(dangerRule), true);
 
-const quiet = CSS.slice(CSS.indexOf('.btn-danger-quiet {'));
+const quiet = CSS.slice(CSS.indexOf('.jpf-btn-danger-quiet {'));
 const quietRule = quiet.slice(0, quiet.indexOf('}'));
-check('btn-danger-quiet exists', CSS.includes('.btn-danger-quiet {'), true);
+check('jpf-btn-danger-quiet exists', CSS.includes('.jpf-btn-danger-quiet {'), true);
 check('and is not filled', /background:\s*transparent/.test(quietRule), true);
-check('but keeps a red edge', /border:.*rgba\(230,0,0/.test(quietRule), true);
+check('but keeps a red edge', /border:.*var\(--jpf-danger-a40\)/.test(quietRule), true);
 
-for (const id of ['edit-delete-btn', 'bonfire-delete-btn', 'bonfire-leave-btn']) {
-    const re = new RegExp('id="' + id + '"[^>]*class="profiles-btn btn-danger-quiet"');
+for (const id of ['jpf-edit-delete-btn', 'bonfire-delete-btn', 'bonfire-leave-btn']) {
+    const re = new RegExp('id="' + id + '"[^>]*class="profiles-btn jpf-btn-danger-quiet"');
     check(id + ' uses the quiet style', re.test(SRC), true);
 }
 // The confirm dialog must NOT have been demoted along with them.
 check('the confirm button stays loud',
-    /id="dialog-confirm-btn"[^>]*class="profiles-btn btn-danger"/.test(SRC), true);
+    /id="dialog-confirm-btn"[^>]*class="profiles-btn jpf-btn-danger"/.test(SRC), true);
 check('panic disable stays loud',
-    /id="profiles-panic-submit"[^>]*class="profiles-btn btn-danger"/.test(SRC), true);
+    /id="profiles-panic-submit"[^>]*class="profiles-btn jpf-btn-danger"/.test(SRC), true);
 
 console.log();
 console.log('── The avatar colour stays off the border ────────────────────');
-const avStart = CSS.search(/\n\s*\.profile-avatar \{/);
+const avStart = CSS.search(/\n\s*\.jpf-profile-avatar \{/);
 const av = CSS.slice(avStart);
 const avRule = av.slice(0, av.indexOf('}'));
 check('background is clipped to the padding box', /background-clip:\s*padding-box/.test(avRule), true);
 // Its width is the theme's ring width now; Bonfire's is still the 3px it always was.
 check('the transparent border is still there',
     /border:\s*(3px|var\(--jpf-ring-w\)) solid transparent/.test(avRule), true);
-check('and Bonfire draws it 3px wide', /--jpf-ring-w: 3px;/.test(CSS.slice(CSS.indexOf(':root, body, [data-jpf-theme="bonfire"]'))), true);
+check('and Bonfire draws it 3px wide', (() => {
+    const m = /\[data-jpf-theme="bonfire"\] body\s*\{([^}]*)\}/.exec(DEFS);
+    return !!m && /--jpf-ring-w: 3px;/.test(m[1]);
+})(), true);
 
 console.log();
 console.log('── Bonfire headings carry no colour of their own ─────────────');
@@ -226,7 +206,9 @@ console.log('── Shape and spacing are tokenised ─────────�
 for (const t of ['--jpf-r-sm: 6px', '--jpf-r-md: 12px', '--jpf-r-lg: 20px',
                  '--jpf-gap: 12px', '--jpf-gap-lg: 1.25rem',
                  '--jpf-w-narrow: 420px', '--jpf-w-form: 560px', '--jpf-w-wide: 960px']) {
-    check(t.split(':')[0] + ' is defined', DEFS.includes(t), true);
+    // Bonfire's corners are in its theme block; the gaps and widths, which no theme
+    // changes, in the sheet's own.
+    check(t.split(':')[0] + ' is defined', DEFS.slice(0, DEFS.indexOf('}')).includes(t) || CONSUMERS.includes(t), true);
 }
 // Nothing may go back to a literal radius.
 check('no literal px radius survives',
@@ -259,16 +241,16 @@ const circleSelectors = (function () {
 })();
 
 for (const sel of [
-    '.avatar-library-item',
-    '.profile-card.is-switching .profile-avatar-container::after',
+    '.jpf-avatar-library-item',
+    '.jpf-profile-card.is-switching .jpf-profile-avatar-container::after',
     '.profiles-btn.is-busy::after',
-    '.profile-avatar.is-transparent .profile-avatar-overlay-svg',
-    '.profile-lock-indicator',
-    '.profile-bonfire-indicator',
+    '.jpf-profile-avatar.is-transparent .jpf-profile-avatar-overlay-svg',
+    '.jpf-profile-lock-indicator',
+    '.jpf-profile-bonfire-indicator',
     '#profiles-floating-bubble.profiles-floating-fallback',
-    '.color-dot',
-    '.image-upload-preview',
-    '.tag-chip-remove'
+    '.jpf-color-dot',
+    '.jpf-image-upload-preview',
+    '.jpf-tag-chip-remove'
 ]) {
     check(sel + ' is still a circle', circleSelectors.includes(sel), true);
 }
@@ -279,16 +261,16 @@ const pillRule = (sel) => {
     const i = CSS.indexOf(sel + ' {');
     return i === -1 ? '' : CSS.slice(i, CSS.indexOf('}', i));
 };
-check('the tag chip is still a pill', /border-radius: ?999px/.test(pillRule('.tag-chip')), true);
+check('the tag chip is still a pill', /border-radius: ?999px/.test(pillRule('.jpf-tag-chip')), true);
 
 console.log();
 console.log('── One control looks like the others ─────────────────────────');
 // Allowed Devices cannot become a <select> — it is multi-select with checkboxes —
 // so it has to borrow the natives' appearance instead. It sat directly above two
 // real selects, which is what made the mismatch obvious.
-const trig = CSS.slice(CSS.indexOf('.devices-dropdown-trigger {'));
+const trig = CSS.slice(CSS.indexOf('.jpf-devices-dropdown-trigger {'));
 const trigRule = trig.slice(0, trig.indexOf('}'));
-const sel = CSS.slice(CSS.indexOf('.form-group select {'));
+const sel = CSS.slice(CSS.indexOf('.jpf-form-group select {'));
 const selRule = sel.slice(0, sel.indexOf('}'));
 
 for (const prop of ['background-size: 20px', 'border-radius: var(--jpf-input-r)', 'border: 1px solid var(--jpf-input-border)',
@@ -297,18 +279,19 @@ for (const prop of ['background-size: 20px', 'border-radius: var(--jpf-input-r)'
         trigRule.includes(prop) && selRule.includes(prop), true);
 }
 check('both draw the same chevron',
-    trigRule.includes("M7 10l5 5 5-5H7z") && selRule.includes("M7 10l5 5 5-5H7z"), true);
+    trigRule.includes('var(--jpf-chevron)') && selRule.includes('var(--jpf-chevron)'), true);
 check('the text arrow is gone', SRC.includes('>▼<'), false);
 
 console.log();
 console.log('── Choosing a picture is one action, not six ─────────────────');
 check('the sources panel exists', /id="\$\{prefix\}-picture-sources"/.test(SRC), true);
-check('it is collapsed by default', /\.picture-sources \{[^}]*display: none/.test(CSS), true);
-check('and opens on a class', /\.picture-sources\.is-open \{[^}]*display: flex/.test(CSS), true);
+check('it is collapsed by default', /\.jpf-picture-sources \{[^}]*display: none/.test(CSS), true);
+check('and opens on a class', /\.jpf-picture-sources\.is-open \{[^}]*display: flex/.test(CSS), true);
 check('one button controls it', /id="\$\{prefix\}-change-picture"/.test(SRC), true);
 check('the button announces its state', /aria-expanded="\$\{sourcesOpen\}"/.test(SRC), true);
-check('it opens when there is no picture yet',
-    SRC.includes('const sourcesOpen = !currentImage;'), true);
+// Was "opens when there is no picture yet"; closed always since P2-104.
+check('it starts closed, with or without a picture',
+    SRC.includes('const sourcesOpen = false;'), true);
 
 // Every id the picker binds to must still exist — they only moved inside the panel.
 for (const id of ['image-upload-preview', 'image-error', 'profile-image-file',
@@ -328,8 +311,8 @@ console.log('── Gate footer button spacing ───────────
 const footer = CSS.slice(CSS.indexOf('.profiles-footer {'));
 const footerRule = footer.slice(0, footer.indexOf('}'));
 check('.profiles-footer has a gap', /gap:\s*var\(--jpf-gap-lg\)/.test(footerRule), true);
-check('matches .pin-actions, the other gate row',
-    /\.pin-actions\s*\{[^}]*gap:\s*var\(--jpf-gap-lg\)/.test(CSS), true);
+check('matches .jpf-pin-actions, the other gate row',
+    /\.jpf-pin-actions\s*\{[^}]*gap:\s*var\(--jpf-gap-lg\)/.test(CSS), true);
 check('wraps rather than crowding a phone', /flex-wrap:\s*wrap/.test(footerRule), true);
 
 console.log();
