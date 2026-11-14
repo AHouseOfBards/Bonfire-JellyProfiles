@@ -475,6 +475,8 @@ namespace Jellyfin.Profiles
                     Name = "Bonfire",
                     DisplayName = "Bonfire",
                     EnableInMainMenu = true,
+                    // Jellyfin 12 draws this in the dashboard menu; 10.11 always draws a folder.
+                    MenuIcon = "local_fire_department",
                     EmbeddedResourcePath = GetType().Namespace + ".Web.profilesDashboard.html"
                 }
             };
