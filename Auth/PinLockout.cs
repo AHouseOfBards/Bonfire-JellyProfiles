@@ -12,16 +12,16 @@ namespace Jellyfin.Profiles.Auth
     /// What happens when a PIN is locked by too many wrong tries: one Activity log line and
     /// the lockout email, however the guesses arrived.
     /// <para>
-    /// This lived on the controller, so only the web switcher's lockouts were ever written
-    /// down. The same PIN is guessed at from apps through the authentication provider, and
-    /// there the lock was a log line nobody reads. Both doors call this, and share one
-    /// throttle, so a lock is announced once however many doors it is hit through.
+    /// This lived on the controller, so only the web switcher's lockouts were recorded. The same
+    /// PIN is guessed from apps through the authentication provider, where the lock was a log
+    /// line nobody reads. Both paths call this and share one throttle, so a lock is announced
+    /// once.
     /// </para>
     /// </summary>
     internal static class PinLockout
     {
-        // When each lockout was last written to the Activity log. Every refused attempt
-        // after the limit is another refusal, and one line per guess would bury the log.
+        // When each lockout was last written to the Activity log. Every refused attempt after
+        // the limit is another refusal, and a line per guess would bury the log.
         private static readonly ConcurrentDictionary<string, DateTime> Logged = new();
 
         /// <summary>
