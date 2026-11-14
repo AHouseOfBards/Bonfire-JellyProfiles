@@ -1,14 +1,13 @@
 /*
  * American spelling in the docs.
  *
- * The owner's rule is American English in all English text, and the docs had drifted to
- * British (colour, licence, Authorisation, recognise). copylint.js covers the strings the
- * product shows; nothing read the Markdown, so this does. CHANGELOG.md is left out on
- * purpose: published release text is history.
+ * The rule is American English in all English text, and the docs had drifted to British
+ * (colour, licence, Authorisation, recognise). copylint.js covers the strings the product
+ * shows; nothing read the Markdown, so this does. CHANGELOG.md is skipped: published
+ * release text is history.
  *
- * It reads prose only. Fenced blocks and `code spans` are skipped, because an identifier
- * the API uses (the JSON field `licence`) is not prose and must keep its spelling. Link
- * targets are skipped for the same reason.
+ * Prose only. Fenced blocks, `code spans` and link targets are skipped, because an
+ * identifier the API uses (the JSON field `licence`) is not prose and keeps its spelling.
  *
  * "picture" is checked too: the docs say "image" for an avatar or a profile image.
  *
@@ -27,8 +26,8 @@ const BRITISH = new RegExp('\\b(?:colou?r(?:ed|s|ing)?|' +
     'serialis\\w*|summaris\\w*|minimis\\w*|normalis\\w*|synchronis\\w*|utilis\\w*|' +
     'optimis\\w*|prioritis\\w*|analys(?:e|es|ed|ing)|cancell(?:ed|ing|ation)|labell\\w*|' +
     'whilst|amongst|judgement|programmes?|defence|enrol|fulfil)\\b', 'gi');
-// The American forms of the words above that happen to match the pattern: colour is
-// matched by colou?r only to catch both, so the American "color" is allowed back through.
+// American forms that the patterns above also match: colou?r catches both spellings, so
+// "color" is let back through.
 const AMERICAN = /^(?:colors?|colored|coloring|license[sd]?)$/i;
 const PICTURE = /\bpictures?\b/gi;
 
@@ -51,7 +50,7 @@ const files = [];
     });
 });
 
-// A line's prose: no code spans, no link targets, no URLs. In a workflow file only comments
+// A line's prose: no code spans, link targets or URLs. In a workflow file only comments
 // and the ::error:: messages are prose; the rest is configuration.
 function prose(line, yml) {
     if (yml && !/^\s*#/.test(line) && !/echo "::error::/.test(line)) return '';

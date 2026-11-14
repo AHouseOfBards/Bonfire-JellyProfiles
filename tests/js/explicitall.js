@@ -1,9 +1,9 @@
 // "No rating limit" and "every library", said on purpose (R-1144).
 //
 // /update now reads a left-out maxParentalRating or enabledFolders as "keep it". The forms
-// used to send null for both "No restrictions" and "no library ticked" — which the server
+// used to send null for both "No restrictions" and "no library ticked", which the server
 // read as "none" and "every library". With null meaning "keep", those two choices would
-// silently stop working, so the forms must send the explicit values: maxParentalRating ""
+// silently stop working, so the forms must send explicit values: maxParentalRating ""
 // and allLibraries true. The main account's form has neither control and must keep
 // sending null, which leaves its own policy alone.
 //

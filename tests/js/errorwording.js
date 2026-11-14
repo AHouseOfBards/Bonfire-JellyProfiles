@@ -1,11 +1,11 @@
 /*
  * What a failed request says on screen.
  *
- * Two things went wrong together. Alerts appended the raw message of whatever was
- * thrown ("Error saving profile: Failed to fetch", "Unexpected token < in JSON"), which
- * is English written for a developer and untranslated. And the Bonfire status loader
- * called res.json() on any response that was not a 401, so a 500 page was parsed as JSON
- * and the parse error became the reason shown.
+ * Two things went wrong together. Alerts appended the raw message of whatever was thrown
+ * ("Error saving profile: Failed to fetch", "Unexpected token < in JSON"): English written
+ * for a developer, and untranslated. And the Bonfire status loader called res.json() on any
+ * response that was not a 401, so a 500 page was parsed as JSON and the parse error became
+ * the reason shown.
  *
  * The loader is run for real against a 500 whose body is not JSON. The wording is read
  * from EN_STRINGS key by key, not summed, so a failure names the key.
