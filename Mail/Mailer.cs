@@ -16,16 +16,16 @@ namespace Jellyfin.Profiles.Mail
     /// <summary>
     /// Outgoing mail through <see cref="SmtpClient"/>, which ships with .NET.
     ///
-    /// <para><b>Why not MailKit.</b> Bonfire is one DLL in one zip, and the release checks
-    /// that zip byte for byte. MailKit would add MimeKit and BouncyCastle beside it, three
-    /// more assemblies for Jellyfin's plugin loader to resolve against whatever else is
-    /// installed. SmtpClient covers what home servers use: STARTTLS on 587, or a plain relay
-    /// on the local network.</para>
+    /// <para><b>Why not MailKit.</b> Bonfire is one DLL in one zip, and the release checks that
+    /// zip byte for byte. MailKit would add MimeKit and BouncyCastle beside it, three more
+    /// assemblies for Jellyfin's plugin loader to resolve against whatever else is installed.
+    /// SmtpClient covers what home servers use: STARTTLS on 587, or a plain relay on the
+    /// local network.</para>
     ///
-    /// <para><b>What it can't do: port 465.</b> That port speaks TLS from the first byte,
-    /// and SmtpClient only knows how to upgrade a plain connection, so it sits waiting for a
-    /// greeting that never comes. The settings route refuses 465 with STARTTLS rather than
-    /// letting a test hang for its whole timeout. Every common provider also offers 587.</para>
+    /// <para><b>What it can't do: port 465.</b> That port speaks TLS from the first byte, and
+    /// SmtpClient can only upgrade a plain connection, so it waits for a greeting that never
+    /// comes. The settings route refuses 465 with STARTTLS rather than let a test hang for its
+    /// whole timeout. Every common provider also offers 587.</para>
     /// </summary>
     internal sealed class SmtpMailSender : IMailSender
     {

@@ -15,10 +15,10 @@ namespace Jellyfin.Profiles.Mail
     /// and a failure is logged, never thrown.
     ///
     /// <para>Throttled per account, kind and subject: a burst about the same thing (a child
-    /// trying PINs on one profile, from two televisions) is one mail, not ten, while a
-    /// different profile or a different device is its own notice. A new-device notice also
-    /// has a ceiling per account, because a device id is client-supplied and keying on it
-    /// alone would let one client mail the household without limit.</para>
+    /// trying PINs on one profile from two televisions) is one mail, not ten, while a
+    /// different profile or device is its own notice. A new-device notice also has a ceiling
+    /// per account, because a device id is client-supplied and keying on it alone would let
+    /// one client mail the household without limit.</para>
     /// </summary>
     internal static class Notifications
     {
