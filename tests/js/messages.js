@@ -98,7 +98,7 @@ const TR = {
     ca: {
         'common.unlock': 'Obre', 'common.submit': 'Continua',
         'panic.dialogBody': "Introdueix el codi que va definir l'administrador. Això desactiva el selector fins que es reiniciï Jellyfin.",
-        'refused.limitsInvalid': 'Revisa els límits de visionat i torna-ho a provar.',
+        'refused.limitsInvalid': 'Revisa els límits de visualització i torna-ho a provar.',
         'errors.heicUnsupported': 'Les imatges HEIC no són compatibles. Exporta primer la imatge en JPEG.',
         'profileForm.autoLock': 'Bloqueig automàtic', 'profileForm.sectionLockingTitle': 'Bloqueig automàtic',
         'profileForm.sectionSecuritySubtitle': 'PIN i bloqueig automàtic',
