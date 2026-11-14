@@ -520,6 +520,11 @@ var sharedAllowed = new Dictionary<string, string>(StringComparer.Ordinal)
         = "static readonly object of this copy; guards the 3-second cache of the DISABLE state",
     ["Campground.Shared/src/Privacy/Privacy.cs|KeyGate"]
         = "static readonly object of this copy; guards loading the address-hashing key once",
+    // shared 1.0.1 (Coordination #61).
+    ["Campground.Shared/src/Registry/Ownership.cs|InstalledGate"]
+        = "static readonly object of this copy; guards the cached answer to \"is FieldGuide installed?\"",
+    ["Campground.Shared/src/Storage/UserDataCleanup.cs|gate"]
+        = "one object in the registry's cleanup.gate section, shared by every copy; serialises writes of cleanup-pending.json",
 };
 
 var sources = Directory
