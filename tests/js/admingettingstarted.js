@@ -1,10 +1,9 @@
 /*
- * The dashboard's first-time setup section and the Status tab's getting-started list
- * (1.7.2).
+ * The dashboard's first-time setup section and the Status tab's getting-started list (1.7.2).
  *
- * Runs the real loadOnboarding and renderGettingStarted out of the
- * dashboard against stub elements, and reads back what they set and drew. Red against
- * the dashboard at cd9160c, which had neither.
+ * Runs the real loadOnboarding and renderGettingStarted out of the dashboard against stub
+ * elements and reads back what they set and drew. Red against the dashboard at cd9160c,
+ * which had neither.
  *
  *     node tests/js/admingettingstarted.js "" /path/to/old/profilesDashboard.html
  */

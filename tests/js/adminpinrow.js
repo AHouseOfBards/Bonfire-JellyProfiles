@@ -1,14 +1,14 @@
 /*
  * One task, one row; and the headline agrees with the rows under it.
  *
- * A main account with profiles and no main PIN used to show three things at once: the
- * headline "Nothing needs your attention.", a NOTE row saying the account has no main
- * PIN, and a TO DO row under Getting started asking to require a main PIN. The same
- * task twice, over a headline that said there was none.
+ * A main account with profiles and no main PIN showed three things at once: the headline
+ * "Nothing needs your attention.", a NOTE row saying the account has no main PIN, and a
+ * TO DO row under Getting started asking to require one. The same task twice, under a
+ * headline that said there was none.
  *
- * The real renderStatus draws the real pinStatusRows, and the real gettingStartedItems
- * is asked for its list in the same state. Every combination of (accounts without a
- * PIN, PIN required) is checked on its own rather than summed.
+ * The real renderStatus draws the real pinStatusRows, and the real gettingStartedItems is
+ * asked for its list in the same state. Every combination of (accounts without a PIN, PIN
+ * required) is checked on its own, not summed.
  *
  *     node tests/js/adminpinrow.js "" /path/to/old/profilesDashboard.html
  */

@@ -1,14 +1,13 @@
 /*
  * A settings page that could not read the settings must not be able to overwrite them.
  *
- * loadConfiguration's catch only logged. The form stayed at its defaults, the Save button
- * stayed live, and Save posts every setting on the page, so one failed read followed by
- * one click put the defaults over the real configuration. Nothing told the administrator
- * the read had failed, and nothing in the log said a save had overwritten anything.
+ * loadConfiguration's catch only logged. The form stayed at its defaults and Save stayed
+ * live, and Save posts every setting on the page, so one failed read and one click put the
+ * defaults over the real configuration, with nothing shown and nothing logged.
  *
  * Runs the real loadConfiguration and saveConfiguration against a stubbed ApiClient and
- * page. Point it at an older dashboard to watch it fail (argv[3], because argv[2] is the
- * client script every other harness takes):
+ * page. To watch it fail on an older dashboard use argv[3] (argv[2] is the client script
+ * every other harness takes):
  *
  *     node tests/js/adminload.js "" /path/to/old/profilesDashboard.html
  */
@@ -25,8 +24,8 @@ function ok(name, cond) {
 
 const script = L.dashboardScript(L.readDashboard());
 const loadSrc = L.extractFunction(script, 'loadConfiguration');
-// Every function loadConfiguration calls on the page is a loader or a renderer; they are
-// stubbed, because what is under test is what it does with the result of the read.
+// Everything loadConfiguration calls on the page is a loader or a renderer; stubbed, since
+// the test is what it does with the result of the read.
 const stubbed = {};
 (loadSrc.match(/\b(?:load|render|update)[A-Za-z]*\(/g) || []).forEach(function (n) {
     const name = n.slice(0, -1);

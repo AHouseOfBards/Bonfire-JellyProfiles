@@ -1,15 +1,13 @@
 /*
- * Your account -> Time zone. The first option names the server's zone in full,
+ * Your account -> Time zone (P2-1002). The first option names the server's zone in full,
  * "Server default (America/Chicago)", and on a phone the select cut it off mid-word
- * ("America/Chicag") under its arrow: a native select does not shorten its text with an
- * ellipsis (P2-1002).
+ * ("America/Chicag") under its arrow: a native select does not ellipsize its text.
  *
- * Asked per theme on a phone: does the selected option's text, in the select's own font, fit
- * inside the select's content box (its width less both paddings, the right one holding the
- * arrow).
+ * Per theme, on a phone: does the selected option's text, in the select's own font, fit in
+ * the select's content box (its width less both paddings, the right one holding the arrow).
  *
- * Needs Chrome and the Material Icons font, like formfactors.js, and says it was skipped,
- * exiting 0, without them.
+ * Needs Chrome and the Material Icons font, like formfactors.js; without them it says it
+ * was skipped and exits 0.
  *
  *     node tests/js/accountzone.js [/path/to/old/profiles.js]
  */

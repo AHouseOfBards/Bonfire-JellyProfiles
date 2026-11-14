@@ -1,22 +1,21 @@
 /*
- * Dropdowns, button heights and the Advanced theme editor's size, measured in a real browser.
+ * Dropdowns, button heights and the Advanced theme editor's size, in a real browser.
  *
- *   1. Every <select> on the admin page, the static ones and the ones the script builds
- *      (the households forms, the theme editor), gets the arrow jellyfin-web draws. The page
- *      does not have jellyfin-web, so the upgrade is modelled here step for step from
- *      src/elements/emby-select/emby-select.js (release-10.11.z): `is="emby-select"` adds
- *      emby-select-withcolor, and attachedCallback appends .selectArrowContainer to the
- *      select's parent ONLY when the element does not already carry the class emby-select
- *      (it returns early if it does) and the element is upgraded at all (needs is=).
- *   2. That arrow points up while the list is open and down when it is closed: opened by a
- *      primary-button mousedown, or Alt+Down / F4 / Space / Enter; closed by change, blur,
- *      Escape, Tab and a second mousedown.
- *   3. A button on the same row as a select or a text box is exactly as tall as it. Pairwise,
- *      per pair, never a total. Every form the script builds is forced open first.
- *   4. The Advanced theme editor fills the window at 2560x1300: the preview and the field
- *      panel together take the width, their height follows the window, the panel scrolls
- *      inside its own column, and the page itself does not need to. At phone width the editor
- *      stays inside the window.
+ *   1. Every <select> on the admin page, static and script-built (households forms, theme
+ *      editor), gets the arrow jellyfin-web draws. The page lacks jellyfin-web, so the
+ *      upgrade is modelled step by step from src/elements/emby-select/emby-select.js
+ *      (release-10.11.z): `is="emby-select"` adds emby-select-withcolor, and attachedCallback
+ *      appends .selectArrowContainer to the select's parent only when the element is upgraded
+ *      at all (needs is=) and does not already carry the class emby-select (it returns early
+ *      if it does).
+ *   2. The arrow points up while the list is open and down when closed: opened by a
+ *      primary-button mousedown, Alt+Down, F4, Space or Enter; closed by change, blur, Escape,
+ *      Tab and a second mousedown.
+ *   3. A button on the same row as a select or text box is exactly as tall as it, checked per
+ *      pair, never as a total. Every script-built form is forced open first.
+ *   4. The Advanced theme editor fills the window at 2560x1300: preview and field panel
+ *      together take the width, height follows the window, the panel scrolls inside its own
+ *      column and the page does not need to. At phone width the editor stays inside the window.
  *
  * Red against the page before the fix:
  *

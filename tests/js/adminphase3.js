@@ -1,10 +1,10 @@
 /*
  * The admin dashboard's and the emails' wording, phase 3.
  *
- * What it holds: the tab names, the setting names the owner decided, US spelling, "avatar" not
- * "picture", the Status note that used to say "so those profiles can switch into it", the email
- * settings living on the Notices tab, and the text of every email that was reviewed. Each
- * expectation names a key, so a failure says which string is wrong, not that "some text" is.
+ * Holds: the tab names, the setting names the owner decided, US spelling, "avatar" not
+ * "picture", the Status note that used to say "so those profiles can switch into it", the
+ * email settings on the Setup tab, and the text of every reviewed email. Each expectation
+ * names a key, so a failure says which string is wrong, not that "some text" is.
  *
  * Red against the page before the change:
  *

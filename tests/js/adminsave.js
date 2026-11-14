@@ -4,18 +4,16 @@
  * It used to GET the entire PluginConfiguration through Jellyfin's generic plugin API,
  * change six fields on the copy in the browser, and PUT the whole document back. Every
  * profile mapping, known device, Bonfire group, avatar library entry and the emergency
- * disable hash rode along. Anything that changed between the GET and the PUT — a profile
- * someone created while the administrator had the page open — was overwritten with the
- * state from before it existed. No error, nothing in the log, and the window is as wide
- * as the page has been open.
+ * disable hash rode along, so anything that changed between the GET and the PUT (a profile
+ * created while the administrator had the page open) was overwritten with the earlier
+ * state. No error, nothing in the log, and the window is as wide as the page has been open.
  *
- * This harness runs the real saveConfiguration out of the dashboard against a stubbed
- * ApiClient and looks at what it actually sends. Reading the function and checking it
- * mentions the right URL would pass just as happily against a version that also still
- * called getPluginConfiguration.
+ * Runs the real saveConfiguration out of the dashboard against a stubbed ApiClient and
+ * looks at what it sends. Checking that the function mentions the right URL would pass
+ * against a version that also still called getPluginConfiguration.
  *
- * Point it at an older dashboard to watch it fail (argv[3], because argv[2] is the
- * client script every other harness takes):
+ * To watch it fail on an older dashboard use argv[3] (argv[2] is the client script every
+ * other harness takes):
  *
  *     node tests/js/adminsave.js "" /path/to/old/profilesDashboard.html
  */
@@ -71,9 +69,9 @@ async function run(fieldValues) {
         allowProfileThemes: true,
         richThemeMotion: false,
         defaultTimeZone: '',
-        // Both default off. A missing id throws in the stub below, so adding a control to
-        // the form without adding it here is a failure rather than a silent omission —
-        // which is the whole reason this list is written out by hand.
+        // Both default off. A missing id throws in the stub below, so a control added to the
+        // form without being added here fails instead of being silently omitted. That is why
+        // this list is written out by hand.
         enableClientPinLogin: false,
         enableClientProfileList: false,
         clientPinLoginFromAnywhere: false,
@@ -154,9 +152,9 @@ async function run(fieldValues) {
         source + '; return saveConfiguration;');
     factory(ApiClient, Dashboard, 'b1462fca-774b-4b13-8d02-e2d4f2bc18b9', loadAvatarLibrary, noteSavedSettings)(page);
 
-    // The old version did its work inside `getPluginConfiguration().then(...)`, so its
-    // PUT lands a microtask later than the call that starts it. Drain the queue before
-    // looking, or the round-trip this harness exists to catch goes uncounted.
+    // The old version worked inside `getPluginConfiguration().then(...)`, so its PUT lands a
+    // microtask after the call that starts it. Drain the queue before looking, or the round
+    // trip this harness exists to catch goes uncounted.
     for (let i = 0; i < 5; i++) await new Promise(function (r) { setImmediate(r); });
 
     return { calls: calls, elements: elements };
@@ -169,8 +167,8 @@ function sent(result) {
     try { return JSON.parse(req.data); } catch (e) { return {}; }
 }
 
-// Wrapped rather than using top-level await: run.sh discovers tests/js/*.js and runs
-// them as CommonJS, where Node will not accept it.
+// Wrapped rather than top-level await: run.sh runs tests/js/*.js as CommonJS, where Node
+// rejects it.
 main();
 async function main() {
 
@@ -225,8 +223,8 @@ const expected = [
 ];
 
 if (body) {
-    // Enumerated both ways rather than compared as a count. A count says something is
-    // wrong without saying which field, and a missing key and an extra key cancel out.
+    // Enumerated both ways, not compared as a count: a count does not say which field, and a
+    // missing key and an extra key cancel out.
     expected.forEach(function (k) {
         ok('sends ' + k, Object.prototype.hasOwnProperty.call(body, k));
     });
@@ -234,8 +232,8 @@ if (body) {
         ok(k + ' is one of the ' + expected.length + ' this page owns', expected.indexOf(k) !== -1);
     });
 
-    // The named collections are the ones that were being silently reverted. Listed
-    // explicitly, because this is the actual bug and it deserves its own line.
+    // The named collections are the ones that were being silently reverted; listed
+    // explicitly because this is the actual bug.
     ['Mappings', 'KnownDevices', 'BonfireGroups', 'AvatarLibrary', 'PanicCodeHash']
         .forEach(function (k) {
             ok('does not carry ' + k + ' — nothing there can be lost by saving settings',
@@ -276,8 +274,8 @@ ok('and the avatar grid is redrawn, since the switch changes what it shows',
 console.log('\n── First-time setup ────────────────────────────────────────────');
 
 // Saving this tab used to send a step list built from the Show boxes. resetEmail had no
-// box, so every save dropped the email step; the list is gone, and with it the bug. Every
-// step is always offered, so a save has no list to send and no welcome text.
+// box, so every save dropped the email step. The list is gone, and the bug with it: every
+// step is always offered, so a save sends no list and no welcome text.
 ok('no step list is sent', body && !('onboardingSteps' in body));
 ok('and no welcome text', body && !('onboardingWelcomeText' in body));
 ok('the switch is sent as it stands', body && body.onboardingEnabled === false);
@@ -340,8 +338,8 @@ ok('profileImageQuality follows the select', sent(higher).profileImageQuality ==
 const unknownQuality = await run({ profileImageQuality: 'enormous' });
 ok('an unknown picture quality is sent as standard', sent(unknownQuality).profileImageQuality === 'standard');
 
-// Anything unrecognised in the location select becomes 'button' rather than being sent
-// on: the server rejects what it does not know, and this is a two-option select.
+// Anything unrecognized in the location select becomes 'button' instead of being sent: the
+// server rejects what it does not know, and this is a two-option select.
 const odd = await run({ defaultSwitcherLocation: 'somewhere-else' });
 ok('an unknown switcher location is sent as button',
    sent(odd).defaultSwitcherLocation === 'button');

@@ -1,11 +1,10 @@
 /*
  * Announcements on the profile screen, and on the settings page that writes them.
  *
- * The message is typed by an administrator and shown to every household on the server,
- * so the one thing that must never happen is for it to be read as markup. Both renderers
- * are run here against a hostile message, and every element they build is inspected:
- * reading the source for "textContent" would pass a version that uses it for one field
- * and innerHTML for the next.
+ * An administrator types the message and every household on the server sees it, so it must
+ * never be read as markup. Both renderers run here against a hostile message and every
+ * element they build is inspected: reading the source for "textContent" would pass a
+ * version that uses it for one field and innerHTML for the next.
  *
  * Also on the client:
  *   - severity decides the role (critical is an alert) and whether it can be dismissed;
@@ -257,10 +256,9 @@ const settle = () => new Promise(r => setImmediate(r));
     const checkRoute = L.extractFunction(src.replace(/checkRoute\s*:\s*function/, 'function checkRoute'), 'checkRoute');
     ok('checkRoute never asks for announcements', checkRoute.indexOf('showAnnouncements') === -1);
 
-    // The focus trap hands focus to the first control in the DOM. Above the grid in the
-    // markup, an info announcement's Dismiss would be where a remote lands, and OK would
-    // dismiss it instead of choosing a profile. So it is last in the markup and moved up
-    // by the stylesheet.
+    // The focus trap hands focus to the first control in the DOM. With an info announcement's
+    // Dismiss above the grid in the markup, a remote would land on it and OK would dismiss it
+    // instead of choosing a profile. So it is last in the markup and moved up by the stylesheet.
     const gate = L.extractFunction(src.replace(/renderOverlayContent\s*:\s*function/, 'function renderOverlayContent'),
                                    'renderOverlayContent');
     const boxAt = gate.indexOf('id="profiles-announcements"');

@@ -1,10 +1,10 @@
 /*
  * R-1235: the per-account profile limit "Set" button.
  *
- * An empty or non-numeric box parsed to NaN, JSON.stringify turned that into null, and
- * the server reads null as "remove the override" - so Set on an empty box silently reset
- * the limit. A number outside 1 to 20 went to the server as typed and came back as a 400
- * the page showed as "couldn't update". Both are now refused in the page, with the range.
+ * An empty or non-numeric box parsed to NaN, JSON.stringify turned that into null, and the
+ * server reads null as "remove the override", so Set on an empty box silently reset the
+ * limit. A number outside 1 to 20 went to the server as typed and came back as a 400 the
+ * page showed as "couldn't update". Both are now refused in the page, with the range.
  *
  *     node tests/js/adminlimit.js "" /path/to/old/profilesDashboard.html
  */

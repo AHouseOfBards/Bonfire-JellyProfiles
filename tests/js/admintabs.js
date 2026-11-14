@@ -107,10 +107,10 @@ ok('the "Where profiles are managed" note is on Troubleshoot, not Status',
    (panels.troubleshoot || '').indexOf('data-i18n="admin.status.whereTitle"') !== -1
    && (panels.troubleshoot || '').indexOf('data-i18n="admin.status.whereBody"') !== -1
    && (panels.status || '').indexOf('admin.status.where') === -1);
-// Owner, 1.9.0.4 eye test: "Save code" then the page Save, stacked after the emergency
+// Owner, 1.9.0.4 eye test: "Save code" and then the page Save, stacked after the emergency
 // section, read as a duplicate, and the page Save sat after a section it does not save.
-// The PIN settings' Save now follows the last PIN setting directly, and the code's own
-// button is a secondary one inside its block, so the tab has one primary Save.
+// The PIN settings' Save now follows the last PIN setting, and the code's own button is a
+// secondary one inside its block, so the tab has one primary Save.
 const secP = panels.security || '';
 const secSave = secP.indexOf('jpf-save-settings');
 ok('Security\'s Save follows the last PIN setting, with the emergency code before them both',

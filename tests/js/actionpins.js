@@ -1,10 +1,10 @@
 /*
  * Every `uses:` in the workflows is pinned to a full commit SHA.
  *
- * A tag is a pointer the action's owner can move. `actions/checkout@v4` runs whatever v4
- * points at today, with this repository's write token, inside the job that publishes the
- * plugin. A 40-hex commit cannot be moved. The tag stays beside it as a trailing comment
- * so a person can still read what it is and a bot can still bump it.
+ * A tag is a pointer the action's owner can move: `actions/checkout@v4` runs whatever v4
+ * points at today, with this repository's write token, in the job that publishes the plugin.
+ * A 40-hex commit cannot be moved. The tag stays beside it as a trailing comment so a person
+ * can read what it is and a bot can bump it.
  *
  *   node tests/js/actionpins.js [workflows-dir]
  */
@@ -37,11 +37,10 @@ files.forEach(f => {
         if (!m) return;
         total++;
         const where = f + ':' + (i + 1) + ' ' + m[1];
-        // A reusable workflow in this repository (release.yml calling ci.yml) is read from
-        // the same commit as the caller, so there is nothing to pin and no tag to carry.
-        // It passes only when it names a workflow scanned here, which this loop then checks
-        // too; any other local path or a docker:// image still fails, because a silent pass
-        // on one would be a hole.
+        // A reusable workflow in this repository (release.yml calling ci.yml) is read from the
+        // same commit as the caller, so it has nothing to pin. It passes only when it names a
+        // workflow scanned here, which the loop then checks too; any other local path or a
+        // docker:// image still fails, since a silent pass would be a hole.
         const local = /^\.\/\.github\/workflows\/([\w.-]+\.ya?ml)$/.exec(m[1]);
         if (local) {
             ok(where + ' is a workflow in this repository that is itself checked', files.indexOf(local[1]) >= 0);

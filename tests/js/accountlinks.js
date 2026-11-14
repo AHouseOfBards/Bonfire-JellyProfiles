@@ -1,9 +1,9 @@
-// Other accounts on a household's screen (issue #39, 1.7.2), in the web client: the tile
-// on the gate, what choosing it in Manage Profiles does, and the section in Settings →
-// Sharing that adds, removes and leaves.
+// Other accounts on a household's screen (issue #39, 1.7.2), in the web client: the gate
+// tile, what choosing it in Manage Profiles does, and the Settings → Sharing section that
+// adds, removes and leaves.
 //
-// Runs the real code against the stub DOM and a recording fetch, then reads back what was
-// drawn and what was sent. Red against 77b0d04, whose client has none of it.
+// Runs the real code against the stub DOM and a recording fetch. Red against 77b0d04, which
+// has none of it.
 //
 //   node tests/js/accountlinks.js [path/to/profiles.js]
 
@@ -178,9 +178,9 @@ const last = url => sent(url).pop();
     ok('and redraws from the reply', slot.querySelectorAll('.links-remove').length === 3
        && slot.querySelector('#links-status').textContent === 'grandpa added.');
 
-    // R-1219. The redraw destroys the focused button and the status line. Focus has to be
-    // put back on purpose, and the status node carried over so its next message is a
-    // change to a live region that already existed, not a new one inserted with its text.
+    // R-1219. The redraw destroyed the focused button and the status line. Focus is put back
+    // on purpose, and the status node is carried over so its next message changes a live
+    // region that already exists.
     {
         const raw = slot.querySelector;
         const focused = [];
@@ -213,7 +213,7 @@ const last = url => sent(url).pop();
     slot.querySelector('#links-password').value = 'wrong';
     slot.querySelector('#links-add').click();
     await settle();
-    // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+    // A refusal used to show the server's English words; it shows its X-Bonfire-Error code now.
     ok('a refusal is shown by its code', slot.querySelector('#links-status').textContent === "That username or password isn't right. Try again.");
     ok('and clears the password', slot.querySelector('#links-password').value === '');
 

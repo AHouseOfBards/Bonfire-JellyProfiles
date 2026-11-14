@@ -1,17 +1,17 @@
 /*
  * The settings page speaks the administrator's language.
  *
- * Up to 1.7.2 the page was English by design. It is translated now, the same way the
- * household's screens are, and this checks the four things that make that true:
+ * Up to 1.7.2 the page was English only. It is translated now, like the household screens,
+ * and this checks four things:
  *
- *   1. every word of the markup is under a data-i18n key (or marked translate="no",
- *      or is a command inside <code>), so nothing is left behind in English;
- *   2. the script writes no English of its own outside t() — the bug report, which is
- *      read by Bonfire's maintainers, is the one deliberate exception;
- *   3. the page applies a translation to its markup and can go back to English, and
- *      text goes in as text: only a string whose English holds tags goes in as HTML;
- *   4. it asks the server for the right file, only the admin half, longest tag first,
- *      nothing at all for English, and survives a failed fetch.
+ *   1. every word of the markup is under a data-i18n key (or marked translate="no", or is a
+ *      command inside <code>), so nothing is left in English;
+ *   2. the script writes no English of its own outside t(); the bug report, which Bonfire's
+ *      maintainers read, is the one deliberate exception;
+ *   3. the page applies a translation to its markup and can go back to English, and text goes
+ *      in as text: only a string whose English holds tags goes in as HTML;
+ *   4. it asks the server for the right file: the admin half only, longest tag first, nothing
+ *      for English, and it survives a failed fetch.
  *
  *   node tests/js/admini18n.js [path/to/profilesDashboard.html]
  */

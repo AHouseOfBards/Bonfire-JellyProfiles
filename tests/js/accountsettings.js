@@ -1,9 +1,8 @@
 // Settings in five sections, and Settings → Your account (1.7.2).
 //
-// Runs the real showSettingsMenu, showAccountSettings and bindDeviceTools against a stub
-// DOM and a recording fetch, then reads back what was drawn and what was sent. Red
-// against 1.7.1, which had three Settings entries, no account page, and the device tools
-// inside each profile's form.
+// Runs the real showSettingsMenu, showAccountSettings and bindDeviceTools against a stub DOM
+// and a recording fetch. Red against 1.7.1: three Settings entries, no account page, and the
+// device tools inside each profile's form.
 //
 //   node tests/js/accountsettings.js [path/to/profiles.js]
 
@@ -107,9 +106,8 @@ function freshAccount() {
         ok('ask-for-the-PIN, ticked as stored', content.querySelector('#account-ask-pin').checked === true);
         ok('home network, unticked as stored', content.querySelector('#account-lan-bypass').checked === false);
         ok('auto-lock, on the stored five minutes', content.querySelector('#account-lockout-select').value === '5');
-        // Changed with P2-603: the account page shows a count and a button, and the list
-        // with its tools is the Manage devices screen. These two used to read the list off
-        // the account page itself.
+        // P2-603: the account page shows a count and a button; the list and its tools are on
+        // the Manage devices screen.
         ok('a device count and a Manage devices button, not the list',
             /id="account-manage-devices"/.test(html) && /id="account-device-count"/.test(html)
             && content.querySelectorAll('.jpf-device-dropdown-item').length === 0);
@@ -150,7 +148,7 @@ function freshAccount() {
         lan.fire('change');
         await settle();
         ok('a refusal puts the box back', lan.checked === false);
-        // Replaced behaviour: a refusal used to be shown in the server's English words; it is said by its X-Bonfire-Error code now.
+        // A refusal used to show the server's English words; it shows its X-Bonfire-Error code now.
         ok('and says why, by its code', content.querySelector('#account-status').textContent === 'Wrong PIN. Try again.',
             content.querySelector('#account-status').textContent);
 
@@ -248,8 +246,7 @@ function freshAccount() {
         ok('Done goes back to Settings', calls.settings === before + 1);
     }
 
-    // Every Settings page goes back to Settings. Sharing went to the profile grid while it
-    // was still loading, and to Settings once loaded.
+    // Every Settings page goes back to Settings. Sharing used to go to the profile grid while loading.
     {
         PP.showSettingsMenu = () => { calls.settings++; };
         PP.loadBonfireStatus = () => {};
@@ -261,8 +258,8 @@ function freshAccount() {
             'settings ' + (calls.settings - before) + ', grid ' + calls.grid.length);
     }
 
-    // R-1217: Sharing's focus timer (250 ms) ran even when the user had already left for
-    // another screen, and took focus on it. It must honour its navigation ticket.
+    // R-1217: Sharing's 250 ms focus timer ran after the user had left for another screen and
+    // took focus there. It must honor its navigation ticket.
     {
         PP.showSettingsMenu = () => { calls.settings++; };
         PP.loadBonfireStatus = () => {};

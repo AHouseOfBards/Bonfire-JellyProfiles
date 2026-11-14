@@ -38,8 +38,8 @@ function run(state) {
         '#clientPinLoginFromAnywhere': { checked: true, disabled: false },
         '#allowProfileThemes': { checked: state.themes }
     };
-    // Any other selector the function asked for is a control it should not be touching now:
-    // the first-time setup step rows are gone, so there is nothing for it to find.
+    // Any other selector asked for is a control it should not be touching: the first-time
+    // setup step rows are gone.
     const page = { querySelector: function (s) { if (!els[s]) throw new Error('looked for ' + s); return els[s]; } };
     new Function('page', source + '; syncDependentToggles(page);')(page);
     return { els: els };

@@ -1,17 +1,17 @@
 /*
  * No lede or hint says again what its label says.
  *
- * The owner read the dashboard and the profile screen and found a sentence under nearly every
- * heading and control: "Optional.", "Off, it ...", "Otherwise ...", reassurance, and two clauses
- * where one fact would do. They were cut, and this is what keeps them cut:
+ * The owner found a sentence under nearly every heading and control on the dashboard and the
+ * profile screen: "Optional.", "Off, it ...", "Otherwise ...", reassurance, and two clauses
+ * where one fact would do. They were cut, and this keeps them cut:
  *
  *   - the removed ledes and hints are gone from the page and from every language file;
  *   - the shortened ones say what they now say, in English;
  *   - no hint under a control, on either screen, opens with one of the phrases he named;
  *   - the hints that protect somebody stay: a limit, a format, an irreversible effect.
  *
- * Every key is enumerated, because a count of "hints under ten words" passes with one key
- * wrong and another missed.
+ * Every key is enumerated: a count of "hints under ten words" passes with one key wrong and
+ * another missed.
  *
  *     node tests/js/adminledes.js /path/to/old/profiles.js /path/to/old/profilesDashboard.html
  */
