@@ -20,7 +20,7 @@
   "ca": "Límit de classificació",
   "es": "Límite de clasificación",
   "fr": "Limite de classification",
-  "pl": "Limit klasyfikacji wiekowej",
+  "pl": "Limit wiekowy",
   "tr": "Yaş derecelendirme sınırı"
  },
  "profileForm.noRestrictions": {
@@ -44,7 +44,7 @@
   "ca": "Botó de canvi",
   "es": "Botón de cambio",
   "fr": "Bouton de changement",
-  "pl": "Przycisk zmiany",
+  "pl": "Przycisk przełączania",
   "tr": "Geçiş düğmesi"
  },
  "settings.yourBonfireBody": {
@@ -52,7 +52,7 @@
   "ca": "Allotja un Bonfire o uneix-te a un.",
   "es": "Aloja un Bonfire o únete a uno.",
   "fr": "Hébergez un Bonfire ou rejoignez-en un.",
-  "pl": "Hostuj Bonfire lub dołącz do jednego.",
+  "pl": "Załóż Bonfire lub dołącz do jednego.",
   "tr": "Bir Bonfire oluşturun veya birine katılın."
  },
  "account.moreSummary": {
@@ -68,7 +68,7 @@
   "ca": "Botó de canvi",
   "es": "Botón de cambio",
   "fr": "Bouton de changement",
-  "pl": "Przycisk zmiany",
+  "pl": "Przycisk przełączania",
   "tr": "Geçiş düğmesi"
  },
  "switcher.bonfireButtonTitle": {
@@ -84,7 +84,7 @@
   "ca": "Un botó de canvi al costat de la icona de perfil de Jellyfin.",
   "es": "Un botón de cambio junto al icono de perfil de Jellyfin.",
   "fr": "Un bouton de changement à côté de l'icône de profil de Jellyfin.",
-  "pl": "Przycisk zmiany obok ikony profilu Jellyfin.",
+  "pl": "Przycisk przełączania obok ikony profilu Jellyfin.",
   "tr": "Jellyfin'in profil simgesinin yanında bir geçiş düğmesi."
  },
  "switcher.menuTitle": {
@@ -116,7 +116,7 @@
   "ca": "No cal PIN a la xarxa del servidor, ni per al teu compte ni per als teus perfils. Fora, el PIN continua fent falta{extra}.",
   "es": "No hace falta PIN en la red del servidor, ni para tu cuenta ni para tus perfiles. Fuera, el PIN sigue haciendo falta{extra}.",
   "fr": "Aucun code PIN requis sur le réseau du serveur, ni pour votre compte ni pour vos profils. Ailleurs, le code PIN reste requis{extra}.",
-  "pl": "Kod PIN nie jest wymagany w sieci serwera, ani dla Twojego konta, ani dla Twoich profili. Poza nią PIN nadal jest wymagany{extra}.",
+  "pl": "PIN nie jest wymagany w sieci serwera, ani dla Twojego konta, ani dla Twoich profili. Poza nią PIN nadal jest wymagany{extra}.",
   "tr": "Sunucunun ağında hesabınız veya profilleriniz için PIN gerekmez. Başka yerlerde PIN yine gerekir{extra}."
  },
  "bonfire.allowHouseholdBody": {
@@ -124,7 +124,7 @@
   "ca": "Qualsevol persona del teu Bonfire pot obrir el teu compte a la xarxa del servidor sense el teu PIN.",
   "es": "Cualquiera de tu Bonfire puede abrir tu cuenta en la red del servidor sin tu PIN.",
   "fr": "Toute personne de votre Bonfire peut ouvrir votre compte sur le réseau du serveur sans votre code PIN.",
-  "pl": "Każdy z Twojego Bonfire może otworzyć Twoje konto w sieci serwera bez podawania kodu PIN.",
+  "pl": "Każdy z Twojego Bonfire może otworzyć Twoje konto w sieci serwera bez podawania PIN-u.",
   "tr": "Bonfire'ınızdaki herkes sunucunun ağındayken PIN'iniz olmadan hesabınızı açabilir."
  }
 }
