@@ -178,7 +178,7 @@ const settle = () => new Promise(r => setImmediate(r)).then(() => new Promise(r 
     w.replyWith(() => Promise.reject(refusal(400, 'logo_invalid', 'Logo text is one line of up to 40 characters.')));
     w.api.saveLogoText(w.page);
     await settle();
-    // Replaced behaviour: English used to show the server's sentence; it is the code's sentence now.
+    // Replaced behavior: English used to show the server's sentence; it is the code's sentence now.
     ok("the refusal is shown by its code, not swallowed",
         w.state.statuses.length === 1 && w.state.statuses[0].good === false && w.state.statuses[0].msg === 'Use one line of text, within the limit.', JSON.stringify(w.state.statuses));
     ok('and nothing is reloaded as if it had saved', w.state.reloads === 0);

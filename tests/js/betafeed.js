@@ -2,9 +2,8 @@
  * The beta feed holds the newest three entries, and the release job keeps it that way.
  *
  * Everyone subscribed to the beta repository downloads the manifest on every refresh, and
- * the Jellyfin plugin page lists every entry in it. Seventy-odd entries going back to 1.1
- * is not a feed, it is an archive; the GitHub releases are the archive and stay. Three is
- * enough to roll back one or two builds.
+ * the plugin page lists every entry. Seventy-odd entries back to 1.1 is an archive, not a
+ * feed; the GitHub releases are the archive. Three is enough to roll back one or two builds.
  *
  * Two halves, because either alone is a promise:
  *   - the manifest on a beta line has at most three entries now;
@@ -12,9 +11,9 @@
  *     only, before anything is committed or pushed, so the oldest entry is the one that
  *     goes. A one-off prune of the file would be back to 4 at the next tag.
  *
- * main's stable manifest is a curated milestone list, not a feed, so the first half only
- * applies when the csproj says this tree is a beta (InformationalVersion, the one place
- * the channel lives).
+ * main's stable manifest is a curated milestone list, not a feed, so the first half applies
+ * only when the csproj says this tree is a beta (InformationalVersion, the one place the
+ * channel lives).
  *
  *   node tests/js/betafeed.js [manifest.json [release.yml]]
  */

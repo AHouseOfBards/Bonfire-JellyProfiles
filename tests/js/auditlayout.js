@@ -2,7 +2,7 @@
  * Dashboard, Switches tab: each entry was a column with its text floating in the middle of a
  * full-width row, and the list scrolled sideways (owner, 1.9.0.4 eye test, 2900px). Two causes:
  * the row was width: 100% plus 15px of padding on each side with content-box sizing, so it was
- * 30px wider than its list; and Jellyfin's .listItem centres what is inside it.
+ * 30px wider than its list; and Jellyfin's .listItem centers what is inside it.
  *
  * Wide enough, the entries are aligned columns (time, who switched to whom, device, address);
  * on a phone they stack. Asked in a real browser at 2900, 1366 and 360px. The fixture does not

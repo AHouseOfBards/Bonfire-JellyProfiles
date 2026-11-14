@@ -4,21 +4,21 @@
  *
  * The server hands back the plugin's own picture addresses as "/plugins/profiles/..." and
  * stores them that way. Under a Base URL the browser resolves that against the origin, not
- * the Base URL, so the request lands outside Jellyfin and every avatar-library tile and
- * every picture in the missing-pictures check came up as missing. ApiClient.getUrl knows
- * the Base URL; profiles.js routes through it with pluginUrl(), and the dashboard did not.
+ * the Base URL, so the request landed outside Jellyfin and every avatar-library tile and
+ * every picture in the missing-pictures check showed as missing. ApiClient.getUrl knows the
+ * Base URL; profiles.js goes through it with pluginUrl(), and the dashboard did not.
  *
  * Two kinds of check, because they fail differently:
  *
- *   - Behaviour. The real render functions run against a getUrl that adds "/jellyfin/", and
- *     what they put in the page must start with it. This is the question that matters.
- *   - A sweep, so the next root-relative address goes red when it is written. It reads
- *     every line that makes an address (an img src, a background image) or spells a plugin
- *     path in a string, and fails any that is neither routed through getUrl/pluginUrl nor
- *     listed below with the reason it is safe. A listed line that disappears fails too, so
- *     the list cannot rot into permission.
+ *   - Behavior. The real render functions run against a getUrl that adds "/jellyfin/", and
+ *     what they put in the page must start with it.
+ *   - A sweep, so the next root-relative address goes red when it is written. It reads every
+ *     line that makes an address (an img src, a background image) or spells a plugin path in
+ *     a string, and fails any that is neither routed through getUrl/pluginUrl nor listed
+ *     below with the reason it is safe. A listed line that disappears fails too, so the list
+ *     cannot rot into permission.
  *
- * Point it at older files to watch it fail (argv[2] client script, argv[3] dashboard):
+ * To watch it fail on older files (argv[2] client script, argv[3] dashboard):
  *
  *     node tests/js/baseurl.js /old/profiles.js /old/profilesDashboard.html
  */
@@ -37,7 +37,7 @@ const PREFIX = '/jellyfin/';
 const dash = L.readDashboard();
 const script = L.dashboardScript(dash);
 
-// ── Behaviour: the dashboard ─────────────────────────────────────────────────
+// ── Behavior: the dashboard ─────────────────────────────────────────────────
 
 console.log('\n── The dashboard under a Base URL ──────────────────────────────');
 

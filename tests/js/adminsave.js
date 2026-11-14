@@ -266,7 +266,7 @@ ok('the saved message is the success one, not the failure one ("'
    + (alertText(base.calls.alert) || 'no alert') + '")',
    !!base.calls.alert && /saved/i.test(alertText(base.calls.alert)));
 // A toast, as Jellyfin confirms its own settings pages. The dialog form always carries a
-// title, which jellyfin-web draws off the centre line of the text under it.
+// title, which jellyfin-web draws off the center line of the text under it.
 ok('and it is a toast, not a dialog', typeof base.calls.alert === 'string');
 ok('and the avatar grid is redrawn, since the switch changes what it shows',
    base.calls.libraryReloads === 1);

@@ -1,22 +1,22 @@
 /*
  * Who the Switch Profile button belongs to, and when it is there at all.
  *
- * Four defects in 1.6.4, all reported from one household's iPad and fixed first in
+ * Four defects in 1.6.4, reported from one household's iPad and fixed first in
  * OleRaehcke/Bonfire-JellyProfiles, a fork that tracks this repository:
  *
- *   1. With "Ask who's watching on startup" off there was no button, ever. The bubble
- *      needed an active-profile marker, only the gate sets one, and it lives in
- *      sessionStorage — so in button mode with the gate off there was no way to switch.
+ *   1. With "Ask who's watching on startup" off there was no button. The bubble needed an
+ *      active-profile marker, only the gate sets one, and it lives in sessionStorage, so with
+ *      the gate off there was no way to switch.
  *   2. The iOS app signs out without reloading. validateSessionState forgets the previous
- *      account on the sign-in screen, but only at init, so the old account's bubble sat on
+ *      account on the sign-in screen, but only at init, so the old account's bubble stayed on
  *      the sign-in screen and the next account inherited its master.
  *   3. With the stored master id missing, the household's own profiles were drawn as a
  *      linked "Kindred's Bonfire" and Manage Profiles told the master to open the master.
  *   4. jellyfin-web scales every div inside .paper-icon-button-light by 1.8 for icon
  *      glyphs, and the header avatar is such a div.
  *
- * Each section is behavioural: the plugin is loaded whole and driven through checkRoute or
- * its real click handler, and what is asserted is what a person would see — whether the
+ * Each section is behavioral: the plugin is loaded whole and driven through checkRoute or
+ * its real click handler, and what is asserted is what a person would see: whether the
  * button exists, which group is "yours", whether Manage Profiles refuses.
  *
  *   node tests/js/bubblesession.js                                   # the working tree
@@ -95,9 +95,9 @@ function build(opts) {
             getClientRects: () => [{}],
             offsetParent: {},
             textContent: '',
-            // Markup assigned here is what a person would see. Every id it declares
-            // becomes findable, so the plugin can bind its handlers the way it does in a
-            // browser — and the harness can then press them.
+            // Markup assigned here is what a person would see. Every id it declares becomes
+            // findable, so the plugin can bind its handlers as in a browser and the harness
+            // can press them.
             set innerHTML(html) {
                 el._html = html;
                 const re = /id="([^"]+)"/g;
@@ -184,8 +184,8 @@ function build(opts) {
     const p = sandbox.__PP;
 
     // Out of scope: the network, and the search for a header to stand in. The header is
-    // handed over directly, so what is under test is the decision to show the button and
-    // not the long search that follows it (headerinject.js owns that).
+    // handed over directly, so the test is the decision to show the button, not the long
+    // search after it (headerinject.js owns that).
     p.loadSwitcherPrefs = () => {};
     p.loadLibraryArtwork = () => {};
     p.validateSessionState = () => {};
@@ -243,9 +243,9 @@ console.log('\n── With "Ask who\'s watching" off, there is still a way to sw
 }
 
 {
-    // The guard against "always show it": with the gate on, the gate is what provides the
-    // session, and a button standing beside a gate that is about to cover the page is two
-    // ways in where there should be one.
+    // The guard against "always show it": with the gate on, the gate provides the session,
+    // and a button beside a gate that is about to cover the page is two ways in where there
+    // should be one.
     const e = build({ prefs: GATE_ON });
     e.go('#/movies.html');
     e.p.checkRoute();
@@ -305,7 +305,7 @@ console.log('\n── With "Ask who\'s watching" off, there is still a way to sw
 
 console.log('\n── Signing out without a reload forgets the previous account ───');
 
-// Every spelling validateSessionState recognises. 10.11 moved routes into the path.
+// Every spelling validateSessionState recognizes. 10.11 moved routes into the path.
 const SIGN_IN = [
     ['#/login.html', '/web/'],
     ['#/selectserver.html', '/web/'],
@@ -369,10 +369,10 @@ SIGN_IN.forEach(([hash, pathname]) => {
 }
 
 {
-    // Nothing that merely contains "login" in a query string or an item name should be
-    // taken for the sign-in screen — but the plugin's own test is a substring test, and
-    // this harness pins that the bubble and validateSessionState agree on it rather than
-    // pretending it is precise. Ordinary pages must not be.
+    // Nothing that merely contains "login" in a query string or an item name should be taken
+    // for the sign-in screen. The plugin's own test is a substring test, so this pins that the
+    // bubble and validateSessionState agree on it instead of pretending it is precise.
+    // Ordinary pages must not be.
     const e = build({ prefs: GATE_OFF, storage: { [MASTER_KEY]: masterState(MASTER) } });
     ['#/home.html', '#/movies.html', '#/details?id=abc', '#/mypreferencesmenu.html']
         .forEach(h => { e.go(h); e.p.checkRoute(); });
@@ -427,9 +427,9 @@ function renderGrid(e) {
     });
 
 {
-    // A linked Bonfire's master is isMaster too. Only the one that is not a Bonfire is
-    // this household's, and that is the only one that may be stored — a list holding
-    // nothing but linked households must store nothing.
+    // A linked Bonfire's master is isMaster too. Only the one that is not a Bonfire is this
+    // household's and may be stored; a list holding nothing but linked households must store
+    // nothing.
     const e = build({ prefs: GATE_OFF });
     const overlay = e.makeEl('div');
     overlay.__attached = true;
@@ -476,7 +476,7 @@ function renderGrid(e) {
 
 console.log('\n── The header avatar is not scaled by jellyfin-web\'s icon rule ──');
 
-// jellyfin-web, src/elements/emby-button/emby-button.scss — identical in release-10.11.z
+// jellyfin-web, src/elements/emby-button/emby-button.scss, identical in release-10.11.z
 // and master, read 2026-10-13:
 //
 //     .paper-icon-button-light > div { max-height: 100%; transform: scale(1.8); ... }
@@ -541,7 +541,7 @@ function compoundMatches(compound, node) {
     if (compound.indexOf('[') !== -1) return false;
     return cls.every(c => node.classes.indexOf(c) !== -1);
 }
-// Avatar, then its button, then "some ancestor" — which, as the worst case, matches any
+// Avatar, then its button, then "some ancestor", which as the worst case matches any
 // compound naming no id. A rule scoped to a root class (.jpf-tv, say) can apply.
 function selectorMatchesAvatar(sel, button) {
     const parts = sel.split(/\s*([>\s])\s*/).filter(s => s !== '');

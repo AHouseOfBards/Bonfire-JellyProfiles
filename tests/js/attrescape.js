@@ -1,12 +1,11 @@
 // Text a translation supplies, written into an attribute, is escaped; and the error lines
 // and the upload label say what they are to a screen reader (R-1220, R-1221).
 //
-// A translation may hold a double quote ("Enter the 'code'" in French is « … », but nothing
-// stops "Say \"hi\""), and one inside title="…" ends the attribute and lets the rest of the
-// string become markup. t() cannot escape for itself, because some of its output is HTML on
-// purpose. So every ${t(...)} that sits inside an attribute value must be wrapped in
-// escapeHtml(...). This reads every attribute value in the script and names each one that
-// is not, pairwise, by line.
+// A translation may hold a double quote, and one inside title="…" ends the attribute and
+// lets the rest of the string become markup. t() cannot escape for itself, because some of
+// its output is HTML on purpose. So every ${t(...)} inside an attribute value must be
+// wrapped in escapeHtml(...). This reads every attribute value in the script and names each
+// one that is not, by line.
 //
 //   node tests/js/attrescape.js [path/to/profiles.js]
 

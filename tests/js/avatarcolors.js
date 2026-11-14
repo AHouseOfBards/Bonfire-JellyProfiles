@@ -1,12 +1,12 @@
 /*
- * A new profile's colour.
+ * A new profile's color.
  *
  * Every profile used to start the same blue, and the defaults disagreed besides: #00A4DC
  * in the client and the server's constant, #1F77B4 in a stored row, in a request that left
  * the field out, and in the API docs. Now:
  *
  *   - the client and the server offer one palette, in one order;
- *   - a new profile starts on the first colour nobody in the household has, in the form
+ *   - a new profile starts on the first color nobody in the household has, in the form
  *     and on the server alike;
  *   - nothing still names the old blue.
  *

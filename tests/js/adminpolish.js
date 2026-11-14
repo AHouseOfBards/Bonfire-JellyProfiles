@@ -1,6 +1,6 @@
 /*
  * The admin page's small honesty fixes: P2-305 (what is unsaved), P2-306 (a link that points
- * somewhere and statuses that can be acted on), P2-309 (status colours), P2-310 (one theme
+ * somewhere and statuses that can be acted on), P2-309 (status colors), P2-310 (one theme
  * order) and P2-311 (wording).
  *
  * Runs the real bindUnsaved, setUnsaved, paintOutcome and loadPanicStatus against stubs.
@@ -48,8 +48,8 @@ const tokenBlock = decl('good') === 2 && decl('bad') === 2 && decl('warn') === 2
 ok('the three colours are named once, as tokens', tokenBlock);
 const strip = css.replace(/--jpf-(good|bad|warn):\s*#[0-9a-f]{6};/g, '');
 const litRe = new RegExp(STATUS.join('|'), 'gi');
-// The Moonfin block writes a theme file's colours for a Moonfin client, not this page's
-// (see dashlight.js); its fallbacks may repeat a status colour as data.
+// The Moonfin block writes a theme file's colors for a Moonfin client, not this page's
+// (see dashlight.js); its fallbacks may repeat a status color as data.
 const mfB = body.indexOf('// moonfin:begin'), mfE = body.indexOf('// moonfin:end');
 const pageBody = mfB >= 0 && mfE > mfB ? body.slice(0, mfB) + body.slice(mfE) : body;
 const literals = (strip.match(litRe) || []).length + (pageBody.match(litRe) || []).length;

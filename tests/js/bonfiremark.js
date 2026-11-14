@@ -43,7 +43,7 @@ function themes() {
         .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')).id).sort();
 }
 
-// A colour token resolved the way the page resolves it, to rgb().
+// A color token resolved the way the page resolves it, to rgb().
 const RESOLVE = `function resolve(el, token) {
   var p = document.createElement('span');
   p.style.color = 'var(' + token + ')';

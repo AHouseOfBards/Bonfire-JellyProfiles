@@ -2,13 +2,14 @@
  * One breakpoint scale: 480 (phone), 900 (tablet), 1280 (desktop). A television is found by
  * detection (.jpf-tv), never by its width.
  *
- * The sheet had grown seven widths — 360, 480, 600, 899, 900 and 50em — each picked for the
+ * The sheet had grown seven widths (360, 480, 600, 899, 900 and 50em), each picked for the
  * one rule beside it, so no two screens agreed on what "a phone" was: the Save bar went
  * single-column at 480, the section padding at 600, the bubble moved at 600, and a 540px
- * window got half of each. Every width an @media or @container rule names, in the stylesheet,
- * in the CSS the theme generator writes, and in the admin page, must be on the scale.
+ * window got half of each. Every width an @media or @container rule names, in the
+ * stylesheet, in the CSS the theme generator writes and in the admin page, must be on the
+ * scale.
  *
- * The >= / <= pairs may sit one pixel off the scale (479/480, 899/900, 1279/1280), because
+ * The >= / <= pairs may sit one pixel off the scale (479/480, 899/900, 1279/1280):
  * `max-width: 479px` beside `min-width: 480px` is how the two halves of a pair avoid
  * overlapping. em/rem widths are converted at 16px so `50em` cannot slip through as "not a
  * pixel value".
@@ -38,8 +39,7 @@ const sources = [
 ];
 
 // Every width feature in every media/container query header, comments blanked first so a
-// comment that mentions a width is not a width. A width written in a comment that quotes
-// "@media (min-width: 50em)" would otherwise read as a rule.
+// width written in a comment is not read as a rule.
 function widths(css) {
     const bare = css.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
     const out = [];

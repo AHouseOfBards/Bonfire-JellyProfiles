@@ -36,7 +36,7 @@ const fn = n => L.extractFunction(script, n) + '\n';
 // instead of the whole harness stopping.
 const opt = n => (has(n) ? fn(n) : '');
 // A throw in a success handler is now an unhandled rejection, which a browser logs. Here
-// that is the behaviour under test, not a crash.
+// that is the behavior under test, not a crash.
 process.on('unhandledRejection', () => {});
 // Set on the last line. Anything that ends the process earlier, however it gets there, is a
 // harness that did not finish and must not exit 0.

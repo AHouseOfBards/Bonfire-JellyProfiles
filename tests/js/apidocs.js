@@ -10,7 +10,7 @@
  * while one route is swapped for another.
  *
  *   1. every route in the controller is documented, and every documented route exists;
- *   2. every route states its authorisation level, in a fixed place;
+ *   2. every route states its authorization level, in a fixed place;
  *   3. the level the document claims is the level the code actually enforces.
  *
  * (3) is the one worth having. A route documented as admin-only that only checks for a

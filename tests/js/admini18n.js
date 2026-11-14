@@ -89,7 +89,7 @@ console.log('\n── Every word of the markup has a key ───────�
 console.log('\n── The script writes no English of its own ────────────────────');
 {
     let body = script;
-    // The catalogue itself is English by definition.
+    // The catalog itself is English by definition.
     const cat = body.indexOf('const ADMIN_EN = {');
     if (cat !== -1) body = body.slice(0, cat) + body.slice(body.indexOf('\n            };', cat));
     // The bug report is for Bonfire's maintainers and stays English on purpose.

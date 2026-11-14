@@ -157,7 +157,7 @@ const PAIRS = `(function () {
   return out;
 })()`;
 
-// The page equalises button heights on the next frame after a change; wait for it.
+// The page equalizes button heights on the next frame after a change; wait for it.
 const PAIRS_WAITED = `new Promise(function (r) { setTimeout(function () { r(${PAIRS}); }, 400); })`;
 
 const EDITOR = `(function () {

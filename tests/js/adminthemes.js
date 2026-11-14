@@ -20,8 +20,8 @@
  *      file itself with the rights confirmed;
  *   8. a new theme cannot silently overwrite another by taking its id.
  *
- * Point it at older files to watch it fail (argv[2] is the client script, argv[3] the
- * dashboard, as for dashboardxss.js):
+ * To watch it fail on older files (argv[2] is the client script, argv[3] the dashboard, as
+ * for dashboardxss.js):
  *
  *     node tests/js/adminthemes.js /old/profiles.js /old/profilesDashboard.html
  *
@@ -127,7 +127,7 @@ console.log('\n── The Themes section is on the page ────────
     ok('the format sits under that button', fontForm.indexOf('id="fontUpload"') < fontForm.indexOf('admin.themes.fontFormatHint'));
     ok('the two spare lines are gone', markup.indexOf('admin.themes.fontsHint') === -1 && markup.indexOf('admin.themes.noFonts') === -1
        && markup.indexOf('id="fontChoose"') === -1);
-    // Simple sets four colours and derives the rest; say so, inside Simple and not Advanced.
+    // Simple sets four colors and derives the rest; say so, inside Simple and not Advanced.
     const hint = /id="teFollowHint"[^>]*data-i18n="admin\.themes\.followHint"[^>]*>([^<]*)</.exec(markup);
     ok('Simple says related colours follow the ones picked, in under ten words',
        hint && hint[1].trim().split(/\s+/).length < 10
@@ -331,7 +331,7 @@ console.log('\n── Problems are said in the page\'s language ─────�
             ok('with the number filled in', limit.message.indexOf('20') !== -1 && limit.message.indexOf('{max}') === -1, limit.message);
             errs.setStrings(null);
             const en = await errs.readThemeError(response('font_taken', 'Bonfire already has a font called Shop.'), 'admin.themes.saveFailed', {});
-            // Replaced behaviour: English used to show the server's sentence. It is the code's sentence now, in every language.
+            // Replaced behavior: English used to show the server's sentence. It is the code's sentence now, in every language.
             ok('in English the code\'s sentence is used, not the server\'s', en.message === 'There\'s already a font with that name.', en.message);
             const invalid = await errs.readThemeError(response('theme_invalid',
                 JSON.stringify({ message: 'That theme isn\'t valid.', problems: [{ path: 'colors.panel', code: 'range', detail: 'd' }] })),
@@ -363,7 +363,7 @@ function part5() {
     };
     const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-    // #757575 and its neighbours sit where black and white text read about equally badly.
+    // #757575 and its neighbors sit where black and white text read about equally badly.
     const accents = ['#ffb347', '#1a73e8', '#00ff00', '#7a0000', '#ffffff', '#000000', '#808080', '#e04ed9',
         '#737373', '#757575', '#777777', '#ff0000', '#0000ff'];
     const weak = [];
@@ -377,8 +377,8 @@ function part5() {
     }));
     ok('a new accent brings text that reads on it, at rest and in focus, on every built-in', weak.length === 0, weak.slice(0, 4).join('; '));
 
-    // The focus ring round a tile is the accent's too. It stayed the starting theme's (a
-    // peach ring on a teal theme) while the Simple screen says related colours follow. It
+    // The focus ring around a tile is the accent's too. It stayed the starting theme's (a
+    // peach ring on a teal theme) while the Simple screen says related colors follow. It
     // must follow, and stand off the background it is drawn on.
     const rings = [];
     BUILT_IN.forEach(theme => ['#2bb3a3', '#1a73e8', '#ff0000', '#e04ed9'].forEach(a => {
@@ -405,7 +405,7 @@ function part5() {
        && layer.stops[0].color === '#f4f1ea' && layer.stops[1].color === '#202020');
     const v = fns.simpleThemeValues(d);
     ok('and Simple reads back what it wrote', v.bg1 === '#f4f1ea' && v.bg2 === '#202020');
-    // A background colour is not the background image: dropping the image here made the
+    // A background color is not the background image: dropping the image here made the
     // save delete its file as unused. Both branches, the gradient and the single fill.
     const withPhoto = JSON.parse(JSON.stringify(bonfireFile));
     withPhoto.background.image = { file: 'abc.jpg', dim: 0.4 };
@@ -486,12 +486,12 @@ function part5() {
     ok('each group heading is a string key', fields.every(g => /^admin\.themes\.group\.[a-z]+$/.test(g[0])));
 
     // Grouped under headings that say what the field is for. The fields did not change: this
-    // list is what Advanced had before they were regrouped, by path and kind, and the page
-    // must still have exactly these, each once.
-    // 2.0 added on purpose: "background.image photo", the picture's control, and the four
-    // layout choices (layout.profiles, align, size, logo).
-    // 1.9.0.4-beta: the five shadows are kind "shadow" (small boxes) where they were "json";
-    // the paths are the same.
+    // list is what Advanced had before the regrouping, by path and kind, and the page must
+    // still have exactly these, each once.
+    // 2.0 added on purpose: "background.image photo" and the four layout choices
+    // (layout.profiles, align, size, logo).
+    // 1.9.0.4-beta: the five shadows are kind "shadow" (small boxes), not "json"; the paths
+    // are the same.
     const BEFORE = ["background.fill color","background.image photo","background.layers json","colors.accent color","colors.accentFocus color","colors.border1 color","colors.border2 color","colors.border3 color","colors.danger color","colors.name color","colors.nameFocus color","colors.onAccent color","colors.panel color","colors.ring color","colors.shadow color","colors.surface1 color","colors.surface2 color","colors.surface3 color","colors.text1 color","colors.text2 color","colors.text3 color","colors.warning color","decorations json","depth.avatar shadow","depth.sheet shadow","depth.title shadow","focus.glow shadow","focus.scale number","layout.align choice","layout.households choice","layout.logo choice","layout.profiles choice","layout.size choice","parts.addTile.border.color color","parts.addTile.border.style choice","parts.addTile.border.width number","parts.addTile.fill color","parts.addTile.focusFill color","parts.addTile.text color","parts.button2.border.color color","parts.button2.border.style choice","parts.button2.border.width number","parts.button2.fill color","parts.button2.focus.border.color color","parts.button2.focus.border.style choice","parts.button2.focus.border.width number","parts.button2.focus.fill color","parts.button2.focus.glow shadow","parts.button2.focus.text color","parts.button2.text color","parts.card.fill color","parts.card.line color","parts.input.fill color","parts.input.line color","parts.sheet.border.color color","parts.sheet.border.style choice","parts.sheet.border.width number","parts.sheet.fill color","scheme choice","shape.avatar.kind choice","shape.avatar.radius number","shape.button.kind choice","shape.button.radius number","shape.input.radius number","shape.radius.large number","shape.radius.medium number","shape.radius.small number","shape.ringWidth number","type.button.case choice","type.button.spacing number","type.button.weight number","type.font.fallback choice","type.font.family font","type.name.opacity number","type.name.scale number","type.name.weight number","type.title.scale number","type.title.spacing number","type.title.weight number"];
     const NOW = [];
     fields.forEach(g => g[1].forEach(f => NOW.push(f[0] + ' ' + f[1])));
@@ -761,8 +761,8 @@ async function part8() {
             ok('in the administrator\'s language', fr.indexOf('Envoyer une image') !== -1 && fr.indexOf('Upload image') === -1, fr.slice(0, 200));
         }
 
-        // The starting dim: the server holds each colour against any picture under the fill
-        // (a white and a black one, and a grey between them), and every built-in made into a
+        // The starting dim: the server holds each color against any picture under the fill
+        // (a white and a black one, and a gray between them), and every built-in made into a
         // custom theme must pass at it. From 0.75 up the two ends decide it.
         const dimFns = lift(['getThemePath', 'themeRgb', 'themeLuminance', 'themeContrast', 'themePhotoDim']);
         const lin = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
@@ -816,9 +816,9 @@ async function part8() {
         const exported = blobText ? JSON.parse(blobText) : null;
         ok('an exported file leaves the picture out', !!exported && !!exported.background && !(exported.background.image && exported.background.image.file)
             && !!withPic.background.image.file, blobText && blobText.slice(0, 80));
-        // But says there was one, or the import on the other end cannot tell the household
-        // to upload it: the note used to show only for a file naming a picture, which no
-        // exported file ever did.
+        // But says there was one, or the import on the other end cannot tell the household to
+        // upload it; the note used to show only for a file naming a picture, which no exported
+        // file ever did.
         ok('and marks that the theme had one', !!exported && !!exported.background.image, JSON.stringify(exported && exported.background));
 
         // The import, run: what is sent, and what the administrator is told. These replace
