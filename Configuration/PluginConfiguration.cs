@@ -8,9 +8,9 @@ namespace Jellyfin.Profiles.Configuration
     public class PluginConfiguration : BasePluginConfiguration
     {
         /// <summary>
-        /// Whether a property is declared to hold null. A file or a posted body that says null
-        /// for one that is not is saying nothing; both the import and the generic configuration
-        /// POST skip it, by this one rule. r2-12-03, r2-19-01.
+        /// Whether a property is declared to hold null. A file or posted body that says null for one that
+        /// is not is saying nothing; the import and the generic configuration POST both skip it by this one
+        /// rule. r2-12-03, r2-19-01.
         /// </summary>
         internal static bool AcceptsNull(System.Reflection.PropertyInfo property)
             => new System.Reflection.NullabilityInfoContext().Create(property).WriteState
@@ -19,33 +19,33 @@ namespace Jellyfin.Profiles.Configuration
         public int MaxProfilesPerUser { get; set; } = 5;
 
         /// <summary>
-        /// Wrong PIN guesses an account may have in a day, across every door (PinBudget).
-        /// A security limit an administrator may make stricter, never looser: anything above
-        /// <c>PinBudget.DailyLimit</c> counts as that (R-1002, Logan's decision). Advanced.
+        /// Wrong PIN guesses an account may have in a day, across every door (PinBudget). A security limit
+        /// an administrator may make stricter, never looser: anything above <c>PinBudget.DailyLimit</c>
+        /// counts as that (R-1002). Advanced.
         /// </summary>
         public int PinGuessesPerDay { get; set; } = 20;
 
-        // RequireMasterPinForCreation was here until 1.7.2. Creating a profile now needs the
-        // main PIN like every other change, so it had nothing left to do. A saved
-        // configuration that still has the element loads fine: the serializer skips it.
+        // RequireMasterPinForCreation was here until 1.7.2. Creating a profile now needs the main PIN
+        // like every other change. A saved configuration that still has the element loads fine: the
+        // serializer skips it.
 
         /// <summary>
-        /// A main account can't change its household (profiles, devices, sharing, switcher
-        /// settings) until it has a PIN. On for a new install (see the Plugin constructor) and
-        /// off for a server that had Bonfire before. Without it, a main account with no PIN
-        /// leaves all of that open to anyone who can reach its switcher.
+        /// A main account can't change its household (profiles, devices, sharing, switcher settings) until
+        /// it has a PIN. On for a new install (see the Plugin constructor), off for a server that had
+        /// Bonfire before. Without it, a main account with no PIN leaves all of that open to anyone who
+        /// can reach its switcher.
         /// </summary>
         public bool RequireMainPin { get; set; }
 
         /// <summary>
-        /// Whether Bonfire does anything at all: the Status tab's "Turn on Bonfire". Off does
-        /// what the emergency code does (see <see cref="Plugin.IsOff"/>), but takes effect
-        /// without a restart, both ways. Jellyfin's own parental controls are unaffected.
+        /// Whether Bonfire does anything at all: the Status tab's "Turn on Bonfire". Off does what the
+        /// emergency code does (see <see cref="Plugin.IsOff"/>), but takes effect without a restart, both
+        /// ways. Jellyfin's own parental controls are unaffected.
         /// <para>
-        /// Off for a new install, so "Who's watching?" does not appear on every device before
-        /// there are any profiles; the Plugin constructor sets it, like RequireMainPin. The
-        /// default here is true because it is what a file saved before 2.0 loads as: it has no
-        /// element for this, and a server that already used Bonfire must stay on.
+        /// Off for a new install, so "Who's watching?" does not appear on every device before there are
+        /// profiles; the Plugin constructor sets it, like RequireMainPin. The default here is true because
+        /// a file saved before 2.0 has no element for this and loads as it, and a server that already used
+        /// Bonfire must stay on.
         /// </para>
         /// </summary>
         public bool BonfireOn { get; set; } = true;
@@ -54,10 +54,10 @@ namespace Jellyfin.Profiles.Configuration
         public List<KnownDevice> KnownDevices { get; set; } = new List<KnownDevice>();
 
         /// <summary>
-        /// What a service that signs in as a household looks like (jfa-go and the like),
-        /// learned: the client and device name of a device that was judged not a player,
-        /// lower-cased and joined with a bar. A later new device with the same pair is not
-        /// announced by email. Bounded (Auth.DeviceRegistry.MaxServiceFingerprints), oldest first out.
+        /// What a service that signs in as a household looks like (jfa-go and the like), learned: the
+        /// client and device name of a device judged not a player, lower-cased and joined with a bar. A
+        /// later new device with the same pair is not announced by email. Bounded
+        /// (Auth.DeviceRegistry.MaxServiceFingerprints), oldest first out.
         /// </summary>
         public List<string> ServiceFingerprints { get; set; } = new List<string>();
         public List<BonfireGroup> BonfireGroups { get; set; } = new List<BonfireGroup>();
@@ -66,24 +66,22 @@ namespace Jellyfin.Profiles.Configuration
         public List<LinkedAccount> LinkedAccounts { get; set; } = new List<LinkedAccount>();
 
         /// <summary>
-        /// Households (main account ids) that have made a request from the server's own
-        /// network, as Jellyfin classifies it. "Skip the PIN on my home network" can only
-        /// ever apply to a household that has been seen there, so the screens offer it to
-        /// no other (unless it is already on, so it can be turned off). Written once, the
-        /// first time, and never cleared. An older configuration loads with it empty.
+        /// Households (main account ids) that have made a request from the server's own network, as
+        /// Jellyfin classifies it. "Skip the PIN on my home network" only applies to a household seen
+        /// there, so the screens offer it to no other (unless already on, so it can be turned off).
+        /// Written once, never cleared. An older configuration loads with it empty.
         /// </summary>
         public List<Guid> HouseholdsSeenLocally { get; set; } = new List<Guid>();
 
         /// <summary>Devices signed into another household's account. See <see cref="CrossHouseholdEntry"/>.</summary>
         public List<CrossHouseholdEntry> CrossHouseholdEntries { get; set; } = new List<CrossHouseholdEntry>();
         public List<UserProfileLimitOverride> UserProfileLimitOverrides { get; set; } = new List<UserProfileLimitOverride>();
-        // AuditLogs have been moved to a separate audit_log.json file so they no longer
-        // cause a full PluginConfiguration.xml rewrite on every profile switch.
+        // AuditLogs moved to a separate audit_log.json so they no longer rewrite
+        // PluginConfiguration.xml on every profile switch.
 
         /// <summary>
-        /// Avatar images the administrator has uploaded for anyone on the server to choose
-        /// from. Managed entirely through the plugin settings page — the files are never
-        /// meant to be dropped into the folder by hand.
+        /// Avatar images the administrator uploaded for anyone on the server to choose from. Managed only
+        /// through the plugin settings page; the files are not meant to be dropped into the folder by hand.
         /// </summary>
         public List<AvatarLibraryItem> AvatarLibrary { get; set; } = new List<AvatarLibraryItem>();
 
@@ -91,18 +89,17 @@ namespace Jellyfin.Profiles.Configuration
         /// A copy to read from outside <c>ConfigLock</c>, taken while holding it
         /// (<c>ProfilesBaseController.ReadConfigSnapshot</c>). Never save one.
         /// <para>
-        /// For the code that runs on Jellyfin's own requests rather than on Bonfire's: the
-        /// authentication provider, and the sign-in list, own-name and Quick Connect rewrites.
-        /// Those walked <see cref="Mappings"/> and <see cref="KnownDevices"/> unlocked, and a
-        /// television signing in is exactly when the session listener appends a device row,
-        /// so a sign-in could meet "collection was modified" — an InvalidOperationException
-        /// Jellyfin does not catch from a provider, which turns a refusal into a 500.
+        /// For code that runs on Jellyfin's own requests, not Bonfire's: the authentication provider, and
+        /// the sign-in list, own-name and Quick Connect rewrites. Those walked <see cref="Mappings"/> and
+        /// <see cref="KnownDevices"/> unlocked, and a television signing in is exactly when the session
+        /// listener appends a device row, so a sign-in could meet "collection was modified", an
+        /// InvalidOperationException Jellyfin does not catch from a provider, which turns a refusal into a
+        /// 500.
         /// </para>
         /// <para>
         /// The lists are copied, and so is each mapping, because a profile's
-        /// <see cref="ProfileMapping.AllowedDeviceIds"/> is edited in place too, and each
-        /// Bonfire group, whose member list is. Everything
-        /// else is a value or an immutable string and is shared.
+        /// <see cref="ProfileMapping.AllowedDeviceIds"/> is edited in place, as is each Bonfire group's
+        /// member list. Everything else is a value or an immutable string and is shared.
         /// </para>
         /// </summary>
         public PluginConfiguration SnapshotForReading()
@@ -126,10 +123,10 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// A copy for <c>GET /themes</c>, which is anonymous and asked often: only what
-        /// <c>ThemeCatalog.PublicPayload</c> reads is copied, so taking it under
-        /// <c>ConfigLock</c> costs three short lists and the payload, which re-checks every
-        /// custom theme it has not seen, is built after the lock is let go. Never save one.
+        /// A copy for <c>GET /themes</c>, which is anonymous and asked often. Only what
+        /// <c>ThemeCatalog.PublicPayload</c> reads is copied, so taking it under <c>ConfigLock</c> costs
+        /// three short lists, and the payload (which re-checks every custom theme it has not seen) is
+        /// built after the lock is released. Never save one.
         /// </summary>
         public PluginConfiguration SnapshotForThemes()
         {
@@ -149,134 +146,127 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// When true, profile pictures can only be chosen from <see cref="AvatarLibrary"/>;
-        /// uploading an arbitrary image is refused. For households that want a curated,
-        /// consistent set rather than whatever each family member picks.
+        /// When true, profile pictures can only be chosen from <see cref="AvatarLibrary"/>; uploading an
+        /// arbitrary image is refused. For households that want a curated, consistent set.
         /// </summary>
         public bool DisallowCustomAvatarUploads { get; set; } = false;
 
         /// <summary>
-        /// Offers the thirty built-in <see cref="StarterAvatars"/> alongside
-        /// <see cref="AvatarLibrary"/>. On by default, including for a configuration saved by
-        /// an older version: the serializer leaves a missing element at this initializer.
-        /// Turning it off removes them from the picker; profiles that already chose one keep
-        /// their own copy.
+        /// Offers the thirty built-in <see cref="StarterAvatars"/> alongside <see cref="AvatarLibrary"/>.
+        /// On by default, including for a configuration saved by an older version (the serializer leaves a
+        /// missing element at this initializer). Turning it off removes them from the picker; profiles
+        /// that already chose one keep their own copy.
         /// </summary>
         public bool EnableStarterAvatars { get; set; } = true;
 
         /// <summary>
         /// Television names an account outside every household has signed in on, so
-        /// <see cref="SkipQuickConnectOnKnownDevices"/> leaves them alone. See
-        /// <c>Auth.QuickConnectGate</c>: a Quick Connect request names only the device, and
-        /// a model name such as "SHIELD Android TV" is shared by every set of that model on
-        /// the server, so without this a household's television took Quick Connect away from
-        /// everyone else's of the same make. Names only, Android TV only, capped.
+        /// <see cref="SkipQuickConnectOnKnownDevices"/> leaves them alone. See <c>Auth.QuickConnectGate</c>:
+        /// a Quick Connect request names only the device, and a model name such as "SHIELD Android TV" is
+        /// shared by every set of that model on the server, so a household's television took Quick Connect
+        /// away from everyone else's of the same make. Names only, Android TV only, capped.
         /// </summary>
         public List<string> QuickConnectSharedDeviceNames { get; set; } = new List<string>();
 
         /// <summary>
         /// How large profile pictures, library avatars and library artwork are stored. See
-        /// <see cref="ImageQualities"/>. Applies to pictures saved from now on; pictures
-        /// already stored keep the size they were saved at. A fresh install starts on
-        /// Maximum; a server that saved a level keeps it. A file written before the setting
-        /// existed has no element, so it takes this default too.
+        /// <see cref="ImageQualities"/>. Applies to pictures saved from now on; stored ones keep their
+        /// size. A fresh install starts on Maximum; a server that saved a level keeps it. A file written
+        /// before the setting existed has no element and takes this default.
         /// </summary>
         public string ProfileImageQuality { get; set; } = ImageQualities.Maximum;
 
         /// <summary>
-        /// What an account gets before it chooses for itself: whether the "Who's Watching?"
-        /// screen appears on startup, and where the switcher is reached from.
+        /// What an account gets before it chooses for itself: whether the "Who's Watching?" screen appears
+        /// on startup, and where the switcher is reached from.
         /// <para>
-        /// Requested in GitHub issue #14 — on a household server the administrator is usually
-        /// the only person who will ever open these settings, and setting every account by
-        /// hand does not scale. An account that has made its own choice keeps it; these only
-        /// fill in the blank. See <see cref="SwitcherLocations.Resolve"/>.
+        /// Requested in GitHub issue #14: on a household server the administrator is usually the only one
+        /// who opens these settings, and setting every account by hand does not scale. An account that has
+        /// chosen keeps its choice; these only fill in the blank. See
+        /// <see cref="SwitcherLocations.Resolve"/>.
         /// </para>
         /// </summary>
         public bool DefaultAskOnStartup { get; set; } = true;
 
         /// <summary>
-        /// Lets a sub-profile be entered with its PIN from any Jellyfin client, including
-        /// the native ones that never load the web client and so never see the switcher.
+        /// Lets a sub-profile be entered with its PIN from any Jellyfin client, including native ones that
+        /// never load the web client and so never see the switcher.
         /// <para>
-        /// Off by default, and deliberately so. Turning it on binds sub-profiles to
-        /// Bonfire's own authentication provider, which is a change to how the server
-        /// authenticates — not something to acquire by upgrading.
+        /// Off by default, on purpose: turning it on binds sub-profiles to Bonfire's own authentication
+        /// provider, which changes how the server authenticates and is not something to get by upgrading.
         /// </para>
         /// </summary>
         public bool EnableClientPinLogin { get; set; }
 
         /// <summary>
-        /// Lets a profile with no PIN, or one limited to particular devices, be signed in on
-        /// another app from outside the home network (R-1334). Off by default: those two
-        /// rest on a device id the client supplies, which anyone who has seen one can send,
-        /// so they open only for a caller Jellyfin itself places on the local network. A
-        /// profile with a PIN and no device list is unaffected: the PIN is the credential.
+        /// Lets a profile with no PIN, or one limited to particular devices, be signed in on another app
+        /// from outside the home network (R-1334). Off by default: those two rest on a device id the
+        /// client supplies, which anyone who has seen one can send, so they open only for a caller Jellyfin
+        /// itself places on the local network. A profile with a PIN and no device list is unaffected: the
+        /// PIN is the credential.
         /// <para>
-        /// A setting rather than a fixed limit because households differ (a PIN-less
-        /// profile on a TV the family also uses away from home is a choice some make), and
-        /// under Advanced because a wrong value lets a stranger into a profile.
+        /// A setting, not a fixed limit, because households differ (a PIN-less profile on a TV the family
+        /// also uses away from home is a choice some make). Under Advanced because a wrong value lets a
+        /// stranger into a profile.
         /// </para>
         /// </summary>
         public bool ClientPinLoginFromAnywhere { get; set; }
 
         /// <summary>
-        /// Adds this household's profiles to the user list a client paints its login screen
-        /// from, on a device the household has already signed in on at least once.
+        /// Adds this household's profiles to the user list a client paints its login screen from, on a
+        /// device the household has already signed in on at least once.
         /// <para>
-        /// Off by default, and separate from <see cref="EnableClientPinLogin"/> on purpose.
-        /// This one edits <c>/Users/Public</c>, the endpoint every client on the server uses
-        /// to sign in, so it carries a blast radius the PIN provider does not.
+        /// Off by default, and separate from <see cref="EnableClientPinLogin"/> on purpose: this edits
+        /// <c>/Users/Public</c>, which every client on the server uses to sign in, so its blast radius is
+        /// larger than the PIN provider's.
         /// </para>
         /// </summary>
         public bool EnableClientProfileList { get; set; }
 
         /// <summary>
-        /// Send an app straight to its password field, instead of Quick Connect, once a
-        /// household has signed in on that device.
+        /// Send an app straight to its password field, instead of Quick Connect, once a household has
+        /// signed in on that device.
         /// <para>
-        /// Off by default, like the other two. It changes the response to
-        /// <c>POST /QuickConnect/Initiate</c> for matching devices, which is a request every
-        /// client on the server can make — see <see cref="Auth.QuickConnectGate"/> for why
-        /// this cannot be decided per profile and why it keys on the device name.
+        /// Off by default, like the other two. It changes the response to <c>POST /QuickConnect/Initiate</c>
+        /// for matching devices, a request every client on the server can make. See
+        /// <see cref="Auth.QuickConnectGate"/> for why this cannot be decided per profile and keys on the
+        /// device name.
         /// </para>
         /// </summary>
         public bool SkipQuickConnectOnKnownDevices { get; set; }
 
         /// <summary>
         /// Apps that get the profile picker served as their own home screen, by key from
-        /// <see cref="Auth.ProxyClients.Catalogue"/>. Empty by default: nothing is proxied
-        /// until an administrator ticks an app. See <see cref="Auth.ProxySwitcher"/>.
+        /// <see cref="Auth.ProxyClients.Catalogue"/>. Empty by default: nothing is proxied until an
+        /// administrator ticks an app. See <see cref="Auth.ProxySwitcher"/>.
         /// </summary>
         public List<string> ProxyClients { get; set; } = new();
 
         /// <summary>
-        /// Addresses and ranges, each with the main accounts it is for (issue #42): from one
-        /// of them that household opens its main account and its profiles without a PIN.
-        /// Empty means off. At most ten, none wider than /16 or /48: fixed limits, see
-        /// <see cref="Auth.TrustedAddresses"/>. Never skips an administrator's PIN, one for
-        /// another household, or the main PIN for changing settings. Only an administrator
-        /// sets it. Advanced. (An earlier flat list of addresses was never released.)
+        /// Addresses and ranges, each with the main accounts it is for (issue #42): from one of them that
+        /// household opens its main account and profiles without a PIN. Empty means off. At most ten, none
+        /// wider than /16 or /48: fixed limits, see <see cref="Auth.TrustedAddresses"/>. Never skips an
+        /// administrator's PIN, one for another household, or the main PIN for changing settings. Only an
+        /// administrator sets it. Advanced. (An earlier flat list of addresses was never released.)
         /// </summary>
         public List<TrustedAddressEntry> TrustedAddressEntries { get; set; } = new();
 
         /// <summary>
-        /// Messages from the administrator, shown on the profile screen. Replaced as a whole
-        /// on every change, never edited in place, so a reader can hold the list it was
-        /// handed without the lock. See <see cref="Announcements"/>.
+        /// Messages from the administrator, shown on the profile screen. Replaced whole on every change,
+        /// never edited in place, so a reader can hold the list without the lock. See
+        /// <see cref="Announcements"/>.
         /// </summary>
         public List<Announcement> Announcements { get; set; } = new();
 
         /// <summary>
-        /// Closed for maintenance. Replaced as a whole when it changes, like
-        /// <see cref="Announcements"/>, so the request gate can read it without the lock.
-        /// See <see cref="Auth.MaintenanceGate"/>.
+        /// Closed for maintenance. Replaced whole when it changes, like <see cref="Announcements"/>, so
+        /// the request gate can read it without the lock. See <see cref="Auth.MaintenanceGate"/>.
         /// </summary>
         public MaintenanceMode Maintenance { get; set; } = new();
 
         /// <summary>
-        /// First-time setup for main accounts. Edited in place under ConfigLock; readers
-        /// outside the lock take a snapshot (ReadConfigSnapshot). See <see cref="OnboardingSettings"/>.
+        /// First-time setup for main accounts. Edited in place under ConfigLock; readers outside the lock
+        /// take a snapshot (ReadConfigSnapshot). See <see cref="OnboardingSettings"/>.
         /// </summary>
         public OnboardingSettings Onboarding { get; set; } = new();
 
@@ -287,9 +277,9 @@ namespace Jellyfin.Profiles.Configuration
         public List<AccountEmail> AccountEmails { get; set; } = new();
 
         /// <summary>
-        /// A main account may reset a forgotten PIN with a code sent to its confirmed
-        /// address. Off by default, and refused until email works (<see cref="Features"/>).
-        /// Resets the main account's PIN only: a profile's PIN is the main account's to reset.
+        /// A main account may reset a forgotten PIN with a code sent to its confirmed address. Off by
+        /// default, and refused until email works (<see cref="Features"/>). Resets the main account's PIN
+        /// only: a profile's PIN is the main account's to reset.
         /// </summary>
         public bool EnablePinResetByEmail { get; set; }
 
@@ -297,35 +287,35 @@ namespace Jellyfin.Profiles.Configuration
         public string DefaultSwitcherLocation { get; set; } = SwitcherLocations.Button;
 
         /// <summary>
-        /// The theme every account sees until it picks its own: a built-in that is not hidden,
-        /// or one of <see cref="CustomThemes"/>. See <see cref="Themes.IsKnown"/>.
+        /// The theme every account sees until it picks its own: a built-in that is not hidden, or one of
+        /// <see cref="CustomThemes"/>. See <see cref="Themes.IsKnown"/>.
         /// </summary>
         public string DefaultTheme { get; set; } = Themes.Bonfire;
 
         /// <summary>
-        /// Themes an administrator made or imported (1.7.2). Each is one theme file, schema 1,
-        /// kept as the text it was saved as. Validated by <see cref="ThemeCatalog.Validate"/>
-        /// on the way in and again on the way out, so a configuration edited by hand cannot
-        /// put an address or an unreadable colour in front of anyone.
+        /// Themes an administrator made or imported (1.7.2). Each is one theme file, schema 1, kept as the
+        /// text it was saved as. Validated by <see cref="ThemeCatalog.Validate"/> on the way in and again
+        /// on the way out, so a hand-edited configuration cannot put an address or an unreadable color in
+        /// front of anyone.
         /// </summary>
         public List<CustomTheme> CustomThemes { get; set; } = new();
 
         /// <summary>
-        /// Built-in themes taken out of every picker. Never Bonfire, which is what everything
-        /// falls back to, and never the current <see cref="DefaultTheme"/>. A profile that chose
-        /// one sees the default instead; its choice is kept for if the theme comes back.
+        /// Built-in themes taken out of every picker. Never Bonfire, which everything falls back to, and
+        /// never the current <see cref="DefaultTheme"/>. A profile that chose one sees the default; its
+        /// choice is kept in case the theme comes back.
         /// </summary>
         public List<string> HiddenThemes { get; set; } = new();
 
         /// <summary>
-        /// Fonts an administrator uploaded: WOFF2 files kept in the plugin's data folder
+        /// Fonts an administrator uploaded: WOFF2 files in the plugin's data folder
         /// (<see cref="ThemeCatalog.CustomFontFolder"/>), named by their contents' hash.
         /// </summary>
         public List<CustomFont> CustomFonts { get; set; } = new();
 
         /// <summary>
-        /// The logo image (1.7.2): a file in <see cref="ThemeLogo.Folder"/>, named by its
-        /// contents' hash. Null for none. An image wins over <see cref="LogoText"/>.
+        /// The logo image (1.7.2): a file in <see cref="ThemeLogo.Folder"/>, named by its contents' hash.
+        /// Null for none. An image wins over <see cref="LogoText"/>.
         /// </summary>
         public string? LogoImage { get; set; }
 
@@ -336,32 +326,30 @@ namespace Jellyfin.Profiles.Configuration
         public string? LogoAlt { get; set; }
 
         /// <summary>
-        /// The logo's corners, and the backing behind a see-through logo: "rounded" (the
-        /// default, and what a configuration saved before this setting reads as) or "square".
+        /// The logo's corners, and the backing behind a see-through logo: "rounded" (the default, and what
+        /// a configuration saved before this setting reads as) or "square".
         /// </summary>
         public string LogoCorners { get; set; } = ThemeLogo.Rounded;
 
         /// <summary>
-        /// The time zone a household's viewing hours are read in until its main account picks
-        /// one. Empty is the server's own zone. See <see cref="HouseholdTime"/>.
+        /// The time zone a household's viewing hours are read in until its main account picks one. Empty
+        /// is the server's zone. See <see cref="HouseholdTime"/>.
         /// </summary>
         public string DefaultTimeZone { get; set; } = string.Empty;
 
         /// <summary>
         /// Whether each profile may pick its own theme. Off means everyone sees
-        /// <see cref="DefaultTheme"/>; choices already made are kept, not cleared, so turning
-        /// this back on gives them back. See <see cref="Themes.Resolve"/>.
+        /// <see cref="DefaultTheme"/>; choices already made are kept, so turning it back on restores them.
+        /// See <see cref="Themes.Resolve"/>.
         /// </summary>
         public bool AllowProfileThemes { get; set; } = true;
 
         /// <summary>
-        /// Lets a theme with a special animation (today, the drifting patterns of Snowfall,
-        /// Bloom and Harvest and Starlight's twinkle) use it.
-        /// Off by default: motion is short and calm unless an administrator asks for more.
-        /// A setting and not a limit because every value is safe: it only decides whether a
-        /// slow background moves. It can never switch motion on against someone's
-        /// prefers-reduced-motion or on a television too slow to blur, which the stylesheet
-        /// decides first.
+        /// Lets a theme with a special animation (today, the drifting patterns of Snowfall, Bloom and
+        /// Harvest and Starlight's twinkle) use it. Off by default: motion is short and calm unless an
+        /// administrator asks for more. A setting, not a limit, because every value is safe: it only
+        /// decides whether a slow background moves. It never overrides someone's prefers-reduced-motion or
+        /// a television too slow to blur, which the stylesheet decides first.
         /// </summary>
         public bool RichThemeMotion { get; set; }
 
