@@ -10402,8 +10402,8 @@
             const attachBackBtnListener = () => {
                 const btn = content.querySelector('#bonfire-back-btn');
                 if (btn) {
-                    // Back to Settings, where Sharing is opened from — the same place the
-                    // loaded page's Back goes. It went to the profile grid while loading.
+                    // Back goes to Settings, where Sharing is opened from, as on the loaded page.
+                    // It went to the profile grid while loading.
                     btn.addEventListener('click', () => this.showSettingsMenu());
                 }
             };
@@ -10415,22 +10415,20 @@
 
             // Auto-focus first focusable element for TV D-pad navigation
             setTimeout(() => {
-                // The ticket taken above: the user may have left for another screen in the
-                // 250 ms, and focus would be stolen onto it (R-1217).
+                // The user may have left for another screen during the 250 ms (R-1217).
                 if (!this.navIsCurrent(navTicket)) return;
-                // Never a Remove button: focus fills a button, and the first thing on the
-                // screen read as a filled primary action (P2-102).
+                // Never a Remove button: focus fills it, and it read as a primary action (P2-102).
                 const first = content.querySelector('input, button:not(.links-remove):not(.links-leave)');
                 if (first) first.focus();
             }, 250);
         },
 
         /// Settings → Sharing: other accounts shown on this household's screen (issue #39),
-        /// and the screens this account is shown on. Each tile opens that person's own
-        /// account, so there is one watch history and nothing to keep in step.
+        /// and the screens this account is shown on. A tile opens that person's own account,
+        /// so there is one watch history.
         ///
-        /// Adding one takes its password, typed here once; the server checks it and keeps
-        /// nothing. Every route answers with the whole list, so each action redraws from it.
+        /// Adding one takes its password, typed once; the server checks it and stores nothing.
+        /// Every route returns the whole list, so each action redraws from it.
         _bindAccountLinks: function (slot) {
             if (!slot) return;
             let data = null;
@@ -10447,11 +10445,10 @@
                 hasPin: this._field(x, 'hasPin') === true
             }));
 
-            // The whole section is redrawn from each reply, which destroys the button that
-            // had focus and the status line a screen reader was watching. The status node
-            // is carried across the redraw so the next message is a change to a region
-            // that already existed (one inserted with its text is often not announced),
-            // and focus is put somewhere stated rather than dropped to the page (R-1219).
+            // Each reply redraws the section, destroying the focused button and the status line a
+            // screen reader was watching. The status node is carried across so the next message
+            // is a change to an existing region (a newly inserted one is often not announced),
+            // and focus goes to a stated place instead of the page (R-1219).
             const draw = (focusSel) => {
                 if (!document.body.contains(slot)) return;
                 const keptStatus = status();
@@ -10539,8 +10536,8 @@
                 .catch(() => { slot.innerHTML = ''; });
         },
 
-        /// An added account chosen in Manage Profiles: it isn't this household's to edit,
-        /// so the only thing to do with it is take it off the screen.
+        /// An added account chosen in Manage Profiles. It isn't this household's to edit,
+        /// so the only action is taking it off the screen.
         showAddedAccount: function (profile) {
             const name = profile.profileName || '';
             this.showActionsDialog(name, t('links.manageBody', { name: name }), [
@@ -10559,12 +10556,12 @@
         /// Settings → Your account: the main account's PIN and sign-in settings, and the
         /// household's devices.
         ///
-        /// The device tools (rename, merge, forget, tidy) used to sit inside each profile's
-        /// device list. A device belongs to the account, not to a profile: renaming the TV
-        /// from Kid's form renamed it for everyone. A profile now only ticks devices.
+        /// Device tools (rename, merge, forget, tidy) used to sit in each profile's device list.
+        /// A device belongs to the account: renaming the TV from Kid's form renamed it for
+        /// everyone. A profile now only ticks devices.
         ///
-        /// Every control saves on its own, through /account or /devices/*, so there is no
-        /// Save button to miss and nothing else on the account is sent back.
+        /// Every control saves on its own through /account or /devices/*, so there is no Save
+        /// button and nothing else on the account is sent back.
         showAccountSettings: function () {
             const ticket = this.beginNavigation();
             const masterState = this.readMasterState();
@@ -10605,8 +10602,8 @@
                 </div>
             `;
 
-            // Rare, and each says what it changes in a line: closed under the one fold
-            // every household screen uses (P2-603).
+            // Rare, and each says what it changes in one line: closed under the fold every
+            // household screen uses (P2-603).
             const rare = `
                 ${check('account-ask-pin', main.askPinToOpen, t('profileForm.askPinToOpen'), t('profileForm.askPinToOpenHint'))}
                 ${this.showHomeSkip(main.seenOnLocalNetwork, main.bypassPinOnLocalNetwork)
@@ -10628,8 +10625,7 @@
                 </div>
             `;
 
-            // A count and a button: the list, with rename, merge and forget on each row,
-            // is a screen of its own (P2-603).
+            // A count and a button. The list, with rename, merge and forget, is its own screen (P2-603).
             const deviceBody = devices === null
                 ? `<div class="jpf-form-hint">${t('profileForm.devicesUnavailable')}</div>`
                 : `<div class="jpf-form-hint" id="account-device-count">${t('account.devicesCount', { count: devices.length })}</div>
@@ -10653,8 +10649,8 @@
         },
 
         /// Settings → Your account → Manage devices: every device the household has used,
-        /// with rename, merge and forget on each. A screen of its own so the account page
-        /// can show a count (P2-603).
+        /// with rename, merge and forget on each. Its own screen so the account page can
+        /// show a count (P2-603).
         showAccountDevices: function () {
             const ticket = this.beginNavigation();
             const masterState = this.readMasterState();
@@ -10711,12 +10707,12 @@
             this.initTVCheckboxes(content);
         },
 
-        /// Everything on the account page that does something: each control saves alone
-        /// through /account, so there is no Save button to miss.
+        /// Everything on the account page that does something. Each control saves alone
+        /// through /account.
         _bindAccountScreen: function (content, main, devices, masterState) {
             const apiClient = ApiClient;
-            // Looked up on every call: a PIN save redraws the page, which replaces this
-            // element, and a reference taken once wrote "PIN saved" into the detached old one.
+            // Looked up on every call: a PIN save redraws the page and replaces this element,
+            // and a reference taken once wrote "PIN saved" into the detached old one.
             const say = (text, bad) => {
                 const status = content.querySelector('#account-status');
                 if (!status) return;
@@ -10725,8 +10721,8 @@
             };
             const rerender = () => this._renderAccountSettings(content, main, devices, masterState);
 
-            /// One POST to /account. Resolves true when saved; on refusal says why and
-            /// resolves false, so the caller can put its control back.
+            /// One POST to /account. Resolves true when saved; on refusal shows why and
+            /// resolves false so the caller can put its control back.
             const saveAccount = (body) => {
                 say('');
                 return fetch(apiClient.getUrl('plugins/profiles/account'), {
@@ -10799,7 +10795,7 @@
 
             const lockSel = content.querySelector('#account-lockout-select');
             // What the select showed when drawn. main.lockoutMinutes can be absent, and
-            // String(undefined) put "undefined" into the select after a failed save.
+            // String(undefined) put "undefined" in the select after a failed save.
             let savedLockout = lockSel.value;
             lockSel.addEventListener('change', () => {
                 saveAccount({ lockoutMinutes: parseInt(lockSel.value, 10) }).then(ok => {
@@ -10808,8 +10804,7 @@
                 });
             });
 
-            // Not through saveAccount: this is this device's answer, kept on the device,
-            // and the account on the server never hears of it.
+            // Not saveAccount: this answer stays on the device and the server never hears of it.
             const layoutSel = content.querySelector('#account-layout-select');
             if (layoutSel) {
                 layoutSel.addEventListener('change', () => {
@@ -10828,8 +10823,8 @@
             this._focusFirstOnTv(content);
         },
 
-        /// The household's time zone, which viewing hours are read in. Drawn once the
-        /// server has listed its zones; a server too old to list them shows nothing.
+        /// The household's time zone, in which viewing hours are read. Drawn once the server
+        /// has listed its zones; a server too old to list them shows nothing.
         _bindAccountZone: function (slot, saveAccount, say) {
             if (!slot) return;
             const masterState = this.readMasterState();
@@ -10841,8 +10836,8 @@
                     const zones = this._field(data, 'zones') || [];
                     const chosen = this._field(data, 'household') || '';
                     const fallback = this._field(data, 'default') || this._field(data, 'server') || '';
-                    // "Server default (Chicago)", not "(America/Chicago)": a native select can't
-                    // shorten its text, and the full id was cut under the arrow on a phone (P2-1002).
+                    // "Server default (Chicago)", not "(America/Chicago)": a native select can't shorten
+                    // its text, and the full id was cut under the arrow on a phone (P2-1002).
                     slot.innerHTML = this.renderSection('schedule', t('account.zoneTitle'), t('account.zoneSubtitle'), `
                         <div class="jpf-form-group">
                             <label for="account-zone-select">${t('account.zone')}</label>
@@ -10865,15 +10860,13 @@
 
         /// Rename, merge, forget and tidy, for the rows _renderAccountSettings draws.
         ///
-        /// Each posts and then redraws the page through refresh(), rather than patching the
-        /// row: a merge changes which devices exist, and a redraw from the server's list is
-        /// the only way the page can't describe a list that no longer exists.
+        /// Each posts, then redraws through refresh() instead of patching the row: a merge
+        /// changes which devices exist, and only a redraw from the server's list stays true.
         bindDeviceTools: function (content, masterState, refresh) {
             const apiClient = ApiClient;
             const deviceAction = (path, body, failKey) => {
-                // Some of these take their argument in the query string and no body at
-                // all. Sending the four bytes "null" for those is not harmless: ASP.NET
-                // binds it as an explicit null, which is a different thing from absent.
+                // Some take their argument in the query string and no body. Sending the four bytes
+                // "null" for those is not harmless: ASP.NET binds it as an explicit null, not absent.
                 const init = {
                     method: 'POST',
                     headers: this.manageHeaders(masterState.token)
@@ -10884,16 +10877,15 @@
                 .then(res => {
                     this.checked(res);
                     if (res.ok) {
-                        // The device list is part of the account-wide cache the profile
-                        // forms share; left, the next form would list what was just changed.
+                        // The device list is part of the account-wide cache the profile forms share;
+                        // left stale, the next form would list what was just changed.
                         this.clearSharedFormData();
                         refresh();
                         return null;
                     }
-                    // Forget is refused when the device is the only one a profile may be
-                    // opened on, and the server says which profiles: forgetting it would
-                    // empty their list, and an empty list means "any device". That reason
-                    // is shown, not a generic failure.
+                    // Forget is refused when the device is the only one a profile may open on: forgetting
+                    // it would empty their list, and an empty list means "any device". The server names
+                    // the profiles, and that reason is shown instead of a generic failure.
                     this.showAlert(t('errors.error'), refusalText(res) || t(failKey));
                     return null;
                 })
@@ -10908,10 +10900,9 @@
                 });
             });
 
-            // Renaming is what makes two ids for one machine tellable apart: jellyfin-web
-            // keeps its id per origin, so the LAN address and the domain name give one
-            // computer two devices, as do a new browser profile or a reinstall. The name
-            // sticks — see KnownDevice.NameIsCustom.
+            // Renaming tells two ids for one machine apart: jellyfin-web keeps its id per origin,
+            // so the LAN address and the domain name give one computer two devices, as do a new
+            // browser profile or a reinstall. The name sticks (see KnownDevice.NameIsCustom).
             content.querySelectorAll('.jpf-device-rename-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -10925,16 +10916,16 @@
                 });
             });
 
-            // Nothing in a request tells one machine's two ids from two real machines, so
-            // the plugin never merges on a guess: merging two that are different would
-            // widen a profile's list. A person says so here.
+            // Nothing in a request tells one machine's two ids from two real machines, so the
+            // plugin never merges on a guess: merging different ones would widen a profile's
+            // list. A person says so here.
             content.querySelectorAll('.jpf-device-merge-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
                     const fromId = btn.getAttribute('data-id');
-                    // The picker exists for rows that look alike, so each choice carries the
-                    // client and last-seen date the list shows: the name alone told
-                    // four identical rows apart by nothing (R-1230).
+                    // The picker is for rows that look alike, so each choice carries the client and
+                    // last-seen date the list shows; the name alone told four identical rows apart by
+                    // nothing (R-1230).
                     const others = Array.from(content.querySelectorAll('.jpf-device-dropdown-item'))
                         .map(row => {
                             const name = (row.querySelector('.device-row-name') || {}).textContent || '';
@@ -10957,10 +10948,9 @@
                 });
             });
 
-            // One browser that has minted a new id every time its site data was cleared
-            // leaves four or five identical-looking rows, and merging them a pair at a
-            // time is the kind of chore nobody finishes. Two calls: the first only
-            // reports, the second acts.
+            // A browser that mints a new id every time its site data is cleared leaves four or
+            // five identical rows, and merging a pair at a time is a chore nobody finishes.
+            // Two calls: the first only reports, the second acts.
             const tidyBtn = content.querySelector('#devices-tidy-btn');
             if (tidyBtn) {
                 tidyBtn.addEventListener('click', (e) => {
@@ -10992,10 +10982,10 @@
             }
         },
 
-        /// "Skip the PIN on my home network" can only apply to a household the server has seen
+        /// "Skip the PIN on my home network" only applies to a household the server has seen
         /// on its own network, so it is offered to no other. Where it is already on it stays,
         /// so it can be turned off. `seen` is the household's flag from /list; `on` is this
-        /// row's own setting.
+        /// row's setting.
         showHomeSkip: function (seen, on) {
             return seen === true || on === true;
         },
@@ -11022,11 +11012,11 @@
         // ─── First-time setup (1.7.2) ────────────────────────────────────────────
 
         /// Asks the server whether this account should be walked through first-time setup,
-        /// and if so starts it. At most once per page load, and only after /preferences has
-        /// said it is pending, so nobody else pays a request for it. Never from checkRoute.
+        /// and if so starts it. At most once per page load, and only after /preferences says
+        /// it is pending. Never from checkRoute.
         ///
-        /// The server decides who sees it: main accounts only, once per account rather than
-        /// per device, and only while the administrator has it on.
+        /// The server decides who sees it: main accounts only, once per account, and only
+        /// while the administrator has it on.
         maybeStartOnboarding: function () {
             if (this._onboardingChecked) return;
             this._onboardingChecked = true;
@@ -11040,7 +11030,7 @@
                     id: s.id || s.Id,
                     done: (s.done !== undefined ? s.done : s.Done) === true
                 })).filter(s => ONBOARDING_STEPS.indexOf(s.id) !== -1);
-                // Already true when setup began: passed over, and not counted in "Step n of m".
+                // Already true when setup began: skipped and not counted in "Step n of m".
                 steps.forEach(s => { s.given = s.done; });
                 if (!steps.length) return;
 
@@ -11049,8 +11039,8 @@
                     index: 0,
                     waiting: true
                 };
-                // On the gate already: take over its content. Otherwise open the overlay,
-                // and showProfileOverlay hands it to the setup before the grid is painted.
+                // On the gate already: take over its content. Otherwise open the overlay;
+                // showProfileOverlay hands it to the setup before the grid is painted.
                 if (document.getElementById('profiles-gate-overlay') && document.querySelector('.profiles-modal-content')) {
                     this._onboarding.waiting = false;
                     this.showOnboardingStep();
@@ -11062,8 +11052,8 @@
         },
 
         /// Draws the current step. Steps already true of the account (a PIN set, a profile
-        /// made) are passed over. Every screen redrawn by the overlay while setup runs comes
-        /// back here, so a slow grid arriving late can't paint over a step.
+        /// made) are skipped. Every screen the overlay redraws while setup runs comes back
+        /// here, so a slow grid arriving late can't paint over a step.
         showOnboardingStep: function () {
             const ob = this._onboarding;
             if (!ob) return;
@@ -11095,9 +11085,9 @@
             else skip ? skip() : next();
         },
 
-        /// The frame every step but the PIN shares: title, body, an error line, and the
+        /// The frame every step but the PIN shares: title, body, an error line and the
         /// buttons. A required step has no Skip. `extraClass` marks a step that is not a
-        /// form (the welcome), which centres.
+        /// form (the welcome), which is centered.
         _onboardingFrame: function (title, body, nextLabel, skip, extraClass) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
@@ -11117,14 +11107,14 @@
             `;
             const skipBtn = content.querySelector('#onboarding-skip');
             if (skipBtn) skipBtn.addEventListener('click', skip);
-            // Next on a TV, unless the step has already focused a better control of its own.
+            // Next on a TV, unless the step already focused a better control.
             this._focusFirstOnTv(content, '#onboarding-next');
             return content;
         },
 
         /// One dot per step: done, current (the wide one) and to come. "Step 2 of 5" stays as
-        /// the label for a screen reader. '' with nothing to count. The PIN step draws its own
-        /// screen and calls this too, so it is numbered like the rest (P2-110).
+        /// the screen reader label. '' with nothing to count. The PIN step draws its own screen
+        /// and calls this too, so it is numbered like the rest (P2-110).
         _onboardingStepLine: function () {
             const ob = this._onboarding;
             if (!ob) return '';
@@ -11157,7 +11147,7 @@
 
         /// An address for a forgotten PIN and notices: the address, then the code mailed to
         /// it. The server offers this step only while email works. `sentTo` is the second
-        /// screen; `refill` puts back what was typed when a refusal redraws the first.
+        /// screen; `refill` restores what was typed when a refusal redraws the first.
         _onboardingEmail: function (next, skip, sentTo, refill) {
             const noFill = 'data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true"';
             const content = this._onboardingFrame(t('onboarding.emailTitle'), sentTo ? `
@@ -11176,7 +11166,7 @@
             `, sentTo ? t('accountEmail.confirm') : t('accountEmail.send'), skip);
             if (!content) return;
 
-            // withMainPin may have drawn its own screen; come back to this one to say why.
+            // withMainPin may have drawn its own screen; come back to say why.
             const fail = (message, typed) => {
                 this._onboardingEmail(next, skip, sentTo, typed);
                 const again = document.querySelector('.profiles-modal-content');
@@ -11190,8 +11180,8 @@
                 const confirm = () => {
                     const code = input.value.replace(/\s/g, '');
                     if (!/^\d{6}$/.test(code)) { this._onboardingError(content, t('accountEmail.codeInvalid')); input.focus(); return; }
-                    // The guard goes inside the callback, as the switcher step's does: set
-                    // before, a main PIN prompt that was cancelled left this step dead.
+                    // The guard goes inside the callback, as in the switcher step: set before it, a
+                    // cancelled main PIN prompt left this step dead.
                     this.withMainPin(this.currentProfiles, () => {
                         if (busy) return;
                         busy = true;
@@ -11268,7 +11258,7 @@
         },
 
         /// Ask on startup, and where to switch from. The same two questions as Settings →
-        /// Switcher, saved together when Next is pressed.
+        /// Switcher, saved together on Next.
         _onboardingSwitcher: function (next, skip) {
             const prefs = this.getSwitcherPrefs() || { askOnStartup: true, location: 'button' };
             let location = prefs.location === 'menu' ? 'menu' : 'button';
@@ -11311,9 +11301,9 @@
             this._roveRadios(cards);
             this.initTVCheckboxes(content);
 
-            // One save per draw: a second Next while the first is in flight saved twice and
-            // called next() twice, which skipped the step after this one (R-1225). A failure
-            // redraws the step, which makes a fresh guard.
+            // One save per draw: a second Next while the first was in flight saved twice and
+            // called next() twice, skipping the following step (R-1225). A failure redraws the
+            // step, which makes a fresh guard.
             let busy = false;
             content.querySelector('#onboarding-next').addEventListener('click', () => {
                 const ask = content.querySelector('#onboarding-ask').checked;
@@ -11350,8 +11340,8 @@
         _onboardingTheme: function (next, skip) {
             const settings = this._themeSettings;
             const main = (this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
-            // One theme on offer is nothing to choose; the server leaves the step out too
-            // (OnboardingStepsFor), this covers a custom theme deleted since it answered.
+            // One theme is nothing to choose; the server leaves the step out too
+            // (OnboardingStepsFor). This covers a custom theme deleted since.
             if (!settings || !settings.allow || !main || offeredThemes().length < 2) { (skip || next)(); return; }
 
             const stored = offeredChoice(main.theme);
@@ -11370,8 +11360,7 @@
                 <p class="jpf-onboarding-text">${t('onboarding.themeBody')}</p>
                 <div class="jpf-theme-grid" role="radiogroup" aria-label="${escapeHtml(t('settings.themeTitle'))}">${offeredThemes().map(option).join('')}</div>
             `, t('onboarding.next'), skip && (() => {
-                // Skip keeps the theme the account had, which the choosing below has been
-                // showing over.
+                // Skip keeps the account's theme, which the choosing has been previewing over.
                 this.applyTheme(settings.theme);
                 skip();
             }));
@@ -11383,10 +11372,9 @@
             if (sheet) sheet.classList.add('jpf-step-tall');
             this._pinSetupRow(document.getElementById('profiles-gate-overlay'));
 
-            // Choosing a card repaints the screen behind it in that theme at once, through
-            // the cross-fade a theme change has everywhere else (applyTheme runs
-            // fadeThemeFrom). Nothing is saved until Next. The card keeps focus: no part of
-            // the step is redrawn.
+            // Choosing a card repaints the screen behind it in that theme at once, through the
+            // cross-fade a theme change has elsewhere (applyTheme runs fadeThemeFrom). Nothing
+            // is saved until Next. The card keeps focus: nothing is redrawn.
             const options = content.querySelectorAll('.jpf-theme-option');
             options.forEach(btn => btn.addEventListener('click', () => {
                 chosen = btn.getAttribute('data-id');
@@ -11405,8 +11393,8 @@
                     fetch(ApiClient.getUrl('plugins/profiles/update'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState ? masterState.token : ApiClient.accessToken()),
-                        // The default theme goes on the wire as '', so the account follows
-                        // the server's default if it changes — as Settings → Look does.
+                        // The default theme goes on the wire as '', so the account follows the server's
+                        // default if it changes, as Settings → Look does.
                         body: JSON.stringify({
                             profileId: main.profileUserId,
                             theme: chosen === settings.defaultTheme ? '' : chosen,
@@ -11426,8 +11414,7 @@
                         next();
                     })
                     .catch(err => {
-                        // The step is drawn again with the stored choice, so the screen goes
-                        // back to match it.
+                        // Draw the step again with the stored choice so the screen goes back to match.
                         this.applyTheme(settings.theme);
                         this.showOnboardingStep();
                         const again = document.querySelector('.profiles-modal-content');
@@ -11442,8 +11429,8 @@
         },
 
         /// Records the setup as seen and puts the person where they would have been: the
-        /// grid if this account asks on startup, otherwise straight into Jellyfin. The
-        /// main PIN typed during setup is forgotten, as it is when Settings closes.
+        /// grid if this account asks on startup, otherwise straight into Jellyfin. The main
+        /// PIN typed during setup is forgotten, as when Settings closes.
         finishOnboarding: function () {
             this._onboarding = null;
             this.masterPin = null;
@@ -11467,10 +11454,9 @@
         /// Look.
         ///
         /// Opened through withMainPin, so the main PIN is asked once on the way in and every
-        /// page below sends it; the server checks it again on each save. There was a
-        /// Profiles entry that only reopened the Manage profiles screen this one is reached
-        /// from, and Back returns there, so it is gone. Server-wide settings stay on the
-        /// dashboard.
+        /// page below sends it; the server checks it again on each save. A Profiles entry
+        /// that only reopened Manage profiles (where this is reached from, and where Back
+        /// returns) was removed. Server-wide settings stay on the dashboard.
         showSettingsMenu: function () {
             this.beginNavigation();
 
@@ -11537,10 +11523,9 @@
 
         /// Settings → Theme: every theme as a small preview, for one profile at a time.
         ///
-        /// The profile form already had a picker, but nobody looks for a theme inside a
-        /// profile's restrictions; Settings is where it was looked for and not found. Each
-        /// choice saves at once through /theme, which changes nothing else on the profile,
-        /// and when the profile is the one signed in the screen changes with it.
+        /// The profile form had a picker, but nobody looks for a theme among a profile's
+        /// restrictions. Each choice saves at once through /theme, which changes nothing else
+        /// on the profile; if it is the signed-in profile, the screen changes with it.
         showThemeSettings: function (selectedId) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
@@ -11562,11 +11547,10 @@
             // What the profile is wearing: its own choice, or the server's default.
             const current = stored || settings.defaultTheme;
 
-            // One card per theme. There used to be a separate "Server default (Crimson)"
-            // card in front of a Crimson card that looked identical, and which of the two
-            // was ticked depended on how the choice had been stored. Now the default theme's
-            // own card carries the tag, and choosing it follows the default ('' on the wire),
-            // so a profile set that way changes when the server's default does.
+            // One card per theme. A separate "Server default (Crimson)" card used to sit before
+            // an identical Crimson card, and which was ticked depended on how the choice was
+            // stored. Now the default theme's own card carries the tag, and choosing it follows
+            // the default ('' on the wire), so the profile changes when the server's default does.
             const option = (id) => `
                 <button type="button" class="jpf-theme-option focusable" role="radio"
                         data-theme="${id === settings.defaultTheme ? '' : id}"
@@ -11581,8 +11565,7 @@
             `;
 
             // jpf-theme-page: no sheet behind the cards in any theme. Bonfire's sheet and
-            // its padding left room for three previews a row where every other theme
-            // showed four, so the page looked different only in Bonfire.
+            // padding fit three previews a row where other themes fit four.
             content.innerHTML = `
                 <h1 class="profiles-title">${t('settings.themeTitle')}</h1>
                 <div class="jpf-create-profile-container jpf-theme-page">
@@ -11624,8 +11607,8 @@
                     fetch(ApiClient.getUrl('plugins/profiles/update'), {
                         method: 'POST',
                         headers: this.jsonHeaders(masterState.token),
-                        // The name is for a profile's own row: /update wants it for anyone but the
-                        // main account, and leaves it as it is when it matches.
+                        // The name is for a profile's own row: /update wants it for anyone but the main
+                        // account, and leaves it alone when it matches.
                         body: JSON.stringify({ profileId: person.profileUserId, profileName: person.profileName, theme: value, masterPin: this.masterPin })
                     })
                     .then(res => { this.checked(res); if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat')); return res.json(); })
@@ -11640,8 +11623,8 @@
                                 allowProfileThemes: settings.allow
                             });
                         }
-                        // No "Saved." line: the tick moving to the card is the confirmation.
-                        // The status line is for a failure only.
+                        // No "Saved." line: the tick moving to the card confirms it. The status line is
+                        // for failures only.
                         this.showThemeSettings(person.profileUserId);
                         this._offerJellyfinTheme(person, shownNow);
                         const chosen = document.querySelector('.jpf-theme-option[aria-checked="true"]');
@@ -11664,8 +11647,8 @@
         },
 
         /// After Settings → Theme gives a profile Jellyfin Dark or Light: offers to set that
-        /// profile's own jellyfin-web theme on this device to match, and does nothing unless
-        /// the offer is taken. Any profile of the household, not only the one signed in: the
+        /// profile's jellyfin-web theme on this device to match, and does nothing unless the
+        /// offer is taken. Any profile of the household, not only the signed-in one: the
         /// setting is keyed by user id, so it waits for that profile to open here. See
         /// JELLYFIN_WEB_THEMES for where jellyfin-web keeps it.
         _offerJellyfinTheme: function (person, theme) {
@@ -11706,9 +11689,9 @@
             const prefs = this.getSwitcherPrefs() || { askOnStartup: true, location: 'button' };
             const askOnStartup = prefs.askOnStartup;
 
-            // Two separate questions, deliberately not folded into one list of modes: the
-            // combination people asked for in issue #14 — ask on startup, but switch from
-            // Jellyfin's menu — is unreachable when it is a single choice.
+            // Two separate questions, not one list of modes: the combination asked for in
+            // issue #14 (ask on startup, switch from Jellyfin's menu) is unreachable as a
+            // single choice.
             const locationOption = (value, icon, title, body) => `
                 <div class="switcher-location-option jpf-choice focusable" data-location="${value}" tabindex="${prefs.location === value ? 0 : -1}" role="radio"
                      aria-checked="${prefs.location === value}">
@@ -11752,7 +11735,7 @@
                 </div>
             `;
 
-            // Back to Settings, which is where this was opened from.
+            // Back to Settings, where this was opened from.
             const goBack = () => this.showSettingsMenu();
 
             const backBtn = content.querySelector('#switcher-mode-back-btn');
@@ -11782,17 +11765,16 @@
                 });
             };
 
-            // getSwitcherPrefs() returns null until the account's preferences have loaded,
-            // which is reachable here — init() runs before sign-in on a fresh browser, and
-            // only the home route retries. Fall back to what the form was rendered with
-            // rather than throwing and leaving the controls looking dead.
+            // getSwitcherPrefs() returns null until the account's preferences have loaded.
+            // That is reachable here: init() runs before sign-in on a fresh browser and only
+            // the home route retries. Fall back to what the form rendered with instead of
+            // throwing and leaving the controls dead.
             const currentPrefs = () => this.getSwitcherPrefs() || prefs;
 
             if (askCb) {
                 askCb.addEventListener('change', () => {
                     save(askCb.checked, currentPrefs().location).then(applied => {
-                        // Revert the box if the server refused, so it cannot sit there
-                        // showing a state that was never stored.
+                        // Revert the box if the server refused, so it doesn't show a state never stored.
                         if (!applied) askCb.checked = !askCb.checked;
                     });
                 });
@@ -11808,8 +11790,8 @@
 
                     save(ask, location).then(applied => {
                         if (!applied) return;
-                        // Re-render so the selected card updates, and so the floating button
-                        // appears or disappears immediately rather than on the next poll.
+                        // Re-render so the selected card updates and the floating button appears or
+                        // disappears at once, not on the next poll.
                         this.showSwitcherModeModal();
                         this.checkRoute();
                     });
@@ -11856,9 +11838,8 @@
             const container = content.querySelector('#bonfire-container');
             if (!container) return;
 
-            // Whatever owns the screen right now. If anything claims it before this
-            // returns, the response is dropped rather than drawn over the newer screen —
-            // the same guard the profile forms use.
+            // Whatever owns the screen now. If anything claims it before this returns, the
+            // response is dropped rather than drawn over the newer screen (as in the profile forms).
             const ticket = this._navTicket;
 
             const statusUrl = apiClient.getUrl('plugins/profiles/bonfire/status');
@@ -11868,8 +11849,8 @@
                     this.handleSessionExpired();
                     throw new Error('status request refused: 401');
                 }
-                // An error page is not a status. Without this, res.json() on one threw a
-                // parse error that was then shown to the person as the reason.
+                // An error page is not a status: res.json() on one threw a parse error that was
+                // then shown as the reason.
                 if (!res.ok) throw new Error('status request failed: ' + res.status);
                 return res.json();
             })
@@ -11966,8 +11947,8 @@
             const isAdmin = status.isAdministrator || status.IsAdministrator || false;
             const hasPinSet = status.hasPin || status.HasPin || false;
 
-            // Only worth showing once there is somebody to share with — on a standalone
-            // account the setting has nothing to act on and just reads as a scary toggle.
+            // Only shown once there is somebody to share with: on a standalone account it has
+            // nothing to act on and reads as a scary toggle.
             const lanBypassSectionHtml = (isOwner || isMember) ? `
                 <div class="bonfire-form-group" style="gap: 4px; border-top: 1px solid var(--jpf-card-border); padding-top: 16px;">
                     <label class="jpf-library-check-label" style="display: inline-flex !important; align-items: center !important; gap: 0.5rem !important; cursor: pointer !important; user-select: none !important; font-size: 0.9rem !important; font-weight: 600 !important; position: relative !important;">
@@ -12026,9 +12007,9 @@
                 </div>
             `;
 
-            // Every action here redraws this whole block, which destroys the button that was
-            // just pressed and drops focus to the page behind the dialog (R-1231). The first
-            // draw leaves focus alone; a redraw puts it back on the first control.
+            // Every action redraws this block, destroying the pressed button and dropping focus
+            // to the page behind the dialog (R-1231). The first draw leaves focus alone; a
+            // redraw puts it on the first control.
             if (container._bonfireDrawn) {
                 const firstControl = container.querySelector('button, input');
                 if (firstControl && firstControl.focus) firstControl.focus();
@@ -12039,7 +12020,7 @@
             const backBtn = container.querySelector('#bonfire-back-btn');
             if (backBtn) {
                 backBtn.addEventListener('click', () => {
-                    // Back to Settings, which is where this was opened from.
+                    // Back to Settings, where this was opened from.
                     this.showSettingsMenu();
                 });
             }
@@ -12064,8 +12045,8 @@
             });
 
             // Replaces a code that has gone further than intended. Members stay in; the old
-            // code stops working. A kick does the same on its own, since the kicked member
-            // otherwise just joined again with the code they already had.
+            // code stops working. A kick does the same, since the kicked member otherwise
+            // rejoined with the code they already had.
             const newCodeBtn = container.querySelector('#bonfire-newcode-btn');
             if (newCodeBtn) {
                 newCodeBtn.addEventListener('click', () => {
@@ -12123,9 +12104,9 @@
             const generateBtn = container.querySelector('#bonfire-generate-btn');
             if (generateBtn) {
                 generateBtn.addEventListener('click', () => {
-                    // Disable immediately to prevent double-fire on slow connections
-                    // A disabled button drops focus, and a D-pad has nowhere to start from
-                    // afterwards: give it back when the button is enabled again (R-1249).
+                    // Disable at once to prevent a double-fire on slow connections. A disabled button
+                    // drops focus and a D-pad has nowhere to start, so focus returns when it is
+                    // enabled again (R-1249).
                     const hadFocus = document.activeElement === generateBtn;
                     generateBtn.disabled = true;
                     generateBtn.textContent = t('bonfire.generating');
@@ -12159,8 +12140,8 @@
                         errDiv.style.display = 'block';
                         return;
                     }
-                    // The server allows membership in only one group, so joining silently
-                    // drops the current one. Confirm first rather than surprising the user.
+                    // A user can be in only one group, so joining silently drops the current one.
+                    // Confirm first.
                     if (isMember) {
                         this.showConfirmDialog(
                             t('bonfire.leaveCurrentTitle'),
@@ -12173,7 +12154,7 @@
 
                 const submitJoin = (code) => {
                     errDiv.style.display = 'none';
-                    // Disable to prevent double-submit; re-enable on all error paths
+                    // Disable against double-submit; re-enable on every error path.
                     const hadFocus = document.activeElement === joinBtn;
                     joinBtn.disabled = true;
                     joinBtn.textContent = t('bonfire.joining');
@@ -12210,17 +12191,16 @@
                 });
             }
 
-            // Settings checkbox listeners — debounced 300ms to prevent race conditions
-            // when the user toggles both checkboxes in quick succession.
+            // Settings checkbox listeners, debounced 300 ms so two quick toggles don't race.
             const hideMineCb = container.querySelector('#bonfire-hide-mine-checkbox');
             const hideOthersCb = container.querySelector('#bonfire-hide-others-checkbox');
             const lanBypassCb = container.querySelector('#bonfire-lan-bypass-checkbox');
             let _settingsDebounceTimer = null;
             const statusDiv = container.querySelector('#bonfire-settings-status');
 
-            // The last state the server acknowledged. A failed save is reverted to this, so
-            // the boxes always show what is actually stored rather than what was attempted.
-            // Seeded from the values this panel was rendered with, which came from the server.
+            // The last state the server acknowledged. A failed save reverts to this, so the
+            // boxes show what is stored, not what was attempted. Seeded from the values the
+            // panel was rendered with.
             const lastSaved = {
                 hideMine: hideMineCb ? hideMineCb.checked : false,
                 hideOthers: hideOthersCb ? hideOthersCb.checked : false,
@@ -12247,9 +12227,9 @@
             };
 
             // True while the "allow household switching" question is on screen. The box is
-            // already ticked by then, and a debounced save from one of the other boxes would
-            // read that tick and send it, skipping the question (a PIN-skip setting), after
-            // which Cancel would "revert" to a lastSaved that had just become true.
+            // already ticked by then, and a debounced save from another box would send that
+            // tick and skip the question (a PIN-skip setting); Cancel would then "revert" to a
+            // lastSaved that had just become true.
             let lanConfirmPending = false;
 
             const saveSettings = () => {
@@ -12263,14 +12243,14 @@
                         hideMySubProfilesFromOthers: hideMineVal,
                         hideOthersSubProfilesFromMe: hideOthersVal
                     };
-                    // Omitted rather than sent as false when the toggle is not on screen, so a
-                    // standalone account saving the hide flags cannot clear a setting it never
-                    // rendered. The server treats a missing value as "leave alone".
+                    // Omitted, not sent as false, when the toggle is not on screen, so a standalone
+                    // account saving the hide flags cannot clear a setting it never rendered. The
+                    // server leaves a missing value alone.
                     if (lanBypassCb) body.allowHouseholdLanBypass = lanBypassVal;
 
-                    // Locked while the request is in flight. Toggling again mid-save would
-                    // queue a second write whose result arrives in whatever order the network
-                    // decides, and a revert would then restore a state neither click asked for.
+                    // Locked while the request is in flight. A second toggle mid-save would queue a
+                    // write that lands in network order, and a revert could restore a state neither
+                    // click asked for.
                     settingsBoxes.forEach(cb => { cb.disabled = true; });
                     clearTimeout(_statusClearTimer);
 
@@ -12291,11 +12271,10 @@
                         flashSaved();
                     })
                     .catch(err => {
-                        // This used to be a console.error and nothing else. The box stayed
-                        // where the user put it while the server still held the old value —
-                        // and for the LAN bypass that means the panel can read "household
-                        // switching allowed" when it is not, or the other way round. Whichever
-                        // way it lands, the person believes a security setting that is not true.
+                        // This was once only a console.error: the box stayed where the user put it while
+                        // the server kept the old value. For the LAN bypass the panel could then read
+                        // "household switching allowed" when it is not, or the reverse, so the person
+                        // believes a security setting that is not true.
                         console.error('Error saving Bonfire settings:', err);
                         if (hideMineCb) hideMineCb.checked = lastSaved.hideMine;
                         if (hideOthersCb) hideOthersCb.checked = lastSaved.hideOthers;
@@ -12311,10 +12290,9 @@
 
             if (lanBypassCb) {
                 lanBypassCb.addEventListener('change', () => {
-                    // Turning it off is always safe and saves straight away. Turning it on
-                    // widens who can reach the account, so it is confirmed first — the checkbox
-                    // reverts if the user backs out, otherwise it would look enabled while the
-                    // server still had it off.
+                    // Turning it off is always safe and saves at once. Turning it on widens who can
+                    // reach the account, so it is confirmed first. The checkbox reverts if the user
+                    // backs out, else it would look enabled while the server still had it off.
                     if (!lanBypassCb.checked) {
                         saveSettings();
                         return;
@@ -12346,34 +12324,29 @@
 
 
         // ── Native-mode entry points ───────────────────────────────────────────────
-        // Native mode drops the forced gate, so the switcher has to be reachable from
-        // Jellyfin's own interface instead. Two places, deliberately:
+        // Native mode drops the forced gate, so the switcher must be reachable from
+        // Jellyfin's own interface. Two places:
         //
-        //   1. The user menu, which is what issue #8 actually asks for.
-        //   2. The profile page, as the fallback — the menu is built dynamically by React
-        //      and every selector below is a guess about markup we do not control. When a
-        //      theme defeats the menu injection, the profile page still works.
+        //   1. The user menu, which is what issue #8 asks for.
+        //   2. The profile page, as the fallback: the menu is built dynamically by React
+        //      and every selector below is a guess about markup we do not control.
         //
-        // Both are additive: nothing is removed from Jellyfin's own UI, so a failed match
-        // costs a missing entry rather than a broken menu.
+        // Both are additive, so a failed match costs a missing entry, not a broken menu.
 
-        // Jellyfin 10.11's user menu is AppUserMenu.tsx — a MUI <Menu id="app-user-menu">
-        // of <MenuItem> rows, NOT the .actionSheet component older builds used. It also
-        // sets keepMounted, so the menu lives in the DOM from first render even while
-        // closed, which is why this can be a plain periodic check rather than an observer
-        // racing the menu open.
+        // Jellyfin 10.11's user menu is AppUserMenu.tsx, a MUI <Menu id="app-user-menu"> of
+        // <MenuItem> rows, not the .actionSheet component older builds used. It sets
+        // keepMounted, so the menu is in the DOM from first render even while closed, which
+        // is why a periodic check works instead of an observer racing the menu open.
         //
-        // Everything below degrades to "no entry appears" if the markup moves. The
-        // #/userprofile section is the deliberate fallback for that case.
+        // If the markup moves, no entry appears; the #/userprofile section is the fallback.
         USER_MENU_SELECTOR: '#app-user-menu',
 
-        /// Re-asserts the "Switch Profile" row in Jellyfin's user menu. Cheap and
-        /// idempotent — React re-renders the menu freely, so this runs from checkRoute
-        /// rather than trying to catch every rebuild.
+        /// Re-asserts the "Switch Profile" row in Jellyfin's user menu. React re-renders the
+        /// menu freely, so this runs from checkRoute instead of catching every rebuild.
         syncUserMenuEntry: function () {
-            // Cheap guard first, for the same reason as syncPreferencesMenuEntry: this runs
-            // from the route poll, and in button mode the only reason to touch the menu is
-            // to remove a row a previous menu-mode session left behind.
+            // Cheap guard first, as in syncPreferencesMenuEntry: this runs from the route poll,
+            // and in button mode the only reason to touch the menu is to remove a row a
+            // previous menu-mode session left.
             const menuMode = this.isMenuLocation();
             if (!menuMode && !this._userEntryPlaced) return;
 
@@ -12383,7 +12356,7 @@
             const existing = menu.querySelector('#profiles-user-menu-item');
 
             if (!menuMode) {
-                // Location switched back to the floating button — take the row out again.
+                // Switched back to the floating button: take the row out.
                 if (existing) existing.remove();
                 this._userEntryPlaced = false;
                 return;
@@ -12393,12 +12366,11 @@
             const items = Array.from(menu.querySelectorAll('li.MuiMenuItem-root, [role="menuitem"]'));
             if (!items.length) return;
 
-            // Anchor on the Sign out row. It is the only item in this menu with no
-            // navigation target, and matching it by position instead would break the
-            // moment an optional row (Quick Connect, Select Server, Exit) appears.
-            // Translated UIs are the normal case — issue #14 came with a Polish
-            // screenshot — so text matching alone is not enough; the MUI Logout icon
-            // is language-independent and checked first.
+            // Anchor on the Sign out row, the only item in this menu with no navigation target.
+            // Matching by position would break when an optional row (Quick Connect, Select
+            // Server, Exit) appears. Translated UIs are the normal case (issue #14 came with a
+            // Polish screenshot), so text alone is not enough: the MUI Logout icon is
+            // language-independent and checked first.
             const signOut = items.find(el => el.querySelector('[data-testid="LogoutIcon"]'))
                 || items.find(el => {
                     if (el.getAttribute('href') || el.querySelector('a[href]')) return false;
@@ -12407,9 +12379,8 @@
                 });
             if (!signOut) return;
 
-            // Clone a real row so the entry inherits the active theme's MUI classes
-            // instead of carrying styling of our own that would not match. Cloning does
-            // not copy listeners, so React's logout handler does not come with it.
+            // Clone a real row so it inherits the active theme's MUI classes. Cloning does not
+            // copy listeners, so React's logout handler does not come along.
             const entry = signOut.cloneNode(true);
             entry.id = 'profiles-user-menu-item';
             entry.removeAttribute('aria-controls');
@@ -12417,10 +12388,10 @@
 
             const iconSlot = entry.querySelector('.MuiListItemIcon-root');
             if (iconSlot) {
-                // Replace the MUI SVG with a Material Icons glyph — Jellyfin already
-                // loads that font, and we cannot construct a MUI icon component here.
-                // The glyph comes from the class, not the text: jellyfin-web bundles
-                // material-design-icons-iconfont, whose CSS sets :before content per name.
+                // Replace the MUI SVG with a Material Icons glyph: Jellyfin already loads that font
+                // and we can't build a MUI icon component here. The glyph comes from the class, not
+                // the text: jellyfin-web bundles material-design-icons-iconfont, whose CSS sets
+                // :before content per name.
                 iconSlot.innerHTML = '';
                 const glyph = document.createElement('span');
                 glyph.className = 'material-icons switch_account';
@@ -12437,8 +12408,8 @@
                 e.preventDefault();
                 e.stopPropagation();
                 this.closeUserMenu();
-                // Let MUI finish its close transition before the overlay mounts, so the
-                // menu is not still fading out on top of the switcher.
+                // Let MUI finish its close transition before the overlay mounts, so the menu is
+                // not still fading out over the switcher.
                 setTimeout(() => this.handleBubbleClick(), 80);
             });
             entry.addEventListener('keydown', (e) => {
@@ -12450,23 +12421,22 @@
         },
 
         /// Re-asserts the "Switch Profile" row on the Settings page (#/mypreferencesmenu),
-        /// which is the list users actually mean by "the menu" — the header dropdown above
-        /// is a different component and only some layouts show it.
+        /// the list users mean by "the menu"; the header dropdown is a different component
+        /// that only some layouts show.
         ///
-        /// Source of truth: src/apps/legacy/routes/user/settings/index.tsx, page id
+        /// Source: src/apps/legacy/routes/user/settings/index.tsx, page id
         /// myPreferencesMenuPage. The row goes in the "User" section above Sign out.
         syncPreferencesMenuEntry: function () {
-            // Cheap guard first. This runs from the route poll, so in button mode — the
-            // default — it used to query the document and read offsetParent (which forces
-            // layout) twice a second purely to discover it had nothing to do. Reading a
-            // cached preference costs nothing, and the only reason to look at the page in
-            // button mode is to take away a row a previous menu-mode session left behind,
-            // which _prefsEntryPlaced already knows about.
+            // Cheap guard first. This runs from the route poll, and in button mode (the default)
+            // it used to query the document and read offsetParent (which forces layout) twice a
+            // second just to find it had nothing to do. A cached preference costs nothing; the
+            // only reason to look at the page in button mode is to remove a row a previous
+            // menu-mode session left, which _prefsEntryPlaced knows.
             const menuMode = this.isMenuLocation();
             if (!menuMode && !this._prefsEntryPlaced) return;
 
-            // Jellyfin keeps previous views in the DOM, so match the visible one or the
-            // row lands on a page nobody is looking at.
+            // Jellyfin keeps previous views in the DOM, so match the visible one or the row
+            // lands on a page nobody sees.
             const page = Array.from(document.querySelectorAll('#myPreferencesMenuPage'))
                 .find(el => el.offsetParent !== null || el.classList.contains('is-active'));
             if (!page) return;
@@ -12484,15 +12454,15 @@
             if (!signOut) return;
 
             // Clone a real row so it inherits the active theme's classes. React dispatches
-            // through fiber props stored on the node, which cloneNode does not copy, so the
-            // logout handler does not come along.
+            // through fiber props on the node, which cloneNode does not copy, so the logout
+            // handler does not come along.
             const entry = signOut.cloneNode(true);
             entry.id = 'profiles-preferences-menu-item';
             entry.classList.remove('btnLogout');
             entry.removeAttribute('href');
-            // An <a> with no href is not focusable, and this row has none — Jellyfin's own
-            // Sign out is a click handler rather than a link. Without this the keyboard and
-            // D-pad can never reach the entry and its Enter handler is dead code.
+            // An <a> with no href is not focusable, and this row has none (Jellyfin's Sign out
+            // is a click handler). Without this the keyboard and D-pad can't reach the entry
+            // and its Enter handler is dead code.
             entry.setAttribute('tabindex', '0');
             entry.setAttribute('role', 'button');
 
@@ -12520,21 +12490,20 @@
             this._prefsEntryPlaced = true;
         },
 
-        /// Closes the MUI menu. Our cloned row has no React handler, so nothing would
-        /// dismiss it otherwise. Escape is what MUI itself listens for; clicking the
-        /// backdrop is the fallback for builds where that listener is not attached.
+        /// Closes the MUI menu. Our cloned row has no React handler, so nothing else would
+        /// dismiss it. Escape is what MUI listens for; clicking the backdrop is the fallback
+        /// for builds where that listener is not attached.
         closeUserMenu: function () {
             const menu = document.getElementById('app-user-menu');
 
-            // Dispatched INSIDE the menu, not on the document.
+            // Dispatched inside the menu, not on the document.
             //
-            // MUI's Modal handles Escape with an onKeyDown on its own root element, so the
-            // event has to travel through that element to be seen. Dispatched on
-            // `document` — which is what this did — the propagation path is [window,
-            // document] and the modal is never on it, so the call has never once closed
-            // anything. Only the backdrop click below has, and when that missed too the
-            // menu stayed open with its focus trap live, fighting ours for focus until the
-            // stack overflowed. See onFocusIn.
+            // MUI's Modal handles Escape with onKeyDown on its own root, so the event must
+            // travel through that element. Dispatched on `document` (as this once was), the
+            // path is [window, document] and the modal is never on it, so it never closed
+            // anything. Only the backdrop click below did, and when that missed too the menu
+            // stayed open with its focus trap live, fighting ours for focus until the stack
+            // overflowed. See onFocusIn.
             //
             // Dispatched on a node inside the menu and allowed to bubble, it passes through
             // the modal root whether the id sits on that root or on the paper within it.
@@ -12555,28 +12524,27 @@
             }, 60);
         },
 
-        /// Adds a Profiles section to Jellyfin's own profile page (#/userprofile).
-        /// Re-checked on every route change because React replaces the view wholesale.
+        /// Adds a Profiles section to Jellyfin's own profile page (#/userprofile). Checked on
+        /// every route change because React replaces the view wholesale.
         injectProfilePageSection: function () {
             if (document.getElementById('profiles-userprofile-section')) return;
             // #/userprofile?userId=… is an administrator editing someone else: the section
             // switches the signed-in person's profile, so it is not offered there (R-1250).
             if (/[?&]userId=/i.test(window.location.hash || '')) return;
 
-            // The visible page, not a cached off-screen view: Jellyfin keeps previous views
-            // in the DOM, and appending to a hidden one puts the section nowhere.
+            // The visible page, not a cached off-screen view: Jellyfin keeps previous views in
+            // the DOM, and appending to a hidden one puts the section nowhere.
             const page = Array.from(document.querySelectorAll('#userProfilePage, .userProfilePage, .page'))
                 .find(el => el.offsetParent !== null || el.classList.contains('is-active'));
             if (!page) return;
 
-            // The padded page container, deliberately — our section is a sibling of the
-            // avatar block and of the password form, not a part of either.
+            // The padded page container: our section is a sibling of the avatar block and the
+            // password form, not part of either.
             //
-            // This used to be one querySelector with all three in the list, which reads
-            // like a preference order and is not one: querySelector returns the first match
-            // in DOCUMENT order, and .padded-left is the parent of .readOnlyContent, so the
-            // answer was the parent whatever order they were written in. Right answer,
-            // wrong reason — asked one at a time now so the intent is the behaviour.
+            // This was one querySelector with all three in the list, which reads like a
+            // preference order but isn't: querySelector returns the first match in document
+            // order, and .padded-left is the parent of .readOnlyContent, so the parent won
+            // whatever the order. Asked one at a time now so the intent is the behavior.
             const host = page.querySelector('.padded-left')
                 || page.querySelector('.readOnlyContent')
                 || page.querySelector('form')
@@ -12585,8 +12553,8 @@
             const activeInfo = this.getCachedActiveProfile();
             const section = document.createElement('div');
             section.id = 'profiles-userprofile-section';
-            // Geometry lives in the stylesheet, so it can be checked and so it matches
-            // what the page around it does — see .jpf-userprofile-section.
+            // Geometry lives in the stylesheet so it can be checked and matches the page around
+            // it. See .jpf-userprofile-section.
             section.className = 'verticalSection jpf-userprofile-section';
             section.innerHTML = `
                 <h2 class="sectionTitle jpf-row-gap-em" style="display:flex; align-items:center; gap:0.4em;">
@@ -12618,14 +12586,14 @@
 
         // ── Bubble visibility helpers ──────────────────────────────────────────
         _bubbleHide: function (bubble) {
-            // Already hidden, or on its way: nothing to do. Without the display check the
-            // 160 ms timer below cleared the flag, and the next route tick (twice a second
-            // on a page that stays hidden) added the class and a timer all over again.
+            // Already hidden or on its way: nothing to do. Without the display check the 160 ms
+            // timer cleared the flag, and the next route tick (twice a second on a page that
+            // stays hidden) added the class and a timer again.
             if (!bubble || bubble.dataset.profilesHiding === '1' || bubble.style.display === 'none') return;
             bubble.dataset.profilesHiding = '1';
             bubble.classList.add('profiles-bubble-hiding');
             setTimeout(() => {
-                // Only commit display:none if still in hiding state
+                // Commit display:none only if still hiding.
                 if (bubble.dataset.profilesHiding === '1') {
                     bubble.style.display = 'none';
                     bubble.classList.remove('profiles-bubble-hiding');
@@ -12635,35 +12603,35 @@
         },
         _bubbleShow: function (bubble) {
             if (!bubble) return;
-            // Already showing: this runs on every route tick, and a requestAnimationFrame
-            // twice a second for a button that is not changing is pure cost.
+            // Already showing: this runs every route tick, and a requestAnimationFrame twice a
+            // second for an unchanged button is pure cost.
             if (bubble.dataset.profilesHiding !== '1' && bubble.style.display !== 'none'
                 && !bubble.classList.contains('profiles-bubble-hiding')) return;
             delete bubble.dataset.profilesHiding;
             bubble.style.display = '';
-            // Tick so the browser has a chance to paint display:'' before removing
-            // the opacity class, triggering the CSS transition.
+            // Tick so the browser paints display:'' before the opacity class is removed and
+            // the CSS transition runs.
             requestAnimationFrame(() => bubble.classList.remove('profiles-bubble-hiding'));
         },
 
         evaluateFloatingBubbleVisibility: function (viewType) {
             let bubble = document.getElementById('profiles-floating-bubble');
 
-            // Nobody is signed in here, whatever storage says — see isSignIn in checkRoute.
-            // Forget the previous account the first time the screen is seen, exactly as
-            // validateSessionState would have on a reload: its profile session, its master,
-            // and the in-memory list, which would otherwise be the next account's first grid
-            // (and, through _syncMasterFromProfiles, its master). Ahead of the menu-location
-            // check because menu mode carries the same state.
+            // Nobody is signed in here, whatever storage says (see isSignIn in checkRoute).
+            // Forget the previous account the first time the screen is seen, as
+            // validateSessionState would on a reload: its profile session, its master, and the
+            // in-memory list, which would otherwise be the next account's first grid (and,
+            // through _syncMasterFromProfiles, its master). Before the menu-location check
+            // because menu mode carries the same state.
             if (viewType === 'signin') {
                 if (!this._signInScreenCleared) {
                     this._signInScreenCleared = true;
                     try { this.clearMasterState(); } catch (e) { /* blocked */ }
                     this.clearProfileSession();
                     this.invalidateProfileCache();
-                    // The previous account's gate and menu-mode choice, and whether it saw
-                    // the emergency link, are not the next account's. Same pair the
-                    // usersignedout handler clears.
+                    // The previous account's gate and menu-mode choice, and whether it saw the
+                    // emergency link, are not the next account's. Same pair the usersignedout handler
+                    // clears.
                     this._switcherPrefs = null;
                     this._panicLinkAvailable = null;
                 }
@@ -12672,38 +12640,36 @@
             }
             this._signInScreenCleared = false;
 
-            // With the switcher in Jellyfin's menu, keeping the floating button as well
-            // would be two controls doing one job — and the second portrait beside the
-            // native user icon is precisely what issue #14 reported as confusing.
+            // With the switcher in Jellyfin's menu, the floating button too would be two
+            // controls for one job, and a second portrait beside the native user icon is what
+            // issue #14 reported as confusing.
             if (this.isMenuLocation()) {
                 if (bubble) bubble.remove();
                 return;
             }
 
-            // Hide during active playback/OSD or on any server-management page.
+            // Hide during playback/OSD or on any server-management page.
             if (viewType === 'videoosd' || viewType === 'dashboard') {
                 this._bubbleHide(bubble);
                 return;
             }
 
-            // The active-profile marker is set by the gate and lives in sessionStorage, so it
-            // is gone on every fresh load. With "Ask who's watching on startup" off nobody
-            // passes through the gate, the marker never exists, and in button mode that left
-            // no switcher at all — no button, and no menu row either. So with the gate off the
-            // button stands whenever someone is signed in; handleBubbleClick already copes
-            // with no marker, because menu mode never has one.
+            // The active-profile marker is set by the gate and lives in sessionStorage, so it is
+            // gone on every fresh load. With "Ask who's watching on startup" off nobody passes
+            // the gate, the marker never exists, and in button mode that left no switcher at
+            // all (no button, no menu row). So with the gate off the button stands whenever
+            // someone is signed in; handleBubbleClick copes with no marker, since menu mode
+            // never has one.
             //
-            // The access token is required as well as the preferences: the preference cache
-            // outlives sign-out (it matches the stored master), and on its own would keep the
-            // button on screen with nobody behind it. getSwitcherPrefs costs nothing extra
-            // here — isMenuLocation has just asked it the same question.
+            // The access token is required too: the preference cache outlives sign-out (it
+            // matches the stored master) and alone would keep the button on screen with nobody
+            // behind it. getSwitcherPrefs costs nothing extra, as isMenuLocation just asked it.
             if (!this.isProfileSessionActive()) {
                 let signedIn = false;
                 try { signedIn = !!(typeof ApiClient !== 'undefined' && ApiClient && ApiClient.accessToken()); } catch (e) { /* no client yet */ }
                 const gateOff = signedIn && this.getSwitcherPrefs() !== null && !this.shouldAskOnStartup();
                 if (!gateOff) {
-                    // No session and the gate will provide one — remove entirely (it is
-                    // re-created when needed).
+                    // No session and the gate will provide one: remove entirely (re-created when needed).
                     if (bubble) bubble.remove();
                     return;
                 }
@@ -12722,7 +12688,7 @@
                         bubble.remove();
                         bubble = null;
                     } else if (!headerContainer.contains(bubble)) {
-                        // Button is in the DOM but drifted outside the header — re-insert.
+                        // In the DOM but drifted outside the header: re-insert.
                         this._insertBeforeUserBtn(headerContainer, bubble);
                     }
                 }
@@ -12733,42 +12699,38 @@
                 }
 
             } else {
-                // Nothing named matched. If a named anchor may still be on its way, wait
-                // rather than guess — see HEADER_ANCHOR_GRACE_MS. Only when there is
-                // nothing on screen yet: a button already placed is left exactly where it
-                // is, because removing it here would trade the jump for a flicker.
+                // Nothing named matched. If a named anchor may still be on its way, wait rather
+                // than guess (see HEADER_ANCHOR_GRACE_MS). Only when nothing is on screen yet: a
+                // button already placed stays put, since removing it would trade the jump for a
+                // flicker.
                 if (!bubble && this._withinAnchorGrace()) return;
 
                 // ── Strategy 2: geometry-based anchor ────────────────────────────────
-                // If no named container matched (e.g. a custom Skin Manager theme),
-                // find the rightmost visible button in the top 80px of the viewport
-                // and insert next to it.  Works for ANY theme regardless of class names.
-                // Cached like the header container, and for a sharper reason: this walks
-                // every button and link in the document and reads getBoundingClientRect on
-                // each one, which forces layout. Running it twice a second was the most
-                // expensive thing the plugin did, and it only ever runs on themes where no
-                // named container matched — so the worst case fell on the people already
-                // worst served. Re-found when it leaves the page or the viewport changes.
+                // If no named container matched (e.g. a custom Skin Manager theme), find the
+                // rightmost visible button in the top 80px and insert next to it. Works for any
+                // theme regardless of class names. Cached like the header container: this walks
+                // every button and link in the document and reads getBoundingClientRect on each,
+                // which forces layout. Twice a second it was the most expensive thing the plugin
+                // did, and it only runs on themes where no named container matched, so the worst
+                // case fell on the people already worst served. Re-found when it leaves the page
+                // or the viewport changes.
                 if (this._geoAnchor && !document.contains(this._geoAnchor)) {
                     this._geoAnchor = null;
                 }
                 //
-                // A failed search backs off for the same three seconds the named search
-                // does. Without it, a page with no buttons at all in the top 80px — which
-                // is where this ends up — would re-run the whole walk on every tick
-                // forever, having already established there is nothing to find.
+                // A failed search backs off for the same three seconds as the named search. Without
+                // it, a page with no buttons in the top 80px would re-run the whole walk every tick,
+                // having already found nothing.
                 const geoNow = Date.now();
                 const geoStale = !this._geoSearchedAt || geoNow - this._geoSearchedAt >= 3000;
                 if ((!this._geoAnchor && geoStale) || this._fallbackPosDirty) {
                     this._geoSearchedAt = geoNow;
                     this._geoAnchor = this._findGeometricHeaderAnchor();
                 }
-                // The resize has been answered, so the flag is spent. It used to be
-                // cleared only on the corner-pill path below, so on a theme where this
-                // search found an anchor a single resize left it set for good, and the
-                // branch above re-ran the whole walk on every tick for the rest of the
-                // session. With no anchor the pill path still needs it to re-place the
-                // pill, and clears it there.
+                // The resize has been answered, so the flag is spent. It was cleared only on the
+                // corner-pill path below, so where this search found an anchor, one resize left it
+                // set and the branch above re-ran the whole walk every tick for the session. With
+                // no anchor the pill path still needs it to re-place the pill, and clears it there.
                 if (this._geoAnchor) this._fallbackPosDirty = false;
                 const anchor = this._geoAnchor;
                 if (anchor) {
@@ -12789,8 +12751,8 @@
 
                 } else {
                     // ── Strategy 3: true corner-pill fallback ────────────────────────
-                    // Appended to <html> (outside the body transform chain) so
-                    // position:fixed works correctly regardless of CSS transforms.
+                    // Appended to <html> (outside the body transform chain) so position:fixed works
+                    // despite CSS transforms.
                     if (bubble && !bubble.classList.contains('profiles-floating-fallback')) {
                         bubble.remove();
                         bubble = null;
@@ -12799,8 +12761,7 @@
                         bubble = this._buildFallbackBubble();
                         document.documentElement.appendChild(bubble);
                         this.attachBubbleClickHandler(bubble);
-                        // _buildFallbackBubble positions it as it builds it, so it starts
-                        // clean rather than asking for the same computation twice.
+                        // _buildFallbackBubble positions it as it builds, so it starts clean.
                         this._fallbackPosDirty = false;
                     }
                 }
@@ -12808,12 +12769,10 @@
 
             if (bubble && bubble.classList.contains('profiles-floating-fallback')
                 && this._fallbackPosDirty !== false) {
-                // Where the corner pill goes depends on the viewport, not on the route.
-                // This ran on every tick — a document-wide button query plus several
-                // elementFromPoint calls, each one forcing layout — twice a second, on
-                // precisely the themes where the header search had already failed and was
-                // therefore costing the most. Recomputed when the pill is built and when
-                // the viewport changes, which is when the answer can actually differ.
+                // Where the corner pill goes depends on the viewport, not the route. This ran every
+                // tick (a document-wide button query plus several elementFromPoint calls, each
+                // forcing layout), twice a second, on exactly the themes where the header search
+                // had failed. Recomputed when the pill is built and when the viewport changes.
                 const pos = this._findBestFallbackPosition();
                 bubble.style.top = pos.top;
                 bubble.style.bottom = pos.bottom;
@@ -12824,26 +12783,26 @@
 
             this._bubbleShow(bubble);
 
-            // Pre-fetch the profile list while the button is visible so the overlay
-            // appears instantly (no network wait) when the user clicks it.
+            // Pre-fetch the profile list while the button is visible so the overlay opens
+            // without a network wait.
             if (viewType === 'home' && !this._profilePrefetchPending) {
                 this._prefetchProfiles();
             }
         },
 
-        // Fetches /list using the master token and caches the result in this.cachedProfiles.
-        // Called proactively by evaluateFloatingBubbleVisibility; the cached result is
-        // consumed by fetchAndRenderProfiles for instant, flash-free overlay display.
+        // Fetches /list with the master token and caches it in this.cachedProfiles. Called
+        // by evaluateFloatingBubbleVisibility; fetchAndRenderProfiles uses the cache so the
+        // overlay appears at once without a flash.
         _prefetchProfiles: function () {
             if (this._profilePrefetchPending || (this.cachedProfiles && this.cachedProfiles.length)) return;
-            // The pending flag below was cleared on any failure with nothing to slow the
-            // next attempt, so a failing server got a /list from every open home screen
-            // every 500 ms. The shared guard also stops this racing the gate's request.
+            // The pending flag below was cleared on any failure with nothing to slow the next
+            // attempt, so a failing server got a /list from every open home screen every
+            // 500 ms. The shared guard also stops this racing the gate's request.
             if (!this._listPollMayRequest()) return;
-            // With the gate off the button stands without a profile session, so this is
-            // reached on every home tick before any master state exists — a storage read and
-            // a JSON.parse twice a second, for nothing. Back off three seconds after finding
-            // none, the same interval the header searches use.
+            // With the gate off the button stands without a profile session, so this is reached
+            // on every home tick before any master state exists: a storage read and a
+            // JSON.parse twice a second for nothing. Back off three seconds after finding none,
+            // as the header searches do.
             if (this._prefetchNoMasterAt && Date.now() - this._prefetchNoMasterAt < 3000) return;
             const masterState = this.readMasterState();
             if (!masterState || !masterState.token) {
@@ -12856,9 +12815,9 @@
             const gen = this._profileCacheGen || 0;
             this._requestList(ApiClient, masterState.token)
                 .then(res => {
-                    // A 401 used to be swallowed with every other failure, leaving a dead
-                    // session on screen with a button that could not open anything. It is
-                    // the same expired session the gate's request handles.
+                    // A 401 was swallowed with every other failure, leaving a dead session on screen
+                    // with a button that could not open anything. It is the same expired session the
+                    // gate's request handles.
                     if (res.status === 401) {
                         this.handleSessionExpired();
                         throw new Error('Unauthorized');
@@ -12897,53 +12856,50 @@
                 .catch(() => {
                     // A stale answer's failure must not clear the flag of a newer prefetch.
                     if ((this._profileCacheGen || 0) === gen) this._profilePrefetchPending = false;
-                    // Also set by _requestList for a failed request; this covers a body
-                    // that would not parse.
+                    // Also set by _requestList for a failed request; this covers a body that would
+                    // not parse.
                     this._listRetryAt = Date.now() + this.POLL_RETRY_MS;
                 });
         },
 
         // ── Header-container detection ───────────────────────────────────────────
 
-        /// True when an element is actually laid out — not merely present in the document.
+        /// True when an element is actually laid out, not merely present in the document.
         ///
-        /// getClientRects() is empty for anything inside a display:none subtree, and unlike
-        /// offsetParent it stays correct for a position:fixed element. Both matter here.
+        /// getClientRects() is empty inside a display:none subtree and, unlike offsetParent,
+        /// stays correct for a position:fixed element. Both matter here.
         ///
         /// jellyfin-web keeps its whole legacy header in the DOM and hides it whenever the
-        /// modern layout is active — the default in 12.0, and an option in 10.11. Its own
-        /// comment in components/AppHeader.tsx says why: "these components are not used
-        /// with the new layouts, but legacy views interact with the elements directly so
-        /// they need to be present in the DOM. We use display: none to hide them and
-        /// prevent errors." RootAppRouter renders it as
+        /// modern layout is active (the default in 12.0, an option in 10.11). Its comment in
+        /// components/AppHeader.tsx: "these components are not used with the new layouts, but
+        /// legacy views interact with the elements directly so they need to be present in the
+        /// DOM. We use display: none to hide them and prevent errors." RootAppRouter renders
         /// <AppHeader isHidden={layoutManager.modern || isNewLayoutPath} />, and
         /// libraryMenu.js still fills that hidden .skinHeader with .headerRight,
         /// .headerButton and .headerUserButton.
         ///
-        /// So on the modern layout every named strategy below matched, and the button went
-        /// into a container nobody could see. From outside that is indistinguishable from
-        /// the injection having failed — and the geometric fallback, which would have found
-        /// the real toolbar, never ran because the search had already "succeeded".
+        /// So on the modern layout every named strategy below matched and the button went into
+        /// a container nobody could see, which looks like the injection failing. The geometric
+        /// fallback, which would have found the real toolbar, never ran because the search had
+        /// already "succeeded".
         _isLaidOut: function (el) {
             return !!el && typeof el.getClientRects === 'function' && el.getClientRects().length > 0;
         },
 
-        /// How long a named anchor gets to appear before geometry is allowed to guess.
+        /// How long a named anchor gets to appear before geometry may guess.
         ///
-        /// A named anchor is strictly better than a guessed one — it is the account button
-        /// itself rather than whatever happened to be furthest right — so the guess waits
-        /// for it. The modern toolbar renders progressively, and on the first tick the
-        /// account button is not there yet while the Cast button is.
+        /// A named anchor beats a guessed one (it is the account button itself, not whatever
+        /// is furthest right), so the guess waits. The modern toolbar renders progressively:
+        /// on the first tick the account button is missing while the Cast button is there.
         ///
-        /// The cost is borne by custom themes where nothing named will ever match: their
-        /// button now appears this much later, and then stays put. That is the better
-        /// trade. One late arrival beats a visible jump on every single page load, and
-        /// three seconds is well inside how long the rest of the page takes to settle.
+        /// Custom themes where nothing named will ever match get their button this much
+        /// later, and then it stays put. One late arrival beats a visible jump on every page
+        /// load, and three seconds is well inside how long the page takes to settle.
         HEADER_ANCHOR_GRACE_MS: 3000,
 
-        /// True while a named anchor may still be about to appear and nothing has been
-        /// placed yet. Reset whenever the container is lost, so a React remount gets the
-        /// same head start the first load did.
+        /// True while a named anchor may still appear and nothing has been placed yet. Reset
+        /// when the container is lost, so a React remount gets the same head start as the
+        /// first load.
         _withinAnchorGrace: function () {
             return this._headerAnchorWaitFrom !== undefined
                 && Date.now() - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
@@ -12952,23 +12908,21 @@
         /**
          * The container the floating switcher button is placed in.
          *
-         * Cached, because this is reached from evaluateFloatingBubbleVisibility on every
-         * route tick while a profile is active — which is essentially always — and the
-         * header is built once per page. It was re-running the entire search twice a
-         * second to arrive at the same answer: six document queries on a stock install and
-         * ten on a theme where nothing matched, two of them full-document walks.
-         * tests/js/routetick.js measures it.
+         * Cached: this is reached from evaluateFloatingBubbleVisibility on every route tick
+         * while a profile is active (nearly always), and the header is built once per page.
+         * It re-ran the whole search twice a second for the same answer: six document
+         * queries on a stock install and ten on a theme where nothing matched, two of them
+         * full-document walks. tests/js/routetick.js measures it.
          *
-         * The cache is invalidated by the element leaving the document, which is what
-         * React rebuilding the header looks like from out here.
+         * The cache is invalidated by the element leaving the document, which is what React
+         * rebuilding the header looks like from here.
          */
         _findHeaderContainer: function () {
             const cachedNow = Date.now();
             if (this._headerContainer && document.contains(this._headerContainer)) {
-                // Re-checked on the same three-second cadence as a fresh search, not on
-                // every tick. This is a layout read and checkRoute runs twice a second;
-                // what it is watching for — someone switching layout in Display settings —
-                // does not happen between ticks.
+                // Re-checked on the same three-second cadence as a fresh search, not every tick:
+                // it is a layout read, and what it watches for (someone switching layout in Display
+                // settings) does not happen between ticks.
                 if (cachedNow - (this._headerCheckedAt || 0) < 3000) {
                     return this._headerContainer;
                 }
@@ -12976,30 +12930,26 @@
                 if (this._isLaidOut(this._headerContainer)) {
                     return this._headerContainer;
                 }
-                // The layout changed under us and this container is now hidden. Drop it and
-                // search again rather than keeping a button nobody can see — and restart
-                // the anchor grace, so a React remount gets the same head start the first
-                // load did instead of falling straight to geometry.
+                // The layout changed and this container is now hidden. Drop it and search again
+                // rather than keep a button nobody can see, and restart the anchor grace so a React
+                // remount gets the same head start as the first load.
                 this._headerContainer = null;
                 this._headerAnchorWaitFrom = undefined;
             }
 
-            // A failed search is remembered too, briefly. Caching only successes would
-            // leave the full cost in place on exactly the themes where no strategy
-            // matches — the case that was already the most expensive. Three seconds is
-            // far below the time anyone takes to notice a missing button, and far above
-            // a React re-render.
+            // A failed search is remembered too, briefly. Caching only successes would leave
+            // the full cost on exactly the themes where no strategy matches, already the most
+            // expensive. Three seconds is far below the time anyone takes to notice a missing
+            // button and far above a React re-render.
             //
-            // Except while we are still waiting for a named anchor to appear. The modern
-            // toolbar is React and its account button is not in the DOM on the first tick,
-            // so the first search fails, the throttle then held that answer for three
-            // seconds, and the switcher spent those three seconds wherever geometry had
-            // guessed. Reported as "it loads squished next to the cast button first, then
-            // updates" — the update being this throttle expiring.
+            // Except while waiting for a named anchor. The modern toolbar is React and its
+            // account button is not in the DOM on the first tick, so the first search fails, the
+            // throttle held that answer for three seconds, and the switcher sat wherever
+            // geometry had guessed. Reported as "it loads squished next to the cast button
+            // first, then updates": the update was the throttle expiring.
             //
-            // During the grace the named search runs on every tick instead. That is four
-            // indexed queries, which is what the geometric walk it replaces costs many
-            // times over, and it only happens in the first few seconds of a page.
+            // During the grace the named search runs every tick. That is four indexed queries,
+            // far less than the geometric walk it replaces, and only in a page's first seconds.
             const now = Date.now();
             if (this._headerAnchorWaitFrom === undefined) this._headerAnchorWaitFrom = now;
             const waitingForAnchor = now - this._headerAnchorWaitFrom < this.HEADER_ANCHOR_GRACE_MS;
@@ -13013,16 +12963,15 @@
             this._headerSearchedAt = now;
             this._headerCheckedAt = now;
 
-            // Indexed strategies only while waiting. Strategy C ends in
-            // [class*="skinHeader"], [class*="topBar"] — two unqualified attribute-substring
-            // selectors, which can never use an index and always walk the whole document.
-            // Running that on every tick is precisely what the route-tick budget forbids,
-            // and it would buy nothing: it is the heuristic for custom themes, and a custom
-            // theme's header does not appear three seconds late. It runs once the grace is
-            // over, on the same tick geometry would otherwise have taken.
+            // Indexed strategies only while waiting. Strategy C ends in [class*="skinHeader"],
+            // [class*="topBar"], two unqualified attribute-substring selectors that can never
+            // use an index and always walk the whole document. The route-tick budget forbids
+            // that every tick, and it buys nothing: it is the heuristic for custom themes, whose
+            // header does not appear three seconds late. It runs once the grace is over, on the
+            // tick geometry would otherwise have taken.
             this._headerContainer = this._searchForHeaderContainer(waitingForAnchor);
-            // Found one, so the wait is over. Cleared rather than left running, so that if
-            // this container is ever lost the grace starts again from that moment.
+            // Found one, so the wait is over. Cleared, not left running, so that if this
+            // container is lost the grace starts again from that moment.
             if (this._headerContainer) this._headerAnchorWaitFrom = undefined;
             return this._headerContainer;
         },
@@ -13030,53 +12979,48 @@
         _searchForHeaderContainer: function (indexedOnly) {
             // Strategy A: Jellyfin's own right-hand button container.
             //
-            // Five other class names were tried before this one — .headerRightButtons,
-            // .headerSelfView, .skinHeader-rightButtons, .headerButtons-right and
-            // .viewHeaderRight. Every one is absent from jellyfin-web 10.11, so on a
-            // stock install the browser resolved five selectors that could not match
-            // before reaching the one that does. They are recorded in
-            // tests/upstream-selectors.json.
-            // Laid out, not merely present — see _isLaidOut. On the modern layout this
-            // element exists and is inside a display:none wrapper.
+            // Five other class names were tried before this one (.headerRightButtons,
+            // .headerSelfView, .skinHeader-rightButtons, .headerButtons-right,
+            // .viewHeaderRight). All are absent from jellyfin-web 10.11, so a stock install
+            // resolved five selectors that could not match before reaching the one that does.
+            // They are recorded in tests/upstream-selectors.json.
+            // Laid out, not merely present (see _isLaidOut): on the modern layout this element
+            // exists inside a display:none wrapper.
             const byClass = document.querySelector('.headerRight');
             if (this._isLaidOut(byClass)) return byClass;
 
             // Strategy A2: the modern toolbar's user-menu button.
             //
-            // Named, not geometric, and that is the point. The first attempt at the modern
-            // layout let the geometric fallback place the button, and it landed in a
-            // different slot on every other load — between SyncPlay and Cast one time,
-            // beside the avatar the next. React fills that toolbar progressively, so
-            // "rightmost button in the top 80px" answers whatever happened to be rendered
-            // at the instant the search ran, and the answer was then cached.
+            // Named, not geometric. The first attempt at the modern layout let the geometric
+            // fallback place the button, and it landed in a different slot on every other load
+            // (between SyncPlay and Cast one time, beside the avatar the next). React fills that
+            // toolbar progressively, so "rightmost button in the top 80px" answered whatever was
+            // rendered when the search ran, and the answer was cached.
             //
             // components/toolbar/UserMenuButton.tsx renders
             //   <IconButton aria-controls={ID} aria-haspopup='true'>  where ID is
-            // 'app-user-menu' — the same contract as the #app-user-menu we already inject
-            // the menu entry into, and byte-identical in 10.11 and 12.0. So the account
-            // button can be named outright, and the switcher lands beside the avatar every
-            // time. An exact-match attribute selector indexes; the [class*=] kind is what
-            // cannot.
+            // 'app-user-menu': the same contract as the #app-user-menu we inject the menu entry
+            // into, byte-identical in 10.11 and 12.0. So the account button can be named
+            // outright and the switcher lands beside the avatar every time. An exact-match
+            // attribute selector indexes; the [class*=] kind cannot.
             const modernUserBtn = document.querySelector('[aria-controls="app-user-menu"]');
             if (this._isLaidOut(modernUserBtn) && this._isLaidOut(modernUserBtn.parentElement)) {
                 return modernUserBtn.parentElement;
             }
 
-            // Strategy B: the parent of a header button. A theme that renames the
-            // container usually keeps Jellyfin's own buttons inside it.
+            // Strategy B: the parent of a header button. A theme that renames the container
+            // usually keeps Jellyfin's own buttons inside it.
             //
-            // .headerButton rather than [class*="headerButton"]: every header button
-            // upstream carries the bare class alongside its specific one
-            // (headerCastButton castButton headerButton headerButtonRight), so the plain
-            // class selector matches exactly the same elements while letting the engine
-            // use the class index instead of walking the document. .btnCurrentUser,
-            // .headerButtonUser, .headerButton-user, .btnCast and .headerButton-cast were
-            // also tried here and none of them exists upstream either — the cast button
-            // is .headerCastButton.
+            // .headerButton rather than [class*="headerButton"]: every upstream header button
+            // carries the bare class (headerCastButton castButton headerButton
+            // headerButtonRight), so the plain selector matches the same elements and lets the
+            // engine use the class index. .btnCurrentUser, .headerButtonUser,
+            // .headerButton-user, .btnCast and .headerButton-cast were also tried and none exists
+            // upstream either; the cast button is .headerCastButton.
             //
-            // Every match is considered, not just the first: on the modern layout the
-            // hidden legacy header supplies the first .headerButton in document order, and
-            // taking it would rule out a visible one a theme had put further down.
+            // Every match is considered, not just the first: on the modern layout the hidden
+            // legacy header supplies the first .headerButton in document order, and taking it
+            // would rule out a visible one further down.
             const knownBtns = document.querySelectorAll(
                 '.headerButton:not(#profiles-floating-bubble)'
             );
@@ -13087,17 +13031,16 @@
             }
 
             // Strategy C: find the button cluster inside a custom skin/theme header.
-            // ElegantFin and Skin Manager themes wrap everything in .skinHeader or
-            // a similarly named element; we pick the child that contains the most
-            // icon buttons (likely the right-side group).
-            // Strategy C walks the document and is skipped while a named anchor may still
-            // be coming — see the call site.
+            // ElegantFin and Skin Manager themes wrap everything in .skinHeader or a similarly
+            // named element; we pick the child that contains the most icon buttons (likely the
+            // right-side group). It walks the document, so it is skipped while a named anchor
+            // may still be coming (see the call site).
             if (indexedOnly) return null;
 
-            // querySelectorAll, and the first one that is laid out. Stock jellyfin-web's
-            // own .skinHeader comes first in document order and is display:none on the
-            // modern layout, so querySelector would hand back the one candidate that
-            // cannot work and stop before reaching a theme's visible header.
+            // querySelectorAll, and the first one that is laid out. Stock jellyfin-web's own
+            // .skinHeader comes first in document order and is display:none on the modern
+            // layout, so querySelector would return the one candidate that cannot work and stop
+            // before a theme's visible header.
             let skinHeader = null;
             const headers = document.querySelectorAll(
                 '.skinHeader, .jellyfinHeader, [class*="skinHeader"], [class*="topBar"]'
@@ -13107,10 +13050,10 @@
             }
             if (!skinHeader) return null;
 
-            // Two queries, not one per candidate. This used to ask for every div, nav, ul
-            // and span under the header and then run a second query *inside each one*, so
-            // the same buttons were counted once for every ancestor they had. Counting
-            // upwards from each button gives the identical answer in one pass.
+            // Two queries, not one per candidate. This asked for every div, nav, ul and span
+            // under the header and ran a second query inside each, so the same buttons were
+            // counted once per ancestor. Counting upward from each button gives the same answer
+            // in one pass.
             const counts = new Map();
             for (const btn of skinHeader.querySelectorAll('button, a[role="button"]')) {
                 for (let el = btn.parentElement; el && el !== skinHeader; el = el.parentElement) {
@@ -13118,8 +13061,8 @@
                 }
             }
 
-            // Walked in document order, and ties go to the first — the same result the
-            // nested version produced, since it iterated the same node list.
+            // Walked in document order, ties to the first: the same result the nested version
+            // gave, since it iterated the same node list.
             let best = null, bestCount = 0;
             for (const el of skinHeader.querySelectorAll('div, nav, ul, span')) {
                 const n = counts.get(el) || 0;
@@ -13128,13 +13071,13 @@
                     best = el;
                 }
             }
-            // A visible header can still hold a hidden cluster — a theme's collapsed
-            // overflow menu counts buttons just as well as its visible row does.
+            // A visible header can still hold a hidden cluster: a theme's collapsed overflow
+            // menu counts buttons as well as its visible row does.
             return this._isLaidOut(best) ? best : null;
         },
 
-        // Finds the rightmost visible button within the top 80px of the viewport.
-        // Theme-agnostic: works even when class names are completely non-standard.
+        // Finds the rightmost visible button within the top 80px of the viewport. Works
+        // even when class names are completely non-standard.
         _findGeometricHeaderAnchor: function () {
             const candidates = document.querySelectorAll(
                 'button:not(#profiles-floating-bubble), a[role="button"]:not(#profiles-floating-bubble)'
@@ -13154,10 +13097,10 @@
         _buildHeaderBubble: function () {
             const b = document.createElement('button');
             b.id = 'profiles-floating-bubble';
-            // `focusable` is what Jellyfin's own focusManager looks for on TV layouts
-            // (focusableQuery in src/components/focusManager.js is the standard tags plus
-            // `.focusable`). A bare <button> qualifies on paper; carrying the class as well
-            // costs nothing and is what every other header control does.
+            // `focusable` is what Jellyfin's focusManager looks for on TV layouts (focusableQuery
+            // in src/components/focusManager.js: the standard tags plus `.focusable`). A bare
+            // <button> qualifies on paper; the class costs nothing and every other header
+            // control carries it.
             b.className = 'paper-icon-button-light headerButton focusable';
             b.title = t('switcher.switchProfile');
             b.setAttribute('aria-label', t('switcher.switchProfile'));
@@ -13230,25 +13173,23 @@
         // Inserts bubble before the user-account button, or appends if not found.
         _insertBeforeUserBtn: function (container, bubble) {
             // .headerUserButton is the real class. This asked for .headerButton-user,
-            // .btnCurrentUser and .headerButtonUser, none of which exists in jellyfin-web,
-            // so the query never matched and the function has always fallen through to
-            // lastElementChild — placing the switcher at the end of the header rather than
-            // beside the account icon it is named for. Verified in
-            // src/scripts/libraryMenu.js: "headerButton headerButtonRight headerUserButton"
-            // and the headerUserButtonRound variant.
-            // The third is the modern toolbar's account button — see Strategy A2 in
-            // _searchForHeaderContainer for why aria-controls is the right handle on it.
+            // .btnCurrentUser and .headerButtonUser, none of which exists in jellyfin-web, so
+            // the query never matched and the function fell through to lastElementChild,
+            // placing the switcher at the end of the header, not beside the account icon.
+            // Verified in src/scripts/libraryMenu.js: "headerButton headerButtonRight
+            // headerUserButton" and the headerUserButtonRound variant.
+            // The third is the modern toolbar's account button; see Strategy A2 in
+            // _searchForHeaderContainer for why aria-controls is the handle.
             const userBtn =
                 container.querySelector(
                     '.headerUserButton, .headerUserButtonRound, [aria-controls="app-user-menu"]'
                 ) ||
                 container.lastElementChild;
 
-            // Sized against whatever it ends up standing next to. The modern toolbar puts a
-            // 40px MUI Avatar in an IconButton with padding:0 (UserAvatar.tsx renders
-            // <Avatar> at its default size), and a 28px circle beside that read as an
-            // afterthought rather than a control. The legacy header's buttons are smaller,
-            // so this is a class rather than a new default.
+            // Sized against whatever it ends up beside. The modern toolbar puts a 40px MUI
+            // Avatar in an IconButton with padding:0 (UserAvatar.tsx renders <Avatar> at its
+            // default size), and a 28px circle beside that looked like an afterthought. The
+            // legacy header's buttons are smaller, so this is a class, not a new default.
             const modern = !!(userBtn && userBtn.getAttribute
                 && userBtn.getAttribute('aria-controls') === 'app-user-menu');
             bubble.classList.toggle('jpf-modern-toolbar-btn', modern);
@@ -13262,27 +13203,25 @@
 
         /// Opens the profile selector over whatever page the user is on.
         ///
-        /// Every entry point routes through here — the header bubble, the sidebar link, the
-        /// user-menu item and the profile page — so they cannot drift apart. There is no
-        /// page reload: the overlay is drawn on top of the current view, which is what
-        /// removed the white flash the old reload-based button caused.
+        /// Every entry point routes through here (header bubble, sidebar link, user-menu item,
+        /// profile page) so they cannot drift apart. There is no page reload: the overlay is
+        /// drawn over the current view, which removed the white flash the old reload-based
+        /// button caused.
         handleBubbleClick: function (opener) {
-            // Every entry point into the switcher funnels through here, so this is where the
-            // emergency disable has to hold. An entry that survived the teardown — a menu row
-            // a theme rebuilt, say — must not be able to raise the gate again.
+            // Every entry point funnels through here, so this is where the emergency disable
+            // has to hold. An entry that survived the teardown (a menu row a theme rebuilt)
+            // must not be able to raise the gate again.
             if (this._panicDisabled) return;
 
-            // Opening the switcher deliberately is a reversible act, so remember enough to
-            // undo it. Nothing is signed out and no credentials change — the list is fetched
-            // with the session in use, which the server resolves to its household — so
-            // backing out costs no PIN and no reload. Without this there is no way off the
-            // picker at all once it is open, which on a TV means the Back button lands on a
-            // dead end.
+            // Opening the switcher on purpose is reversible, so remember enough to undo it.
+            // Nothing is signed out and no credentials change: the list is fetched with the
+            // session in use, which the server resolves to its household, so backing out costs
+            // no PIN and no reload. Without this there is no way off the picker once it is open,
+            // and on a TV Back lands on a dead end.
             //
-            // This used to put the master's credentials back in memory first, on the belief
-            // that a profile's token could not list its siblings. /list resolves the caller's
-            // master and always could; the swap only meant the master account was live
-            // behind the picker for as long as it was open.
+            // This once put the master's credentials back in memory first, believing a profile's
+            // token could not list its siblings. /list resolves the caller's master and always
+            // could; the swap only left the master account live behind the picker.
             const priorUserId = ApiClient.getCurrentUserId();
             const priorToken = this._sessionGet(this.config.activeSessionKey);
             this._resumeState = (priorToken && priorUserId)
@@ -13291,13 +13230,13 @@
                     userId: priorUserId,
                     info: this._sessionGet('jellyfin_profiles_active_info')
                 }
-                // No profile session marked active, which is the normal case in menu mode:
-                // nobody passed through the gate. Closing is still a valid answer, and
-                // without it there is no way off the picker at all.
+                // No profile session marked active, the normal case in menu mode: nobody passed
+                // the gate. Closing is still a valid answer; without it there is no way off the
+                // picker.
                 : { closeOnly: true };
-            // Opened on purpose is what makes Back close the picker, and the control that
-            // opened it is where focus goes back to. A menu row is gone by then, so the
-            // header button stands in (see resumePreviousProfile).
+            // Opened on purpose is what makes Back close the picker, and the opening control is
+            // where focus returns. A menu row is gone by then, so the header button stands in
+            // (see resumePreviousProfile).
             this._resumeState.opener = opener || null;
 
             this.clearProfileSession();
@@ -13306,16 +13245,16 @@
 
         /// Puts back the profile that was active before the switcher was opened.
         ///
-        /// Nothing was signed out to get here — handleBubbleClick only swapped the master's
-        /// credentials into memory so the profile list could be fetched — so the profile's
-        /// own token is still good and this needs neither a PIN nor a reload.
+        /// Nothing was signed out to get here (handleBubbleClick only swapped the master's
+        /// credentials into memory to fetch the list), so the profile's own token is still
+        /// good and this needs no PIN and no reload.
         resumePreviousProfile: function () {
             const prior = this._resumeState;
             if (!prior) return;
             this._resumeState = null;
 
-            // closeOnly means there was no profile session to put back — the credentials
-            // in play are already the right ones.
+            // closeOnly means no profile session to put back; the credentials in play are
+            // already right.
             if (!prior.closeOnly) {
                 this._sessionSet(this.config.activeSessionKey, prior.token);
                 if (prior.info) this._sessionSet('jellyfin_profiles_active_info', prior.info);
@@ -13329,10 +13268,10 @@
             this.removeProfileOverlay();
             this.checkRoute();
 
-            // Back to the control that opened the picker. A remote has no pointer, so
-            // without this focus is on nothing and the next arrow starts from the top.
-            // The user-menu row is already gone, so the header button is the next best.
-            // document.contains is not used: Node.isConnected is Chromium 54.
+            // Back to the control that opened the picker. A remote has no pointer, so without
+            // this focus is on nothing and the next arrow starts from the top. The user-menu
+            // row is already gone, so the header button is next best. document.contains is not
+            // used: Node.isConnected is Chromium 54.
             let back = prior.opener;
             if (!back || !document.body.contains(back)) back = document.getElementById('profiles-floating-bubble');
             if (back && typeof back.focus === 'function') back.focus();
@@ -13349,8 +13288,7 @@
 
                 this.handleBubbleClick(bubble);
 
-                // Re-enable after the overlay has appeared so the button is ready again if
-                // the user dismisses it.
+                // Re-enable after the overlay appears so the button is ready if it is dismissed.
                 setTimeout(() => {
                     bubble.disabled = false;
                     bubble.style.opacity = '';
@@ -13360,27 +13298,25 @@
 
             bubble.addEventListener('click', activate);
 
-            // Explicit D-pad/keyboard Enter+Space handler.
-            // Native <button> fires click on Enter in most browsers, but some TV browsers
-            // (notably older Tizen and webOS) skip this for non-focused or injected elements.
+            // Explicit D-pad/keyboard Enter+Space handler. A native <button> fires click on
+            // Enter in most browsers, but some TV browsers (older Tizen and webOS) skip it for
+            // non-focused or injected elements.
             bubble.addEventListener('keydown', (e) => {
                 if (isKey(e, 'Enter') || isKey(e, ' ')) activate(e);
             });
         },
 
         injectStyles: function () {
-            // Idempotent: a second evaluation of this script (a re-injected tag, a client
-            // that loads it twice) would otherwise append a second full copy of the sheet.
+            // Idempotent: a second evaluation of this script (a re-injected tag, a client that
+            // loads it twice) would otherwise append a second copy of the sheet.
             if (document.getElementById('jpf-styles')) return;
 
             const style = document.createElement('style');
             style.id = 'jpf-styles';
-            // textContent, not innerHTML. A <style> element's contents are CSS, not markup,
-            // so HTML-parsing them buys nothing and can only misread the text.
-            // The themes go after the stylesheet. Nothing should be decided by that order,
-            // though: a theme rule and a sheet rule tying on the same element is a rule
-            // that changed winner when the themes left the sheet, and tests/js/themes.js
-            // fails on every one.
+            // textContent, not innerHTML: a <style> element's contents are CSS, not markup.
+            // The themes go after the stylesheet. Nothing should depend on that order: a theme
+            // rule and a sheet rule tying on one element changed winner when the themes left
+            // the sheet, and tests/js/themes.js fails on every such tie.
             style.textContent = BONFIRE_STYLES + '\n' + allThemesCss();
             document.head.appendChild(style);
             // After the stylesheet, as the copy restored at startup could not be.
@@ -13389,10 +13325,9 @@
         },
 
         /// The served fonts, once, in a <style> of their own. Called again from
-        /// _setThemeSettings, because a packaged client (Tizen) has no ApiClient when this
-        /// script starts and a root-relative address there asks the app, not the server. A
-        /// browser that does not fetch a font until text needs it makes declaring all of
-        /// them free.
+        /// _setThemeSettings: a packaged client (Tizen) has no ApiClient when this script
+        /// starts, and a root-relative address there asks the app, not the server. A browser
+        /// fetches a font only when text needs it, so declaring all of them is free.
         injectFonts: function () {
             if (document.getElementById('jpf-fonts')) return;
             const inBrowser = /^https?:$/.test(window.location.protocol);
@@ -13411,8 +13346,8 @@
 
         // ── Custom themes (1.7.2) ────────────────────────────────────────────────────
 
-        /// The copy of the last answer kept on this device, put to use before anything is
-        /// drawn. Read once, at startup.
+        /// The copy of the last answer kept on this device, used before anything is drawn.
+        /// Read once at startup.
         restoreCustomThemes: function () {
             let raw = null;
             try { raw = JSON.parse(localStorage.getItem(this.config.customThemesKey) || 'null'); } catch (e) { /* unreadable */ }
@@ -13421,16 +13356,16 @@
 
         /// GET themes?part=custom, once per page load and never from checkRoute. Anonymous,
         /// so it works on the gate before anyone has signed in. Sent no-cache with an ETag,
-        /// so the browser's own cache turns an unchanged answer into a 304. A failure keeps
-        /// whatever the device already had.
+        /// so the browser turns an unchanged answer into a 304. A failure keeps what the
+        /// device already had.
         loadCustomThemes: function () {
             if (this._customThemesLoad) return this._customThemesLoad;
             this._customThemesLoad = fetch(pluginUrl('/plugins/profiles/themes?part=custom'))
                 .then(res => (res.ok ? res.json() : null))
                 .then(answer => { if (answer) this.useCustomThemes(answer, true); })
                 .catch(() => {
-                    // Offline: keep the cached copy, and let the next call ask again. The
-                    // failure used to be kept as the answer for the life of the page (R-1251).
+                    // Offline: keep the cached copy and let the next call ask again. The failure was
+                    // once kept as the answer for the life of the page (R-1251).
                     this._customThemesLoad = null;
                     // Nothing more is coming on this load: stop waiting for a theme.
                     this._customThemesSettled();
@@ -13449,14 +13384,14 @@
 
             if (store) {
                 try {
-                    // The answer as it came, not `next`: restoreCustomThemes reads the copy
-                    // with the same reader, and the reader's output is a different shape. Kept
-                    // as `next`, every uploaded font came back from the copy as nothing, so a
-                    // theme's text drew in its fallback until the server answered.
+                    // The answer as it came, not `next`: restoreCustomThemes reads the copy with the
+                    // same reader, and the reader's output is a different shape. Kept as `next`, every
+                    // uploaded font came back from the copy as nothing, so a theme's text drew in its
+                    // fallback until the server answered.
                     //
-                    // Up to forty themes of up to 64 KB each could crowd out everything else
-                    // this origin keeps. Past that, the copy is dropped; the theme still
-                    // arrives with the answer, a moment after the first frame.
+                    // Up to forty themes of up to 64 KB each could crowd out everything else this
+                    // origin keeps. Past that the copy is dropped; the theme still arrives with the
+                    // answer, a moment after the first frame.
                     const copy = JSON.stringify(answer);
                     if (copy.length <= 512 * 1024) localStorage.setItem(this.config.customThemesKey, copy);
                     else localStorage.removeItem(this.config.customThemesKey);
@@ -13473,13 +13408,13 @@
             if (document.getElementById('jpf-styles')) this.applyCustomThemesCss();
             if (this._lastThemePrefs) this._setThemeSettings(this._lastThemePrefs);
             else if (this._wantedTheme) this.applyTheme(this._wantedTheme);
-            // The same theme id may now have other colours.
+            // The same theme id may now have other colors.
             this.fitLogoBacking();
         },
 
-        /// The server has answered themes?part=custom (or cannot, this load), with nothing
-        /// new: a theme applyTheme was waiting for is put on now, which for a name the
-        /// answer does not hold is Bonfire.
+        /// The server has answered themes?part=custom (or cannot, this load) with nothing
+        /// new: a theme applyTheme was waiting for is put on now, which for a name the answer
+        /// does not hold is Bonfire.
         _customThemesSettled: function () {
             this._customThemesAnswered = true;
             if (!this._themeDeferred) return;
@@ -13489,10 +13424,10 @@
 
         /// The server's logo, top right of the gate (1.7.2). On the gate itself, not inside
         /// .profiles-modal-content, so every screen that swaps the content (PIN, settings,
-        /// the theme page) keeps it, and it scrolls away with the page rather than sitting
-        /// over a form. Built with the DOM, never markup: the text and the alt are whatever
-        /// an administrator typed. Called when the gate is drawn and when the answer
-        /// changes; never from checkRoute. `overlay` may be null to mean the one on screen.
+        /// the theme page) keeps it, and it scrolls away with the page instead of sitting over
+        /// a form. Built with the DOM, never markup: the text and alt are whatever an
+        /// administrator typed. Called when the gate is drawn and when the answer changes;
+        /// never from checkRoute. `overlay` may be null to mean the one on screen.
         drawLogo: function (overlay) {
             const gate = overlay || document.getElementById('profiles-gate-overlay');
             const logo = CUSTOM_THEMES.logo;
@@ -13502,8 +13437,8 @@
                 if (box.parentNode) box.parentNode.removeChild(box);
                 box = null;
             }
-            // The logo is absolute, so it was drawn over the title and the tiles on a short
-            // screen. The class gives the gate's content room above it (see styles.css).
+            // The logo is absolute, so it drew over the title and tiles on a short screen. The
+            // class gives the gate's content room above it (see styles.css).
             if (gate && gate.classList && !logo) gate.classList.remove('jpf-has-logo');
             if (!gate || !logo || box) return;
 
@@ -13524,7 +13459,7 @@
             if (logo.image) {
                 const img = document.createElement('img');
                 img.alt = logo.alt || '';
-                // A logo replaced since this device's copy was kept 404s: the text, if any.
+                // A logo replaced since this device's copy was kept 404s: use the text, if any.
                 img.onerror = asText;
                 img.onload = () => {
                     img._jpfLums = logoLums(img);
@@ -13533,8 +13468,8 @@
                 img.src = pluginUrl(logo.image);
                 box.appendChild(img);
             } else {
-                // Neither a picture nor words: nothing to draw, and an empty box on the gate
-                // would only reserve room above the tiles (R-1251).
+                // Neither a picture nor words: nothing to draw, and an empty box on the gate would
+                // only reserve room above the tiles (R-1251).
                 if (!logo.text) {
                     if (gate.classList) gate.classList.remove('jpf-has-logo');
                     return;
@@ -13547,14 +13482,14 @@
 
         /// A see-through logo sits straight on the gate, and one logo serves every theme: a
         /// white one vanished on Jellyfin Light, a black one on every dark theme. Its visible
-        /// pixels are read once, when it loads (logoLums), and held against the solid colours
-        /// of the theme's background (gateColours) when it loads and whenever the theme
-        /// changes. If a third or more of them fall under 3:1, WCAG's floor for graphics,
-        /// the logo gets a backing: dark behind a light logo, light behind a dark one. Not
-        /// the theme's panel colour, which on a dark theme is as dark as its background and
-        /// would hide a dark logo just the same. A logo that reads is left bare, and so is a
-        /// solid picture. A theme's background picture counts at its worst under the dim
-        /// (gatePhotoColours), alongside the solid colours, which still show until it loads.
+        /// pixels are read once, when it loads (logoLums), and held against the solid colors
+        /// of the theme's background (gateColours) at load and whenever the theme changes.
+        /// If a third or more fall under 3:1, WCAG's floor for graphics, the logo gets a
+        /// backing: dark behind a light logo, light behind a dark one. Not the theme's panel
+        /// color, which on a dark theme is as dark as its background and would hide a dark
+        /// logo just the same. A logo that reads is left bare, and so is a solid picture. A
+        /// theme's background picture counts at its worst under the dim (gatePhotoColours),
+        /// alongside the solid colors, which show until it loads.
         /// Only from drawLogo and applyTheme, never from checkRoute.
         fitLogoBacking: function () {
             const box = document.getElementById('profiles-logo');
@@ -13572,7 +13507,7 @@
                         const near = L < lo ? lo : L > hi ? hi : L;
                         if (contrastOf(L, near) < 3) { lost++; lostSum += L; }
                     });
-                    // 0.179 is where black and white contrast equally with a colour.
+                    // 0.179 is where black and white contrast equally with a color.
                     if (lost / px.length >= 1 / 3) want = lostSum / lost > 0.179 ? 'dark' : 'light';
                 }
             }
@@ -13598,11 +13533,11 @@
                 document.head.appendChild(style);
             }
             if (style.textContent !== css) style.textContent = css;
-            // Only the picture of the theme the page wears. Every custom theme's used to be
-            // fetched here, so with forty themes every device, a TV included, downloaded
-            // forty pictures on every page load to show one. applyTheme and the profile
-            // form's picker fetch the others when they are put on; the dashboard's lists and
-            // editor ask through BonfireThemePreview.photo.
+            // Only the picture of the theme the page wears. Every custom theme's picture was
+            // fetched here, so with forty themes every device, a TV included, downloaded forty
+            // pictures per page load to show one. applyTheme and the profile form's picker fetch
+            // the others when they are put on; the dashboard's lists and editor ask through
+            // BonfireThemePreview.photo.
             this.loadThemePhotoOf(document.documentElement.getAttribute('data-jpf-theme'));
         },
 
@@ -13612,10 +13547,10 @@
             this.loadThemePhoto(c && c.background && c.background.image && c.background.image.file);
         },
 
-        /// Fetches a custom theme's background picture and, once it has loaded, adds its name
-        /// to <html data-jpf-photos>, which is what themeCss's picture rule waits for. Nothing
-        /// is marked for one that fails, so its theme stays as it is without one. Once per
-        /// picture per page; a failed one is tried again the next time the themes change.
+        /// Fetches a custom theme's background picture and, once loaded, adds its name to
+        /// <html data-jpf-photos>, which themeCss's picture rule waits for. Nothing is marked
+        /// for one that fails, so its theme stays as it is without one. Once per picture per
+        /// page; a failed one is retried the next time the themes change.
         loadThemePhoto: function (file) {
             if (typeof file !== 'string' || !/^[0-9a-f]{32}\.(png|jpg|webp)$/.test(file)) return;
             const asked = this._themePhotos || (this._themePhotos = {});
@@ -13633,25 +13568,25 @@
     };
 
     /// For the settings page's theme editor (1.7.2), which loads inside jellyfin-web after
-    /// this script. Its previews are drawn by themeCss, the one generator, so a preview is
-    /// what the theme will look like rather than a second copy's guess. css() returns text
-    /// and writes nothing; builtIns() is a copy, so the editor can start from a hidden
-    /// built-in, which GET /themes leaves out; refresh() is the startup fetch again, so a
-    /// theme just saved reaches this window's pickers without a reload. fit() sizes and
-    /// balances a copy of the picker (the editor's expanded preview) the way the real one is,
-    /// so a phone shows two tiles a row there too. The page works without this, minus the
-    /// preview, when the script was not injected.
+    /// this script. Previews are drawn by themeCss, the one generator, so a preview is what
+    /// the theme will look like, not a second copy's guess. css() returns text and writes
+    /// nothing; builtIns() is a copy, so the editor can start from a hidden built-in, which
+    /// GET /themes leaves out; refresh() is the startup fetch again, so a theme just saved
+    /// reaches this window's pickers without a reload. fit() sizes and balances a copy of
+    /// the picker (the editor's expanded preview) like the real one, so a phone shows two
+    /// tiles a row there too. The page works without this, minus the preview, when the
+    /// script was not injected.
     if (typeof window !== 'undefined') {
-        // Turned off, init returns before injectStyles, and the previews' own rules
-        // (.jpf-theme-preview) and the gate's rules the expanded view copies from #jpf-styles
-        // live in that sheet: the Themes tab drew unstyled. So the first preview call puts it
-        // in. Only then, so an ordinary page while off still gets nothing of ours.
+        // With the plugin turned off, init returns before injectStyles, and the previews'
+        // own rules (.jpf-theme-preview) and the gate's rules the expanded view copies from
+        // #jpf-styles live in that sheet: the Themes tab drew unstyled. So the first preview
+        // call puts it in, and only then, so an ordinary page while off gets nothing of ours.
         // injectStyles is idempotent, so on it is a lookup.
         const previewSheet = () => { if (BONFIRE_OFF) ProfilesPlugin.injectStyles(); };
         window.BonfireThemePreview = {
             css: theme => { previewSheet(); return themeCss(theme, BONFIRE_THEMES.patterns || {}); },
-            // A background picture the editor's preview names, fetched and marked as the
-            // pickers' are, so the preview shows it exactly when they would.
+            // A background picture the editor's preview names, fetched and marked like the
+            // pickers', so the preview shows it exactly when they would.
             photo: file => ProfilesPlugin.loadThemePhoto(file),
             fit: el => { previewSheet(); return ProfilesPlugin.fitGateToScreen(el); },
             builtIns: () => JSON.parse(JSON.stringify(Array.isArray(BONFIRE_THEMES.themes) ? BONFIRE_THEMES.themes : [])),
