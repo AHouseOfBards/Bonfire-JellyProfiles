@@ -1,15 +1,15 @@
 /*
  * The web client and the administrator's own themes (1.7.2, editor stage B).
  *
- * profiles.js is cached for the life of the server, so a theme an administrator makes
- * cannot be spliced into it like the built-ins. The client reads GET themes?part=custom
- * once a page load, keeps a copy on the device so the next start is already in the
- * theme, and from then on treats a custom theme like a built-in: it normalises to itself,
- * it is offered, its name is shown, its font is declared, its gate background is cached.
+ * profiles.js is cached for the life of the server, so an administrator's theme cannot be
+ * spliced into it like the built-ins. The client reads GET themes?part=custom once per page
+ * load and keeps a copy on the device so the next start is already in the theme. From then
+ * on a custom theme is treated like a built-in: it normalizes to itself, is offered, its
+ * name is shown, its font is declared and its gate background is cached.
  *
- * Run against the real functions and methods out of profiles.js, in a small stand-in for
- * the page. Against 5b837b4 it fails: none of it exists, and normalizeTheme turns every
- * custom theme into Bonfire.
+ * Runs the real functions and methods from profiles.js in a small stand-in for the page.
+ * Against 5b837b4 it fails: none of it exists, and normalizeTheme turns every custom theme
+ * into Bonfire.
  *
  *   node tests/js/customthemes.js [path/to/profiles.js]
  */
@@ -190,8 +190,8 @@ console.log('\n── Its font ────────────────�
 
 console.log('\n── An accent with an alpha byte ────────────────────────────────');
 {
-    // webOS 4.5 (Chromium 53) drops #RRGGBBAA. The hover colour falls back to the accent when
-    // the theme has no accentFocus, and handed it over as written.
+    // webOS 4.5 (Chromium 53) drops #RRGGBBAA. With no accentFocus the hover color falls back
+    // to the accent, and used to be handed over as written.
     const w = world();
     const t = JSON.parse(JSON.stringify(payload.themes.filter(x => x.id === 'nightfall')[0]));
     t.colors.accent = '#FF8A3DC6';
@@ -204,7 +204,7 @@ console.log('\n── An accent with an alpha byte ─────────�
 
 console.log('\n── Preview rings come from the file ──────────────────────────');
 {
-    // styles.css carried Nightfall's three preview colours by hand, so a custom theme with
+    // styles.css carried Nightfall's three preview colors by hand, so a custom theme with
     // rings had none in its preview, and an edit to nightfall.json left the old ones.
     const sheet = require('fs').readFileSync(require('path').join(L.ROOT, 'Web', 'styles.css'), 'utf8');
     const named = sheet.match(/\[data-jpf-theme="[a-z0-9-]+"\]/g) || [];
@@ -298,8 +298,8 @@ console.log('\n── The logo ────────────────�
     d.obj.drawLogo(gate);
     ok('a logo removed on the server goes from the gate', !byId('profiles-logo'));
 
-    // R-1251: a logo with neither picture nor words is not drawn as an empty box. The
-    // reader never produces one; this is what the drawing does if one gets through.
+    // R-1251: a logo with neither picture nor words is not drawn as an empty box. The reader
+    // never produces one; this covers one getting through.
     d.set({ logo: { image: null, text: null, alt: null } });
     d.obj.drawLogo(gate);
     ok('a logo with nothing to show leaves no empty box on the gate', !byId('profiles-logo'));
@@ -324,8 +324,8 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     let w = world({}, answer);
     w.obj.restoreCustomThemes();
     w.obj.applyTheme('mine');
-    // It was Bonfire, which put Bonfire on the startup cover before the household's own
-    // theme (1.9.0.4-beta). Nothing is put on until the answer is in.
+    // It used to be Bonfire, which put Bonfire on the startup cover before the household's own
+    // theme (1.9.0.4-beta). Now nothing is put on until the answer is in.
     ok('first visit: no theme put on until the server answers, not Bonfire', w.attrs['data-jpf-theme'] === undefined,
         String(w.attrs['data-jpf-theme']));
     w.addSheet();
@@ -353,8 +353,8 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     w.obj.applyCustomThemesCss();
     ok('and is there once the sheet is', !!w.els['jpf-themes-custom']);
     // The copy is read by the same reader as the answer. It used to be the reader's own
-    // output, a different shape, so an uploaded font came back from it as nothing and the
-    // theme's text drew in the fallback until the server answered.
+    // output, a different shape, so an uploaded font came back as nothing and the theme's text
+    // drew in the fallback until the server answered.
     ok('with its uploaded font, from the copy alone', w.state().fonts.length === 1
         && w.els['jpf-themes-custom'].textContent.indexOf('Bonfire Shop Sign') !== -1);
 
@@ -405,9 +405,9 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
     ok('every picker offers what the server offers, not the built-in list',
         pickers.every(m => m && m.body.indexOf('offeredThemes()') !== -1 && m.body.indexOf('THEMES.map') === -1));
 
-    // Owner, 2026-11-12: first-time setup's theme step with one theme on offer is one card
-    // and nothing to choose. The server leaves the step out; the client skips it too, for a
-    // custom theme deleted since the server answered.
+    // Owner, 2026-11-12: first-time setup's theme step with one theme on offer is one card and
+    // nothing to choose. The server leaves the step out; the client skips it too, for a custom
+    // theme deleted since the server answered.
     {
         const m = method('_onboardingTheme');
         const run = offered => {
@@ -430,8 +430,8 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
         ok('with two it is shown', two.skipped === 0 && two.framed === 1, JSON.stringify(two));
     }
 
-    // R-1251: a request that failed was kept as the answer for the life of the page, so a
-    // server that was down at startup meant no custom themes until the next reload.
+    // R-1251: a failed request was kept as the answer for the life of the page, so a server
+    // that was down at startup meant no custom themes until the next reload.
     {
         let calls = 0;
         const holder = new Function('fetch', 'pluginUrl',
@@ -446,8 +446,8 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
         ok('after an answer it is not asked again', calls === 2, 'asked ' + calls + ' time(s)');
     }
 
-    // 2.0: a custom theme's background picture. Drawn only once it has loaded, so a missing
-    // or failed picture leaves the theme exactly as it is without one.
+    // 2.0: a custom theme's background picture. Drawn only once it has loaded, so a missing or
+    // failed picture leaves the theme as it is without one.
     console.log('\n── A background picture ──────────────────────────────────────');
     {
         const gen = world({}, {}).helpers;
@@ -463,9 +463,9 @@ console.log('\n── Startup, the answer, and the copy on the device ───�
         const start = picCss.indexOf(ready);
         const end = picCss.indexOf('\n}\n', start) + 3;
         const rule = picCss.slice(start, end);
-        // Apart from that rule, everything is the theme without a picture: what shows while
-        // it loads or when it fails. The accent text included: it is held against the
-        // picture too, but only inside the picture's rule (themephoto.js caught it outside).
+        // Apart from that rule, everything is the theme without a picture, which is what shows
+        // while it loads or when it fails. The accent text is held against the picture too, but
+        // only inside the picture's rule (themephoto.js caught it outside).
         ok('and everything else is the theme without one', start > 0 && picCss.slice(0, start) + picCss.slice(end) === plainCss);
         ok('the accent text the picture needs is in its rule', /--jpf-accent-text: #[0-9a-f]{6};/.test(rule), rule.slice(-80));
         const bgHex = payload.themes.filter(x => x.id === 'harvest')[0].background.fill.slice(0, 7);
