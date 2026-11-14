@@ -1,19 +1,15 @@
 <div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
 <style>
-    /* Every colour on this page that is not Jellyfin's own, named once, here.
+    /* Every color on this page that is not Jellyfin's own, named once, here.
        The page wears the warm Bonfire theme (Web/themes/bonfire.json): its ember for
-       buttons, tabs, headings, links and focus rings, and three status colours that stay
+       buttons, tabs, headings, links and focus rings, plus three status colors that stay
        apart from it. Jellyfin's background, surfaces and text are left alone.
 
-       This used to read the dashboard theme's --accent, which is Jellyfin blue on every
-       theme but one. It no longer does: the colours below do not follow it.
-
-       These are the dark dashboard theme's. bonfire.json's accent (#ffb347) is built for a
-       dark page and is 1.9:1 on white, so the light themes get a darker ember from the
-       same family, in the block below. jellyfin-web marks the theme with a data-theme
-       attribute on <html> (src/scripts/themeManager.js), and appletv is its second light
-       scheme. Tints are plain rgba, not color-mix, so there is one value to read.
-       tests/js/dashwarm.js measures every pair. */
+       These are the dark dashboard theme's. The ember (#ffb347) is 1.9:1 on white, so the
+       light themes get a darker ember from the same family in the block below. jellyfin-web
+       sets a data-theme attribute on <html> (src/scripts/themeManager.js); appletv is its
+       second light scheme. Tints are plain rgba, not color-mix, so there is one value to
+       read. tests/js/dashwarm.js measures every pair. */
     #profilesConfigurationPage {
         --jpf-accent: #ffb347;          /* text, tab underline, button fill */
         --jpf-accent-hover: #ffc773;    /* button fill under the pointer or focus */
@@ -22,8 +18,8 @@
         --jpf-accent-tint: rgba(255, 179, 71, 0.12);
         --jpf-accent-tint-hover: rgba(255, 179, 71, 0.22); /* a secondary button under the pointer or focus */
         --jpf-accent-line: rgba(255, 179, 71, 0.35);
-        /* Distinct from the accent and from each other. Warn is yellow rather than
-           orange, because #ff9900 was one step from the ember. */
+        /* Distinct from the accent and from each other. Warn is yellow, not orange:
+           #ff9900 was one step from the ember. */
         --jpf-good: #51cf66;
         --jpf-bad: #ff6b6b;
         --jpf-bad-fill: #cc3333;        /* a filled badge, white label */
@@ -34,8 +30,8 @@
         --jpf-bad-line: rgba(255, 107, 107, 0.35);
         --jpf-warn-tint: rgba(255, 224, 102, 0.12);
         --jpf-warn-line: rgba(255, 224, 102, 0.35);
-        /* Hairlines, washes and strong text. White on the dark themes, black on the
-           light ones; the light block below flips every one. The number is the alpha. */
+        /* Hairlines, washes and strong text. White on dark themes, black on light ones;
+           the light block below flips every one. The number is the alpha. */
         --jpf-ink-hi: #ffffff;
         --jpf-scheme: dark;
         --jpf-w04: rgba(255, 255, 255, 0.04);
@@ -103,10 +99,9 @@
     #profilesConfigurationPage a:focus-visible,
     #profilesConfigurationPage .button-link:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
     /* Secondary buttons: every raised button that is not a primary, a link or the red
-       badge. Jellyfin's own .raised is a grey box, which sat badly against the ember
-       (owner, 1.9.0.4 eye test). Keyed on .raised rather than a class of our own so that
-       a button built in script cannot be missed and come out grey. The :not()s also lift
-       it over jellyfin-web's .raised and .button-accent, whatever order they load in. */
+       badge. Jellyfin's .raised is a grey box that sat badly against the ember (1.9.0.4
+       eye test). Keyed on .raised so a button built in script cannot come out grey. The
+       :not()s lift it over jellyfin-web's .raised and .button-accent in either load order. */
     #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad) {
         background: var(--jpf-accent-tint);
         color: var(--jpf-accent);
@@ -116,15 +111,12 @@
     #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):focus { background: var(--jpf-accent-tint-hover); color: var(--jpf-accent-hover); }
     #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
 
-    /* The header: Bonfire's mark, the same svg the client's switcher draws, and its
-       name. A header, not a banner. */
+    /* The header: Bonfire's mark (the client switcher's svg) and its name. */
     #profilesConfigurationPage .jpf-brand { display: flex; align-items: center; gap: 0.5em; margin: 0 0 1.25em 0; }
     #profilesConfigurationPage .jpf-brand-mark { font-size: 1.5rem; width: 1em; height: 1em; flex-shrink: 0; color: var(--jpf-accent); fill: currentColor; }
     #profilesConfigurationPage .jpf-brand-name { font-size: 1.15rem; font-weight: 600; color: var(--jpf-accent); }
 
-    /* Five unrelated jobs — limits, pictures, accounts, history, the panic switch —
-       used to be one column five screens tall, so finding any of them meant
-       scrolling past the other four. */
+    /* Five unrelated jobs used to be one column five screens tall. */
     #profilesConfigurationPage .jpf-tabs {
         display: flex;
         flex-wrap: wrap;
@@ -132,10 +124,9 @@
         margin: 0 0 2em 0;
         border-bottom: 1px solid var(--jpf-w14);
     }
-    /* Every other control on this page is is="emby-button" and inherits Jellyfin's
-       styling. These are plain buttons, so everything the user agent would otherwise
-       supply has to be turned off by hand — including the border and background that
-       made them read as five little white chips. */
+    /* Every other control here is is="emby-button" and inherits Jellyfin's styling.
+       These are plain buttons, so the user agent's border and background (five little
+       white chips) are turned off by hand. */
     #profilesConfigurationPage .jpf-tab {
         -webkit-appearance: none;
         appearance: none;
@@ -166,7 +157,7 @@
         color: var(--jpf-accent);
         border-bottom-color: var(--jpf-accent);
     }
-    /* The household chevron's turn: here and not in its style attribute, which a media
+    /* The household chevron's turn. Here, not in its style attribute, which a media
        query cannot override. */
     #profilesConfigurationPage .toggle-chevron {
         transition: transform 0.15s ease;
@@ -181,26 +172,21 @@
         outline: 2px solid var(--jpf-ring);
         outline-offset: -2px;
     }
-    /* Stated rather than left to the user agent: this page sets display on plenty of
-       its own containers, and one of them inheriting past [hidden] would show two
-       tabs at once. */
+    /* Stated so one container inheriting past [hidden] cannot show two tabs at once. */
     #profilesConfigurationPage .jpf-tab-panel[hidden] {
         display: none;
     }
-    /* Each section still carries the 3em that separated it from the one above, which
-       is now a gap at the top of a tab. */
+    /* Each section still carries the 3em that separated it from the one above; now it is
+       a gap at the top of a tab. */
     #profilesConfigurationPage .jpf-tab-panel > .sectionTitleContainer:first-child {
         margin-top: 0 !important;
     }
 
     /* The number box beside each account, in the Accounts table.
-       It carried six stacked !important declarations inline, which is what you
-       write when you have lost an argument with a stylesheet you cannot see. The
-       opponent is emby-input: `is="emby-input"` upgrades the element and
-       jellyfin-web's own rules then set width, height, padding and margin. An
-       id-scoped selector outranks all of them on specificity alone, so none of
-       the !importants were ever doing work that this rule does not do — and
-       leaving them meant the next person could not override the box at all. */
+       emby-input upgrades the element and jellyfin-web's own rules set width, height,
+       padding and margin. An id-scoped selector outranks them on specificity alone, so
+       the six inline !importants it replaces were never needed, and they stopped anyone
+       overriding the box. */
     #profilesConfigurationPage .user-limit-input {
         width: 60px;
         height: 28px;
@@ -210,8 +196,8 @@
         box-sizing: border-box;
     }
 
-    /* Audit log controls. Classes rather than inline style attributes: this page
-       had 112 of those and they are being retired, not added to. */
+    /* Audit log controls. Classes, not inline style attributes: this page had 112 of
+       those and they are being retired. */
     #profilesConfigurationPage .jpf-audit-controls {
         display: flex;
         flex-wrap: wrap;
@@ -247,14 +233,13 @@
         text-align: left;
         width: 100%;
         /* The 15px side padding was added to the 100% width: every row stuck out 30px past
-           its list, which is the horizontal scrollbar, and on a wide screen pushed what sat
-           at a row's right end past the box. */
+           its list (horizontal scrollbar), and pushed a row's right end past the box. */
         box-sizing: border-box;
         padding: 12px 15px;
         border-bottom: 1px solid var(--jpf-w06);
     }
-    /* space-between distributes nothing once the row is narrow, which ran the
-       timestamp straight into the address: "12:09:28 PMIP: 127.0.0.1". */
+    /* space-between distributes nothing once the row is narrow, which ran the timestamp
+       into the address: "12:09:28 PMIP: 127.0.0.1". */
     #profilesConfigurationPage .jpf-audit-meta {
         display: flex;
         flex-wrap: wrap;
@@ -270,10 +255,10 @@
         opacity: 0.7;
         margin-top: 2px;
     }
-    /* On a screen wide enough, the four parts line up as columns: time, who switched to
-       whom, device, address. The meta line dissolves so its two spans become cells; its
-       dimming moves onto the spans, because a box that does not exist cannot be dimmed.
-       Narrower than this, the stacked form above stands. */
+    /* Wide enough, the four parts line up as columns: time, who switched to whom, device,
+       address. The meta line dissolves so its two spans become cells; the dimming moves
+       onto the spans, because a box that does not exist cannot be dimmed. Narrower than
+       this, the stacked form above stands. */
     @media (min-width: 900px) {
         #profilesConfigurationPage .jpf-audit-row {
             display: grid;
@@ -324,21 +309,14 @@
     }
 
     /* == A vocabulary for this page ==========================================
-       This file carried 132 inline style attributes across 55 distinct values,
-       most of them variations on the same handful of ideas: a notice box, a
-       small status line, a spacing tweak. Five of the boxes were amber and no
-       two of them were the same amber.
+       This file carried 132 inline style attributes across 55 distinct values, mostly
+       the same few ideas: a notice box, a small status line, a spacing tweak. They are
+       consolidated, not transcribed, so a color that shifted slightly is the
+       consolidation working.
 
-       They are consolidated rather than transcribed. Turning 55 values into 55
-       single-use classes would move the problem into the stylesheet and make it
-       harder to read; what follows is the set the page actually needed. Where a
-       colour has shifted slightly, that is the consolidation doing its job.
-
-       Note on display:none. The boxes below are shown and hidden from script by
-       assigning to style.display, which is inline and therefore beats these
-       rules in the cascade either way. Nothing in this page sets
-       style.display = '' (checked), which is the one pattern that would break
-       against a class-supplied `display: none`. */
+       The boxes below are shown and hidden by assigning style.display, which is inline
+       and beats these rules either way. Nothing here sets style.display = '', the one
+       pattern that would break against a class-supplied `display: none`. */
 
     #profilesConfigurationPage .jpf-hidden { display: none; }
 
@@ -360,9 +338,9 @@
     #profilesConfigurationPage .jpf-extras-form > .fieldDescription { flex: 0 0 100%; }
     #profilesConfigurationPage .jpf-extras-form.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-link-select { margin-bottom: 0; min-width: 14em; }
-    /* The arrow of every select points up while its list is open and down while it is closed.
-       bindSelectArrows puts .jpf-select-open on the select's container. jellyfin-web inserts an
-       empty label before each upgraded select; where the markup has its own, that one is spare. */
+    /* The arrow of every select points up while its list is open. bindSelectArrows puts
+       .jpf-select-open on the select's container. jellyfin-web inserts an empty label
+       before each upgraded select; where the markup has its own, that one is spare. */
     #profilesConfigurationPage .selectArrow { display: inline-block; -webkit-transition: -webkit-transform 0.15s ease; transition: transform 0.15s ease; }
     #profilesConfigurationPage .jpf-select-open > .selectArrowContainer .selectArrow { -webkit-transform: rotate(180deg); transform: rotate(180deg); }
     #profilesConfigurationPage .selectLabel:empty { display: none; }
@@ -387,11 +365,11 @@
         display: flex; align-items: center; flex-wrap: wrap;
         padding: 0.55em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
     }
-    /* The theme cards beside each built-in and under the default select: the editor's card,
-       smaller. Its own look is the theme's tokens; these rules only size and place it. */
+    /* The theme cards beside each built-in and under the default select: the editor's
+       card, smaller. Its look is the theme's tokens; these rules only size and place it. */
     #profilesConfigurationPage .jpf-ob-row .jpf-theme-preview { flex: 0 0 9em; width: 9em; margin: 0.2em 1em 0.2em 0; }
     #profilesConfigurationPage .jpf-theme-slot { margin-top: 0.75em; width: 11em; max-width: 100%; }
-    /* The line of sample text is left off the small ones: twelve cards in a list are long enough. */
+    /* No sample text on the small cards: twelve in a list are long enough. */
     #profilesConfigurationPage .jpf-ob-row .jpf-te-preview-text,
     #profilesConfigurationPage .jpf-theme-slot .jpf-te-preview-text { display: none; }
     #profilesConfigurationPage .jpf-ob-name { flex: 1 1 12em; font-weight: 600; }
@@ -399,9 +377,9 @@
     #profilesConfigurationPage .jpf-ob-box { display: inline-flex; align-items: center; margin-left: 1.5em; cursor: pointer; }
     #profilesConfigurationPage .jpf-ob-box input { margin: 0 0.4em 0 0; }
     #profilesConfigurationPage .jpf-ob-box input:disabled + span { opacity: 0.45; }
-    /* The built-in and custom theme lists as a grid of cards (owner, 1.9.0.4 eye test: one
-       narrow column left most of a wide monitor empty). min() keeps a track from being
-       wider than a 360px phone's list. A card is the preview on top, the name, then Hide. */
+    /* The built-in and custom theme lists as a grid of cards (1.9.0.4 eye test: one
+       narrow column left most of a wide monitor empty). min() keeps a track inside a
+       360px phone's list. A card is the preview, the name, then Hide. */
     #profilesConfigurationPage .jpf-theme-cards,
     #profilesConfigurationPage .jpf-te-list.jpf-theme-cards {
         display: grid; max-width: none; gap: 1em;
@@ -453,8 +431,8 @@
     #profilesConfigurationPage .jpf-ann-buttons { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
 
     /* Themes (1.7.2): the three lists, and the editor with its preview beside the
-       fields. The preview's own look comes from the theme's tokens, which themeCss
-       writes on its data-jpf-theme; the rules here only place what it draws. */
+       fields. The preview's look comes from the theme's tokens (themeCss writes them on
+       its data-jpf-theme); these rules only place what it draws. */
     #profilesConfigurationPage .jpf-te-list { margin: 0.5em 0 1em; max-width: 52em; }
     #profilesConfigurationPage .jpf-te-item {
         display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px;
@@ -478,9 +456,9 @@
         margin: 1em 0 2em;
     }
     #profilesConfigurationPage .jpf-te-title { margin: 0 0 0.75em; overflow-wrap: anywhere; }
-    /* The bar. Sticky with the -webkit- prefix like the preview; bindThemePreviewStick sets
-       its top to Jellyfin's header, and on Chromium 53 (no sticky at all) moves it by a
-       transform. Opaque and above the preview (z-index 2). */
+    /* The bar. Sticky with the -webkit- prefix like the preview; bindThemePreviewStick
+       sets its top to Jellyfin's header, and on Chromium 53 (no sticky) moves it by a
+       transform. Opaque, above the preview (z-index 2). */
     #profilesConfigurationPage .jpf-te-bar {
         position: relative; position: -webkit-sticky; position: sticky; top: 0; z-index: 3;
         display: flex; align-items: center; gap: 8px;
@@ -512,14 +490,14 @@
         #profilesConfigurationPage .jpf-te-bar { gap: 6px; }
         #profilesConfigurationPage .jpf-te-bar-opt { display: none; }
         #profilesConfigurationPage .jpf-te-more { display: block; }
-        /* The name is what says which theme this is, so it keeps room and the count gives
-           way: it was squeezed to nothing at 480 px, with File in the bar. */
+        /* The name says which theme this is, so it keeps room and the count gives way:
+           it was squeezed to nothing at 480 px with File in the bar. */
         #profilesConfigurationPage .jpf-te-bar-name { min-width: 4em; }
         #profilesConfigurationPage .jpf-te-count { min-width: 0; max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; }
     }
-    /* At phone width one row cannot hold the name and the controls: Save was cut to "Sav" and
-       the bar ran 9 px past the card. The name and the problem count share the first row, and
-       the controls keep their size on the second. */
+    /* At phone width one row cannot hold the name and the controls: Save was cut to "Sav"
+       and the bar ran 9 px past the card. Name and problem count share the first row; the
+       controls keep their size on the second. */
     @media (max-width: 480px) {
         #profilesConfigurationPage .jpf-te-bar { flex-wrap: wrap; row-gap: 4px; }
         #profilesConfigurationPage .jpf-te-bar > * { flex-shrink: 0; -webkit-box-ordinal-group: 3; order: 2; }
@@ -530,7 +508,7 @@
         display: flex; gap: 2px; margin: 0 0 1.25em;
         border-bottom: 1px solid var(--jpf-w14);
     }
-    /* The tab strip's look, under a class of its own: initTabs binds every .jpf-tab. */
+    /* The tab strip's look, under its own class: initTabs binds every .jpf-tab. */
     #profilesConfigurationPage .jpf-te-mode {
         -webkit-appearance: none; appearance: none;
         background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
@@ -540,13 +518,12 @@
     #profilesConfigurationPage .jpf-te-mode.is-active { opacity: 1; font-weight: 600; border-bottom-color: var(--jpf-accent); }
     #profilesConfigurationPage .jpf-te-mode:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: -2px; }
     /* row-reverse with the preview first: it sits right of the fields while both fit, and
-       on a line of its own above them once they do not. The bases are sized so both fit
-       the dashboard's column on a desktop (26em + 20em did not, so it always wrapped below). */
+       on its own line above them when not. The bases are sized so both fit the dashboard's
+       column on a desktop (26em + 20em did not, so it always wrapped). */
     #profilesConfigurationPage .jpf-te-body { display: flex; flex-direction: row-reverse; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
-    /* The preview takes 45% of the editor beside the fields: at 18em it was a 240 px card
-       too small to judge a theme by. Sticky below Jellyfin's header (bindThemePreviewStick
-       sets top to the header's foot), and on Chromium 53, which has no sticky, the same
-       function moves it with a transform instead. */
+    /* The preview takes 45% of the editor: at 18em it was a 240 px card, too small to
+       judge a theme by. Sticky below Jellyfin's header (bindThemePreviewStick sets top),
+       and moved by a transform on Chromium 53, which has no sticky. */
     #profilesConfigurationPage .jpf-te-fields { flex: 1 1 21em; min-width: 0; }
     #profilesConfigurationPage .jpf-te-side { flex: 0 1 45%; min-width: 16em; position: relative; position: -webkit-sticky; position: sticky; top: 0.5em; z-index: 2; }
     #profilesConfigurationPage .jpf-te-side .jpf-theme-preview { padding: 28px 18px; gap: 16px; }
@@ -557,7 +534,7 @@
     #profilesConfigurationPage .jpf-te-side .jpf-te-preview-primary,
     #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-button { font-size: 0.85rem; padding: 6px 16px; }
     /* A phone has no room beside the form: the preview is a short strip along the top,
-       name and tiles only, with Expand on it for the full picker. Tablet and below, on the
+       name and tiles only, with Expand for the full picker. Tablet and below, on the
        page's one scale (tests/js/breakpoints.js). */
     @media (max-width: 899px) {
         #profilesConfigurationPage .jpf-te-side { flex: 1 1 100%; min-width: 0; }
@@ -576,23 +553,22 @@
             -webkit-transform: translateY(-50%); transform: translateY(-50%);
         }
     }
-    /* Three columns, from 1280 px, in Advanced only: the group list, the preview, and the
-       selected group's fields. The class is set by applyThemeColumns from the same width the
-       script asks (themeWide3), so the CSS and the script cannot disagree about the number.
-       Between 900 and 1279 px, and in Simple, none of this applies. The outline and the preview
-       are sticky together; the preview is larger than the one beside the fields. */
+    /* Three columns, from 1280 px, in Advanced only: group list, preview, and the
+       selected group's fields. applyThemeColumns sets the class from the same width the
+       script asks (themeWide3), so CSS and script cannot disagree. Between 900 and 1279
+       px, and in Simple, none of this applies. The outline and preview are sticky
+       together; the preview is larger than the one beside the fields. */
     #profilesConfigurationPage .jpf-te-outline { display: none; }
-    /* The media query repeats the script's 1280: the fixed tracks can never reach a phone,
-       even if the class were left on after the window shrank. */
+    /* The media query repeats the script's 1280: the fixed tracks can never reach a
+       phone, even if the class were left on after the window shrank. */
     @media (min-width: 1280px) {
         #profilesConfigurationPage .jpf-te-3col .jpf-te-body {
             display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(24em, 30%);
             grid-template-rows: minmax(0, 1fr);
             grid-template-areas: "outline preview fields"; gap: 24px; align-items: stretch;
-            /* The editor uses the window: the body is as tall as what is left of it below the
-               bar, the preview grows into that, and the fields scroll inside their own column
-               rather than making the page long. It was a 28em strip beside a 25em column, and
-               on a 2900 px window the rest of the screen was empty. */
+            /* The body is as tall as what is left of the window below the bar, the preview
+               grows into it, and the fields scroll in their own column. It was a 28em strip
+               beside a 25em column, and a 2900 px window was mostly empty. */
             height: calc(100vh - 12em); min-height: 30em;
         }
         #profilesConfigurationPage .jpf-te-3col .jpf-te-fields { overflow-y: auto; min-height: 0; padding-right: 4px; }
@@ -626,19 +602,19 @@
     #profilesConfigurationPage .jpf-te-opt.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-te-ocount { font-size: 0.8rem; font-weight: 400; opacity: 0.75; }
     #profilesConfigurationPage .jpf-te-opt.jpf-te-has-problem::after { content: "!"; color: var(--jpf-bad); font-weight: 700; }
-    /* One group at a time. Its heading stays as a title and no longer folds; the outline is the way
-       between groups. */
+    /* One group at a time. Its heading stays as a title and no longer folds; the outline
+       moves between groups. */
     #profilesConfigurationPage .jpf-te-3col .jpf-te-group:not(.is-selected) { display: none; }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-group > summary { pointer-events: none; list-style: none; font-size: 1.1rem; }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-group > summary::-webkit-details-marker { display: none; }
-    /* The colours sit two across: a colour is a swatch and a short box, and the column is wide
-       enough for a pair. (.jpf-te-colors is Simple's grid; its 14em minimum put four colours in one
-       column at this width.) */
+    /* The colors sit two across: a swatch and a short box, and the column fits a pair.
+       (.jpf-te-colors is Simple's grid; its 14em minimum put four colors in one column
+       at this width.) */
     #profilesConfigurationPage .jpf-te-3col .jpf-te-adv.jpf-te-adv-color { display: inline-grid; width: 50%; box-sizing: border-box; padding: 6px 8px 6px 0; vertical-align: top; }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-adv.jpf-te-adv-color.jpf-hidden { display: none; }
-    /* The preview opens its fields (Advanced only): each part names its group in data-te-group.
-       Hover and a focused field outline a part with is-hot and is-focus, which script sets so that
-       only the innermost part under the pointer is marked, not the card around it too. The add
+    /* The preview opens its fields (Advanced only): each part names its group in
+       data-te-group. Hover and a focused field outline a part with is-hot and is-focus,
+       which script sets so only the innermost part under the pointer is marked. The add
        tile, card, sheet and text box are drawn for this and are not in the lists' cards. */
     #profilesConfigurationPage .jpf-te-preview-extra { display: none; }
     #profilesConfigurationPage .jpf-te.is-advanced .jpf-te-preview-extra { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; }
@@ -668,12 +644,12 @@
         gap: 10px 16px; margin-bottom: 1.5em;
     }
     #profilesConfigurationPage .jpf-te-color { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; }
-    /* A long name wraps beside its swatch. Without this, "Background, top" dropped below the
-       swatch at phone width while "Accent" stayed beside it. */
+    /* A long name wraps beside its swatch: "Background, top" dropped below it at phone
+       width while "Accent" stayed beside it. */
     #profilesConfigurationPage .jpf-te-color > .jpf-te-sw { flex-shrink: 0; }
     #profilesConfigurationPage .jpf-te-color > span { flex: 1 1 0; min-width: 0; }
-    /* "More" on a Simple control opens Advanced at its group; the follow hint is the same
-       link in words. Advanced is not there below 900 px, so neither are they. */
+    /* "More" on a Simple control opens Advanced at its group; the follow hint is the
+       same link in words. Advanced is not there below 900 px, so neither are they. */
     #profilesConfigurationPage .jpf-te-link { margin-top: 4px; padding: 2px 8px; font-size: 0.8rem; opacity: 0.85; }
     #profilesConfigurationPage .jpf-te-color .jpf-te-link { margin: 0 0 0 auto; }
     #profilesConfigurationPage .jpf-te-hintlink {
@@ -687,8 +663,8 @@
         #profilesConfigurationPage .jpf-te-link, #profilesConfigurationPage .jpf-te-hintlink { display: none; }
         #profilesConfigurationPage .jpf-te-narrow { display: block; }
     }
-    /* The colour squares are buttons that open the popup below, not input type=color: that
-       opens a different native dialog in every browser. */
+    /* The color squares are buttons that open the popup below, not input type=color,
+       which opens a different native dialog in every browser. */
     #profilesConfigurationPage .jpf-te .jpf-te-sw {
         -webkit-appearance: none; appearance: none;
         width: 42px; height: 32px; padding: 0; margin: 0; flex-shrink: 0; cursor: pointer;
@@ -696,8 +672,8 @@
     }
     #profilesConfigurationPage .jpf-te .jpf-te-sw:focus { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
     #profilesConfigurationPage .jpf-te { position: relative; }
-    /* Drawn inside the editor and placed by script (positionColorPopup), which keeps it off
-       the preview card. Opaque and above the sticky card (z-index 2). */
+    /* Drawn inside the editor and placed by script (positionColorPopup), off the preview
+       card. Opaque, above the sticky card (z-index 2). */
     #profilesConfigurationPage .jpf-te-pop {
         position: absolute; z-index: 5; box-sizing: border-box; width: 17.5em; max-width: calc(100% - 8px);
         padding: 10px; border-radius: 8px; border: 1px solid var(--jpf-accent-line);
@@ -708,11 +684,10 @@
     /* The expanded preview: the profile picker's own classes under the theme being edited
        (data-jpf-theme), so Bonfire's stylesheet draws it. One fixed layer over the whole
        window, Jellyfin's header included, as the real picker is. It was absolute inside the
-       page and sized to the part of it on screen; on a live server that drew it at the top
-       of the page with the dashboard showing under it. positionThemeExpanded corrects for an
-       ancestor that makes fixed relative to itself. The gate rules below are the real
-       overlay's, under another id: the real id is the client's, and its route poll would
-       take a copy of it down. */
+       page, and on a live server it drew at the top of the page with the dashboard showing
+       under it. positionThemeExpanded corrects for an ancestor that makes fixed relative
+       to itself. The gate rules below are the real overlay's under another id: the real id
+       is the client's, and its route poll would take a copy down. */
     #profilesConfigurationPage .jpf-te-xwrap { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1100; overflow: hidden; }
     #profilesConfigurationPage #teExpandGate {
         position: relative; width: 100%; height: 100%; box-sizing: border-box;
@@ -756,24 +731,24 @@
     #profilesConfigurationPage .jpf-te-bad > span,
     #profilesConfigurationPage .jpf-te-bad .jpf-te-adv-label { color: var(--jpf-bad); }
     /* The row a problem names: a red edge down its side and its message under it. Its group,
-       closed or open, carries a "!" on the summary so a problem inside is not out of sight. */
+       open or closed, carries a "!" on the summary so a problem inside is not out of sight. */
     #profilesConfigurationPage .jpf-te-field.jpf-te-bad { border-left: 3px solid var(--jpf-bad); padding-left: 8px; }
     #profilesConfigurationPage details.jpf-te-has-problem > summary::after { content: "!"; margin-left: 0.5em; color: var(--jpf-bad); font-weight: 700; }
     #profilesConfigurationPage .jpf-te-msg { flex-basis: 100%; color: var(--jpf-bad); font-size: 0.85rem; margin-top: 4px; }
     #profilesConfigurationPage .jpf-te-group { margin: 0 0 0.5em; }
-    /* The search hides rows and groups. .jpf-hidden is declared far above and the rules for
-       .jpf-te-adv (display: grid) are the same specificity and later, so they are named. */
+    /* The search hides rows and groups. .jpf-hidden is declared far above, and the
+       .jpf-te-adv rules (display: grid) are the same specificity and later, so they are named. */
     #profilesConfigurationPage .jpf-te-adv.jpf-hidden, #profilesConfigurationPage .jpf-te-group.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-te-search { width: 100%; box-sizing: border-box; margin: 0 0 0.75em; }
     #profilesConfigurationPage .jpf-te-group > summary { cursor: pointer; font-weight: 600; padding: 0.45em 0; }
-    /* The path above its control, then the hint: with the preview taking 45% of the editor
+    /* The path above its control, then the hint: with the preview at 45% of the editor
        there is no room for the path beside a shadow's boxes or a slider. */
     #profilesConfigurationPage .jpf-te-adv {
         display: grid; grid-template-columns: minmax(0, 1fr);
         align-items: center; gap: 4px 12px; padding: 6px 0;
     }
     #profilesConfigurationPage .jpf-te-adv { position: relative; }
-    /* A changed row: a dot and a Reset at its top right, and room for them beside the name. */
+    /* A changed row: a dot and a Reset at its top right, with room beside the name. */
     #profilesConfigurationPage .jpf-te-marks { display: none; position: absolute; top: 6px; right: 0; align-items: center; gap: 6px; }
     #profilesConfigurationPage .jpf-te-adv.is-changed > .jpf-te-marks { display: inline-flex; }
     #profilesConfigurationPage .jpf-te-adv.is-changed > .jpf-te-adv-label { padding-right: 6em; }
@@ -810,9 +785,9 @@
     #profilesConfigurationPage .jpf-te-lname { flex: 0 0 9em; font-size: 0.9rem; }
     #profilesConfigurationPage .jpf-te-lrow .jpf-te-pair { flex: 1 1 8em; min-width: 0; }
     #profilesConfigurationPage .jpf-te-lrow .jpf-te-selbox { flex: 1 1 8em; width: auto; }
-    /* The editor's dropdowns sit in a selectContainer so jellyfin-web draws their arrow. Its
-       own arrow position counts on a label above the select, which these rows do not have,
-       so the arrow is centred on the select instead. */
+    /* The editor's dropdowns sit in a selectContainer so jellyfin-web draws their arrow.
+       Its arrow position counts on a label above the select, which these rows lack, so the
+       arrow is centered on the select instead. */
     #profilesConfigurationPage .jpf-te-selbox { margin: 0; min-width: 0; }
     #profilesConfigurationPage .jpf-te-selbox .selectArrowContainer { top: 50%; -webkit-transform: translateY(-50%); transform: translateY(-50%); }
     #profilesConfigurationPage .jpf-te-selbox .selectArrow { display: block; margin: 0; font-size: 1.5em; line-height: 1; }
@@ -861,8 +836,7 @@
         border-color: var(--jpf-good-line);
         color: var(--jpf-good);
     }
-    /* Quieter than .jpf-note-warn: used where the box is advisory rather than a
-       problem, such as the beta channel notice. */
+    /* Quieter than .jpf-note-warn: for an advisory box, such as the beta channel notice. */
     #profilesConfigurationPage .jpf-note-soft {
         background: var(--jpf-warn-tint);
         border-color: var(--jpf-warn-line);
@@ -922,21 +896,19 @@
         background: rgba(0, 0, 0, 0.15);
     }
 
-    /* Spacing. Named for the rhythm of the page rather than for their values,
-       so changing the rhythm is one edit. */
+    /* Spacing, named for the rhythm of the page, so changing it is one edit. */
     #profilesConfigurationPage .jpf-section { margin-top: 3em; }
     #profilesConfigurationPage .jpf-lede { margin-bottom: 1em; }
     /* A heading that opens a new group of settings inside one form. */
     #profilesConfigurationPage .jpf-subhead { margin-top: 1.5em; }
     #profilesConfigurationPage .jpf-block-end { margin-bottom: 3em; }
     /* A closed Advanced section is a line of text. With nothing under it, the Save button
-       after it read as part of it. Margins between siblings collapse, so a heading that
-       follows (3em) is unchanged. */
+       after it read as part of it. Sibling margins collapse, so a following heading (3em)
+       is unchanged. */
     #profilesConfigurationPage .jpf-advanced { margin-bottom: 1.5em; }
 
-    /* The rest of the vocabulary. Layout that belongs to one element still gets
-       a name -- .jpf-avatar-grid says what it is, where a repeated
-       grid-template-columns in the markup said only how. */
+    /* The rest of the vocabulary. Layout that belongs to one element still gets a name:
+       .jpf-avatar-grid says what it is, where a repeated grid-template-columns did not. */
     #profilesConfigurationPage .jpf-sublist { margin: 6px 0 0 0; padding-left: 20px; }
     #profilesConfigurationPage .jpf-label-block { display: block; margin-bottom: 6px; }
     #profilesConfigurationPage .jpf-quiet { opacity: 0.85; }
@@ -955,9 +927,9 @@
     }
     /* A secondary action with its own hint under it, beside the primary one. */
     #profilesConfigurationPage .jpf-actions > .jpf-action-hint { align-self: flex-start; }
-    /* jellyfin-web gives every .emby-button a 0.3em margin all round, which indents the
-       first button of a row a few pixels from the text above it. Spacing between buttons is
-       the gap on the row, so the left margin goes and every row starts on the content edge. */
+    /* jellyfin-web gives every .emby-button a 0.3em margin, which indents a row's first
+       button from the text above it. Spacing between buttons is the row's gap, so the left
+       margin goes and every row starts on the content edge. */
     #profilesConfigurationPage [is="emby-button"],
     #profilesConfigurationPage [is="emby-linkbutton"] { margin-left: 0; }
     #profilesConfigurationPage .jpf-avatar-grid {
@@ -968,32 +940,30 @@
     }
     /* The "no avatars yet" line is the grid's only child: across every column, not one. */
     #profilesConfigurationPage .jpf-avatar-grid > .fieldDescription { grid-column: 1 / -1; }
-    /* The two coloured badges on the version chip: one for a build that will not
-       run, one for a build that is merely out of date. */
+    /* The two badges on the version chip: a build that will not run, and one that is
+       merely out of date. */
     #profilesConfigurationPage .jpf-badge-bad { background: var(--jpf-bad-fill); color: #fff; }
     #profilesConfigurationPage .jpf-btn-quiet {
         background: var(--jpf-w08);
         color: var(--jpf-w75);
     }
 
-    /* Classes for the rows this page builds in script. Only the repeated ones:
-       a structural style that appears once, inside the template of the row it
-       belongs to, is clearer where it is than behind a name used nowhere else. */
+    /* Classes for the rows this page builds in script. Only the repeated ones; a style
+       that appears once is clearer inside its own row template. */
     #profilesConfigurationPage .jpf-list-pad { padding: 15px; }
     #profilesConfigurationPage .jpf-error { color: var(--jpf-bad); }
     #profilesConfigurationPage .jpf-dim { opacity: 0.8; }
     #profilesConfigurationPage .jpf-divider { border-bottom: 1px solid var(--jpf-w08); }
     #profilesConfigurationPage .jpf-grow { flex: 1; min-width: 0; }
 
-    /* Spacing that appears more than once. Named for the step rather than the
-       pixel count, so the rhythm of the page is one edit rather than a search. */
+    /* Spacing used more than once, named for the step, not the pixel count. */
     #profilesConfigurationPage .jpf-mt-1 { margin-top: 8px; }
     #profilesConfigurationPage .jpf-mt-2 { margin-top: 12px; }
     #profilesConfigurationPage .jpf-mt-3 { margin-top: 14px; }
     #profilesConfigurationPage .jpf-mb-0 { margin-bottom: 4px; }
     #profilesConfigurationPage .jpf-mb-1 { margin-bottom: 8px; }
     #profilesConfigurationPage .jpf-mb-2 { margin-bottom: 10px; }
-    /* A notice box that is a single line of text does not need the full padding. */
+    /* A one-line notice box does not need the full padding. */
     #profilesConfigurationPage .jpf-note-tight { padding: 12px 18px; }
 
     /* Status. The level is the word in the chip and the stripe, never colour alone. */
@@ -1022,8 +992,8 @@
     #profilesConfigurationPage .jpf-check-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     @media (max-width: 480px) {
         #profilesConfigurationPage .jpf-check { grid-template-columns: 1fr; gap: 4px; }
-        /* One column on a phone: server over port, an announcement over its buttons, a
-           label over its field. */
+        /* One column on a phone: server over port, an announcement over its buttons, a label
+           over its field. */
         #profilesConfigurationPage .jpf-email-server { grid-template-columns: 1fr; }
         #profilesConfigurationPage .jpf-ann-item { grid-template-columns: 1fr; }
         #profilesConfigurationPage .jpf-ann-buttons { grid-column: 1; grid-row: auto; }
@@ -1056,10 +1026,9 @@
 
     /* Every field takes the page's own wash and ink. jellyfin-web only styles what upgrades
        (is="emby-input" and friends); the report box, the date and search boxes and anything
-       a script writes are plain elements, and a plain element takes the browser's white, which
-       matches no theme (the report box flashed white when it opened). The colours are the same
-       tokens as everything else here, so they flip with the light themes; color-scheme gives
-       the date picker, the select's list and the scrollbars the matching face. */
+       a script writes are plain elements, which take the browser's white (the report box
+       flashed white when it opened). The tokens flip with the light themes; color-scheme
+       gives the date picker, select list and scrollbars the matching face. */
     #profilesConfigurationPage input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="range"]):not([type="color"]),
     #profilesConfigurationPage select,
     #profilesConfigurationPage textarea {
@@ -1077,23 +1046,21 @@
                 <span class="jpf-brand-name" translate="no">Bonfire</span>
             </div>
             <!-- Installed or updated while Jellyfin was running. The pipeline hook can only
-                 be added at startup, so this build is not serving anything yet — while the
-                 previous build usually still is, which is why the switcher keeps working.
-                 Nothing is wrong with the file or its permissions, so this must not be the
-                 failure banner (issue #25). -->
+                 be added at startup, so this build is not serving yet; the previous build
+                 usually still is, which is why the switcher keeps working. Nothing is wrong
+                 with the file or its permissions, so this is not the failure banner (#25). -->
             <div class="jpf-hidden jpf-note jpf-note-warn" id="restartRequiredContainer">
                 <strong class="jpf-note-title"><span aria-hidden="true">↻ </span><span data-i18n="admin.banner.restartTitle">Restart Jellyfin to finish updating Bonfire</span></strong>
                 <span data-i18n="admin.banner.restartBody">Until then the old version keeps running.</span>
                 <!-- Filled in from the mechanism's runningVersion / newestInstalledVersion. The
-                     banner used to assert a restart was needed and stop there, which the reader
-                     had no way to check: someone who has already restarted, or who pressed
-                     Jellyfin's Restart button on a Docker image where it does not restart the
-                     process, sees the same words either way. Two numbers can be checked. -->
+                     banner used to say a restart was needed and stop there, which looks the same
+                     after a restart, or after Restart on a Docker image that does not restart
+                     the process. Two numbers can be checked. -->
                 <div class="jpf-hidden jpf-status" id="restartVersions"></div>
                 <div class="jpf-note-detail" data-i18n="admin.banner.restartDocker"><strong>On Docker, restart the container.</strong> Jellyfin's own Restart button doesn't restart the process on most images.</div>
             </div>
-            <!-- Shown when the settings could not be read. Save is refused while it is up,
-                 because the form is showing defaults and a save would write them. -->
+            <!-- Shown when the settings could not be read. Save is refused while it is up:
+                 the form shows defaults and a save would write them. -->
             <div class="jpf-hidden jpf-note jpf-note-error jpf-note-tight" id="configLoadError" role="alert">
                 <strong><span data-i18n="admin.loadFailed">Couldn't load the settings. Nothing can be saved until they load.</span></strong>
                 <div class="jpf-actions jpf-mt-3">
@@ -1111,14 +1078,13 @@
                 </div>
             </div>
 
-            <!-- Above the tabs on purpose: the banners above this line report that the
-                 plugin is not working, and must not be hidden behind a tab nobody has a
-                 reason to open. There is no banner for "all is well" or for a pre-release
-                 build any more: each only repeated a Status row on every tab (owner,
-                 1.9.0.4 eye test). Status still lists both. -->
+            <!-- Above the tabs on purpose: the banners above report that the plugin is not
+                 working, and must not hide behind a tab nobody has a reason to open. No banner
+                 for "all is well" or a pre-release build: each only repeated a Status row on
+                 every tab (1.9.0.4 eye test). Status still lists both. -->
             <!-- Grouped by job, not by when each setting was added. Status is first because
-                 it is the one an administrator opens the page to read. Setup is next because it
-                 is the first place someone who has just installed the plugin needs to go. -->
+                 it is what an administrator opens the page to read; Setup is next, for someone
+                 who has just installed the plugin. -->
             <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections" data-i18n-aria-label="admin.tab.label">
                 <button type="button" class="jpf-tab" role="tab" data-tab="status" id="jpfTabStatus" aria-controls="jpfPanelStatus" data-i18n="admin.tab.status">Status</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="setup" id="jpfTabSetup" aria-controls="jpfPanelSetup" data-i18n="admin.tab.setup">Setup</button>
@@ -1136,12 +1102,12 @@
             <div class="jpf-tab-panel" id="jpfPanelStatus" data-panel="status" role="tabpanel" aria-labelledby="jpfTabStatus" hidden>
                 <div class="sectionTitleContainer jpf-row">
                     <h2 class="sectionTitle" data-i18n="admin.status.title">Status</h2>
-                    <!-- Filled in from the server's own version; no hardcoded literal to go stale. -->
+                    <!-- Filled in from the server's own version, so no literal goes stale. -->
                     <span class="jpf-pill" id="pluginVersionBadge">…</span>
                 </div>
-                <!-- Saved on its own, the moment it changes: it is not one of the fields Save
-                     sends. Off on a new install (the Plugin constructor). No hint line, by
-                     decision: the Status list says "Bonfire is off." while it is. -->
+                <!-- Saved on its own, the moment it changes; Save does not send it. Off on a
+                     new install (the Plugin constructor). No hint line, by decision: Status
+                     says "Bonfire is off." while it is. -->
                 <div class="checkboxContainer">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="bonfireOn" />
@@ -1150,9 +1116,9 @@
                 </div>
                 <div class="fieldDescription jpf-lede" id="statusSummary" data-i18n="admin.status.checking">Checking…</div>
                 <div class="jpf-checks" id="statusChecks"></div>
-                <!-- Asked once, on a new install: nothing else on this page is off by default
-                     and worth a question. Gone when answered, or when anything shows it
-                     was never a new install (renderGettingStarted decides). -->
+                <!-- Asked once, on a new install: nothing else here is off by default and worth
+                     a question. Gone when answered, or when anything shows it was never a new
+                     install (renderGettingStarted decides). -->
                 <div class="jpf-hidden jpf-note jpf-mt-3" id="onboardingAsk">
                     <strong class="jpf-label-block" data-i18n="admin.onboarding.askTitle">Show first-time setup?</strong>
                     <span data-i18n="admin.onboarding.askBody">New main accounts get a few screens to set a main PIN and make a profile.</span>
@@ -1240,13 +1206,10 @@
 
                 <details class="jpf-advanced jpf-section">
                     <summary data-i18n="admin.advanced.title">Advanced</summary>
-                    <!-- The emergency code comes first, with its own button, and the PIN
-                         settings last, so the tab's Save sits directly under what it saves.
-                         It used to be the other way round: "Save code" and then the page's
-                         Save, stacked after the emergency section, which read as two saves
-                         for one thing (owner, 1.9.0.4 eye test). The code is not saved by the
-                         page's Save because it is write-only and blank means "turn it off":
-                         a shared Save would clear it whenever the box was left empty. -->
+                    <!-- The emergency code comes first, with its own button, and the PIN settings
+                         last, so the tab's Save sits under what it saves (1.9.0.4 eye test). The
+                         code is not saved by the page's Save: it is write-only and blank means
+                         "turn it off", so a shared Save would clear it whenever the box was empty. -->
                     <div class="sectionTitleContainer" id="jpfEmergency">
                         <h2 class="sectionTitle" data-i18n="admin.panic.title">Emergency disable code</h2>
                     </div>
@@ -1292,10 +1255,10 @@
                     <h2 class="sectionTitle" data-i18n="admin.theme.title">Default theme</h2>
                 </div>
                 <div class="fieldDescription jpf-lede" data-i18n="admin.theme.lede">Bonfire's screens only.</div>
-                <!-- The words after each name are there so an administrator can tell them
-                     apart without opening a profile. They describe the look only; no theme
-                     is named after, or claims any link to, a real service. Jellyfin Dark and
-                     Light name the server's own web client, which Bonfire runs inside. -->
+                <!-- The words after each name let an administrator tell them apart without
+                     opening a profile. They describe the look only; no theme is named after, or
+                     claims a link to, a real service. Jellyfin Dark and Light name the server's
+                     own web client, which Bonfire runs inside. -->
                 <div class="selectContainer jpf-form-narrow">
                     <label class="selectLabel" for="defaultTheme" data-i18n="admin.theme.default">Default theme</label>
                     <select is="emby-select" id="defaultTheme">
@@ -1333,8 +1296,8 @@
                 </div>
 
                 <!-- The server's logo: an image, or a line of text, at the top right of the
-                     switcher screens. Image changes save at once through admin/themes/logo/image;
-                     the text and alt text save with their own button (admin/themes/logo). -->
+                     switcher screens. Image changes save at once (admin/themes/logo/image); the
+                     text and alt text save with their own button (admin/themes/logo). -->
                 <div class="sectionTitleContainer jpf-section" id="jpfLogo">
                     <h2 class="sectionTitle" data-i18n="admin.logo.title">Server logo</h2>
                 </div>
@@ -1368,9 +1331,9 @@
                 <button is="emby-button" type="button" class="raised button-submit jpf-narrow" id="logoSave" data-i18n="admin.logo.save">Save text</button>
                 <div class="jpf-hidden jpf-status" id="logoResult"></div>
 
-                <!-- The administrator's own themes, hidden built-ins and uploaded fonts
-                     (1.7.2). Everything here saves at once through admin/themes/*; only
-                     the default above waits for Save. -->
+                <!-- The administrator's own themes, hidden built-ins and uploaded fonts (1.7.2).
+                     All save at once through admin/themes/*; only the default above waits for
+                     Save. -->
                 <div class="sectionTitleContainer jpf-section" id="jpfThemes">
                     <h2 class="sectionTitle" data-i18n="admin.themes.title">Themes</h2>
                 </div>
@@ -1389,14 +1352,15 @@
                 </div>
                 <div class="jpf-hidden jpf-status" id="themesResult"></div>
 
-                <!-- The editor. Simple sets about eight values and the ones that must follow
-                     them; Advanced shows every field of the file. Both edit the same draft,
-                     which the preview wears and the server checks as it changes. -->
+                <!-- The editor. Simple sets about eight values and the ones that must follow;
+                     Advanced shows every field of the file. Both edit one draft, which the
+                     preview wears and the server checks as it changes. -->
                 <div class="jpf-te jpf-hidden" id="themeEditor">
-                    <!-- Stays at the top of the window while the fields scroll (bindThemePreviewStick
-                         sets its top), so Save, Cancel and the problem count are never a page away.
-                         #teFileSlot holds the File menu. At phone width Cancel moves into
-                         #teMenu, which Bonfire draws. The preview's own Expand is the only one. -->
+                    <!-- Stays at the top of the window while the fields scroll
+                         (bindThemePreviewStick sets its top), so Save, Cancel and the problem
+                         count are never a page away. #teFileSlot holds the File menu. At phone
+                         width Cancel moves into #teMenu, which Bonfire draws. The preview's own
+                         Expand is the only one. -->
                     <div class="jpf-te-bar" id="teBar">
                         <span class="jpf-te-bar-name" id="teBarName"></span>
                         <button type="button" class="jpf-te-lbtn jpf-te-hist" id="teUndo" disabled><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
@@ -1430,12 +1394,12 @@
                     </div>
                     <div class="fieldDescription jpf-te-narrow" id="teNarrow" data-i18n="admin.themes.advancedNarrow">Advanced needs a wider window.</div>
                     <!-- The preview comes first and the row runs right to left: beside the
-                         fields on a wide page, above them when it wraps, and sticky either way,
-                         so a change can be seen without scrolling to it. It sat under every
-                         control, about 1,000 px down in Advanced. -->
+                         fields on a wide page, above them when it wraps, sticky either way. It
+                         sat under every control, about 1,000 px down in Advanced. -->
                     <div class="jpf-te-body">
-                        <!-- The group list, drawn only at 1280 px and wider in Advanced (jpf-te-3col):
-                             buildThemeAdvanced fills it. Below that the groups fold open in place. -->
+                        <!-- The group list, drawn only at 1280 px and wider in Advanced
+                             (jpf-te-3col); buildThemeAdvanced fills it. Below that the groups fold
+                             open in place. -->
                         <div class="jpf-te-outline" id="teOutline" role="group" aria-label="Sections" data-i18n-aria-label="admin.themes.sections"></div>
                         <div class="jpf-te-side">
                             <div id="tePreview"></div>
@@ -1451,8 +1415,8 @@
                                 <input is="emby-input" type="text" id="teName" maxlength="40" autocomplete="off" />
                             </div>
                             <!-- No Id box: a new theme's id is made from its name (themeSlug,
-                                 uniqueThemeId) and is fixed once saved. Advanced showed one to type
-                                 over; the owner removed it in 1.9.0.4-beta. -->
+                                 uniqueThemeId) and is fixed once saved. Advanced used to show one;
+                                 removed in 1.9.0.4-beta. -->
                             <div class="jpf-te-simple" id="teSimple">
                                 <div class="jpf-te-colors">
                                     <label class="jpf-te-color jpf-te-field" data-paths="colors.accent colors.accentFocus colors.onAccent colors.ring parts.button2.focus">
@@ -1664,7 +1628,7 @@
                 <details class="jpf-advanced jpf-section">
                     <summary data-i18n="admin.advanced.title">Advanced</summary>
                 <!-- Avatar library options: the starter set, picture quality and copying a
-                     folder from the server. Rarely changed, so they sit here, not above. -->
+                     folder from the server. Rarely changed, so they sit here. -->
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
@@ -1675,8 +1639,8 @@
                 <div class="selectContainer jpf-form-narrow">
                     <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Avatar quality</label>
                     <select is="emby-select" id="profileImageQuality">
-                        <!-- The values are stored ids and are not the words: "high" is 1024 px and
-                             "maximum" 2048 px, as in every saved config. See ImageQualities. -->
+                        <!-- The values are stored ids, not the words: "high" is 1024 px and
+                             "maximum" 2048 px, as in every saved config (ImageQualities). -->
                         <option value="standard" data-i18n="admin.avatars.qualityStandard">Low — 512 px, up to 2 MB</option>
                         <option value="high" data-i18n="admin.avatars.qualityHigh">Medium — 1024 px, up to 4 MB</option>
                         <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High — 2048 px, up to 8 MB</option>
@@ -1914,8 +1878,8 @@
 
             <!-- ── Troubleshoot ───────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelTroubleshoot" data-panel="troubleshoot" role="tabpanel" aria-labelledby="jpfTabTroubleshoot" hidden>
-                <!-- Was at the foot of Status; moved here by the owner (1.9.0.4 eye test).
-                     The keys keep their admin.status. names so no translation is lost. -->
+                <!-- Moved here from the foot of Status (1.9.0.4 eye test). The keys keep their
+                     admin.status. names so no translation is lost. -->
                 <div class="jpf-note">
                     <strong class="jpf-label-block" data-i18n="admin.status.whereTitle">Where profiles are managed</strong>
                     <span data-i18n="admin.status.whereBody">Households manage their own profiles from the Jellyfin home screen.</span>
