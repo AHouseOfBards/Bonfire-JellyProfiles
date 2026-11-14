@@ -1887,7 +1887,15 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     config.KnownDevices = incoming.KnownDevices;
                     foreach (var d in config.KnownDevices ?? new List<KnownDevice>())
-                        d?.Owners?.RemoveAll(id => !Exists(id));
+                    {
+                        if (d == null) continue;
+                        d.Owners?.RemoveAll(id => !Exists(id));
+                        // A backup from before 1.5.10 holds names as the client encoded them. The
+                        // devices list repairs those only once per run, so decode them here too
+                        // (r3-03-04).
+                        if (d.DeviceName != null) d.DeviceName = DecodeLegacyDeviceName(d.DeviceName);
+                        if (d.Client != null) d.Client = DecodeLegacyDeviceName(d.Client);
+                    }
                 }
                 if (hasLimits)
                     config.UserProfileLimitOverrides = (incoming.UserProfileLimitOverrides ?? new List<UserProfileLimitOverride>()).Where(o => o != null && Exists(o.UserId)).ToList();

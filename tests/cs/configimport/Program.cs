@@ -530,6 +530,20 @@ Console.WriteLine("── A damaged or foreign file ─────────�
     Ok("and so is an onboarding record for one", seenRows.Count == 1, seenRows.Count.ToString());
     Ok("a file without Mappings reports none, not zero",
        foreignR.TryGetProperty("mappings", out var mp) && mp.ValueKind == JsonValueKind.Null, foreignR.GetRawText());
+
+    // A backup from before 1.5.10 holds device names as the client encoded them ("Pixel+8").
+    // The devices list repairs those once per run, so one imported after that stayed encoded
+    // until a restart (r3-03-04). The import decodes them itself.
+    Overwrite(live, Defaults());
+    var oldNames = JsonSerializer.SerializeToElement(new Dictionary<string, object>
+    {
+        ["KnownDevices"] = new object[] { new { DeviceId = "old-1", DeviceName = "Pixel+8", Client = "Jellyfin%20Android" } },
+    });
+    importRoute.Invoke(NewController(), new object[] { oldNames });
+    var devRow = ((IList)cfgType.GetProperty("KnownDevices").GetValue(live)).Cast<object>().Single();
+    var devName = (string)devRow.GetType().GetProperty("DeviceName").GetValue(devRow);
+    var devClient = (string)devRow.GetType().GetProperty("Client").GetValue(devRow);
+    Ok("an imported device's encoded name and app are decoded", devName == "Pixel 8" && devClient == "Jellyfin Android", devName + " / " + devClient);
 }
 
 // A backup holds the names of pictures, not the pictures (R-1150): like a font or the logo,

@@ -944,7 +944,6 @@ namespace Jellyfin.Profiles.Auth
         /// a player keeps its notice for the rest of its ten minutes, because the judgement at sixty
         /// seconds only means "no capabilities yet" and a playback start can still prove it a player.
         /// </summary>
-        /// </summary>
         private static void ReleaseHeld(string? canonicalId, bool canPlay)
         {
             if (!canPlay || HeldNewDevices.IsEmpty) return;
