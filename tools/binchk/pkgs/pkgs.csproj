@@ -1,10 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Exists only to be published: it pulls one version of the Jellyfin packages, and
-       everything they depend on, into a folder for binchk to resolve against. The version
-       comes from -p:JfVersion. -->
+  <!-- Exists only to be published: it pulls one release of the Jellyfin packages, and everything they depend on,
+       into a folder for binchk to resolve against. The release comes from -p:JfVersion. -->
   <PropertyGroup>
-    <TargetFramework Condition="$(JfVersion.StartsWith('12'))">net10.0</TargetFramework>
-    <TargetFramework Condition="!$(JfVersion.StartsWith('12'))">net9.0</TargetFramework>
+    <TargetFramework Condition="$(JfVersion.StartsWith('10.'))">net9.0</TargetFramework>
+    <TargetFramework Condition="!$(JfVersion.StartsWith('10.'))">net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>

@@ -419,7 +419,7 @@ namespace Jellyfin.Profiles
             {
                 // By name, never `_userManager.Users`: it became GetUsers() in 10.11.7 (gone in 12.0), and a
                 // direct reference compiles against 10.11.5 and throws MissingMethodException on anything
-                // newer. This catch swallowed that, so the safety net below silently never ran. tests/binchk.sh
+                // newer. This catch swallowed that, so the safety net below silently never ran. tools/binchk.sh
                 // found it.
                 var type = _userManager.GetType();
                 var method = type.GetMethod("GetUsers", System.Type.EmptyTypes);

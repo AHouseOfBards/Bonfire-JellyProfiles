@@ -11,12 +11,12 @@ name: CI
 # "CI passed", needs all of them; a branch rule and release.yml depend on that one name
 # and nothing else.
 #
-# release.yml calls this file (workflow_call), so a tag runs the same checks a push does.
+# release.yml does not run the suite again: it requires "CI passed" from this workflow on
+# the tagged commit, so that job keeps its name.
 on:
   pull_request:
   push:
     branches: [main, beta]
-  workflow_call:
 
 # Read-only: nothing in this workflow writes to the repository, so its token should not
 # be able to.
@@ -104,9 +104,9 @@ jobs:
         run: bash tests/run.sh ${{ matrix.section }}
 
   # The plugin compiles against Jellyfin 10.11.5, so a green build says nothing about the
-  # servers it runs on. This resolves every Jellyfin member the built DLL references
-  # against the newest 10.11 and against 12.0. It restores those packages from NuGet
-  # (network), which tests/run.sh must not need.
+  # servers it runs on. The Campground kit's binchk resolves every Jellyfin member the
+  # net9.0 DLL references against each release in tests/gate.conf. It restores those
+  # packages from NuGet (network), which tests/run.sh must not need.
   binchk:
     name: Check against newer Jellyfin
     runs-on: ubuntu-latest
@@ -136,7 +136,7 @@ jobs:
 
       # No SKIP_BUILD: this job has not built the plugin, so binchk builds it itself.
       - name: Check the plugin against newer Jellyfin
-        run: bash tests/binchk.sh
+        run: sh tools/binchk.sh
 
   static:
     name: Syntax and translations

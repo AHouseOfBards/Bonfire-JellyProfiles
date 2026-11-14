@@ -6,18 +6,51 @@ on:
       - 'v*'
 
 jobs:
-  # The whole suite, as ci.yml runs it for a push: every JavaScript shard, the C# harnesses
-  # on net9.0 and net10.0, the check against newer Jellyfin and the syntax and translation
-  # checks, in parallel, then "CI passed". A tag can be cut from a commit CI never saw, or
-  # one whose CI run was red and ignored. `release` needs this job, so nothing is built,
-  # packaged or published from a commit whose suite did not pass in this same run.
+  # The suite is not run again here. ci.yml already ran it on the push of this commit, and
+  # this job requires that run's "CI passed" check to have succeeded on the tagged commit.
+  # A tag cut from a commit CI never saw, or one whose run was red or cancelled, is refused.
+  # Until 2.0 this job called ci.yml and ran the whole suite a second time per release.
+  # So: push the branch, wait for CI passed, then tag. If CI is still running, this waits.
   # tests/js/buildtargets.js and tests/js/workflows.js fail if this job goes missing, stops
-  # calling ci.yml, or `release` stops needing it.
+  # reading "CI passed" for github.sha, or `release` stops needing it.
   tests:
-    name: Tests
-    uses: ./.github/workflows/ci.yml
+    name: CI passed on this commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
-      contents: read
+      checks: read
+    steps:
+      - name: Wait for CI passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Only ci.yml's own push or pull-request run is named exactly "CI passed"; a run
+          # called from another workflow would be prefixed with that job's name.
+          for i in $(seq 1 110); do
+            RUNS=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs?check_name=CI%20passed&filter=all&per_page=100" \
+              --jq '[.check_runs[] | select(.app.slug == "github-actions") | {status, conclusion}]')
+            if [ "$(echo "$RUNS" | jq '[.[] | select(.conclusion == "success")] | length')" -gt 0 ]; then
+              echo "CI passed on ${SHA}."
+              exit 0
+            fi
+            PENDING=$(echo "$RUNS" | jq '[.[] | select(.status != "completed")] | length')
+            TOTAL=$(echo "$RUNS" | jq 'length')
+            if [ "$TOTAL" -gt 0 ] && [ "$PENDING" -eq 0 ]; then
+              echo "::error::CI did not pass on ${SHA}: $(echo "$RUNS" | jq -c '[.[].conclusion]')."
+              echo "::error::Fix it, push, wait for CI passed, then tag the new commit."
+              exit 1
+            fi
+            # No run yet gets two minutes to appear (a push and a tag sent together).
+            if [ "$TOTAL" -eq 0 ] && [ "$i" -gt 4 ]; then
+              echo "::error::No CI run for ${SHA}. Push the branch, wait for CI passed, then tag."
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::CI on ${SHA} did not finish within the wait."
+          exit 1
 
   release:
     needs: tests
@@ -47,12 +80,12 @@ jobs:
         with:
           node-version: '22'
 
-      # The tests job above has run the suite. These two are named here as well so that
-      # dropping either from ci.yml cannot quietly drop it from a release. binchk builds the
-      # plugin itself (this job has not yet) and resolves its Jellyfin members against 10.11
-      # and 12.x; the shared-library copy check is also one of the JavaScript shards.
+      # CI passed on this commit; these check the build this job makes. binchk builds the
+      # plugin itself (this job has not yet) and resolves its Jellyfin members against each
+      # release in tests/gate.conf; the shared-library copy check is also one of the
+      # JavaScript shards, kept here so dropping it from ci.yml cannot drop it from a release.
       - name: Check the plugin against newer Jellyfin
-        run: bash tests/binchk.sh
+        run: sh tools/binchk.sh
 
       - name: Check the vendored Campground.Shared copy
         run: sh Campground.Shared/check-shared.sh
@@ -75,6 +108,24 @@ jobs:
         run: |
           mkdir -p dist
           zip -j dist/Jellyfin.Profiles.zip bin/Release/net9.0/Jellyfin.Profiles.dll
+
+      # The bytes users install: the DLL from the zip, its version, and its script run
+      # through the startup test. 1.5.2 shipped a script that threw on startup past a
+      # syntax check.
+      - name: Test the packaged plugin
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/shipped"
+          mkdir -p "$OUT/dll"
+          unzip -q dist/Jellyfin.Profiles.zip -d "$OUT/dll"
+          dotnet run --project tests/shipped -c Release -- "$OUT/dll/Jellyfin.Profiles.dll" "$OUT/res" | tee "$OUT/info.txt"
+          GOT=$(sed -n 's/^info //p' "$OUT/info.txt" | sed 's/+.*//')
+          WANT=$(grep '<InformationalVersion>' Jellyfin.Profiles.csproj | sed 's/.*<InformationalVersion>\(.*\)<\/InformationalVersion>/\1/' | tr -d '[:space:]')
+          if [ "$GOT" != "$WANT" ]; then
+            echo "::error::The packaged DLL reports ${GOT}, the csproj says ${WANT}."
+            exit 1
+          fi
+          node tests/js/inject.test.js "$OUT/res/Jellyfin.Profiles.Web.profiles.js"
 
       - name: Compute MD5 checksum
         id: checksum

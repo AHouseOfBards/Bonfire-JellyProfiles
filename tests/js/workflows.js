@@ -33,18 +33,33 @@ const idx = re => steps.findIndex(s => re.test(s));
 
 console.log('\n── release.yml: every check CI makes runs before the build ─────');
 const build = idx(/run:\s*dotnet build/);
-[['tests/binchk.sh', /tests\/binchk\.sh/], ['the Campground.Shared copy check', /check-shared\.sh/]].forEach(([n, re]) => {
+[['tools/binchk.sh', /^\s*run:\s*sh tools\/binchk\.sh\s*$/m], ['the Campground.Shared copy check', /check-shared\.sh/]].forEach(([n, re]) => {
     const i = idx(re);
     ok('release.yml runs ' + n, i !== -1);
     ok('before the build step', i !== -1 && build !== -1 && i < build, 'step ' + i + ' vs build ' + build);
     ok('and it is not gated or allowed to fail', i !== -1 && !/^\s*(if|continue-on-error):/m.test(steps[i]));
 });
+// The packaged plugin's own check: after the zip exists, before anything is published.
+{
+    const zip = idx(/zip -j dist\/Jellyfin\.Profiles\.zip/);
+    const shipped = idx(/dotnet run --project tests\/shipped/);
+    const pub = idx(/action-gh-release/);
+    ok('release.yml reads the DLL out of the zip it packaged', shipped !== -1 && /unzip -q dist\/Jellyfin\.Profiles\.zip/.test(steps[shipped]));
+    ok('and runs inject.test.js on the script that DLL carries',
+       shipped !== -1 && /node tests\/js\/inject\.test\.js "\$OUT\/res\/Jellyfin\.Profiles\.Web\.profiles\.js"/.test(steps[shipped]));
+    ok('and refuses a DLL whose version is not the csproj\'s',
+       shipped !== -1 && /InformationalVersion/.test(steps[shipped]) && /"\$GOT" != "\$WANT"/.test(steps[shipped]) && /exit 1/.test(steps[shipped]));
+    ok('after the zip is made', shipped !== -1 && zip !== -1 && zip < shipped, 'zip ' + zip + ', shipped ' + shipped);
+    ok('and before the release is published', shipped !== -1 && pub !== -1 && shipped < pub, 'shipped ' + shipped + ', release ' + pub);
+    ok('and it is not gated or allowed to fail', shipped !== -1 && !/^\s*(if|continue-on-error):/m.test(steps[shipped]));
+}
 ok('the checkout comment no longer asks for "a token with push access"',
    !/token with push access/.test(fs.readFileSync(relPath, 'utf8')));
 
 console.log('\n── release.yml: any pre-release label routes to beta ───────────');
 {
-    const ver = steps[idx(/INFORMATIONAL|InformationalVersion/)] || '';
+    // The step that picks the channel; the packaged-plugin test also reads InformationalVersion.
+    const ver = steps[idx(/echo "channel=/)] || '';
     const m = /case "\$INFO" in([\s\S]*?)esac/.exec(ver);
     ok('there is a case on $INFO', !!m);
     // Run the pattern list the way the shell would, against labels both known and not.
@@ -174,10 +189,19 @@ console.log('\n── release.yml: nothing is built from a commit whose suite di
 {
     const t = relJobs.tests;
     ok('release.yml has a `tests` job', !!t);
-    ok('which calls ci.yml, the same workflow a push runs',
-       !!t && /^\.\/\.github\/workflows\/ci\.yml$/.test(t.uses), t && t.uses);
+    // It no longer runs the suite: it requires ci.yml's "CI passed" on the tagged commit.
+    ok('which reads the "CI passed" check runs of the tagged commit',
+       !!t && /commits\/\$\{SHA\}\/check-runs\?check_name=CI%20passed/.test(t.text) && /SHA:\s*\$\{\{\s*github\.sha\s*\}\}/.test(t.text));
+    ok('only GitHub Actions ones', !!t && /select\(\.app\.slug == "github-actions"\)/.test(t.text));
+    ok('and succeeds only on a run whose conclusion is success',
+       !!t && /select\(\.conclusion == "success"\)/.test(t.text) && (t.text.match(/exit 0/g) || []).length === 1);
+    ok('and fails when every run finished without success', !!t && /\$PENDING" -eq 0[\s\S]*?exit 1/.test(t.text));
+    ok('and fails when the commit has no CI run', !!t && /\$TOTAL" -eq 0[\s\S]*?exit 1/.test(t.text));
+    ok('and fails when the wait runs out', !!t && /did not finish within the wait\."\s*\n\s*exit 1/.test(t.text));
+    ok('and does not run the suite itself', !!t && !t.uses && !/tests\/run\.sh/.test(t.text));
     ok('and is not gated or allowed to fail', !!t && !t.jobIf && !t.jobContinue);
-    ok('and asks for no more than read access', !!t && /^    permissions:\s*\n\s+contents:\s*read\s*$/m.test(t.text));
+    ok('and asks for no more than read access to checks',
+       !!t && /^    permissions:\s*\n\s+checks:\s*read\s*\n(?!\s+\w+:\s*write)/m.test(t.text) && !/write/.test(t.text));
     // Pairwise: every other job, so a second job added later cannot build or publish
     // without it. A job that needs `tests` and is also `if: always()` runs after a red
     // suite, so the condition is what is looked for as well as the name.
@@ -201,7 +225,8 @@ console.log('\n── release.yml: nothing is built from a commit whose suite di
 
 console.log('\n── ci.yml: callable, and every check is one of its jobs ────────');
 {
-    ok('ci.yml can be called (workflow_call)', /^  workflow_call:/m.test(ci));
+    // release.yml waits for this exact check name; a called copy would be "<job> / CI passed".
+    ok('ci.yml is no longer called by release.yml (no workflow_call)', !/^  workflow_call:/m.test(ci));
     ok('ci.yml still runs on pull requests and on pushes to main and beta',
        /^  pull_request:/m.test(ci) && /^  push:\s*\n\s+branches:\s*\[main, beta\]/m.test(ci));
     // Every job but the last has a timeout and none can be made optional.
@@ -252,7 +277,7 @@ console.log('\n── ci.yml: every shard, both C# builds, binchk and the static
     ok('and against net10.0 (run.sh cs10)', /- tfm: net10\.0\s*\n\s+section: cs10\s*\n/.test(cs));
     ok('with the section passed to run.sh', /run:\s*bash tests\/run\.sh \$\{\{ matrix\.section \}\}\s*$/m.test(cs));
     ok('and the matrix is only those two', (cs.match(/- tfm:/g) || []).length === 2);
-    ok('ci.yml checks the plugin against newer Jellyfin (binchk)', !!ciJobs.binchk && /run:\s*bash tests\/binchk\.sh\s*$/m.test(ciJobs.binchk.text));
+    ok('ci.yml checks the plugin against newer Jellyfin (binchk)', !!ciJobs.binchk && /run:\s*sh tools\/binchk\.sh\s*$/m.test(ciJobs.binchk.text));
     ok('with the build binchk reads made by itself, not an unbuilt DLL', !!ciJobs.binchk && !/SKIP_BUILD/.test(ciJobs.binchk.text));
     ok('ci.yml validates translations', !!ciJobs.static && /run:\s*node Web\/i18n\/validate\.js\s*$/m.test(ciJobs.static.text));
     ok('ci.yml syntax-checks the client script', !!ciJobs.static && /run:\s*node --check Web\/profiles\.js\s*$/m.test(ciJobs.static.text));

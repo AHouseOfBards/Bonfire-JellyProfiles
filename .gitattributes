@@ -19,3 +19,7 @@
 *.ico binary
 *.zip binary
 *.dll binary
+
+# Copied byte for byte from the Campground kit; converting line endings would change them.
+tools/*.sh -text
+tools/binchk/** -text

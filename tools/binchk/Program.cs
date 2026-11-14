@@ -1,17 +1,16 @@
 // binchk: does every Jellyfin/MediaBrowser member the built plugin references exist in the
-// Jellyfin it will run on?
+// Jellyfin it will run on? (Bonfire's tests/binchk, moved into the kit.)
 //
-// The csproj compiles against 10.11.5 for both frameworks, so a green build says nothing about
-// 12.0, or about a 10.11 patch that moved something (Jellyfin changed RenameUser in one). A
-// missing member does not fail at load: it throws MissingMethodException on the first call, in
-// front of a user. This asks the runtime to resolve every member reference in the plugin's
-// metadata against the other server's assemblies, which is exactly what that first call does.
+// A plugin ships one DLL built against its lowest supported package. A member that moved in a
+// later release doesn't fail at load: it throws MissingMethodException on the first call, in
+// front of a user, and a broad catch can hide it for good (IUserManager.Users, gone in 12.0).
+// This resolves every member reference in the DLL's metadata against another release's
+// assemblies, which is what that first call does.
 //
 //   binchk <plugin.dll> <folder-of-jellyfin-dlls>...   exit 1 if any reference fails to resolve
 //
-// Calls made by reflection (RenameUserCompat, ChangePasswordCompat) have no member reference
-// in the metadata, so they are not checked here and cannot fail it: they are deliberate, they
-// look the member up by name and cope with its absence themselves.
+// Calls made by reflection have no member reference in the metadata, so they aren't checked;
+// code that looks a member up by name has to cope with its absence itself.
 //
 // Only members whose declaring type lives in a Jellyfin/MediaBrowser assembly are judged;
 // the .NET and ASP.NET ones are the runtime's own business.
@@ -24,7 +23,8 @@ using System.Runtime.Loader;
 
 if (args.Length < 2) { Console.Error.WriteLine("usage: binchk <plugin.dll> <dll-folder>..."); return 2; }
 var plugin = Path.GetFullPath(args[0]);
-var dirs = args.Skip(1).Select(Path.GetFullPath).ToArray();
+// The plugin's own folder last, so a DLL shipped beside it (a vendored library) loads, and Jellyfin's copies win.
+var dirs = args.Skip(1).Select(Path.GetFullPath).Append(Path.GetDirectoryName(plugin)!).ToArray();
 
 var alc = new AssemblyLoadContext("binchk");
 alc.Resolving += (ctx, name) =>
@@ -67,11 +67,22 @@ bool Judged(MemberReference mr)
 }
 
 int ok = 0, missing = 0, unjudged = 0;
+var unloadable = new SortedSet<string>(StringComparer.Ordinal);
 foreach (var h in md.MemberReferences)
 {
     var mr = md.GetMemberReference(h);
     if (!Judged(mr)) { unjudged++; continue; }
-    try { module.ResolveMember(MetadataTokens.GetToken(h)); ok++; }
+    try
+    {
+        // A generic instance resolves whoever owns it; only Jellyfin's members count (List<int>::.ctor isn't one).
+        var resolved = module.ResolveMember(MetadataTokens.GetToken(h));
+        if (Ours(resolved?.DeclaringType?.Namespace ?? "")) ok++; else unjudged++;
+    }
+    catch (Exception ex) when (ex is FileNotFoundException or FileLoadException)
+    {
+        // An assembly that won't load leaves every member that mentions it unchecked, so it fails the run.
+        unloadable.Add(ex.Message);
+    }
     catch (Exception ex) when (ex is MissingMemberException or TypeLoadException or MissingMethodException or MissingFieldException)
     {
         // A generic instance of a type we don't own (List<T>) can fail only because the
@@ -83,5 +94,9 @@ foreach (var h in md.MemberReferences)
     }
     catch (Exception) { unjudged++; }
 }
-Console.WriteLine($"  {ok} resolved, {missing} missing, {unjudged} not judged");
-return missing == 0 ? 0 : 1;
+foreach (var u in unloadable) Console.WriteLine("  UNLOADABLE  " + u);
+Console.WriteLine($"  {ok} resolved, {missing} missing, {unjudged} not judged, {unloadable.Count} assemblies unloadable");
+
+// Every plugin calls at least BasePlugin's constructor. Nothing judged means the wrong DLL, not a pass.
+if (ok + missing == 0) { Console.WriteLine("  FAIL  no Jellyfin member references found in " + plugin); return 1; }
+return missing == 0 && unloadable.Count == 0 ? 0 : 1;

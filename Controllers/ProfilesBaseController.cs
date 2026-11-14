@@ -867,7 +867,7 @@ namespace Jellyfin.Profiles.Controllers
         /// Every account, from whichever of <c>GetUsers()</c> or <c>Users</c> this Jellyfin has. For
         /// code outside a controller: <c>userManager.Users</c> compiles against our package and throws
         /// MissingMethodException on 10.11.7+, inside whatever lambda holds it, before its own try
-        /// (tests/binchk.sh found one in LimitsProvider).
+        /// (tools/binchk.sh found one in LimitsProvider).
         /// </summary>
         internal static IEnumerable<Jellyfin.Database.Implementations.Entities.User> AllUsersOf(
             IUserManager userManager, ILogger? logger = null)

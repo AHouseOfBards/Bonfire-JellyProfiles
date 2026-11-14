@@ -209,16 +209,16 @@ const notWired = projects.filter(name => {
 });
 ok('and every one of them reads $(BonfireTfm)', notWired.length === 0, notWired.join(', '));
 
-console.log('\n── a release runs the whole suite before it builds anything ────');
+console.log('\n── a release builds nothing until the whole suite passed on its commit ─');
 
 // release.yml built, packaged and published on a tag with no test run at all: CI had
 // passed on the commit, but a tag can be cut from a commit nobody ran CI on, and the
 // workflow has no way to know. Every step that produces or publishes something has to come
 // after every step that can say no.
 {
-    // The gates now live in ci.yml, which release.yml calls as its `tests` job. A gate is
-    // a ci.yml step that must exist and must not be optional, and a producer is a
-    // release.yml step whose JOB must need `tests`. Job order replaces step order: a job
+    // The gates live in ci.yml, whose "CI passed" release.yml's `tests` job requires on the
+    // tagged commit. A gate is a ci.yml step that must exist and must not be optional, and a
+    // producer is a release.yml step whose JOB must need `tests`. Job order replaces step order: a job
     // that needs another starts only after it has succeeded.
     // Jobs first, so the last step of one job is not read together with the next job's
     // own `if:`.
@@ -230,7 +230,7 @@ console.log('\n── a release runs the whole suite before it builds anything �
         ['the JavaScript shards (run.sh js --shard K/N)', /^\s*run:\s*bash tests\/run\.sh js --shard \$\{\{ matrix\.shard \}\}\/\d+\s*$/m],
         ['the C# harnesses (run.sh <section>)', /^\s*run:\s*bash tests\/run\.sh \$\{\{ matrix\.section \}\}\s*$/m],
         ['node Web/i18n/validate.js', /^\s*run:\s*node Web\/i18n\/validate\.js\s*$/m],
-        ['tests/binchk.sh', /^\s*run:\s*bash tests\/binchk\.sh\s*$/m]
+        ['tools/binchk.sh', /^\s*run:\s*sh tools\/binchk\.sh\s*$/m]
     ];
     const producers = [
         ['the build', /dotnet build/],
@@ -253,7 +253,10 @@ console.log('\n── a release runs the whole suite before it builds anything �
         });
     }
     const testsJob = rjobs.tests || '';
-    ok('release.yml calls ci.yml as its tests job', /^    uses:\s*\.\/\.github\/workflows\/ci\.yml\s*$/m.test(testsJob));
+    ok('release.yml\'s tests job requires "CI passed" on the tagged commit',
+       /check-runs\?check_name=CI%20passed/.test(testsJob) && /github\.sha/.test(testsJob));
+    ok('the name it requires is the name of ci.yml\'s final job',
+       /^  passed:\s*\n    name:\s*CI passed\s*$/m.test(ciCode));
     ok('and that job is not gated by an if: or allowed to fail', testsJob !== '' && !/^    (if|continue-on-error):/m.test(testsJob));
     // Pairwise, one producer at a time: "the tests come first" as a single aggregate would
     // pass with one producer in the right place and two outside it.

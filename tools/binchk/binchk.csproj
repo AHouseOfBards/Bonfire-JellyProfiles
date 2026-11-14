@@ -8,4 +8,7 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup><Compile Include="Program.cs" /></ItemGroup>
+  <!-- Jellyfin runs on the ASP.NET shared framework, so plugins reference it; without it here those members can't
+       resolve and binchk fails them as unloadable. -->
+  <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /></ItemGroup>
 </Project>
