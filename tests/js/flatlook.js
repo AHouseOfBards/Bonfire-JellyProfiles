@@ -191,7 +191,7 @@ function shadowCosts(value) {
     if (/^none$/i.test(value)) return false;
     return splitTop(value).some(s => {
         // A shadow that is only a variable is unknown. A variable after literal offsets is a
-        // colour ("0 0 0 2px var(--jpf-accent)"), so the numbers decide.
+        // color ("0 0 0 2px var(--jpf-accent)"), so the numbers decide.
         if (/^var\([^)]*\)$/.test(s)) return true;
         s = s.replace(/var\([^)]*\)/g, ' ');
         const nums = (s.replace(/rgba?\([^)]*\)|hsla?\([^)]*\)|#[0-9a-f]+/gi, ' ').match(/-?[\d.]+(?:px|rem|em)?/g) || []);

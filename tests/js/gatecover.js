@@ -611,7 +611,7 @@ console.log('\n── 4. The cover always comes down ─────────
 }
 {
     // The profile list comes back before the custom themes. The gate used to fade in at once
-    // in Bonfire's colours without the household's block; it now waits for that answer.
+    // in Bonfire's colors without the household's block; it now waits for that answer.
     const mine = JSON.parse(fs.readFileSync(path.join(L.ROOT, 'Web', 'themes', 'harvest.json'), 'utf8'));
     mine.id = 'mine';
     mine.name = { text: 'Mine' };
@@ -674,7 +674,7 @@ console.log('\n── 5. One rule, in the gate\'s colour ───────�
     const gate = (/#profiles-gate-overlay\s*\{[^}]*?background:\s*([^;]+);/.exec(css) || [])[1] || '';
     // Two rules. With a theme on the page the cover is its --jpf-gate-bg, which is what the
     // gate draws, so dropping the cover shows nothing. With none it is jellyfin-web's plain
-    // page colour; until 1.9.0.4 it was Bonfire's gradient, which a household with another
+    // page color; until 1.9.0.4 it was Bonfire's gradient, which a household with another
     // theme saw, empty, before its own.
     const rules = headRule.split('}').filter(Boolean).map(r => {
         const at = r.indexOf('{');
