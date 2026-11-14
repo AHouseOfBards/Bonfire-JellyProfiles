@@ -279,7 +279,7 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// A profile picture as another household may see it. A picture can be any http(s)
-        /// address, and the gate draws it straight from there — so a linked household could
+        /// address, and the gate draws it straight from there, so a linked household could
         /// point one at a server of its own and learn the address, browser and hours of
         /// everyone who opened the switcher. Pictures stored on this server are unaffected;
         /// an outside address is only drawn for its own household.
@@ -292,13 +292,13 @@ namespace Jellyfin.Profiles.Controllers
                 : null;
 
         /// <summary>
-        /// Everything the profile form needs that is the same for every profile: the libraries
-        /// the caller can give one, the rating limits, the avatar library and the time zones.
-        /// One request where the form used to make four. Each part is built by the method the
-        /// four old routes shared, so none of it is filtered twice.
+        /// Everything the profile form needs that is the same for every profile: the
+        /// libraries the caller can give one, the rating limits, the avatar library and
+        /// the time zones. One request where the form used to make four. Each part is
+        /// built by the method the four old routes shared, so none is filtered twice.
         /// <para>
-        /// An administrator's API key may read the time zones, and that is all it may read
-        /// here: the other three parts are null for a key, as their routes were 401.</para>
+        /// An administrator's API key may read the time zones and nothing else here: the
+        /// other three parts are null for a key, as their routes were 401.</para>
         /// </summary>
         [HttpGet("form-options")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -374,11 +374,11 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// The rating limits the profile form offers: the server's Preferred metadata
-        /// country's own ratings, one per age. See <see cref="RatingSystems"/> for why this
-        /// does not just pass /Localization/ParentalRatings through.
+        /// country's own ratings, one per age. See <see cref="RatingSystems"/> for why
+        /// this does not pass /Localization/ParentalRatings through.
         /// <para>
-        /// The two services are asked for here rather than injected, so the controller's
-        /// constructor — which every harness builds — does not change for one read-only
+        /// The two services are asked for here, not injected, so the controller's
+        /// constructor (which every harness builds) does not change for one read-only
         /// route, and a server that cannot supply one still answers.
         /// </para>
         /// </summary>
@@ -656,9 +656,10 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// The letter shown on a profile that has no picture: the first text element, upper-cased
-        /// without regard to the server's culture. Substring(0, 1) cut a surrogate pair in half
-        /// and ToUpper() followed the culture, so a Turkish server turned "i" into a dotted capital (r2-11-08).
+        /// The letter shown on a profile with no picture: the first text element,
+        /// upper-cased without regard to the server's culture. Substring(0, 1) cut a
+        /// surrogate pair in half and ToUpper() followed the culture, so a Turkish server
+        /// turned "i" into a dotted capital (r2-11-08).
         /// </summary>
         internal static string AvatarInitialOf(string? name, string whenEmpty) =>
             string.IsNullOrEmpty(name)
@@ -1321,12 +1322,12 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// How the client script is reaching the browser, and whether the request-pipeline hook
-        /// is doing anything.
+        /// How the client script is reaching the browser, and whether the request-pipeline
+        /// hook is doing anything.
         /// <para>
-        /// Reported next to every injection status because from 1.4.1 an index.html with no tag
-        /// in it is no longer necessarily a failure — it is the expected state when the plugin
-        /// is injecting on the fly.
+        /// Reported next to every injection status because, from 1.4.1, an index.html with
+        /// no tag in it is the expected state when the plugin injects on the fly, not a
+        /// failure.
         /// </para>
         /// </summary>
         private static object DescribeInjectionMechanism()
@@ -1352,8 +1353,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Re-runs the client-script injection on demand. Lets an administrator apply a file
-        /// permission fix and click "Retry" instead of restarting the whole Jellyfin server.
+        /// Re-runs the client-script injection on demand, so an administrator can apply a
+        /// file permission fix and click "Retry" instead of restarting Jellyfin.
         /// </summary>
         [HttpPost("admin/retry-injection")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -1382,11 +1383,11 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Plugin version for display and cache-busting. Prefers the informational version,
-        /// which carries any pre-release label (e.g. "1.2.7-beta") that the numeric assembly
-        /// version cannot represent — Jellyfin requires the latter to be purely numeric.
-        /// Falls back to the numeric version so this can never go stale the way a hardcoded
-        /// literal does.
+        /// Plugin version for display and cache-busting. Prefers the informational
+        /// version, which carries a pre-release label (e.g. "1.2.7-beta") that the numeric
+        /// assembly version cannot (Jellyfin requires the latter to be purely numeric).
+        /// Falls back to the numeric version, so it cannot go stale like a hardcoded
+        /// literal.
         /// </summary>
         private static string GetPluginVersion()
         {
@@ -1446,20 +1447,19 @@ namespace Jellyfin.Profiles.Controllers
 
 
         /// <summary>
-        /// Lists, and optionally removes, plugin state that points at Jellyfin users who no
-        /// longer exist.
+        /// Lists, and optionally removes, plugin state that points at Jellyfin users who
+        /// no longer exist.
         /// <para>
-        /// A profile deleted through Jellyfin's own user administration rather than through
-        /// Bonfire leaves its mapping behind, and nothing ever collects it. The leftovers are
-        /// not inert: a mapping still counts against its master's profile limit, still appears
-        /// in the household's device-scoping set, and still names its master — so a sub-profile
-        /// whose <em>master</em> was deleted is an orphan that can never be reached or removed
-        /// from the interface.
+        /// A profile deleted through Jellyfin's own user administration, not Bonfire,
+        /// leaves its mapping behind and nothing collects it. The leftovers are not
+        /// inert: a mapping still counts against its master's profile limit, still
+        /// appears in the household's device-scoping set, and still names its master. A
+        /// sub-profile whose <em>master</em> was deleted is an orphan that can never be
+        /// reached or removed from the interface.
         /// </para>
         /// <para>
-        /// <c>apply=false</c> is the default deliberately. This deletes configuration and the
-        /// administrator should see the list first; the dashboard shows what would go and asks
-        /// before sending the second call.
+        /// <c>apply=false</c> is the default on purpose: this deletes configuration, so
+        /// the dashboard shows what would go and asks before sending the second call.
         /// </para>
         /// </summary>
         [HttpPost("admin/cleanup-orphans")]
@@ -1621,13 +1621,13 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Live Jellyfin sessions belonging to Bonfire profiles, so an administrator can see
-        /// who is signed in where.
+        /// Live Jellyfin sessions belonging to Bonfire profiles, so an administrator can
+        /// see who is signed in where.
         /// <para>
-        /// Jellyfin's own Devices page lists these too, but it lists them as bare usernames
-        /// with no idea that half of them are sub-profiles of one household — and sub-profiles
-        /// are hidden users, so the page reads as a list of strangers. Here each session is
-        /// named against the account it belongs to.
+        /// Jellyfin's own Devices page lists these as bare usernames with no sign that
+        /// half of them are sub-profiles of one household, and sub-profiles are hidden
+        /// users, so it reads as a list of strangers. Here each session is named against
+        /// the account it belongs to.
         /// </para>
         /// </summary>
         [HttpGet("admin/sessions")]
@@ -1691,11 +1691,10 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// Signs one device out, revoking its token.
         /// <para>
-        /// Routed through <c>IDeviceManager</c> rather than <c>ISessionManager.Logout</c>:
-        /// a <c>SessionInfo</c> does not carry its access token, so the device row for that
-        /// (user, device) pair is what identifies the credential to revoke. Both are required
-        /// — a device id alone would sign every profile on that television out at once, and
-        /// the point of this is to end one session.
+        /// Routed through <c>IDeviceManager</c>, not <c>ISessionManager.Logout</c>: a
+        /// <c>SessionInfo</c> does not carry its access token, so the device row for that
+        /// (user, device) pair identifies the credential to revoke. Both are required: a
+        /// device id alone would sign every profile on that television out at once.
         /// </para>
         /// </summary>
         [HttpPost("admin/sessions/sign-out")]
@@ -1731,19 +1730,18 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// The whole plugin configuration as JSON, for keeping a copy of.
+        /// The whole plugin configuration as JSON, for keeping a copy.
         /// <para>
         /// Every profile, PIN, Bonfire, device whitelist and avatar record lives in one
-        /// <c>PluginConfiguration.xml</c> with nothing behind it. A bad save, a disk problem
-        /// or an experiment gone wrong flattens the household's entire setup, and rebuilding
-        /// it by hand means knowing every PIN and every library tick that was ever set.
+        /// <c>PluginConfiguration.xml</c> with nothing behind it. A bad save or disk
+        /// problem flattens the household's whole setup, and rebuilding it by hand means
+        /// knowing every PIN and library tick ever set.
         /// </para>
         /// <para>
-        /// PIN hashes are included, because a backup that cannot restore a working PIN is not
-        /// a backup. They are PBKDF2-SHA256 with a per-PIN salt, so the file is no more
-        /// sensitive than the configuration it came from — but it is exactly as sensitive as
-        /// that, and it is a file an administrator can now put somewhere careless. Said plainly
-        /// in the dashboard rather than left to be discovered.
+        /// PIN hashes are included, because a backup that cannot restore a working PIN is
+        /// not a backup. They are PBKDF2-SHA256 with a per-PIN salt, so the file is as
+        /// sensitive as the configuration it came from, and an administrator can put it
+        /// somewhere careless. The dashboard says so.
         /// </para>
         /// </summary>
         [HttpGet("admin/config/export")]
@@ -1795,17 +1793,16 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// Replaces the plugin configuration with a previously exported one.
         /// <para>
-        /// Deliberately all-or-nothing. A merge would have to decide what to do about a
-        /// profile that exists in both copies with different PINs, different libraries and a
-        /// different master, and every answer to that is a guess about what the administrator
-        /// meant. Replacing is the thing they asked for and the thing they can predict.
+        /// All-or-nothing on purpose. A merge would have to decide what to do about a
+        /// profile in both copies with different PINs, libraries and master, and every
+        /// answer is a guess about what the administrator meant. Replacing is what they
+        /// asked for and what they can predict.
         /// </para>
         /// <para>
-        /// What it will not do is leave Jellyfin's own users half-attached: the import drops
-        /// any mapping naming a user this server does not have, so restoring a backup onto a
-        /// different server produces a smaller, consistent configuration rather than a set of
-        /// orphans. Those are reported back, because silently dropping somebody's profile is
-        /// worse than refusing.
+        /// It does not leave Jellyfin's own users half-attached: the import drops any
+        /// mapping naming a user this server does not have, so restoring onto a different
+        /// server gives a smaller, consistent configuration, not a set of orphans. Those
+        /// are reported back, because silently dropping a profile is worse than refusing.
         /// </para>
         /// </summary>
         [HttpPost("admin/config/import")]
@@ -2146,11 +2143,12 @@ namespace Jellyfin.Profiles.Controllers
         };
 
         /// <summary>
-        /// The only settings an import leaves as the server has them. Short on purpose: the
-        /// default is that a setting is restored.
+        /// The only settings an import leaves as the server has them. Short on purpose:
+        /// the default is that a setting is restored.
         /// <para><c>CrossHouseholdEntries</c> records which devices came in from outside a
         /// household, with the tokens issued to them: the state of this server's sign-ins,
-        /// not a setting, and a backup of another day's would name devices that are gone.</para>
+        /// not a setting, and a backup of another day's would name devices that are
+        /// gone.</para>
         /// </summary>
         private static readonly HashSet<string> ImportNotRestored = new(StringComparer.Ordinal)
         {
@@ -2158,9 +2156,9 @@ namespace Jellyfin.Profiles.Controllers
         };
 
         /// <summary>
-        /// Null for an acceptable theme: null or "" (follow the server default) or a known id.
-        /// An unknown one is refused rather than quietly stored as the default, because a
-        /// typo that saves as "default" looks exactly like the setting not taking.
+        /// Null for an acceptable theme: null or "" (follow the server default) or a known
+        /// id. An unknown one is refused, not stored as the default, because a typo that
+        /// saves as "default" looks like the setting not taking.
         /// </summary>
         internal static string? ValidateTheme(string? theme, PluginConfiguration config) =>
             string.IsNullOrWhiteSpace(theme) || Themes.IsKnown(theme, config)
@@ -2624,9 +2622,10 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Takes back a picture this request saved, when the rest of the request was refused or
-        /// failed. The previous picture was replaced when the new one was placed, so what is
-        /// left is no picture rather than a half-applied save with a file nothing points to.
+        /// Takes back a picture this request saved, when the rest of the request was
+        /// refused or failed. The previous picture was replaced when the new one was
+        /// placed, so what is left is no picture, not a half-applied save with a file
+        /// nothing points to.
         /// </summary>
         private void DiscardNewImage(Guid profileId, bool written)
         {
@@ -2637,8 +2636,8 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// Script served when the emergency disable is active. It only undoes what a
-        /// previously loaded copy may have left behind — the overlay, the scroll lock, the
-        /// injected button — and then does nothing at all.
+        /// previously loaded copy may have left (the overlay, the scroll lock, the
+        /// injected button) and then does nothing.
         /// </summary>
         private const string InertProfilesJs =
             "/* Bonfire: emergency disable active. Restart Jellyfin to restore the plugin. */\n" +
@@ -2722,9 +2721,10 @@ namespace Jellyfin.Profiles.Controllers
         private static string? CachedOffProfilesJs;
 
         /// <summary>
-        /// Tells the script that Bonfire is turned off: it then takes down anything an earlier
-        /// copy left, and draws nothing. An exact literal, like <see cref="PublishLocales"/>;
-        /// tests/js/onoff.js fails if the marker is not in profiles.js.
+        /// Tells the script that Bonfire is turned off: it then takes down anything an
+        /// earlier copy left and draws nothing. An exact literal, like
+        /// <see cref="PublishLocales"/>; tests/js/onoff.js fails if the marker is not in
+        /// profiles.js.
         /// </summary>
         internal static string PublishOff(string js)
             => js.Replace("const BONFIRE_OFF = false; // __BONFIRE_OFF__",
@@ -2734,16 +2734,16 @@ namespace Jellyfin.Profiles.Controllers
         /// Fills in the client's list of available translations as the script is served.
         /// <para>
         /// profiles.js ships with an empty list and a marker comment. Rewriting it here
-        /// means the browser knows which languages exist without a request that every
-        /// English reader would also pay for, and — the point of it — without a
-        /// contributor having to edit JavaScript to register a file they just added.
+        /// means the browser knows which languages exist without a request every English
+        /// reader would also pay for, and without a contributor editing JavaScript to
+        /// register a file they added.
         /// </para>
         /// <para>
         /// A plain string replace on an exact literal, not a regex over the whole file:
-        /// this runs on the script every client loads, and the failure mode of a clever
-        /// pattern here is a corrupted script rather than a missing translation. If the
-        /// marker is ever edited away the replace simply does nothing, the list stays
-        /// empty, and every client keeps rendering English.
+        /// this runs on the script every client loads, and a clever pattern that fails
+        /// corrupts the script instead of dropping a translation. If the marker is edited
+        /// away the replace does nothing, the list stays empty, and every client renders
+        /// English.
         /// </para>
         /// </summary>
         internal static string PublishLocales(string js)
@@ -2772,12 +2772,11 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// Locale codes with a translation file embedded in the assembly, discovered from
-        /// the resource names rather than maintained as a list.
+        /// the resource names rather than kept as a list.
         /// <para>
-        /// A hand-kept list is a second place to edit and therefore a place to forget: a
-        /// contributor who added the file and not the entry got a file that was shipped,
-        /// served, and never requested — working code that does nothing, with no error to
-        /// point at it.
+        /// A hand-kept list is a second place to edit and forget: a contributor who added
+        /// the file and not the entry got a file that shipped, was served, and was never
+        /// requested, with no error to point at it.
         /// </para>
         /// </summary>
         internal static IReadOnlyCollection<string> SupportedI18nLocales => EmbeddedLocales.Value;
@@ -2786,27 +2785,26 @@ namespace Jellyfin.Profiles.Controllers
         /// Splices <c>Web/styles.css</c> into the served script.
         /// <para>
         /// The stylesheet used to be a 1,400-line template literal inside
-        /// <c>injectStyles</c>. In 1.5.2 a code comment in it contained two backticks; they
-        /// closed and reopened the literal, the file stayed valid JavaScript so
+        /// <c>injectStyles</c>. In 1.5.2 a code comment in it contained two backticks that
+        /// closed and reopened the literal; the file stayed valid JavaScript so
         /// <c>node --check</c> passed, and at runtime <c>injectStyles</c> threw three calls
         /// into <c>init()</c> and took the nine steps after it down. 1.5.2 and 1.5.3-beta
-        /// shipped dead. The stylesheet is a real .css file now, so there is no host string
-        /// left for its contents to terminate.
+        /// shipped dead. The stylesheet is a .css file now, so there is no host string for
+        /// its contents to terminate.
         /// </para>
         /// <para>
-        /// Encoded as a JSON string literal rather than interpolated. That is what makes the
-        /// guarantee hold in both directions: JSON escaping is total, so a quote, a
-        /// backslash, a newline or a backtick in the CSS is data, not syntax. The default
-        /// encoder also escapes every non-ASCII character to <c>\uXXXX</c>, which
-        /// incidentally removes U+2028 and U+2029 — legal in a JavaScript string only since
-        /// ES2019, and a syntax error on the Chromium 68 televisions this has to run on.
+        /// Encoded as a JSON string literal, not interpolated. JSON escaping is total, so
+        /// a quote, backslash, newline or backtick in the CSS is data, not syntax. The
+        /// default encoder also escapes every non-ASCII character to <c>\uXXXX</c>, which
+        /// removes U+2028 and U+2029: legal in a JavaScript string only since ES2019, and
+        /// a syntax error on the Chromium 68 televisions this has to run on.
         /// </para>
         /// <para>
-        /// Same shape as <see cref="PublishLocales"/>: a plain replace on an exact literal.
-        /// If the marker is ever edited away, or the stylesheet resource is missing from the
-        /// build, this returns the script unchanged without a log line, and that script is
-        /// cached until restart: the plugin renders unstyled. Visible on the first page load,
-        /// unlike a literal that truncates in silence, but not announced by the server.
+        /// Same shape as <see cref="PublishLocales"/>: a plain replace on an exact
+        /// literal. If the marker is edited away, or the stylesheet resource is missing
+        /// from the build, this returns the script unchanged without a log line, and that
+        /// script is cached until restart: the plugin renders unstyled. Visible on the
+        /// first page load, but not announced by the server.
         /// </para>
         /// </summary>
         internal static string PublishStyles(string js)
@@ -2824,10 +2822,10 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Fills in the themes, the same way as <see cref="PublishStyles"/>: a plain replace
-        /// on an exact literal, with JSON that <see cref="Configuration.ThemeCatalog.ClientPayload"/>
-        /// has already escaped for a script. If the marker is edited away every screen draws
-        /// in the stylesheet's base tokens, which is wrong but readable.
+        /// Fills in the themes, like <see cref="PublishStyles"/>: a plain replace on an
+        /// exact literal, with JSON that <see cref="Configuration.ThemeCatalog.ClientPayload"/>
+        /// has already escaped for a script. If the marker is edited away every screen
+        /// draws in the stylesheet's base tokens, which is wrong but readable.
         /// </summary>
         internal static string PublishThemes(string js)
         {
@@ -2881,21 +2879,20 @@ namespace Jellyfin.Profiles.Controllers
         private static readonly ConcurrentDictionary<string, string?> CachedI18nJson = new();
 
         /// <summary>
-        /// The embedded translation for <paramref name="code"/>, or null if it could not be
-        /// read. Loaded once per app lifetime, the same reasoning as CachedProfilesJs — but
+        /// The embedded translation for <paramref name="code"/>, or null if it could not
+        /// be read. Loaded once per app lifetime, like CachedProfilesJs, but
         /// <b>only a successful read is remembered</b>.
         /// <para>
-        /// This was <c>GetOrAdd</c> with a factory that returned null on failure, and GetOrAdd
-        /// stores whatever the factory returns. One read that came back empty, for any reason,
-        /// put a permanent null in the dictionary: every later request for that language took
-        /// the cached null and answered without going near the assembly again. The language
-        /// was gone until the server restarted, and because <c>t()</c> falls back to English
-        /// per key, what a household saw was the interface quietly reverting to English with
-        /// nothing logged to say why.
+        /// This was <c>GetOrAdd</c> with a factory that returned null on failure, and
+        /// GetOrAdd stores whatever the factory returns. One empty read put a permanent
+        /// null in the dictionary: every later request for that language got the cached
+        /// null without going near the assembly again. The language was gone until
+        /// restart, and because <c>t()</c> falls back to English per key, a household saw
+        /// the interface quietly revert to English with nothing logged.
         /// </para>
         /// <para>
-        /// A read that throws is not cached either — that is precisely the transient case that
-        /// has to be retried rather than remembered.
+        /// A read that throws is not cached either: that is the transient case that has
+        /// to be retried.
         /// </para>
         /// </summary>
         internal static string? ReadLocaleJson(string code, ILogger? logger = null)
@@ -2944,9 +2941,9 @@ namespace Jellyfin.Profiles.Controllers
         /// everything else.
         /// <para>
         /// Both halves live in one file per language, so adding a language is still one
-        /// file. They are served apart because the household half is fetched by every
-        /// television on the server, and the settings page's few hundred strings are no
-        /// use to any of them.
+        /// file. They are served apart because every television on the server fetches the
+        /// household half, and the settings page's few hundred strings are no use to any
+        /// of them.
         /// </para>
         /// <para>
         /// Null when the file could not be read or is not a JSON object; like
@@ -3471,9 +3468,9 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// The steps to offer this main account, in order. A step whose feature is off is
-        /// left out, not shown disabled: the theme step needs profiles to be allowed a theme,
-        /// and a choice of at least two (every built-in hidden but Bonfire, and no custom
-        /// theme, is one card with nothing to pick).
+        /// left out, not shown disabled: the theme step needs profiles to be allowed a
+        /// theme, and a choice of at least two (every built-in hidden but Bonfire, and no
+        /// custom theme, is one card with nothing to pick).
         /// <c>Done</c> marks what is already true, so a client can pass over it.
         /// </summary>
         internal static List<OnboardingStepInfo> OnboardingStepsFor(Guid mainId, PluginConfiguration config)
@@ -3639,13 +3636,14 @@ namespace Jellyfin.Profiles.Controllers
         // ── The main account's own settings ─────────────────────────────────────────
 
         /// <summary>
-        /// Checks the main account's PIN and nothing else. For a client about to manage the
-        /// household, so it can ask for the PIN once and send it with what follows.
+        /// Checks the main account's PIN and nothing else, for a client about to manage the
+        /// household so it can ask for the PIN once and send it with what follows.
         /// <para>
         /// /verify-pin is not this. It answers "may I open this profile", so it says yes
         /// without a PIN wherever opening needs none: the home network, or a main account
-        /// that doesn't ask. A client that took that yes as proof of the PIN stored whatever
-        /// had been typed, and every change after it was refused as a wrong PIN.</para>
+        /// that doesn't ask. A client that took that yes as proof of the PIN stored
+        /// whatever had been typed, and every change after it was refused as a wrong
+        /// PIN.</para>
         /// </summary>
         [HttpPost("account/verify-pin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -3672,7 +3670,7 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// The main account's own settings: its PIN, and whether opening it asks for one.
         /// <para>
-        /// The full profile update can set both too, but it also writes the colour and name
+        /// The full profile update can set both too, but it also writes the color and name
         /// it is sent, so a prompt that only wants a PIN would have to send the whole form
         /// back to avoid resetting them.</para>
         /// </summary>
@@ -3756,14 +3754,14 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Lists the pictures in a folder on the server, so an administrator with a prepared
-        /// set can import it instead of uploading file by file (GitHub issue #14).
+        /// Lists the pictures in a folder on the server, so an administrator with a
+        /// prepared set can import it instead of uploading file by file (GitHub issue #14).
         /// <para>
         /// Listing and reading are split from importing on purpose. The plugin has no
-        /// server-side image library and deliberately keeps it that way — every resize in
-        /// Bonfire happens on a canvas in the browser. So the browser reads each file through
-        /// <c>admin/avatars/scan/file</c>, runs it through the same pipeline an upload uses,
-        /// and posts the result back to <c>admin/avatars</c>. The server never decodes an
+        /// server-side image library and keeps it that way: every resize happens on a
+        /// canvas in the browser. So the browser reads each file through
+        /// <c>admin/avatars/scan/file</c>, runs it through the same pipeline an upload
+        /// uses, and posts the result to <c>admin/avatars</c>. The server never decodes an
         /// image, and one code path produces every stored avatar.
         /// </para>
         /// </summary>
@@ -3887,10 +3885,10 @@ namespace Jellyfin.Profiles.Controllers
         // and source of truth behind that.
 
         /// <summary>
-        /// A profile's artwork choices: the caller's own, or with <c>profileId</c> one profile's
-        /// for the edit form, which is restricted to that profile's master, the same rule that
-        /// governs every other profile setting. Only entries that change something are
-        /// returned — an untouched library inherits Jellyfin's artwork and is simply absent.
+        /// A profile's artwork choices: the caller's own, or with <c>profileId</c> one
+        /// profile's for the edit form, restricted to that profile's master like every
+        /// other profile setting. Only entries that change something are returned; an
+        /// untouched library inherits Jellyfin's artwork and is absent.
         /// </summary>
         [HttpGet("library-artwork")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -4080,7 +4078,7 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Only the master of a profile may read or change its settings — the same rule the
+        /// Only the master of a profile may read or change its settings, the same rule the
         /// create, update and delete endpoints apply. A master is its own owner.
         /// </summary>
         private ActionResult? DenyUnlessProfileOwner(PluginConfiguration config, Guid callerId, Guid profileId)
@@ -4353,17 +4351,17 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Folds one device record into another, for the case the device list cannot detect on
+        /// Folds one device record into another, for what the device list cannot detect on
         /// its own: one physical machine holding two device ids.
         /// <para>
-        /// Jellyfin's web client stores its device id in <c>localStorage</c>, which is scoped
-        /// to the origin — so one computer reaching the server by LAN address and by domain
-        /// name is two devices as far as any client-supplied id can tell, and so is a new
+        /// Jellyfin's web client stores its device id in <c>localStorage</c>, scoped to the
+        /// origin, so one computer reaching the server by LAN address and by domain name
+        /// is two devices as far as any client-supplied id can tell, and so is a new
         /// browser profile or a reinstalled app. Nothing in the request distinguishes that
-        /// from two genuinely different machines, and guessing wrong widens a whitelist. The
-        /// plugin merges by itself only what DeviceRegistry.MergeSameDevices can show (an id
-        /// derived from another, or an old id silent since the new one appeared); two ids in
-        /// use side by side need the administrator to say so, and this is how.
+        /// from two different machines, and guessing wrong widens a whitelist. The plugin
+        /// merges by itself only what DeviceRegistry.MergeSameDevices can show (an id
+        /// derived from another, or an old id silent since the new one appeared); two ids
+        /// in use side by side need the administrator to say so, and this is how.
         /// </para>
         /// </summary>
         [HttpPost("devices/merge")]
@@ -4413,15 +4411,15 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Finds device records that are almost certainly one machine, and — only when asked
-        /// twice — folds each group into its most recently seen member.
+        /// Finds device records that are almost certainly one machine and, only when asked
+        /// twice, folds each group into its most recently seen member.
         /// <para>
-        /// Merging one pair at a time is fine for a stray duplicate and useless for the case
-        /// that actually happens: one browser that has minted a new id every time its site
-        /// data was cleared, leaving four or five identical-looking rows to work through.
+        /// Merging one pair at a time suits a stray duplicate and not the usual case: one
+        /// browser that minted a new id each time its site data was cleared, leaving four
+        /// or five identical-looking rows.
         /// </para>
         /// <para>
-        /// <c>apply=false</c> is the default. This rewrites device whitelists and there is no
+        /// <c>apply=false</c> is the default. This rewrites device whitelists with no
         /// undo, so the picker shows what would be merged and asks first.
         /// </para>
         /// </summary>
@@ -4529,12 +4527,11 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// Serves a profile's stored avatar image.
         ///
-        /// Intentionally unauthenticated: the URL is used directly as an &lt;img src&gt;, and
-        /// browsers do not attach the Authorization header to image requests. This mirrors
-        /// how Jellyfin serves its own user images (/Users/{id}/Images/Primary) — the GUID
-        /// is the capability, and the content is a low-sensitivity avatar.
+        /// Unauthenticated on purpose: the URL is used directly as an &lt;img src&gt;, and
+        /// browsers do not attach the Authorization header to image requests. Same as how
+        /// Jellyfin serves its own user images (/Users/{id}/Images/Primary): the GUID is
+        /// the capability, and the content is a low-sensitivity avatar.
         /// </summary>
-        /// <param name="size">Pass <c>thumb</c> for the small variant used by grids.</param>
         [HttpGet("image/{profileId}")]
         public ActionResult GetProfileImage(Guid profileId, [FromQuery] string? size = null)
         {
@@ -4595,10 +4592,9 @@ namespace Jellyfin.Profiles.Controllers
         /// Validates an emergency disable code and, if it matches, disables the plugin's
         /// client script until the server restarts.
         /// <para>
-        /// Deliberately unauthenticated. The whole point is to work when the interface is
-        /// broken — an administrator locked behind a failed switcher may be holding a
-        /// sub-profile's token, or none at all, so requiring admin rights here would make the
-        /// feature useless exactly when it is needed.
+        /// Unauthenticated on purpose. It has to work when the interface is broken: an
+        /// administrator locked behind a failed switcher may hold a sub-profile's token or
+        /// none, so requiring admin rights would make it useless when it is needed.
         /// </para>
         /// </summary>
         [HttpPost("panic")]
@@ -4665,14 +4661,14 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Whether the plugin is currently disabled. Unauthenticated and deliberately
-        /// minimal: it reveals only what is already obvious from the client's behaviour, and
-        /// nothing about whether a code is configured.
+        /// Whether the plugin is currently disabled. Unauthenticated and minimal: it
+        /// reveals only what is obvious from the client's behavior, and nothing about
+        /// whether a code is configured.
         /// <para>
-        /// Exists because profiles.js is served with a five-minute cache. A browser reloading
-        /// inside that window can re-run the real script from cache after a disable, so the
-        /// script asks this on startup whenever it finds its own local disable marker — and
-        /// clears the marker when the server says the plugin is back.
+        /// Exists because profiles.js is served with a five-minute cache. A browser
+        /// reloading inside that window can re-run the real script from cache after a
+        /// disable, so the script asks this on startup when it finds its own local disable
+        /// marker, and clears the marker when the server says the plugin is back.
         /// </para>
         /// </summary>
         [HttpGet("panic-state")]
@@ -4686,10 +4682,10 @@ namespace Jellyfin.Profiles.Controllers
         // ── Announcements ───────────────────────────────────────────────────────────
 
         /// <summary>
-        /// The announcements showing now, for the profile screen; the <c>announcements</c> part
-        /// of <c>/startup</c>, which is signed in, not anonymous: a message an administrator
-        /// writes for the household ("down for an upgrade at 2") is not something to publish
-        /// to anyone who finds the server's address.
+        /// The announcements showing now, for the profile screen; the <c>announcements</c>
+        /// part of <c>/startup</c>. Signed in, not anonymous: a message an administrator
+        /// writes for the household ("down for an upgrade at 2") is not for anyone who
+        /// finds the server's address.
         /// </summary>
         private object BuildAnnouncements()
         {
@@ -4810,15 +4806,15 @@ namespace Jellyfin.Profiles.Controllers
         /// Turns a profile into an ordinary Jellyfin account of its own: a teenager moving
         /// out, a lodger who was given a profile to start with.
         /// <para>
-        /// <b>It keeps what it can watch.</b> The master's policy is applied once more, so the
-        /// account starts with exactly the restrictions it had as a profile, and from then on
-        /// nothing is inherited. Loosening them is the administrator's call, in Dashboard →
-        /// Users, like any other account.
+        /// <b>It keeps what it can watch.</b> The master's policy is applied once more, so
+        /// the account starts with the restrictions it had as a profile, and nothing is
+        /// inherited after that. Loosening them is the administrator's call, in Dashboard
+        /// → Users, like any other account.
         /// </para>
         /// <para>
-        /// <b>Its own sign-in.</b> A profile is bound to Bonfire's PIN provider or carries a
-        /// random password nobody knows. Leaving it like that would be an account nobody can
-        /// open, so a password is required, and the account is put on the provider its
+        /// <b>Its own sign-in.</b> A profile is bound to Bonfire's PIN provider or carries
+        /// a random password nobody knows. Left like that it would be an account nobody
+        /// can open, so a password is required, and the account is put on the provider its
         /// master signs in with (never Bonfire's).
         /// </para>
         /// <para>
@@ -4826,8 +4822,8 @@ namespace Jellyfin.Profiles.Controllers
         /// ended, so the next sign-in is with the new password.
         /// </para>
         /// <para>
-        /// Administrator only: it creates a sign-in for the server, which is not a household's
-        /// decision. One way: there is no route back to being a profile.
+        /// Administrator only: it creates a sign-in for the server, which is not a
+        /// household's decision. One way: there is no route back to being a profile.
         /// </para>
         /// </summary>
         [HttpPost("admin/standalone")]
@@ -4892,10 +4888,11 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Takes a profile out of its household and leaves its account standing on its own, with
-        /// a sign-in of its own: the steps of <see cref="MakeStandalone"/>, shared with deleting a
-        /// profile that was an account (R-1134). The caller has checked who may do it, and that
-        /// the new username, if any, is free. Returns an error and the status to send, or none.
+        /// Takes a profile out of its household and leaves its account standing on its
+        /// own, with a sign-in of its own: the steps of <see cref="MakeStandalone"/>,
+        /// shared with deleting a profile that was an account (R-1134). The caller has
+        /// checked who may do it, and that the new username, if any, is free. Returns an
+        /// error and the status to send, or none.
         /// </summary>
         private async Task<(int Status, string? Error, Jellyfin.Database.Implementations.Entities.User User)> ReleaseProfileAsAccountAsync(
             ProfileMapping mapping, Jellyfin.Database.Implementations.Entities.User user, string password, string username)
@@ -5032,10 +5029,10 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Copies a former profile's stored picture to the Jellyfin user's own avatar, the way
-        /// Jellyfin's own upload does: a file under the user configuration directory, named by
-        /// the <c>User.ProfileImage</c> row. Never throws; a failure is logged and the account
-        /// simply has no picture, as it would have before.
+        /// Copies a former profile's stored picture to the Jellyfin user's own avatar, as
+        /// Jellyfin's own upload does: a file under the user configuration directory,
+        /// named by the <c>User.ProfileImage</c> row. Never throws; a failure is logged
+        /// and the account has no picture, as before.
         /// </summary>
         private async Task CopyPictureToAccountAsync(Guid userId)
         {
@@ -5070,13 +5067,14 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// The provider a former profile signs in with: always Jellyfin's own, whose id is
-        /// read from the master when the master is on it, so an upstream rename is picked up.
+        /// read from the master when the master is on it, so an upstream rename is picked
+        /// up.
         ///
-        /// <para>The first version copied the master's provider whatever it was. For a master
-        /// on LDAP or SSO that is wrong: the profile's account was made by Bonfire, not by the
-        /// directory, so the directory has never heard of it, and the password set here goes
-        /// to a provider that cannot keep it. The account could never sign in. A password set
-        /// by an administrator lives in Jellyfin, so the account belongs on Jellyfin's
+        /// <para>The first version copied the master's provider whatever it was. For a
+        /// master on LDAP or SSO that is wrong: Bonfire made the profile's account, not the
+        /// directory, so the directory has never heard of it and the password set here goes
+        /// to a provider that cannot keep it. The account could never sign in. A password
+        /// set by an administrator lives in Jellyfin, so the account belongs on Jellyfin's
         /// provider. An administrator who wants it in the directory moves it there.</para>
         /// </summary>
         private string StandaloneProviderId(Guid masterId)
@@ -5221,13 +5219,13 @@ namespace Jellyfin.Profiles.Controllers
         /// What an app needs to know before it shows any Bonfire screen: that Bonfire is
         /// here, which version, whether it is switched off, and which features are on.
         /// <para>
-        /// Anonymous, like <c>panic-state</c>, because an app decides what its sign-in screen
-        /// looks like before anyone has signed in. It says nothing about any household: only
-        /// settings an administrator has turned on for everyone.
+        /// Anonymous, like <c>panic-state</c>, because an app decides what its sign-in
+        /// screen looks like before anyone has signed in. It says nothing about any
+        /// household, only settings an administrator turned on for everyone.
         /// </para>
         /// <para>
-        /// <c>ApiVersion</c> goes up only when a released route changes in a way that breaks
-        /// a caller. Adding a route, a field or an error code does not change it.
+        /// <c>ApiVersion</c> goes up only when a released route changes in a way that
+        /// breaks a caller. Adding a route, a field or an error code does not change it.
         /// </para>
         /// </summary>
         [HttpGet("info")]
@@ -5305,10 +5303,10 @@ namespace Jellyfin.Profiles.Controllers
         /// <c>info</c>, <c>profiles</c>, <c>me</c>, <c>themes</c>, <c>announcements</c> and
         /// <c>onboarding</c>.
         /// <para>
-        /// Each part is built by the code its own route runs, never a second copy, so the two
-        /// cannot drift. If a part would be refused, the whole call is refused the same way:
-        /// a partial body would look like a household with no profiles. Not cached, because
-        /// <c>/info</c> is not.
+        /// Each part is built by the code its own route runs, never a second copy, so the
+        /// two cannot drift. If a part would be refused, the whole call is refused the same
+        /// way: a partial body would look like a household with no profiles. Not cached,
+        /// because <c>/info</c> is not.
         /// </para>
         /// </summary>
         [HttpGet("startup")]
@@ -5416,8 +5414,8 @@ namespace Jellyfin.Profiles.Controllers
         // keyboard, or giving up.
 
         /// <summary>
-        /// The avatars anyone may choose from, plus whether custom uploads are still allowed.
-        /// Metadata only — the images themselves come from <c>avatars/{id}</c>.
+        /// The avatars anyone may choose from, plus whether custom uploads are still
+        /// allowed. Metadata only; the images come from <c>avatars/{id}</c>.
         /// </summary>
         private object AvatarLibraryAnswer(PluginConfiguration config)
         {
@@ -5472,10 +5470,10 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// Serves a library avatar. Unauthenticated for the same reason as
-        /// <see cref="GetProfileImage"/>: it is rendered as an &lt;img src&gt;, and browsers
-        /// do not attach Authorization headers to image requests. These are pictures the
-        /// administrator published to every user on the server, so there is nothing here
-        /// that an authenticated user could not already fetch.
+        /// <see cref="GetProfileImage"/>: it is rendered as an &lt;img src&gt;, and
+        /// browsers do not attach Authorization headers to image requests. These are
+        /// pictures the administrator published to every user on the server, so an
+        /// authenticated user could already fetch them.
         /// </summary>
         [HttpGet("avatars/{id}")]
         public ActionResult GetLibraryAvatar(string id, [FromQuery] string? size = null)
@@ -5678,17 +5676,17 @@ namespace Jellyfin.Profiles.Controllers
         /// Saves the server-wide settings the plugin's settings page owns.
         /// </summary>
         /// <remarks>
-        /// This exists because the settings page used to save through Jellyfin's generic
-        /// plugin-configuration API: GET the entire PluginConfiguration, change a few fields on
-        /// the copy in the browser, PUT the whole thing back. Everything else in that document
-        /// — every profile mapping, every known device, every Bonfire group, the avatar
-        /// library and the emergency-disable hash — went along for the ride. A profile created
-        /// while the settings page sat open was reverted the moment an administrator pressed
-        /// Save, with no error and nothing in the log to connect the two.
+        /// The settings page used to save through Jellyfin's generic plugin-configuration
+        /// API: GET the entire PluginConfiguration, change a few fields on the copy in the
+        /// browser, PUT the whole thing back. Everything else in that document (every
+        /// profile mapping, known device, Bonfire group, the avatar library and the
+        /// emergency-disable hash) went along. A profile created while the settings page
+        /// sat open was reverted when an administrator pressed Save, with no error and
+        /// nothing in the log.
         ///
-        /// It also happened to be the one call that made Jellyfin replace the configuration
-        /// instance, which is what orphaned every lock taken on it. Both problems have the
-        /// same cure: send the fields that changed, mutate in place under ConfigLock.
+        /// That call was also the one that made Jellyfin replace the configuration
+        /// instance, orphaning every lock taken on it. Both problems have one cure: send
+        /// the fields that changed, and mutate in place under ConfigLock.
         /// </remarks>
         [HttpPost("admin/settings")]
         [ProducesResponseType(StatusCodes.Status200OK)]
