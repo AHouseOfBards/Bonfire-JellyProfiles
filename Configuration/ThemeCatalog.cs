@@ -8,12 +8,12 @@ using System.Text.Json.Nodes;
 namespace Jellyfin.Profiles.Configuration
 {
     /// <summary>
-    /// The themes Bonfire knows: the built-in files in <c>Web/themes/</c>, embedded in the
-    /// assembly. docs/themes.md describes a file.
+    /// The themes Bonfire knows: the built-in files in <c>Web/themes/</c>, embedded in the assembly.
+    /// docs/themes.md describes a file.
     /// <para>
-    /// The server never turns a theme into CSS. It hands the files to the web client, which
-    /// does that in <c>themeCss</c>, and to other apps, which draw their own way. One
-    /// generator, so the web client cannot drift from what the files say.
+    /// The server never turns a theme into CSS. It hands the files to the web client, which does that
+    /// in <c>themeCss</c>, and to other apps, which draw their own way. One generator, so the web
+    /// client cannot drift from what the files say.
     /// </para>
     /// </summary>
     public static class ThemeCatalog
@@ -44,14 +44,13 @@ namespace Jellyfin.Profiles.Configuration
             ThemeValidator.Validate(theme, FontFamilies, Patterns.Keys);
 
         /// <summary>
-        /// What profiles.js is given in place of its <c>__BONFIRE_THEMES__</c> marker: the
-        /// themes, the fonts, and each pattern as a data: URL so the web client fetches
-        /// nothing to draw one.
+        /// What profiles.js is given in place of its <c>__BONFIRE_THEMES__</c> marker: the themes, the
+        /// fonts, and each pattern as a data: URL so the web client fetches nothing to draw one.
         /// <para>
-        /// Serialized with the default encoder, which escapes everything outside ASCII and
-        /// the characters HTML gives meaning to. That keeps U+2028 and U+2029 out of the
-        /// script (a syntax error before ES2019, which is every television down to the Chromium 53 floor), and
-        /// leaves nothing in a theme's text that can end the script it sits in.
+        /// Serialized with the default encoder, which escapes everything outside ASCII and the characters
+        /// HTML gives meaning to. That keeps U+2028 and U+2029 out of the script (a syntax error before
+        /// ES2019, which covers every television down to the Chromium 53 floor) and leaves nothing in a
+        /// theme's text that can end the script it sits in.
         /// </para>
         /// </summary>
         public static string ClientPayload()
@@ -76,16 +75,14 @@ namespace Jellyfin.Profiles.Configuration
         public static string PatternUrl(string name) => "/plugins/profiles/themes/patterns/" + Uri.EscapeDataString(name);
 
         /// <summary>
-        /// What <c>GET /plugins/profiles/themes</c> returns: docs/themes.md, "Getting themes".
-        /// For other apps, so unlike <see cref="ClientPayload"/> the pictures are addresses
-        /// to fetch, and the web client's own notes on a font (the names it goes by when
-        /// installed) stay out of it.
+        /// What <c>GET /plugins/profiles/themes</c> returns: docs/themes.md, "Getting themes". It is for
+        /// other apps, so unlike <see cref="ClientPayload"/> the pictures are addresses to fetch, and the
+        /// web client's own notes on a font (the names it goes by when installed) are left out.
         /// </summary>
         /// <param name="config">The configuration, read under ConfigLock by the caller.</param>
         /// <param name="customOnly">
-        /// <c>?part=custom</c>: only what the administrator added, for the web client, which
-        /// already holds the built-ins in profiles.js and would otherwise download every one of
-        /// them again on every television.
+        /// <c>?part=custom</c>: only what the administrator added, for the web client, which already holds
+        /// the built-ins in profiles.js and would otherwise download every one on every television.
         /// </param>
         public static string PublicPayload(PluginConfiguration config, bool customOnly = false)
         {
@@ -95,10 +92,9 @@ namespace Jellyfin.Profiles.Configuration
             {
                 if (f is not JsonObject font) continue;
 
-                // One entry per subset file, with the range of characters it holds, so an app
-                // that can only load one fetches latin and an app that can load both knows
-                // which to use for what. A family with no files is one Bonfire does not serve:
-                // the app draws its fallback.
+                // One entry per subset file, with the range of characters it holds, so an app that can load
+                // only one fetches latin and an app that can load both knows which to use for what. A family
+                // with no files is one Bonfire does not serve: the app draws its fallback.
                 var files = new JsonArray();
                 if (font["files"] is JsonObject byName)
                 {
@@ -127,8 +123,8 @@ namespace Jellyfin.Profiles.Configuration
                 fonts.Add(entry);
             }
 
-            // An uploaded font is one file holding every character it has, so one entry with
-            // no subset and no range: an app loads it for everything.
+            // An uploaded font is one file holding every character it has: one entry with no subset and
+            // no range, which an app loads for everything.
             foreach (var font in config.CustomFonts)
             {
                 fonts.Add(new JsonObject
@@ -170,8 +166,8 @@ namespace Jellyfin.Profiles.Configuration
                 ["schema"] = ThemeValidator.Schema,
                 ["default"] = defaultTheme,
                 ["profilesCanChoose"] = config.AllowProfileThemes,
-                // Built-ins the administrator took out of the pickers. They are not in
-                // "themes"; a profile that chose one is drawn in the default.
+                // Built-ins the administrator took out of the pickers. Not in "themes"; a profile that chose
+                // one is drawn in the default.
                 ["hidden"] = new JsonArray(config.HiddenThemes.Where(Themes.IsBuiltIn).Where(id => id != Themes.Bonfire)
                     .Distinct(StringComparer.Ordinal).Select(id => (JsonNode)JsonValue.Create(id)!).ToArray()),
                 ["themes"] = themes,
@@ -183,9 +179,9 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// The logo as GET /themes gives it: the image's address or null, the text or null,
-        /// and the alt text. A stored value that no longer passes its rule is left out, so a
-        /// hand-edited configuration cannot put an address or a second line on screen.
+        /// The logo as GET /themes gives it: the image's address or null, the text or null, and the alt
+        /// text. A stored value that no longer passes its rule is left out, so a hand-edited configuration
+        /// cannot put an address or a second line on screen.
         /// </summary>
         public static JsonObject LogoPayload(PluginConfiguration config)
         {
@@ -204,8 +200,8 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// One file Bonfire serves from <c>Web/themes/fonts/</c>, by its file name: a font, or
-        /// the licence that comes with it. Null for a name it does not hold.
+        /// One file Bonfire serves from <c>Web/themes/fonts/</c>, by file name: a font, or its license.
+        /// Null for a name it does not hold.
         /// </summary>
         public static (byte[] Bytes, string ContentType, string ETag)? FontFile(string name)
         {
@@ -226,7 +222,7 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>Where a font file is served, relative to the server.</summary>
         public static string FontUrl(string file) => "/plugins/profiles/themes/fonts/" + Uri.EscapeDataString(file);
 
-        // ── An administrator's own themes and fonts (1.7.2) ─────────────────────────────
+        // An administrator's own themes and fonts (1.7.2).
 
         /// <summary>At most this many custom themes. Each is up to 64 KB, sent to every client.</summary>
         public const int MaxCustomThemes = 40;
@@ -248,9 +244,8 @@ namespace Jellyfin.Profiles.Configuration
             Plugin.Instance?.AppPaths.DataPath ?? Path.GetTempPath(), "plugins", "ProfilesManagement", "fonts");
 
         /// <summary>
-        /// The name an uploaded font is stored and served under: the first half of its SHA-256.
-        /// Named by contents, so the same file uploaded twice is one file, and a name can never
-        /// carry a path.
+        /// The name an uploaded font is stored and served under: the first half of its SHA-256. Named by
+        /// contents, so the same file uploaded twice is one file, and a name never carries a path.
         /// </summary>
         public static string CustomFontFileName(byte[] bytes) =>
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes), 0, 16).ToLowerInvariant() + ".woff2";
@@ -266,13 +261,12 @@ namespace Jellyfin.Profiles.Configuration
         public static IReadOnlyCollection<string> BuiltInNames => Loaded.Value.Names;
 
         /// <summary>
-        /// Every problem with an administrator's theme: <see cref="Validate"/> against the
-        /// built-in and uploaded fonts, less the contrast rules ("There should be no
-        /// restrictions on custom made themes", the owner, 2026-11-12; the built-ins are still
-        /// held to them), and the three rules only a custom theme has. Its id
-        /// cannot be one a built-in answers to, or the two would be drawn as one. It names
-        /// itself in text, since a key would need a translation nobody wrote. And it has no
-        /// aliases, which exist so a renamed built-in keeps the profiles that chose it.
+        /// Every problem with an administrator's theme: <see cref="Validate"/> against the built-in and
+        /// uploaded fonts, without the contrast rules (owner, 2026-11-12: "There should be no restrictions
+        /// on custom made themes"; the built-ins are still held to them), plus the rules only a custom
+        /// theme has. Its id cannot be one a built-in answers to, or the two would be drawn as one. It
+        /// names itself in text, since a key would need a translation nobody wrote. It has no aliases,
+        /// which exist so a renamed built-in keeps the profiles that chose it.
         /// </summary>
         public static IReadOnlyList<ThemeProblem> ValidateCustom(JsonNode? theme, PluginConfiguration config)
         {
@@ -289,11 +283,11 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// The administrator's themes that still pass <see cref="ValidateCustom"/>, parsed, in
-        /// the order they were added. Checked on the way out as well as in, so a configuration
-        /// edited by hand, or a font deleted from under a theme, leaves that theme out rather
-        /// than in front of anyone. Each answer is kept, keyed by the text and the fonts it
-        /// was checked against, because GET /themes is anonymous and asked often.
+        /// The administrator's themes that still pass <see cref="ValidateCustom"/>, parsed, in the order
+        /// added. Checked on the way out as well as in, so a hand-edited configuration, or a font deleted
+        /// from under a theme, leaves that theme out rather than in front of anyone. Each answer is kept,
+        /// keyed by the text and fonts it was checked against, because GET /themes is anonymous and asked
+        /// often.
         /// </summary>
         public static IReadOnlyList<JsonObject> ValidCustomThemes(PluginConfiguration config)
         {
@@ -327,8 +321,8 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// The theme file for <paramref name="id"/>: a built-in, or a custom theme that still
-        /// passes; Bonfire for anything else. The caller holds ConfigLock.
+        /// The theme file for <paramref name="id"/>: a built-in, or a custom theme that still passes;
+        /// Bonfire for anything else. The caller holds ConfigLock.
         /// </summary>
         public static JsonObject ThemeFor(string? id, PluginConfiguration config)
         {
@@ -342,16 +336,16 @@ namespace Jellyfin.Profiles.Configuration
             new(StringComparer.Ordinal);
 
         /// <summary>
-        /// One uploaded font, by its stored name, when the configuration still lists it. Null
-        /// otherwise. The name is checked against <see cref="IsCustomFontFileName"/> and the
-        /// list before it is joined to the folder.
+        /// One uploaded font, by its stored name, when the configuration still lists it; null otherwise.
+        /// The name is checked against <see cref="IsCustomFontFileName"/> and the list before it is joined
+        /// to the folder.
         /// </summary>
         public static (byte[] Bytes, string ContentType, string ETag)? CustomFontFile(string name, PluginConfiguration config)
         {
             if (!IsCustomFontFileName(name) || !config.CustomFonts.Any(f => f.File == name)) return null;
             var path = Path.Combine(CustomFontFolder, name);
-            // No Exists check first: a file replaced or locked between that and the read was a
-            // 500. A file that cannot be read is a file that is not there.
+            // No Exists check first: a file replaced or locked between that and the read was a 500. A
+            // file that cannot be read is a file that is not there.
             try
             {
                 // Named by its hash, so the name is the validator.
@@ -363,7 +357,7 @@ namespace Jellyfin.Profiles.Configuration
             }
         }
 
-        /// <summary>The ETag an uploaded font is served with: its hash, so no read is needed to know it.</summary>
+        /// <summary>The ETag an uploaded font is served with: its hash, so no read is needed.</summary>
         public static string CustomFontETag(string name) => "\"" + name.Substring(0, 32) + "\"";
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] Bytes, string ETag)> FontBytes =
@@ -376,9 +370,9 @@ namespace Jellyfin.Profiles.Configuration
             HashSet<string> Names);
 
         // A parsed JsonObject or JsonArray builds its children on first read, and System.Text.Json
-        // documents JsonNode as not safe for concurrent use. The built-ins and the cached custom
-        // themes are shared by every anonymous GET /themes at once, so the lazy build is done here,
-        // once, before anything is published. DeepClone does not do it: a clone is lazy as well.
+        // documents JsonNode as not safe for concurrent use. The built-ins and cached custom themes are
+        // shared by every anonymous GET /themes at once, so the lazy build is done here, once, before
+        // anything is published. DeepClone does not do it: a clone is lazy as well.
         internal static JsonNode? Materialise(JsonNode? node)
         {
             if (node is JsonObject o)
@@ -432,9 +426,9 @@ namespace Jellyfin.Profiles.Configuration
                 if (node is JsonObject theme && theme["id"] is JsonValue) themes.Add(theme);
             }
 
-            // Bonfire first: it is the look before any theme is known, and each later block
-            // in the client wins its ties by coming after it. The rest by id, so the order
-            // is one tests/_lib.js can reproduce from the folder alone.
+            // Bonfire first: it is the look before any theme is known, and each later block in the client
+            // wins its ties by coming after it. The rest by id, so tests/_lib.js can reproduce the order
+            // from the folder alone.
             themes = themes.OrderBy(t => (string)t["id"]! == Themes.Bonfire ? 0 : 1)
                 .ThenBy(t => (string)t["id"]!, StringComparer.Ordinal)
                 .ToList();
