@@ -154,7 +154,8 @@ function themes() {
         .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')).id).sort();
 }
 
-function check(where, scene, m) {
+// `ok` is the scene's own check() from c.checks(), which shadows the harness's.
+function check(where, scene, m, ok) {
     const welcome = scene === 'ob-welcome';
     if (m.missing) { ok(where + ': the step draws', false, m.missing); return; }
     ok(where + ': the step draws a heading and a main button', m.hasMain && m.items.some(i => i.name === 'heading'), 'no heading or no main button');
@@ -221,16 +222,22 @@ async function main() {
     const server = await fixture.start(0, { materialIcons: ICONS, source: given ? fs.readFileSync(given, 'utf8') : undefined });
     const c = await chrome.launch();
     try {
+        // Every theme, size and step is its own page, independent of the others, so they are
+        // measured several at a time (chrome.js checks()), in the order a serial loop would give.
+        // `c` inside the callback is that scene's own tab.
+        const grid = [];
         for (const theme of themes()) {
             for (const device of DEVICES) {
-                for (const scene of SCENES) {
-                    const where = theme + ' ' + scene + ' ' + device;
-                    const r = await c.open('http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=' + scene + '&device=' + device, device);
-                    if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
-                    check(where, scene, await c.evaluate(MEASURE));
-                }
+                for (const scene of SCENES) grid.push({ theme, device, scene });
             }
         }
+        const results = await c.checks(grid, async (c, { theme, device, scene }, ok) => {
+            const where = theme + ' ' + scene + ' ' + device;
+            const r = await c.open('http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=' + scene + '&device=' + device, device);
+            if (r.error) { ok(where + ': the screen draws', false, r.error); return; }
+            check(where, scene, await c.evaluate(MEASURE), ok);
+        });
+        results.forEach(a => ok(a[0], a[1], a[2]));
     } finally {
         await c.close();
         await server.close();
