@@ -17,24 +17,24 @@ namespace Jellyfin.Profiles.Auth
     /// Counts what limited profiles watch, and ends it when their time is up (1.7.2).
     ///
     /// <para><b>Every 30 seconds</b> it looks at Jellyfin's sessions. A limited profile playing
-    /// video, not paused, has the time since the last look added to today. Two televisions at
-    /// once count once: it is the child's time, not the screens'. So does a game: every
-    /// Campground activity with a user that is not paused (<c>Sessions.ListActivities</c>)
-    /// counts the same, and a video and a game together are one count. When time runs out the
-    /// other plugin finds out by asking <see cref="LimitsProvider"/>; nothing is sent to it.</para>
+    /// video, not paused, has the time since the last look added to today. Two televisions at once
+    /// count once: it is the child's time, not the screens'. A game counts the same way: every
+    /// unpaused Campground activity with a user (<c>Sessions.ListActivities</c>), and a video and
+    /// a game together are one count. When time runs out the other plugin finds out by asking
+    /// <see cref="LimitsProvider"/>; nothing is sent to it.</para>
     ///
-    /// <para><b>Ending it.</b> Five minutes before the end, each app playing gets a message.
-    /// At the end it stops. If the end came with no warning (the rules changed, the extra time
-    /// was taken back, the timer had not looked yet) the message says five minutes and the stop
-    /// comes five minutes later, so nobody loses the last scene to a clock.</para>
+    /// <para><b>Ending it.</b> Five minutes before the end, each app playing gets a message. At
+    /// the end it stops. If the end came with no warning (rules changed, extra time taken back,
+    /// the timer had not looked yet) the message says five minutes and the stop comes five
+    /// minutes later, so nobody loses the last scene to a clock.</para>
     ///
-    /// <para><b>What apps do with it</b> varies: jellyfin-web and the apps built on it show
-    /// the message and stop; Android TV shows it as a toast and stops; Swiftfin stops but
-    /// shows nothing. An app that ignores the stop is cut off by <see cref="ViewingGate"/>,
-    /// which refuses its next stream request once the grace is over.</para>
+    /// <para><b>What apps do with it</b> varies: jellyfin-web and apps built on it show the
+    /// message and stop; Android TV shows a toast and stops; Swiftfin stops but shows nothing. An
+    /// app that ignores the stop is cut off by <see cref="ViewingGate"/>, which refuses its next
+    /// stream request once the grace is over.</para>
     ///
-    /// <para><b>Never the reason anything fails.</b> Everything is caught and logged, as on
-    /// every background path in Bonfire.</para>
+    /// <para><b>Never the reason anything fails.</b> Everything is caught and logged, as on every
+    /// background path in Bonfire.</para>
     /// </summary>
     public sealed class ViewingTimer : IHostedService, IDisposable
     {
@@ -74,11 +74,11 @@ namespace Jellyfin.Profiles.Auth
             return Task.CompletedTask;
         }
 
-        // The tick only sees what is playing at the moment it looks, so a play that starts and
-        // stops between two looks was never billed (R-1025): thirty-second clips, back to back,
-        // were free. These two bill what the tick did not see. The start is remembered, and the
-        // stop bills from the later of that and the last look to now; the tick bills the rest
-        // while the play is going on, so no second is billed twice.
+        // The tick sees only what is playing when it looks, so a play that started and stopped
+        // between two looks was never billed (R-1025): back-to-back thirty-second clips were free.
+        // These two bill what the tick missed. The start is remembered, and the stop bills from
+        // the later of that and the last look to now; the tick bills the rest while the play is
+        // going on, so no second is billed twice.
         private void OnPlaybackStart(object? sender, PlaybackProgressEventArgs e)
         {
             try
@@ -147,7 +147,7 @@ namespace Jellyfin.Profiles.Auth
 
         private void OnTick()
         {
-            // A slow tick (a session that takes long to message) is never overlapped by the next.
+            // A slow tick (a session slow to message) is never overlapped by the next.
             if (Interlocked.Exchange(ref _running, 1) == 1) return;
             try
             {
@@ -176,8 +176,8 @@ namespace Jellyfin.Profiles.Auth
             var index = ViewingTracker.Index();
             if (index.Count == 0) return;
 
-            // Time since the last look, but never more than two intervals: a server that was
-            // asleep, or a first look, does not bill an hour to whoever is playing now.
+            // Time since the last look, capped at two intervals: a server that was asleep, or a
+            // first look, does not bill an hour to whoever is playing now.
             var elapsed = since.HasValue ? (nowUtc - since.Value).TotalSeconds : 0;
             elapsed = Math.Clamp(elapsed, 0, Interval.TotalSeconds * 2);
 
@@ -193,9 +193,9 @@ namespace Jellyfin.Profiles.Auth
                 if (s.PlayState == null || !s.PlayState.IsPaused)
                 {
                     counting.Add(s.UserId);
-                    // A play that began since the last look was not running for all of it. Bill
+                    // A play that began since the last look was not running for all of it, so bill
                     // from its start, as the stop report does. Anything else keeps the whole
-                    // interval, which errs towards billing. Paused time is left alone. r2-07-02.
+                    // interval, which errs toward billing. Paused time is left alone (r2-07-02).
                     if (since.HasValue && Started.TryGetValue(s.Id, out var began) && began > since.Value)
                     {
                         freshSince[s.UserId] = freshSince.TryGetValue(s.UserId, out var other) && other < began ? other : began;
@@ -209,8 +209,8 @@ namespace Jellyfin.Profiles.Auth
 
             // What other Campground plugins are doing for a limited profile (a game in GameTent).
             // Into the same set as video, so a child watching and playing at once is billed once.
-            // Bonfire's own activities are skipped: it publishes none, and one it did would be
-            // the video already counted above.
+            // Bonfire's own activities are skipped: it publishes none, and one would be the video
+            // already counted.
             try
             {
                 foreach (var a in Campground.Shared.Contracts.Sessions.ListActivities())
@@ -237,8 +237,8 @@ namespace Jellyfin.Profiles.Auth
                 ViewingTracker.AddSeconds(id, ViewingClock.DayOf(index[id].Zone, nowUtc), seconds);
             }
 
-            // Nothing playing: a spent grace and its stop are over. Left set, the next play outside
-            // the hours is stopped on its first look with no notice (r2-07-01).
+            // Nothing playing: a spent grace and its stop are over. Left set, the next play
+            // outside the hours would be stopped on its first look with no notice (r2-07-01).
             foreach (var id in index.Keys)
             {
                 if (!playing.ContainsKey(id)) ViewingTracker.ClearSpentGrace(id, nowUtc);
