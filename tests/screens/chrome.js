@@ -40,7 +40,24 @@ const DEVICES = {
 /** How many tabs map() uses when not told: 8: viewwide took 104s at 4, 60s at 8, 56s at 12, 57s at 16 on a 16-core PC; override with CHROME_POOL. */
 const POOL = Number(process.env.CHROME_POOL) || 8;
 
+// Profiles a run left behind: one killed before close(), or one Chrome still held when close()
+// tried. 4,222 of them had filled a C: drive by 2026-11-14. An hour old is never in use, since no
+// harness runs that long; a folder Chrome still holds just fails to delete and is tried next time.
+function sweepOldProfiles() {
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    let names = [];
+    try { names = fs.readdirSync(os.tmpdir()); } catch (e) { return; }
+    for (const n of names) {
+        if (!n.startsWith('bonfire-chrome-')) continue;
+        const p = path.join(os.tmpdir(), n);
+        try { if (fs.statSync(p).mtimeMs < cutoff) fs.rmSync(p, { recursive: true, force: true }); } catch (e) { /* in use */ }
+    }
+}
+
+let swept = false;
+
 async function launch() {
+    if (!swept) { swept = true; sweepOldProfiles(); }
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bonfire-chrome-'));
     const proc = spawn(findChrome(), [
         '--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + dir,
@@ -190,9 +207,15 @@ async function launch() {
 
     async function close() {
         try { ws.close(); } catch (e) { /* gone */ }
+        // Wait for the process to be gone, not a fixed 300ms: on Windows Chrome's helpers hold the
+        // profile for longer, the delete failed silently, and every run left its profile behind.
+        const exited = proc.exitCode !== null ? Promise.resolve() : new Promise(r => proc.once('exit', r));
         proc.kill();
-        await new Promise(r => setTimeout(r, 300));
-        try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* Chrome still holds a file */ }
+        await Promise.race([exited, new Promise(r => setTimeout(r, 5000))]);
+        for (let i = 0; i < 10; i++) {
+            try { fs.rmSync(dir, { recursive: true, force: true }); break; }
+            catch (e) { await new Promise(r => setTimeout(r, 200)); /* a helper still holds a file */ }
+        }
     }
 
     return { page: first.page, evaluate: first.evaluate, open: first.open, shot: first.shot, close, listeners, sessionId: first.sessionId, tab, map, checks };
