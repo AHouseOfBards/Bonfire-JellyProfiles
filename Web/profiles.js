@@ -9584,7 +9584,8 @@
                 `;
 
                 // ── Basics: what this profile can watch ─────────────────────────
-                // The Kids preset only fills in the rating; it is not a kind of profile and nothing remembers it was ticked.
+                // The Kids preset only fills in the rating; it is not a kind of profile and nothing
+                // remembers it was ticked.
                 const createLibraries = `
                     <div class="jpf-form-group">
                         <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
@@ -9616,8 +9617,8 @@
                 `;
 
                 // ── More: tags on top of the libraries ──────────────────────────
-                // Devices are above, with what the profile can watch: keeping a child to
-                // one television is the common parental task, not a rare one (P2-605).
+                // Devices are above, with what the profile can watch: keeping a child to one
+                // television is the common parental task (P2-605).
                 const createRestrictions = `
                     ${this.renderTagSection('create', libraryTags, null)}
                 `;
@@ -9664,13 +9665,11 @@
                     });
                 });
 
-                // The colour group is dimmed by the picker itself now — it depends on the
-                // transparency choice as well as on whether a picture is set.
+                // The picker dims the colour group itself: it depends on the transparency choice as well.
                 const avatarPicker = this.initAvatarPicker(
                     content, 'create', avatarLibrary, null, null, { enabled: false });
 
-                // With no picture chosen, the preview shows the profile's initial — so it
-                // has to follow what is being typed into the name field.
+                // With no picture the preview shows the initial, so it follows the name field.
                 const previewDiv = document.getElementById('create-image-upload-preview');
                 const nameInput = document.getElementById('create-name-input');
                 if (nameInput && previewDiv) {
@@ -9706,8 +9705,7 @@
                 const createTrigger = document.getElementById('create-devices-dropdown-trigger');
                 const createList = document.getElementById('create-devices-dropdown-list');
                 if (createTrigger && createList) {
-                    // Keep aria-expanded in step with the visual state so screen readers and
-                    // TV remotes report the dropdown correctly.
+                    // Keep aria-expanded in step so screen readers and TV remotes report the dropdown correctly.
                     const setCreateOpen = (open) => {
                         createList.style.display = open ? 'block' : 'none';
                         createTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -9769,8 +9767,8 @@
                     
                     const checkedLibs = [];
                     content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                        // Only an id. A library listed without one gave its checkbox the
-                        // value "undefined", and that one entry failed the whole create (#33).
+                        // Only an id. A library listed without one gave its checkbox the value "undefined"
+                        // and that one entry failed the whole create (#33).
                         if (isGuidLike(cb.value)) checkedLibs.push(cb.value);
                     });
 
@@ -9802,10 +9800,10 @@
                             profileName: name,
                             pin: pin,
                             avatarColor: selectedColor,
-                            // "" is no limit of its own — the same word /update uses (R-1144).
+                            // "" is no limit of its own, the same word /update uses (R-1144).
                             maxParentalRating: rating,
-                            // No box ticked means every library. Said explicitly, as /update
-                            // needs it to be: there, a left-out list now keeps what it was.
+                            // No box ticked means every library, said explicitly as /update needs it: a
+                            // left-out list there now keeps what it was.
                             enabledFolders: checkedLibs.length > 0 ? checkedLibs : null,
                             allLibraries: checkedLibs.length > 0 ? null : true,
                             blockedTags: this.getTagEditorValues(content, 'create-blocked-tags'),
@@ -9828,22 +9826,21 @@
                     })
                     .then(created => {
                         const refresh = () => this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
-                        // The profile exists now, so its viewing rules can be saved against
-                        // its id. A failure here must not look like a failed create.
+                        // The profile exists now, so its viewing rules can be saved against its id. A
+                        // failure here must not look like a failed create.
                         const id = created && (created.profileUserId || created.ProfileUserId);
                         const saveLimits = () => viewingEditor.save(id).catch(err => {
                             this.showAlert(t('errors.error'), this._hoursFailText(err));
                         });
-                        // The first profile is when a main PIN starts to matter: from now on
-                        // the main account is the way past that profile's restrictions.
+                        // The first profile is when a main PIN starts to matter: from now on the main account
+                        // is the way past that profile's restrictions.
                         const people = this.currentProfiles || [];
                         const main = people.find(x => x.isMaster && !x.isBonfire);
                         const first = !people.some(x => !x.isMaster && !x.isBonfire);
                         const needsPin = !!main && !main.hasPin;
                         if (needsPin && viewingEditor.pending()) {
-                            // The server will not switch limits on with no main PIN to switch
-                            // them off again, so the PIN comes first and the limits after it.
-                            // Saving them first lost them, with an error (P2-712).
+                            // The server will not switch limits on with no main PIN to switch them off, so the
+                            // PIN comes first. Saving limits first lost them, with an error (P2-712).
                             this.promptSetMainPin(people, false, () => {
                                 if (main.hasPin) saveLimits().then(refresh);
                                 else this.showAlert(t('errors.error'), t('mainPin.limitsOff'), refresh);
@@ -9870,8 +9867,7 @@
                 this.initTagEditors(content);
             })
             .catch(err => {
-                // As Edit does: a failed read of the lists the form is built from used to
-                // leave the Add button doing nothing at all (R-1215).
+                // As Edit does: a failed read of the form's lists used to leave Add doing nothing (R-1215).
                 if (!this.navIsCurrent(ticket)) return;
                 this.showAlert(t('errors.error'), this._failText(err, t('errors.loadProfileDetails')));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
@@ -9885,15 +9881,14 @@
 
             const ticket = this.beginNavigation();
 
-            // Users/{id} is the only one of the five that is about the profile you
-            // clicked. The rest come from the account-wide cache.
+            // Users/{id} is the only one of the five about the profile you clicked; the rest come from the account-wide cache.
             const userUrl = apiClient.getUrl(`Users/${profile.profileUserId}`);
 
             Promise.all([
                 this.fetchSharedFormData(apiClient, masterState),
                 fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => {
-                    // A refusal has no Policy: read as {} it ticked every library and the
-                    // next save wrote them as a fixed list (R-1222).
+                    // A refusal has no Policy: read as {} it ticked every library and the next save
+                    // wrote them as a fixed list (R-1222).
                     if (res.status === 401) { this.handleSessionExpired(); return Promise.reject({ handled: true }); }
                     if (!res.ok) return Promise.reject(new Error('Users/' + res.status));
                     return res.json();
@@ -9913,13 +9908,13 @@
                 const maxRating = policy.MaxParentalRating !== undefined ? policy.MaxParentalRating : (policy.maxParentalRating !== undefined ? policy.maxParentalRating : null);
                 const currentLockout = profile.lockoutMinutes !== undefined ? profile.lockoutMinutes : 5;
 
-                // Re-rendering the modal orphans any listeners the previous form owned.
+                // Re-rendering the modal orphans the previous form's listeners.
                 this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
 
                 const isSub = !profile.isMaster;
 
-                // Basics, then a closed "More settings" — see the create form.
+                // Basics, then a closed "More settings"; see the create form.
 
                 // ── Basics: who this profile is ─────────────────────────────────
                 const appearanceBody = `
@@ -9937,9 +9932,8 @@
                 `;
 
                 // ── Basics: its PIN ─────────────────────────────────────────────
-                // The main account's PIN, home-network skip and auto-lock are in Settings →
-                // Your account (1.7.2), which saves each one alone through /account. They are
-                // not repeated here: two places to set one PIN is how they drift.
+                // The main account's PIN, home-network skip and auto-lock are in Settings → Your
+                // account (1.7.2), each saved alone through /account. Two places to set one PIN is how they drift.
                 const securityBody = !isSub ? `
                     <div class="jpf-form-hint">${t('profileForm.mainSecurityMoved')}</div>
                 ` : `
@@ -9996,9 +9990,8 @@
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
                                 let isChecked;
-                                // "Every library" is saved as nothing ticked, so it is shown
-                                // that way. Drawn with every box ticked, the next save would
-                                // send them all and turn it into a fixed list.
+                                // "Every library" is saved as nothing ticked, so it is shown that way. Drawn with
+                                // every box ticked, the next save would send them all as a fixed list.
                                 if (profile.allLibraries) {
                                     isChecked = false;
                                 } else if (storedFolders !== null && storedFolders !== undefined) {
@@ -10027,11 +10020,9 @@
                     ${this.renderDeviceDropdown('edit', devices, profile)}
                 `;
 
-                // The artwork switch lives under More. The per-library controls it reveals
-                // stay on the library rows; initLibraryArtworkEditor finds both by class
-                // inside the form, so the two need not sit together.
-                // It sat bare between the Theme and Tags cards, the one control on the form
-                // outside a titled card (P2-1010).
+                // The artwork switch lives under More; the per-library controls it reveals stay on the
+                // library rows, and initLibraryArtworkEditor finds both by class. It used to sit bare
+                // between the Theme and Tags cards, outside any titled card (P2-1010).
                 const artworkSwitch = this.renderSection('image', t('profileForm.artworkHeader'), '', `
                     <div class="jpf-form-group">
                         <label class="jpf-library-check-label jpf-libart-toggle">
@@ -10049,8 +10040,8 @@
                     ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 
-                // The main account has no More: its sign-in settings are in Your account and
-                // it has no limits to set, so all that is left of it is the theme.
+                // The main account has no More: its sign-in settings are in Your account and it has
+                // no limits, so only the theme is left.
                 content.innerHTML = `
                     <h1 class="profiles-title">${t('profileForm.editTitle')}</h1>
                     <div class="jpf-create-profile-container${isSub ? ' is-two-col' : ''}">
@@ -10106,13 +10097,12 @@
                     });
                 });
 
-                // Remove now lives inside the picker, next to Change picture, and shows
-                // itself from setPreview — so there is nothing left to wire here.
+                // Remove lives inside the picker next to Change picture and shows itself from
+                // setPreview; nothing to wire here.
                 const avatarPicker = this.initAvatarPicker(
                     content, 'edit', avatarLibrary, profile.profileImage,
                     (src) => {
-                        // Colour dimming is the picker's own business now; this callback
-                        // is only here to put the initial back when the picture goes.
+                        // The picker dims the colour itself; this callback only puts the initial back when the picture goes.
                         const preview = document.getElementById('edit-image-upload-preview');
                         if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
                     },
@@ -10144,15 +10134,14 @@
                     });
                 }
 
-                // The tick and the artwork controls share a row now, so the artwork half
-                // has to start out matching the tick rather than waiting for a change.
+                // The tick and artwork controls share a row, so the artwork half starts out matching the tick.
                 this.syncAllLibraryRows(content);
 
                 // Devices dropdown logic for edit
                 const editTrigger = document.getElementById('devices-dropdown-trigger');
                 const editList = document.getElementById('devices-dropdown-list');
                 if (editTrigger && editList) {
-                    // Keep aria-expanded in step with the visual state — see the create form.
+                    // Keep aria-expanded in step; see the create form.
                     const setEditOpen = (open) => {
                         editList.style.display = open ? 'block' : 'none';
                         editTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -10219,8 +10208,7 @@
                 // Save handler
                 document.getElementById('edit-submit-btn').addEventListener('click', () => {
                     const name = document.getElementById('edit-name-input').value.trim();
-                    // The main account's form has none of these (see Section 2): null
-                    // leaves each as it is on the server.
+                    // The main account's form has none of these (see Section 2): null leaves each as it is.
                     const pinField = document.getElementById('jpf-edit-pin-input');
                     const pinVal = pinField ? pinField.value : '';
                     const bypassBox = document.getElementById('edit-local-bypass-checkbox');
@@ -10229,8 +10217,7 @@
                     let rating = null;
                     let checkedLibs = null;
                     let checkedDevices = null;
-                    // Null for the master profile, which has no tag editor — the server reads
-                    // null as "leave unchanged".
+                    // Null for the master profile, which has no tag editor; the server reads null as "leave unchanged".
                     let blockedTags = null;
                     let allowedTags = null;
                     if (!profile.isMaster) {
@@ -10242,14 +10229,12 @@
                             // Same guard as the create form (#33).
                             if (isGuidLike(cb.value)) rawLibs.push(cb.value);
                         });
-                        // No box ticked means every library, and that is sent as
-                        // allLibraries: true. It used to be enabledFolders: null, which the
-                        // server also read as "every library" — so any client that simply
-                        // left the field out lifted a child's library limits (R-1144). Null
-                        // now keeps the list, and "all" has to be said.
+                        // No box ticked means every library, sent as allLibraries: true. It used to be
+                        // enabledFolders: null, which the server also read as "every library", so any client
+                        // that left the field out lifted a child's library limits (R-1144). Null now keeps
+                        // the list and "all" has to be said.
                         checkedLibs = rawLibs.length > 0 ? rawLibs : null;
-                        // Null leaves the list as it is. With no device list to draw there
-                        // are no boxes, and [] would mean "any device".
+                        // Null leaves the list as it is. With no device list drawn there are no boxes, and [] would mean "any device".
                         if (devices !== null) {
                             checkedDevices = [];
                             content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
@@ -10260,9 +10245,8 @@
                     const lockoutSel = document.getElementById('edit-lockout-select');
                     const lockoutMinutes = lockoutSel ? parseInt(lockoutSel.value, 10) : undefined;
 
-                    // Report validation failures inline next to the offending field as well as
-                    // in a dialog. A dialog alone is fragile — when it was rendering behind the
-                    // overlay this button looked completely dead on an invalid PIN.
+                    // Report validation failures inline next to the field as well as in a dialog. A
+                    // dialog alone made this button look dead on an invalid PIN when it rendered behind the overlay.
                     const pinError = document.getElementById('edit-pin-error');
                     const showPinError = (msg) => {
                         if (pinError) {
@@ -10284,11 +10268,10 @@
                         return;
                     }
 
-                    // What is typed in the box comes first. "Clear PIN" empties the field
-                    // but leaves it on screen, and the clear used to be checked first: a
-                    // parent who cleared and then typed a new PIN saved an unprotected
-                    // profile and was told it had worked (R-1214). Clear means "no PIN"
-                    // only while the box is still empty.
+                    // What is typed in the box comes first. "Clear PIN" empties the field but leaves it
+                    // on screen, and clear used to win: a parent who cleared and then typed a new PIN saved
+                    // an unprotected profile and was told it worked (R-1214). Clear means "no PIN" only
+                    // while the box is empty.
                     let pin = null;
                     if (pinVal) {
                         if (!/^\d+$/.test(pinVal)) {
@@ -10313,8 +10296,8 @@
                             profileName: name,
                             pin: pin,
                             avatarColor: selectedColor,
-                            // "" is "no limit of its own"; null (the main account) keeps it.
-                            // Null used to be both, so this sent null for "no limit" (R-1144).
+                            // "" is "no limit of its own"; null (the main account) keeps it. Null used to be
+                            // both, so "no limit" sent null (R-1144).
                             maxParentalRating: rating,
                             enabledFolders: checkedLibs,
                             allLibraries: !profile.isMaster && checkedLibs === null ? true : null,
@@ -10334,11 +10317,9 @@
                     .then(res => {
                         this.checked(res);
                         if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
-                        // Artwork is stored per library, so it is saved after the profile
-                        // itself rather than folded into that one request.
-                        // The account on screen changed its own theme: put it on now rather
-                        // than on the next load. Any other profile's theme shows when it is
-                        // opened.
+                        // Artwork is stored per library, so it is saved after the profile, not folded into
+                        // that request. If the account on screen changed its own theme, apply it now; any
+                        // other profile's theme shows when it is opened.
                         const savedTheme = this.readThemePicker('edit');
                         if (savedTheme !== undefined && this._themeSettings
                             && this.normalizeGuid(profile.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
@@ -10349,9 +10330,8 @@
                             });
                         }
                         return artworkEditor.save(profile.profileUserId)
-                            // The profile is saved by now, so a failure in the artwork is said
-                            // as that and the hours and the refresh still run. Uncaught, it
-                            // fell to the outer catch, which says the profile did not save.
+                            // The profile is saved by now, so an artwork failure is said as that and the hours
+                            // and refresh still run. Uncaught, it fell to the outer catch, which says the profile did not save.
                             .catch(err => {
                                 this.showAlert(t('errors.error'), this._failText(err, t('errors.couldNotSaveArtwork')));
                             })
