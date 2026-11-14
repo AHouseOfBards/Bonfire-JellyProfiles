@@ -7487,7 +7487,7 @@
             content.classList.add('jpf-fitted');
             let lo = floor;
             let hi = natural;
-            if (!tryTile(lo)) { stick(); return; }             // already at the floor; leave it scrolling
+            if (!tryTile(lo)) { stick(); return; }             // at the floor: leave it scrolling
             for (let i = 0; i < 8 && hi - lo > 2; i++) {
                 const mid = Math.floor((lo + hi) / 2);
                 if (tryTile(mid)) lo = mid; else hi = mid;
@@ -7497,10 +7497,10 @@
         },
 
         attachOverlayInteractions: function (overlay, profiles) {
-            // Support D-pad Enter/Space selection on focused profile cards
+            // D-pad Enter/Space selects a focused profile card
             overlay.addEventListener('keydown', (e) => {
                 if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('jpf-profile-card')) {
-                    // Prevent accidental selection from propagated keydown events during login
+                    // Ignore keydown events propagated from login
                     if (Date.now() - (this._overlayMountTime || 0) < 350) {
                         e.preventDefault();
                         return;
@@ -7510,7 +7510,7 @@
                 }
             });
 
-            // Card selection logic
+            // Card selection
             overlay.querySelectorAll('.jpf-profile-card:not(.action-add-profile)').forEach(card => {
                 card.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -7531,8 +7531,8 @@
                     } else if (this.isManageMode) {
                         this.showEditProfileModal(profile);
                     } else if (profile.viewing && !profile.viewing.allowed) {
-                        // Out of time: say so first. Browsing is still allowed, so the
-                        // profile opens anyway if they carry on.
+                        // Out of time: say so first. Browsing is still allowed, so the profile
+                        // opens anyway if they carry on.
                         this.showTimeUp(profile, open);
                     } else {
                         open();
@@ -7540,10 +7540,10 @@
                 });
             });
 
-            // "Add Profile" action. The card only exists in Manage Profiles, which has
-            // already asked for the main PIN. It used to ask again, after reading the
-            // plugin's configuration, which only an administrator may read: for everyone
-            // else that failed and the form opened with no PIN at all.
+            // "Add Profile": the card only exists in Manage Profiles, which has already asked
+            // for the main PIN. It used to ask again after reading the plugin configuration,
+            // which only an administrator may read, so for everyone else it failed and the form
+            // opened with no PIN.
             const addCard = overlay.querySelector('.action-add-profile');
             if (addCard) {
                 addCard.addEventListener('click', () => {
@@ -7552,8 +7552,7 @@
                 });
             }
 
-            // Settings: everything that is not a profile. They are the main account's, so
-            // the main account opens them, with its PIN.
+            // Settings: not profiles. They are the main account's, so it opens them with its PIN.
             const settingsBtn = overlay.querySelector('#profiles-settings-btn');
             if (settingsBtn) {
                 settingsBtn.addEventListener('click', () => {
@@ -7592,9 +7591,9 @@
                 this.applyPanicLinkVisibility();
             }
 
-            // Back out of a switcher the user opened on purpose, returning to the profile
-            // they were already using. Only present when there is something to return to —
-            // the startup gate is a required choice and has no Cancel.
+            // Back out of a switcher the user opened on purpose, returning to the profile they
+            // were using. Only present when there is something to return to; the startup gate
+            // is a required choice and has no Cancel.
             const resumeBtn = overlay.querySelector('#profiles-resume-btn');
             if (resumeBtn) {
                 resumeBtn.addEventListener('click', () => {
@@ -7614,14 +7613,13 @@
                         this.renderOverlayContent(overlay, profiles);
                     } else {
                         const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
-                        // isSignedInAsMaster compares against the stored id; without it the
-                        // master was told to open the master.
+                        // isSignedInAsMaster compares against the stored id; without it the master was
+                        // told to open the master.
                         this._syncMasterFromProfiles(masterProfile);
 
-                        // Managing profiles is the master account's to do, and the server
-                        // refuses it from any other. It used to work from a profile only
-                        // because the master's token was kept in the browser; now a profile
-                        // opens the master first, like any other switch.
+                        // Managing profiles is the master account's to do and the server refuses it from
+                        // any other. It worked from a profile only because the master's token was kept in
+                        // the browser; now a profile opens the master first, like any other switch.
                         if (!this.isSignedInAsMaster()) {
                             this.showAlert(t('switcher.manageTitle'),
                                 t('switcher.manageNeedsMaster', { name: masterProfile ? masterProfile.profileName : '' }));
@@ -7637,29 +7635,27 @@
             }
         },
 
-        /// How long the PIN box waits after the last digit before checking what was typed.
+        /// How long the PIN box waits after the last digit before checking.
         PIN_PAUSE_MS: 1500,
 
-        /// Checks a PIN box by itself once the typing stops, so a right PIN opens without
-        /// Enter. Shared by the profile PIN and the main PIN.
+        /// Checks a PIN box once typing stops, so a right PIN opens without Enter. Shared by
+        /// the profile PIN and the main PIN.
         ///
-        /// Both boxes used to POST verify-pin on every keystroke from the fourth digit on.
-        /// The server counts every one of those as a guess — it has to, or a "silent" check
-        /// would be a free way to try PINs — so an eight-digit PIN typed correctly spent four
-        /// wrong prefixes first, and one typo on top of that reached the lockout: a "PIN is
-        /// locked" activity line and a PinLocked email for somebody who knew their PIN, and
-        /// a fifth of the account's twenty guesses a day gone. Now it is one check per pause
-        /// (or at once when the box is full), never the same value twice, and none at all
-        /// after a 429.
+        /// Both boxes used to POST verify-pin on every keystroke from the fourth digit. The
+        /// server counts each as a guess, so an eight-digit PIN typed correctly spent four
+        /// wrong prefixes first, and one typo then reached the lockout: a "PIN is locked"
+        /// activity line and a PinLocked email for someone who knew their PIN. Now it is one
+        /// check per pause (or at once when the box is full), never the same value twice, and
+        /// none after a 429.
         ///
-        /// opts: send(pin) → fetch promise; busy() → true while a switch is underway;
-        /// onRight(pin); onLocked(serverText).
-        /// Returns { input, cancel, hold, takeRefusal(pin) }. takeRefusal hands back the server's
-        /// answer if this exact value was just refused, so Enter can show it rather than
-        /// spend another guess on the same digits; it is used once, so retyping asks again.
-        /// The wait in a 429, in the viewer's language. The server sends the seconds in
-        /// Retry-After and an English sentence in the body; the sentence is not shown,
-        /// because it cannot be translated. Rounded as the server's DescribeWait does.
+        /// opts: send(pin) returns a fetch promise; busy() is true while a switch is underway;
+        /// onRight(pin); onLocked(serverText). Returns { input, cancel, hold, takeRefusal(pin) }.
+        /// takeRefusal hands back the server's answer if this exact value was just refused, so
+        /// Enter shows it instead of spending another guess; used once, so retyping asks again.
+        ///
+        /// The wait in a 429, in the viewer's language. The server sends seconds in Retry-After
+        /// and an English sentence that is not shown, since it cannot be translated. Rounded as
+        /// the server's DescribeWait does.
         _lockedText: function (res) {
             let seconds = 0;
             try { seconds = Math.ceil(Number(res.headers.get('Retry-After'))) || 0; } catch (e) { seconds = 0; }
@@ -7674,15 +7670,13 @@
             let timer = null;
             let stopped = false;
             let pending = null;
-            // The request in flight, as { pin, done }, where done settles after this
-            // function has acted on the answer. Enter waits on it rather than sending the
-            // same digits again: that was a second counted guess at the PIN.
+            // The request in flight, as { pin, done }; done settles after the answer is acted
+            // on. Enter waits on it instead of sending the same digits again (a second counted guess).
             let inflight = null;
-            // The screen this keypad belongs to. Anything that starts a navigation (Forgot
-            // PIN, Back, an expired session, the next screen) moves the ticket on, and the
-            // input leaving the document says the same thing. Either way this keypad is
-            // over: the timer could still fire, spend a guess, and run the switch from a
-            // screen the person had already left.
+            // The screen this keypad belongs to. Anything that starts a navigation moves the
+            // ticket on, and so does the input leaving the document. Either way the keypad is
+            // over: the timer could otherwise spend a guess and run the switch from a screen the
+            // person had left.
             const ticket = this._navTicket;
             const gone = () => stopped || !this.navIsCurrent(ticket) || !document.body.contains(pinInput);
 
@@ -7697,14 +7691,13 @@
                         if (pending === pin) pending = null;
                         if (res.status === 401) { this.handleSessionExpired(); return null; }
                         if (res.ok) {
-                            // Typed on past it while the answer was coming: the box no longer
-                            // holds a right PIN, and Enter will send what it does hold.
+                            // Typed on while the answer was coming: the box no longer holds a right PIN,
+                            // and Enter will send what it does hold.
                             if (!gone() && pinInput.value === pin) opts.onRight(pin);
                             return null;
                         }
                         if (res.status === 429) {
-                            // Locked. Every further check would be refused and counted
-                            // nowhere useful; say so and stop.
+                            // Locked: further checks would all be refused; say so and stop.
                             stopped = true;
                             if (timer) { clearTimeout(timer); timer = null; }
                             opts.onLocked(this._lockedText(res));
@@ -7744,11 +7737,10 @@
                     refused.delete(pin);
                     return body;
                 },
-                // Enter is the person saying they are done: the pending pause has no more
-                // to tell us.
+                // Enter means done: the pending pause has nothing more to tell us.
                 hold: () => { if (timer) { clearTimeout(timer); timer = null; } },
-                // A promise that settles once the check already out for this PIN has been
-                // acted on, or null when none is. Enter waits on it instead of asking again.
+                // Settles once the check already out for this PIN has been acted on, else null.
+                // Enter waits on it instead of asking again.
                 inFlight: (pin) => (inflight && inflight.pin === pin) ? inflight.done : null
             };
         },
@@ -7780,7 +7772,7 @@
                     (pin) => this.executeProfileSwitch(profileId, pin, () => this.promptPinEntry(profileId)));
             }
 
-            // Prevents a second switch from firing if one is already in progress.
+            // No second switch while one is in progress.
             let switchInProgress = false;
 
             const showPinError = (msg) => {
@@ -7803,8 +7795,8 @@
                 errorMsg.textContent = '';
             };
 
-            // Checked once the typing pauses — see _pinAutoCheck for why not per keystroke.
-            // A wrong answer shows nothing yet: the person may still be typing.
+            // Checked once typing pauses (see _pinAutoCheck). A wrong answer shows nothing yet:
+            // the person may still be typing.
             const auto = this._pinAutoCheck(pinInput, {
                 send: (pin) => {
                     const masterState = this.readMasterState();
@@ -7820,10 +7812,8 @@
                     if (switchInProgress || this._switchLock) return;
                     switchInProgress = true;
                     this.executeProfileSwitch(profileId, pin, (msg) => {
-                        // Verify said OK and the switch was refused (limits, device,
-                        // maintenance, a network failure). Say why: the box was just
-                        // cleared by nothing, and the person is typing on a screen that
-                        // is now doing nothing.
+                        // Verify said OK and the switch was refused (limits, device, maintenance, network).
+                        // Say why: otherwise the person types on a screen that is doing nothing.
                         showPinError(msg);
                     });
                 },
@@ -7835,15 +7825,14 @@
                 auto.input();
             });
 
-            // Manual submit — only place where we show an error on wrong PIN
+            // Manual submit: the only place a wrong PIN shows an error
             let submitWaiting = false;
             const submitPin = () => {
                 if (switchInProgress || this._switchLock) return;
                 auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
-                // The same digits are already out for checking: wait for that answer, and
-                // act on it, instead of sending them a second time.
+                // The same digits are already out for checking: wait for that answer instead of resending.
                 const waiting = auto.inFlight(pin);
                 if (waiting) {
                     if (!submitWaiting) {
@@ -7855,8 +7844,7 @@
                     }
                     return;
                 }
-                // Just checked and refused: the same digits again would only spend another
-                // of the account's guesses to hear the same answer.
+                // Just refused: the same digits again would spend another guess to hear the same answer.
                 const refusal = auto.takeRefusal(pin);
                 if (refusal !== undefined) { showPinError(refusal || t('pin.incorrectPin')); return; }
                 switchInProgress = true;
@@ -7886,26 +7874,24 @@
                 .then(res => res.ok ? res.json() : null)
                 .catch(() => null);
             this._serverInfo = { at: now, promise: promise };
-            // Only a read that worked is kept. A failed one cached as null read as "no main
-            // PIN required" in withMainPin for the whole minute.
+            // Only a successful read is kept: a failed one cached as null read as "no main PIN
+            // required" in withMainPin for the whole minute.
             promise.then(info => {
                 if (info === null && this._serverInfo && this._serverInfo.promise === promise) this._serverInfo = null;
             });
             return promise;
         },
 
-        /// Runs then() once the main PIN is known: asks for it if the account has one and
-        /// it hasn't been typed yet. With none set and the administrator requiring one,
-        /// sets one first.
+        /// Runs then() once the main PIN is known: asks for it if the account has one and it
+        /// hasn't been typed yet. With none set and the administrator requiring one, sets one first.
         ///
-        /// Decided by hasPin, never requiresPin. requiresPin answers "does opening the
-        /// account ask", which is false on the home network with the bypass on, or with
-        /// asking turned off; the server still wants the PIN to change anything. Going by
-        /// requiresPin, Manage Profiles opened without asking and every save then failed
-        /// as a wrong PIN.
+        /// Decided by hasPin, never requiresPin. requiresPin is false on the home network with
+        /// the bypass on, or with asking turned off, but the server still wants the PIN to change
+        /// anything. Going by requiresPin, Manage Profiles opened without asking and every save
+        /// failed as a wrong PIN.
         withMainPin: function (profiles, then) {
-            // (A caller that holds the PIN for one act on the gate lets it go with
-            // _dropGatePin, on every way out of that act, not only the one that works.)
+            // A caller holding the PIN for one act lets it go with _dropGatePin on every way out
+            // of that act, not only the one that works.
             const main = (profiles || this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
             if (main && main.hasPin) {
                 if (this.masterPin) { then(); return; }
@@ -7920,17 +7906,17 @@
             }, () => then());
         },
 
-        /// Forgets the main PIN typed for a single act on the gate. Manage Profiles keeps it:
-        /// it is open for as long as the parent stays there.
+        /// Forgets the main PIN typed for a single act on the gate. Manage Profiles keeps it
+        /// for as long as the parent stays there.
         _dropGatePin: function () {
             if (!this.isManageMode) this.masterPin = null;
         },
 
-        /// Asks the main account to set a PIN. Required: there is no "Not now", and Cancel
-        /// goes back to the profiles. Offered: "Not now" carries on without one.
+        /// Asks the main account to set a PIN. Required: no "Not now", and Cancel goes back to
+        /// the profiles. Offered: "Not now" carries on without one.
         ///
-        /// `setup` is first-time setup's: `{ onSkip }`, where a null onSkip is a step the
-        /// administrator made required, so there is no button at all.
+        /// `setup` is first-time setup's `{ onSkip }`; a null onSkip means the administrator
+        /// made the step required, so there is no button.
         promptSetMainPin: function (profiles, required, done, setup, noteKey) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
@@ -7964,8 +7950,8 @@
             };
             input.focus();
 
-            // One save at a time: Enter held down, or Enter then the button, sent the
-            // request twice, and a second success ran done() (the next screen) twice.
+            // One save at a time: Enter held down, or Enter then the button, sent the request
+            // twice and ran done() (the next screen) twice.
             const save = () => {
                 if (saving) return;
                 const pin = input.value;
@@ -8024,7 +8010,7 @@
             pinInput.focus();
             this._offerPinReset(content, () => this.promptMasterPinEntry(actionType, callback), () => callback());
 
-            let verified = false; // prevent callback firing more than once
+            let verified = false; // callback fires once
 
             const showPinError = (msg) => {
                 verified = false;
@@ -8045,11 +8031,11 @@
                 errorMsg.textContent = '';
             };
 
-            // Manual submit — only place where we show an error on wrong master PIN
+            // Manual submit: the only place a wrong master PIN shows an error
             let verifyInProgress = false;
 
-            // Checked once the typing pauses, not per keystroke — see _pinAutoCheck. Every
-            // prefix of the main PIN was a counted guess at the account's own PIN.
+            // Checked once typing pauses, not per keystroke (see _pinAutoCheck): every prefix
+            // of the main PIN was a counted guess.
             const auto = this._pinAutoCheck(pinInput, {
                 send: (pin) => {
                     const masterState = this.readMasterState();
@@ -8081,8 +8067,7 @@
                 auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
-                // The same digits are already out for checking: wait for that answer
-                // instead of sending them a second time.
+                // The same digits are already out for checking: wait for that answer.
                 const waiting = auto.inFlight(pin);
                 if (waiting) {
                     if (!submitWaiting) {
@@ -8094,8 +8079,7 @@
                     }
                     return;
                 }
-                // Just checked and refused: asking again spends another guess for the
-                // same answer.
+                // Just refused: asking again spends another guess for the same answer.
                 const refusal = auto.takeRefusal(pin);
                 if (refusal !== undefined) { showPinError(refusal || t('pin.incorrectMasterPin')); return; }
                 const masterState = this.readMasterState();
@@ -8139,9 +8123,8 @@
             });
         },
 
-        /// D-pad Enter/Space presses a colour dot. The modal content is one element for the
-        /// whole session and Create and Edit both draw into it, so the listener is added
-        /// once; each visit used to add another.
+        /// D-pad Enter/Space presses a colour dot. Create and Edit draw into one modal content
+        /// element for the whole session, so the listener is added once; each visit used to add another.
         _bindColorDotKeys: function (content) {
             if (content._jpfDotKeys) return;
             content._jpfDotKeys = true;
@@ -8159,11 +8142,9 @@
             return o[k] !== undefined ? o[k] : o[k.charAt(0).toUpperCase() + k.slice(1)];
         },
 
-        /// One call to an /account/email or /account/pin-reset route as the main account.
-        /// No body is a GET. Resolves the reply's JSON ({} when there is none); rejects
-        /// with the server's words.
-        ///
-        /// The language goes with every POST: it is what the mail is written in.
+        /// One call to an /account/email or /account/pin-reset route as the main account. No
+        /// body is a GET. Resolves the reply's JSON ({} when none); rejects with the server's
+        /// words. The language goes with every POST: it is what the mail is written in.
         _emailCall: function (path, body) {
             const masterState = this.readMasterState();
             const token = masterState ? masterState.token : ApiClient.accessToken();
@@ -8185,10 +8166,9 @@
             });
         },
 
-        /// The one /startup answer for a token, shared by everything that needs a part of it:
-        /// the announcements, the first-time setup and who the caller is. Kept for maxAgeMs,
-        /// so the gate, the setup check and the PIN prompt on one page load are one request
-        /// between them. A refusal or a failure is null and is not kept.
+        /// The one /startup answer for a token, shared by the announcements, first-time setup
+        /// and the caller's identity. Kept for maxAgeMs, so one page load is one request. A
+        /// refusal or failure is null and not kept.
         _fetchStartup: function (token, maxAgeMs) {
             const held = this._startupHeld;
             if (held && held.token === token && Date.now() - held.at < maxAgeMs) return held.promise;
@@ -8208,10 +8188,9 @@
         },
 
         /// Shows "Forgot PIN?" on a main-PIN prompt when the server can mail this account a
-        /// code. Read from /startup's `me` once, when the prompt opens.
-        ///
-        /// back() redraws the prompt; done(pin) carries on with the new PIN, so a reset
-        /// lands where the person was going instead of asking for the PIN just set.
+        /// code. Read from /startup's `me` once, when the prompt opens. back() redraws the
+        /// prompt; done(pin) carries on with the new PIN, so a reset lands where the person
+        /// was going.
         _offerPinReset: function (content, back, done) {
             const link = content.querySelector('#pin-forgot');
             const masterState = this.readMasterState();
@@ -8226,8 +8205,8 @@
             .catch(() => { /* no link; the prompt works as before */ });
         },
 
-        /// Forgot PIN: a code to the main account's confirmed address, then a new PIN.
-        /// The code is sent as the screen opens, since sending it is all the screen is for.
+        /// Forgot PIN: a code to the main account's confirmed address, then a new PIN. The
+        /// code is sent as the screen opens.
         showPinReset: function (back, done) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
@@ -8287,11 +8266,8 @@
             send();
         },
 
-        /// The Email section of Your account. Draws nothing until the server says email
-        /// works, so a server without it never shows an empty section.
-        ///
-        /// Every route answers with the whole state, so each action just redraws from the
-        /// reply: the address, a code on its way, or nothing yet.
+        /// The Email section of Your account. Draws nothing until the server says email works.
+        /// Every route answers with the whole state, so each action redraws from the reply.
         _bindAccountEmail: function (slot) {
             if (!slot) return;
             let data = null;
