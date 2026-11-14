@@ -2442,34 +2442,27 @@
 
         /// The household this device belongs to, and the session to act as.
         ///
-        /// Only the master account's id is stored. Its TOKEN used to be kept here too, in
-        /// localStorage, for as long as any profile was in use — so anybody at that browser
-        /// with the developer tools open, or any other script running on the page, had the
-        /// master account: every PIN, every parental control and every library restriction
-        /// on the profiles was a picture over it. Closing the tab even put it back in use
-        /// behind the gate.
-        ///
-        /// Nothing needs it. The server resolves the household from whatever session calls
-        /// it, so listing and switching work from a profile's own token, and entering the
-        /// master goes through /switch with the master's PIN like entering anything else.
-        /// `token` here is simply the session in use now.
+        /// Only the master account's id is stored, never its token. The token used to sit in
+        /// localStorage while any profile was in use, so anyone with the developer tools open
+        /// (or any script on the page) held the master account and every PIN and parental
+        /// control was cosmetic. Nothing needs it: the server finds the household from
+        /// whatever session calls it, and entering the master goes through /switch with the
+        /// master's PIN. `token` here is just the session in use now.
         readMasterState: function () {
             let stored = null;
             try {
                 stored = JSON.parse(localStorage.getItem(this.config.masterStorageKey) || 'null');
             } catch (e) { /* unreadable: treat as unknown */ }
-            // Storage that is blocked or full takes the write below and gives nothing back,
-            // which left every switch with no master to act for (R-1207). The page keeps
-            // the last id it was told, for as long as it lives.
+            // Blocked or full storage swallows the write below, which left every switch with no
+            // master to act for (R-1207). The page keeps the last id it was told.
             if ((!stored || !stored.masterUserId) && this._masterIdInMemory) stored = { masterUserId: this._masterIdInMemory };
             if (!stored || !stored.masterUserId) return null;
 
             let token = null;
             try { token = (typeof ApiClient !== 'undefined' && ApiClient) ? ApiClient.accessToken() : null; } catch (e) { /* no client yet */ }
 
-            // Left behind by an earlier version. Take it out of the browser, and if it is not
-            // the session in use, end it on the server too: it is a live master session that
-            // nothing on this device should be holding any more.
+            // Left by an earlier version. Remove it, and if it is not the session in use, end it
+            // on the server: it is a live master session nothing here should hold.
             if (stored.masterToken) {
                 if (stored.masterToken !== token) this._endSession(stored.masterToken);
                 this.writeMasterState(stored.masterUserId);
@@ -2480,16 +2473,13 @@
 
         /// Makes the stored master agree with a list the server has just sent.
         ///
-        /// The grid groups profiles by this id and the manage check compares against it,
-        /// so when it is missing the household's own profiles are drawn as a linked
-        /// "<master>'s Bonfire" and Manage Profiles tells the master to open the master.
-        /// Seen on the iPad app. The list is the server's answer to "whose household is
-        /// this" for the session in use — the same rule fetchAndRenderProfiles applies when
-        /// it stores the id — so it wins. Only an id is stored, and every action is still
-        /// authorised by the server.
-        ///
-        /// Safe only because no list from a previous account survives to be rendered: the
-        /// sign-in screen drops the in-memory one (evaluateFloatingBubbleVisibility).
+        /// The grid groups profiles by this id and the manage check compares against it. With
+        /// it missing, the household's own profiles drew as a linked "<master>'s Bonfire" and
+        /// Manage Profiles told the master to open the master (seen on the iPad app). The list
+        /// is the server's answer for the session in use, the same rule fetchAndRenderProfiles
+        /// applies, so it wins. Safe because no list from a previous account survives: the
+        /// sign-in screen drops the in-memory one (evaluateFloatingBubbleVisibility). Only an id
+        /// is stored; the server still authorizes every action.
         _syncMasterFromProfiles: function (masterProfile) {
             if (!masterProfile || !masterProfile.profileUserId) return;
             const st = this.readMasterState();
@@ -2506,27 +2496,25 @@
             return !!current && this.normalizeGuid(current) === this.normalizeGuid(st.masterUserId);
         },
 
-        /// Forgets the master everywhere it is kept: the stored id and the copy the page
-        /// holds in case storage is blocked. Every sign-out path comes through here, or a
-        /// shared device would hand the next person the last household's switcher.
+        /// Forgets the master everywhere: the stored id and the in-page copy. Every sign-out
+        /// path comes through here, or a shared device shows the next person the last
+        /// household's switcher.
         clearMasterState: function () {
             this._masterIdInMemory = null;
             try { localStorage.removeItem(this.config.masterStorageKey); } catch (e) { /* blocked */ }
         },
 
         writeMasterState: function (masterUserId) {
-            // Held only when the browser refused it. When storage works it is the one
-            // truth, so another tab signing out is respected here too.
+            // Held only when the browser refused storage. Otherwise storage is the one truth, so
+            // another tab signing out is respected here too.
             this._masterIdInMemory = null;
             try {
                 localStorage.setItem(this.config.masterStorageKey, JSON.stringify({ masterUserId: masterUserId }));
             } catch (e) { this._masterIdInMemory = masterUserId; }
         },
 
-        /// Signs one session out on the server. Best-effort and silent: the token has
-        /// already been dropped from this browser, which is what matters here. keepalive,
-        /// because the switch that calls this reloads the page straight afterwards, and a
-        /// plain request in flight is cancelled by the navigation.
+        /// Signs one session out on the server, best-effort. keepalive, because the switch that
+        /// calls this reloads the page straight after and navigation cancels a plain request.
         _endSession: function (token) {
             try {
                 if (!token || typeof ApiClient === 'undefined' || !ApiClient || typeof ApiClient.getUrl !== 'function') return;
@@ -2535,28 +2523,20 @@
             } catch (e) { /* never worth failing over */ }
         },
 
-        /// Writes a token and user into jellyfin-web's own stored credentials, and returns
-        /// whether it actually managed to.
+        /// Writes a token and user into jellyfin-web's stored credentials and returns whether
+        /// it really did. The caller must not reload on false.
         ///
-        /// The return value is the point of this function. Everything else about a switch
-        /// can succeed — the server issues the token, ApiClient takes it, the page
-        /// reloads — and the profile still not be the one that comes back, because this is
-        /// the only part that survives the reload. It used to fail silently in two ways,
-        /// both of which look from outside exactly like "it lets me pick a profile but
-        /// loads my own account anyway", which is issue #16:
+        /// The return value matters because this is the only part of a switch that survives the
+        /// reload. It used to fail silently in two ways, both looking like "it lets me pick a
+        /// profile but loads my own account anyway" (issue #16):
+        ///   - The server was matched with a raw `server.Id === currentServerId`, where every
+        ///     other id comparison uses normalizeGuid (casing and dashes vary). With two stored
+        ///     servers (an address and a hostname for one box) a mismatch updated nothing.
+        ///   - localStorage can accept a write and discard it (full quota, a TV in a
+        ///     private-browsing-like mode), and nothing read it back.
         ///
-        ///   - The server was matched with `server.Id === currentServerId`, a raw string
-        ///     comparison of two GUIDs. Every other id comparison in this file goes
-        ///     through normalizeGuid because casing and dashes vary by where the value
-        ///     came from. With more than one server stored — an address and a hostname for
-        ///     the same box is the common way that happens — a mismatch updated nothing
-        ///     and reported nothing.
-        ///   - Writing to localStorage can be accepted and discarded (a full quota, a
-        ///     television in a private-browsing-like mode). Nothing read it back.
-        ///
-        /// So: match by id, fall back to the address ApiClient is actually talking to,
-        /// fall back to a single stored server, and then read back what was written. The
-        /// caller decides what to do with a false; it must not be a reload.
+        /// So it matches by id, then by the address ApiClient is using, then a single stored
+        /// server, and reads back what it wrote.
         updateStoredCredentials: function (newToken, newUserId) {
             try {
                 const credsStr = localStorage.getItem('jellyfin_credentials');
@@ -2571,15 +2551,11 @@
                 const sameAddress = (server) => !!address && [server.ManualAddress, server.LocalAddress, server.RemoteAddress]
                     .some(a => a && String(a).replace(/\/+$/, '') === address.replace(/\/+$/, ''));
 
-                // In order, and only one of them applies. Widening the match after a
-                // narrower one has already hit would write another server's entry.
-                //
-                // The second rung is the one that makes a wrong refusal unlikely: the
-                // entry to overwrite is the one holding the session being replaced, so the
-                // user signed in right now names it even when the id and the address do
-                // not. The old code wrote *every* stored server when it had no id, which
-                // did make the switch work — by pointing other servers at a token they
-                // will not accept.
+                // In order; only one rung applies, since widening after a narrower hit would write
+                // another server's entry. The second rung is what makes a wrong refusal unlikely: the
+                // entry holding the session being replaced is the one the signed-in user names, even
+                // when id and address do not match. The old code wrote every stored server when it had
+                // no id, which made the switch work by pointing other servers at a token they reject.
                 const signedIn = this.normalizeGuid(
                     typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : '');
                 let targets = creds.Servers.filter(s => serverId && this.normalizeGuid(s.Id) === serverId);
@@ -2597,8 +2573,8 @@
                 });
                 localStorage.setItem('jellyfin_credentials', JSON.stringify(creds));
 
-                // Read back. A write that was accepted and dropped leaves the old token in
-                // place, and the reload would sign back in as whoever was there before.
+                // Read back: a write that was accepted and dropped leaves the old token, and the reload
+                // would sign back in as whoever was there before.
                 const saved = JSON.parse(localStorage.getItem('jellyfin_credentials') || 'null');
                 return !!(saved && Array.isArray(saved.Servers)
                     && saved.Servers.some(s => s.AccessToken === newToken && s.UserId === newUserId));
@@ -2613,23 +2589,19 @@
             return guid.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
         },
 
-        /// Registers a document-level listener that is torn down the next time a modal is
-        /// rendered.
+        /// Registers a document-level listener that is removed the next time a modal renders.
         ///
-        /// The create/edit forms attach a document click handler to close the device dropdown.
-        /// Those were added on every render and never removed, so each open/close cycle left
-        /// another live closure bound to `document`, each capturing a now-detached modal. After
-        /// a few passes every click on the page ran a growing pile of stale handlers — which
-        /// showed up as clicks taking seconds to register, getting worse the longer the tab
-        /// stayed open.
+        /// The create/edit forms added a document click handler on every render (to close the
+        /// device dropdown) and never removed it. Each open/close left another closure bound to
+        /// `document` holding a detached modal, so clicks took seconds to register the longer
+        /// the tab stayed open.
         addManagedDocumentListener: function (type, handler, options) {
             if (!this._managedDocListeners) this._managedDocListeners = [];
             document.addEventListener(type, handler, options);
             this._managedDocListeners.push({ type, handler, options });
         },
 
-        /// Drops every listener registered via addManagedDocumentListener. Safe to call when
-        /// none are outstanding.
+        /// Drops every listener registered via addManagedDocumentListener.
         clearManagedDocumentListeners: function () {
             if (!this._managedDocListeners) return;
             this._managedDocListeners.forEach(({ type, handler, options }) => {
@@ -2638,10 +2610,9 @@
             this._managedDocListeners = [];
         },
 
-        /// Normalizes the /list response into the camelCase shape the UI uses.
-        /// ASP.NET may serialize either casing depending on server configuration, so every
-        /// field is read both ways. Single definition — adding a field here reaches every
-        /// caller, which two hand-maintained copies of this map did not.
+        /// Normalizes the /list response into the camelCase shape the UI uses. ASP.NET may
+        /// serialize either casing, so every field is read both ways. One definition, so a new
+        /// field reaches every caller (two hand-kept copies did not).
         normalizeProfiles: function (profiles) {
             const pick = (p, name, fallback) => {
                 const upper = name.charAt(0).toUpperCase() + name.slice(1);
@@ -2657,25 +2628,23 @@
                 avatarColor: pick(p, 'avatarColor', DEFAULT_AVATAR_COLOR),
                 // Cut-out picture: paint no colour behind it (issue #23).
                 transparentAvatar: pick(p, 'transparentAvatar', false),
-                // The profile's own choice; null follows the server default. Sent to the
-                // account owner only.
+                // The profile's own choice; null follows the server default. Owner only.
                 theme: pick(p, 'theme', null),
                 requiresPin: pick(p, 'requiresPin', false),
-                // "A PIN exists" — distinct from requiresPin, which is false on the LAN when
-                // the bypass is enabled. Forms must use this one.
+                // "A PIN exists", unlike requiresPin, which is false on the LAN when the bypass is on.
+                // Forms must use this one.
                 hasPin: pick(p, 'hasPin', false),
                 isMaster: pick(p, 'isMaster', false),
-                // Sent for masters only, and used for one thing: warning that this PIN
-                // opens an account which can reach server settings. A sub-profile is never
-                // created with administrator rights, so it is always false for one.
+                // Masters only. Used to warn that this PIN opens an account that can reach server
+                // settings. A sub-profile is never made an administrator, so false for one.
                 isAdministrator: pick(p, 'isAdministrator', false),
                 lockoutMinutes: pick(p, 'lockoutMinutes', 5),
                 maxSubProfiles: pick(p, 'maxSubProfiles', 5),
                 bypassPinOnLocalNetwork: pick(p, 'bypassPinOnLocalNetwork', false),
-                // Whether this household has been seen on the server's network; the option
-                // above is only offered where it can apply.
+                // Whether this household has been seen on the server's network; the option above is
+                // only offered where it can apply.
                 seenOnLocalNetwork: pick(p, 'seenOnLocalNetwork', false),
-                // Main account only, and only to its owner. True unless the owner turned it off.
+                // Main account only, to its owner. True unless the owner turned it off.
                 askPinToOpen: pick(p, 'askPinToOpen', true) !== false,
                 allowedDeviceIds: pick(p, 'allowedDeviceIds', []),
                 enabledFolders: pick(p, 'enabledFolders', []),
@@ -2683,8 +2652,8 @@
                 blockedTags: pick(p, 'blockedTags', []),
                 allowedTags: pick(p, 'allowedTags', []),
                 isBonfire: pick(p, 'isBonfire', false),
-                // Another account added to this household's screen (issue #39). Also
-                // isBonfire, so nothing that looks for "our own" counts it.
+                // Another account added to this household's screen (issue #39). Also isBonfire, so
+                // nothing that looks for "our own" counts it.
                 isLinked: pick(p, 'isLinked', false) === true,
                 profileImage: pick(p, 'profileImage', null),
                 masterUserId: pick(p, 'masterUserId', null),
@@ -2712,9 +2681,8 @@
             };
         },
 
-        /// A time from the server, as the household's clock shows it: "20:00", or
-        /// "Sat 08:00" when it isn't today. Falls back to the device's own zone if the
-        /// browser doesn't know the household's.
+        /// A time from the server in the household's clock: "20:00", or "Sat 08:00" when it is
+        /// not today. Falls back to the device's zone if the browser doesn't know the household's.
         viewingTime: function (iso, zone) {
             const d = new Date(iso);
             if (isNaN(d.getTime())) return '';
@@ -2725,8 +2693,8 @@
                 if (day(d) === day(new Date())) return time;
                 return d.toLocaleDateString(locale, opts({ weekday: 'short' })) + ' ' + time;
             };
-            // A locale tag the browser rejects must not cost the household's zone: try the
-            // browser's own language with the zone before giving the zone up.
+            // A locale tag the browser rejects must not cost the household's zone: try the browser's
+            // language with the zone before giving the zone up.
             try { return format(activeLocale || []); } catch (e) { /* next */ }
             try { return format([]); } catch (e) { /* the zone itself is unknown */ }
             return zone ? this.viewingTime(iso, null) : d.toLocaleTimeString();
@@ -2746,8 +2714,8 @@
             return t('viewing.timeUp');
         },
 
-        /// One call to a /limits route as the household. Resolves the new state, or
-        /// rejects with the server's words.
+        /// One call to a /limits route as the household. Resolves the new state, or rejects with
+        /// the server's words.
         _limitsCall: function (profileId, path, body) {
             const masterState = this.readMasterState();
             if (!masterState) return Promise.reject(new Error(t('errors.couldNotSaveThat')));
@@ -2763,9 +2731,8 @@
             });
         },
 
-        /// A limited profile chosen on the gate while it is out of time. It can ask for
-        /// more, a parent can give some with the main PIN, or it can go in and browse:
-        /// only playing is refused.
+        /// A limited profile chosen on the gate while out of time. It can ask for more, a parent
+        /// can give some with the main PIN, or it can go in and browse. Only playing is refused.
         showTimeUp: function (profile, open) {
             const v = profile.viewing;
             const name = profile.profileName;
@@ -2813,8 +2780,8 @@
                 if (!label.hasAttribute('tabindex')) {
                     label.setAttribute('tabindex', '0');
                 }
-                // The label is the stop (Enter on it ticks the box). Left alone, the box
-                // inside is a second stop for the same control; _overlayFocusables skips it.
+                // The label is the stop (Enter on it ticks the box). The box inside would be a second
+                // stop for the same control; _overlayFocusables skips it.
                 const inner = label.querySelector('input[type="checkbox"]');
                 if (inner && !inner.hasAttribute('tabindex')) inner.setAttribute('tabindex', '-1');
                 if (label._tvInit) return;
@@ -2833,12 +2800,9 @@
             });
         },
 
-        /// Wraps a group of form fields in a titled, self-contained section.
-        /// The create/edit forms grew field-by-field in the order features were added, which
-        /// left unrelated controls adjacent and gave no landmarks to scroll by — worst on
-        /// phones, where the form is several screens long. Sections give each group a heading
-        /// and one-line purpose, and are plain blocks (no collapsing) so D-pad focus order on
-        /// TV stays linear and predictable.
+        /// Wraps a group of form fields in a titled section. The forms had grown field by field,
+        /// leaving unrelated controls adjacent and no landmarks to scroll by, worst on phones.
+        /// Plain blocks, not collapsing, so D-pad focus order on TV stays linear.
         renderSection: function (icon, title, subtitle, bodyHtml) {
             return `
                 <section class="jpf-profile-section">
@@ -2854,11 +2818,10 @@
             `;
         },
 
-        /// "Copy rules from" on a profile's Edit form, under More: the household's other
-        /// profiles in a list, and a button that replaces this one's rating limit, tags,
-        /// libraries and viewing limits with the chosen one's. Nothing at all when there is no
-        /// other profile to copy from. The server decides what may be copied and refuses
-        /// anything outside the household; the list here is only the household's own screen.
+        /// "Copy rules from" on a profile's Edit form, under More: the household's other profiles
+        /// in a list, and a button that replaces this one's rating limit, tags, libraries and
+        /// viewing limits with the chosen one's. Nothing when there is no other profile. The
+        /// server decides what may be copied and refuses anything outside the household.
         renderCopyRulesSection: function (profile) {
             const me = this.normalizeGuid(profile.profileUserId);
             const others = (this.currentProfiles || []).filter(p =>
@@ -2876,9 +2839,9 @@
                 </div>`);
         },
 
-        /// Wires the "Copy rules from" control. It asks first, because it replaces what the
-        /// profile has, then returns to the profiles: the form on screen would be showing
-        /// the old rules.
+        /// Wires the "Copy rules from" control. It asks first, since it replaces what the
+        /// profile has, then returns to the profiles because the open form would show the old
+        /// rules.
         bindCopyRules: function (content, profile, apiClient, masterState) {
             const select = content.querySelector('#edit-copy-from');
             const btn = content.querySelector('#edit-copy-btn');
@@ -2914,13 +2877,10 @@
             });
         },
 
-        /// "More settings" under a profile form's Basics: closed until asked for.
-        ///
-        /// A real <details>, so it opens with Enter on a remote and needs no script —
-        /// Chromium 12, well inside both TV baselines. Its summary carries tabindex so the
-        /// overlay's own focus walk finds it the way it finds every other control. Two
-        /// columns of sections, like the Basics above it; empty strings are dropped, so a
-        /// server that does not offer themes leaves no gap.
+        /// "More settings" under a profile form's Basics, closed until asked for. A real
+        /// <details>, so Enter on a remote opens it with no script (Chromium 12, well inside both
+        /// TV baselines). Its summary carries tabindex so the overlay's focus walk finds it. Two
+        /// columns like Basics; empty strings are dropped so a server without themes leaves no gap.
         renderMoreSettings: function (prefix, left, right, summary) {
             const col = (parts) => parts.filter(Boolean).join('');
             return this.renderFold(prefix + '-more', summary || t('profileForm.moreSummary'), `
@@ -2928,11 +2888,10 @@
                         <div class="jpf-form-col">${col(right)}</div>`);
         },
 
-        /// The one fold every household screen uses, labelled "More": a closed <details>
-        /// with a line saying what is inside. Account and both profile forms draw it, so
-        /// rare options look the same wherever they are (P2-601's pattern, for these
-        /// screens). Anything that reports an error about a field inside it must call
-        /// revealFold, so the message is never behind a closed fold.
+        /// The one fold every household screen uses, labelled "More": a closed <details> with a
+        /// line saying what is inside. Account and both profile forms draw it so rare options
+        /// look the same everywhere (P2-601's pattern). Anything reporting an error about a field
+        /// inside it must call revealFold, so the message is never behind a closed fold.
         renderFold: function (id, summary, bodyHtml, single) {
             return `
                 <details class="jpf-more${single ? ' jpf-more-single' : ''}" id="${id}">
@@ -2956,17 +2915,17 @@
             }
         },
 
-        /// Viewing hours and daily limits on a profile's edit form (1.7.2), with "more time
-        /// now". Drawn into `slot` once /limits answers; a server without limits leaves it
-        /// empty. The rules are saved with the form's Save, after the profile itself, and
-        /// only if they changed. More time is given at once: it is an answer, not a setting.
+        /// Viewing hours and daily limits on a profile's edit form (1.7.2), with "more time now".
+        /// Drawn into `slot` once /limits answers; a server without limits leaves it empty. Rules
+        /// are saved with the form's Save, after the profile, and only if changed. More time is
+        /// given at once: it is an answer, not a setting.
         ///
-        /// The form shows one stretch per day. The server takes any number; a profile given
-        /// more through the API shows the first of each day here, and saving replaces them.
+        /// The form shows one stretch per day. The server takes any number; a profile given more
+        /// through the API shows the first of each day here, and saving replaces them.
         ///
-        /// `creating` is the Add form: there is no profile yet, so nothing is fetched and no
-        /// "more time now" is offered, and `save(id)` takes the id /create answered with. A
-        /// child is set up in one pass, not made first and edited after (P2-103).
+        /// `creating` is the Add form: there is no profile yet, so nothing is fetched, no "more
+        /// time now" is offered, and `save(id)` takes the id /create answered with. A child is
+        /// set up in one pass (P2-103).
         initViewingEditor: function (slot, profile, creating) {
             const editor = { save: () => Promise.resolve(), pending: () => false };
             if (!slot || (!creating && (!profile || profile.isMaster))) return editor;
@@ -3041,9 +3000,8 @@
                     ? (v.binding === 'limit' || v.untilUtc ? this.viewingLine(v) : t('viewing.canWatch'))
                     : this.viewingLine(Object.assign({}, v, { askedUtc: null }));
                 const used = v && v.limitMinutes !== null ? t('viewing.usedToday', { used: v.usedMinutes, limit: v.limitMinutes }) : '';
-                // Two halves: the limits and their note, then the times. Side by side on a wide
-                // form, where Viewing limits spans both columns (.jpf-viewing-split); stacked
-                // in this order on a narrow one, as before.
+                // Two halves: limits and their note, then the times. Side by side on a wide form, where
+                // Viewing limits spans both columns (.jpf-viewing-split); stacked on a narrow one.
                 slot.innerHTML = this.renderSection('schedule', t('viewing.title'), t('viewing.subtitle'), `
                   <div class="jpf-viewing-split"><div class="jpf-viewing-side">
                     ${v ? `<div class="jpf-form-hint jpf-viewing-now">${escapeHtml([now, used].filter(Boolean).join(' · '))}</div>` : ''}
@@ -3078,8 +3036,8 @@
                   </div></div>
                 `);
 
-                // The seven rows are only there once "hours" is ticked, and the weekend
-                // limit only once there is a daily one for it to differ from (P2-602).
+                // The seven rows only appear once "hours" is ticked, and the weekend limit once there is
+                // a daily one for it to differ from (P2-602).
                 const days = slot.querySelector('#viewing-days');
                 const hours = slot.querySelector('#viewing-hours');
                 const daily = slot.querySelector('#viewing-daily');
@@ -3112,8 +3070,8 @@
                                 this._restoreViewingForm(slot, pending, ORDER);
                                 const after = slot.querySelector('#viewing-grant-status');
                                 if (after) after.textContent = minutes ? t('viewing.given', { duration: this.durationText(minutes) }) : t('viewing.declined');
-                                // The pressed button was redrawn away; put focus on its
-                                // twin (Decline is gone after it is used, so the first).
+                                // The pressed button was redrawn away; focus its twin (Decline is gone after use, so
+                                // the first).
                                 const again = slot.querySelector('.viewing-grant[data-minutes="' + minutes + '"]')
                                     || slot.querySelector('.viewing-grant');
                                 if (again) again.focus();
@@ -3152,8 +3110,8 @@
             return editor;
         },
 
-        /// Warns when "only at these times" is on and no day is ticked: the server then
-        /// allows no time at all. Saving is still allowed, so this is only a hint.
+        /// Warns when "only at these times" is on and no day is ticked: the server then allows
+        /// no time at all. Saving is still allowed.
         _syncNoDays: function (slot, order) {
             const warn = slot.querySelector('#viewing-nodays');
             const hours = slot.querySelector('#viewing-hours');
@@ -3188,8 +3146,8 @@
                 : '';
         },
 
-        /// The rating the Kids preset fills in: the highest offered at or under 10 (PG,
-        /// TV-PG, or the country's match), else the lowest offered. Null with none.
+        /// The rating the Kids preset fills in: the highest offered at or under 10 (PG, TV-PG, or
+        /// the country's match), else the lowest offered. Null with none.
         kidsRatingFrom: function (values) {
             const scores = (values || []).map(Number).filter(n => isFinite(n) && n > 0);
             if (!scores.length) return null;
@@ -3197,9 +3155,9 @@
             return String(under.length ? Math.max.apply(null, under) : Math.min.apply(null, scores));
         },
 
-        /// Ticking Kids fills in the rating; unticking puts back what was there, unless
-        /// the rating was changed by hand since. Changing the rating by hand unticks it,
-        /// so the box never claims a preset that is no longer what will be saved.
+        /// Ticking Kids fills in the rating; unticking restores the old one unless it was changed
+        /// by hand since. Changing the rating by hand unticks it, so the box never claims a
+        /// preset that is no longer what will be saved.
         bindKidsPreset: function (box, select) {
             if (!box || !select) return;
             const values = Array.prototype.map.call(select.options || [], o => o.value);
@@ -3219,22 +3177,14 @@
             });
         },
 
-        /// The avatar swatches are identical in both forms; keeping one copy means a palette
-        /// change lands in both places at once.
         /// Dims the avatar colour when it has stopped doing anything.
         ///
-        /// It is twenty-one swatches over three rows, the largest thing on the form, so
-        /// leaving it at full strength when it cannot affect the avatar reads as a
-        /// control that is simply being ignored. Dimmed rather than hidden: it starts
-        /// mattering again the moment the picture is removed, and a control that
-        /// vanishes and reappears is worse than one that fades.
-        ///
-        /// It used to dim whenever a picture was set, and say "Not used while a picture
-        /// is set". That was wrong, and it is how issue #23 came to be filed: the colour
-        /// is painted *behind* the picture and shows through wherever the picture is
-        /// transparent, so somebody read the hint, chose a cut-out picture, and got a
-        /// coloured square anyway. The colour is genuinely unused in one case only —
-        /// a picture with the background switched off.
+        /// Dimmed rather than hidden, so it comes back the moment the picture is removed; a
+        /// control that vanishes and reappears is worse than one that fades. It used to dim
+        /// whenever a picture was set and say "Not used while a picture is set". That was
+        /// wrong and led to issue #23: the colour is painted behind the picture and shows
+        /// through wherever it is transparent, so a cut-out picture still gave a coloured
+        /// square. The colour is unused only for a picture with the background switched off.
         setColorGroupInert: function (prefix, hasPicture, isTransparent) {
             const group = document.getElementById(prefix + '-color-group');
             if (!group) return;
@@ -3265,15 +3215,15 @@
 
         renderColorPicker: function (selectedColor) {
             const active = (selectedColor || '').toLowerCase();
-            // A colour from another app, or an older palette, is not one of the 18. Offered
-            // as one more swatch, selected: without it nothing was selected, and the
-            // preview fell back to the default blue instead of the profile's own colour.
+            // A colour from another app or an older palette is not one of the 18. Offer it as one
+            // more swatch, selected; without it nothing was selected and the preview fell back to
+            // the default blue.
             const palette = HEX_COLOR_RE.test(selectedColor || '')
                 && AVATAR_PALETTE.map(c => c.toLowerCase()).indexOf(active) === -1
                 ? AVATAR_PALETTE.concat([selectedColor]) : AVATAR_PALETTE;
-            // Named by position, not by hex code ("#E50914" says nothing to anyone), and
-            // every swatch stays a tab stop: the remote's arrows and the focus trap skip
-            // tabindex="-1", so rolling it to one swatch would hide the rest from a TV.
+            // Named by position, not hex ("#E50914" says nothing to anyone). Every swatch stays a tab
+            // stop: the remote's arrows and the focus trap skip tabindex="-1", so rolling it to one
+            // swatch would hide the rest from a TV.
             return `
                 <div class="jpf-avatar-color-picker" role="radiogroup" aria-label="${escapeHtml(t('profileForm.colorGroup'))}">
                     ${palette.map((c, i) => `
@@ -3291,29 +3241,23 @@
             dots.forEach(d => d.setAttribute('aria-checked', d.classList.contains('active') ? 'true' : 'false'));
         },
 
-        // ── Tag filtering ───────────────────────────────────────────────────────────
-        // Jellyfin matches blocked/allowed tags against an item's inherited tags, so a tag
-        // on a series or a whole library applies to everything inside it.
+        // ── Tag filtering ──────────────────────────
+        // Jellyfin matches blocked/allowed tags against inherited tags, so a tag on a series or
+        // library applies to everything inside it.
 
-        /// Fetches the distinct tags present in the master's libraries, for the suggestion
-        /// list. Degrades to an empty list — the inputs stay usable as free text.
         // ── Navigation ──────────────────────────────────────────────────────
 
         /// Ticket for the screen currently being asked for.
         ///
-        /// Opening a form fires network requests and only draws when they return.
-        /// Nothing used to stop a second navigation in the meantime, and nothing
-        /// stopped the first response drawing itself over whatever had replaced it —
-        /// so clicking Manage Profiles and then Switcher Style showed Switcher Style,
-        /// then silently replaced it with Manage Profiles seconds later.
-        ///
-        /// Every screen change takes a ticket. An async render compares its ticket
-        /// before touching the DOM and drops the response if the user has moved on.
+        /// Opening a form fires requests and draws when they return. Nothing stopped the first
+        /// response drawing over whatever replaced it, so Manage Profiles then Switcher Style
+        /// showed Switcher Style, then swapped to Manage Profiles seconds later. Every screen
+        /// change takes a ticket; an async render checks it before touching the DOM and drops
+        /// the response if the user has moved on.
         _navTicket: 0,
 
-        /// Claims the screen. Call from anything that replaces the modal contents,
-        /// including synchronous renders — those are exactly what a slow form loses
-        /// the race to.
+        /// Claims the screen. Call from anything that replaces the modal contents, synchronous
+        /// renders included: those are what a slow form loses the race to.
         beginNavigation: function () {
             return ++this._navTicket;
         },
@@ -3327,28 +3271,25 @@
 
         /// Cached answer to the requests that are the same for every profile.
         ///
-        /// Add and Edit Profile each fired five requests and waited for all of them.
-        /// Only one — Users/{id} — is about the profile you clicked; the available
-        /// libraries, the connected devices, the library tags and the avatar library
-        /// belong to the account and were refetched in full every single time. Since 2.0
-        /// the libraries, ratings, avatars and time zones are one request (form-options).
+        /// Add and Edit Profile each fired five requests, only one of them (Users/{id}) about
+        /// the profile clicked. The rest belong to the account and were refetched every time.
+        /// Since 2.0 the libraries, ratings, avatars and time zones are one request
+        /// (form-options).
         _sharedForm: null,
 
-        /// Fetches them once per gate session. Prefetched when the overlay opens, so
-        /// by the time anyone picks a profile the shared half is already in hand and
-        /// opening a form costs one request for the profile itself.
+        /// Fetched once per gate session and prefetched when the overlay opens, so opening a
+        /// form costs one request.
         fetchSharedFormData: function (apiClient, masterState) {
             if (this._sharedForm) return this._sharedForm;
 
             this._sharedForm = Promise.all([
-                // The libraries, ratings, avatars and time zones are one request. It fails the
-                // form as the libraries alone used to: with nothing to tick there is no form.
+                // Libraries, ratings, avatars and time zones are one request. It fails the form as the
+                // libraries alone used to: with nothing to tick there is no form.
                 this.fetchFormOptions(apiClient, masterState.token),
-                // null, not [], when the list could not be read. The edit form rebuilds a
-                // profile's allowed devices from the boxes it draws, so an empty list here
-                // used to save as "any device" and switch the restriction off.
-                // The PIN header too: a profile is handed the household's devices only when
-                // it could manage the household (R-1299).
+                // null, not [], when the list could not be read. The edit form rebuilds a profile's
+                // allowed devices from the boxes it draws, so [] used to save as "any device" and switch
+                // the restriction off. The PIN header too: a profile gets the household's devices only
+                // when it could manage the household (R-1299).
                 fetch(apiClient.getUrl('plugins/profiles/devices'), { headers: this.manageHeaders(masterState.token, false) })
                     .then(res => this.checked(res).ok ? res.json() : null)
                     .then(list => Array.isArray(list) ? list : null)
@@ -3359,12 +3300,12 @@
                 devices,
                 libraryTags,
                 avatarLibrary: this.readAvatarLibrary(this._field(options, 'avatars')),
-                // The server country's own rating system. Never fails the form: null falls
-                // back to the US list in renderRatingSelect.
+                // The server country's own rating system. Never fails the form: null falls back to the
+                // US list in renderRatingSelect.
                 ratings: this._field(options, 'ratings') || null
             })).catch(err => {
-                // Never cache a failure. A server that was briefly unreachable would
-                // otherwise keep every form broken until the overlay was closed.
+                // Never cache a failure, or a briefly unreachable server keeps every form broken until
+                // the overlay closes.
                 this._sharedForm = null;
                 throw err;
             });
@@ -3373,24 +3314,22 @@
         },
 
         /// What the profile form reads that is the same for every profile, in one request:
-        /// { libraries, ratings, avatars, timeZones }. It was four, and the avatar picker and
-        /// the time zone box each still want a part of it on their own.
+        /// { libraries, ratings, avatars, timeZones }. The avatar picker and the time zone box
+        /// each still want a part of it on their own.
         fetchFormOptions: function (apiClient, token) {
             return fetch(apiClient.getUrl('plugins/profiles/form-options'), {
                 cache: 'no-store',
                 headers: this.getAuthHeaders(token)
             }).then(res => {
-                // Checked like the others. Reading a 401's empty body as JSON showed
-                // "Unexpected end of JSON input" and never told the page the session
-                // had ended (R-1177).
+                // Checked like the others: reading a 401's empty body as JSON showed "Unexpected end of
+                // JSON input" and never told the page the session had ended (R-1177).
                 if (res.status === 401) this.handleSessionExpired();
                 if (!res.ok) throw new Error(t('errors.generic'));
                 return res.json();
             });
         },
 
-        /// Dropped when the overlay closes, so reopening the gate always re-reads the
-        /// server. Within one session the data does not change underneath us.
+        /// Dropped when the overlay closes, so reopening the gate re-reads the server.
         clearSharedFormData: function () {
             this._sharedForm = null;
         },
@@ -3423,8 +3362,8 @@
 
         renderTagEditor: function (id, tags, placeholder, suggestionsId, labelId) {
             const chips = (tags || []).map(tag => this.renderTagChip(tag)).join('');
-            // The label above is a bare <label> over a widget, which names nothing: the box
-            // would be read out as its placeholder.
+            // The label above is a bare <label> over a widget and names nothing; the box would be
+            // read out as its placeholder.
             const named = labelId ? ` aria-labelledby="${labelId}"` : '';
             return `
                 <div class="jpf-tag-editor" id="${id}"${labelId ? ' role="group"' + named : ''}>
@@ -3439,28 +3378,22 @@
 
         /// The allowed-devices dropdown, shared by the Add and Edit profile forms.
         ///
-        /// These two forms were built by two functions that had been copied from each
-        /// other and then edited apart: 213 identical lines, ten runs of six or more.
-        /// The copies had already drifted — a fix to one was a fix to one — and the
-        /// duplicated *comments* were the clearest sign of it, the same sentence about
-        /// sending null rather than an empty array sitting verbatim in both.
-        ///
-        /// Three things actually differ between the modes, and they are all here:
-        ///   - create prefixes its element ids, because both forms can be in the
-        ///     document at once and duplicate ids would make getElementById a coin toss;
-        ///   - the checkbox class follows the same prefix, since the handlers query it;
+        /// The two forms were built by functions copied from each other and edited apart (213
+        /// identical lines), and the copies had already drifted. Three things differ by mode:
+        ///   - create prefixes its element ids, since both forms can be in the document at once
+        ///     and duplicate ids would make getElementById a coin toss;
+        ///   - the checkbox class follows the prefix, since the handlers query it;
         ///   - only edit has a profile to read existing selections from.
         ///
-        /// Neither offers rename, merge or forget any more (1.7.2). Those change the device
-        /// for the whole household, so they live in Settings → Your account; here a profile
-        /// only ticks the devices it may be opened on.
+        /// Neither offers rename, merge or forget any more (1.7.2). Those change the device for
+        /// the whole household and live in Settings → Your account.
         renderDeviceDropdown: function (mode, devices, profile) {
             const isEdit = mode === 'edit';
             const p = isEdit ? '' : 'create-';
             const boxClass = isEdit ? 'device-checkbox' : 'create-device-checkbox';
-            // The server matches device ids ignoring case, and so must this. A whitelisted id
-            // in a different case from the device's record drew an unticked box, and the next
-            // save dropped it from the list.
+            // The server matches device ids ignoring case, and so must this. A whitelisted id in a
+            // different case from the device's record drew an unticked box and the next save
+            // dropped it.
             const allowedIds = (isEdit && profile && profile.allowedDeviceIds || [])
                 .map(id => String(id).toLowerCase());
             const unavailable = devices === null;
@@ -3472,12 +3405,11 @@
                     const client = deviceListClient(dev);
                     const lastSeen = dev.lastSeen || dev.LastSeen;
                     const lastSeenDate = lastSeen ? new Date(lastSeen) : null;
-                    // Year 1 is what an unset DateTime serialises to; showing "01/01/0001"
-                    // reads as a bug rather than as "we have never seen this device".
+                    // Year 1 is what an unset DateTime serializes to; "01/01/0001" reads as a bug, not
+                    // "never seen".
                     const lastSeenStr = (lastSeenDate && lastSeenDate.getFullYear() > 1)
                         ? lastSeenDate.toLocaleDateString() : t('profileForm.unknown');
-                    // Both spellings, because the list can come from the plugin's own
-                    // camelCase JSON or straight off a Jellyfin DTO.
+                    // Both spellings: the list can come from the plugin's camelCase JSON or a Jellyfin DTO.
                     const isChecked = allowedIds.indexOf(deviceId.toLowerCase()) !== -1
                         || (!!dev.DeviceId && allowedIds.indexOf(String(dev.DeviceId).toLowerCase()) !== -1);
                     return `
@@ -3512,23 +3444,19 @@
             `;
         },
 
-        /// The maximum-rating select, shared by both profile forms.
+        /// The maximum-rating select, shared by both profile forms. Only the id prefix and the
+        /// preselected option differ.
         ///
-        /// The five options and their numeric values were written out twice; a rating
-        /// added to one copy would silently not exist in the other. Only the id prefix
-        /// and which option is preselected differ.
-        ///
-        /// `maxRating` is compared with ===, so it must already be a number or null.
-        /// Passing the raw string from a form control would preselect nothing and
-        /// quietly reset the profile's rating on the next save.
-        /// `ratings` is the ratings part of the server's form-options answer. With it, the
-        /// options are that country's ratings and nothing else; without it — an older
-        /// server, a failed request — they are the four US ones this form always had.
+        /// `maxRating` is compared with ===, so it must be a number or null. A raw string from a
+        /// form control would preselect nothing and reset the rating on the next save.
+        /// `ratings` is the ratings part of the form-options answer: the options are that
+        /// country's ratings only. Without it (older server, failed request) they are the four
+        /// US ones.
         renderRatingSelect: function (mode, maxRating, ratings) {
             const id = mode + '-rating-select';
             const country = ratingChoicesFrom(ratings);
-            // [value, text]. Country labels are official codes (12A, FSK 16, 14A) and are
-            // shown as they are in every language; only the age around them is translated.
+            // [value, text]. Country labels are official codes (12A, FSK 16, 14A), shown as they are
+            // in every language; only the age around them is translated.
             const choices = [['', t('profileForm.noRestrictions')]].concat(country.length
                 ? country.map(([score, labels]) => [String(score), t('profileForm.ratingAge', { labels: escapeHtml(labels), score: score })])
                 : [
@@ -3537,10 +3465,9 @@
                     ['14', t('profileForm.ratingPG13')],
                     ['17', t('profileForm.ratingR')]
                 ]);
-            // A limit set in Dashboard -> Users is any score, not necessarily one offered
-            // here. With no option to preselect, the select fell back to "No Restrictions"
-            // and the next save cleared the limit, whatever the save was for. It gets an
-            // option of its own.
+            // A limit set in Dashboard -> Users is any score, not necessarily one offered here.
+            // With no option to preselect, the select fell back to "No Restrictions" and the next
+            // save cleared the limit. It gets an option of its own.
             const unlisted = typeof maxRating === 'number'
                 && !choices.some(([value]) => value !== '' && Number(value) === maxRating);
             if (unlisted) choices.push([String(maxRating), t('profileForm.ratingCurrent', { score: maxRating })]);
@@ -3560,13 +3487,9 @@
             `;
         },
 
-        /// Blocked and allowed tag editors, shared by both profile forms.
-        ///
-        /// Only the id prefix and the starting tags differ: a new profile begins with
-        /// none, an existing one with whatever it has. The allowed-tags hint carries
-        /// jpf-form-hint-warn because an allow-list is subtractive — naming one tag hides
-        /// everything without it — and that warning existing in only one of two copies
-        /// is exactly the drift this merge is for.
+        /// Blocked and allowed tag editors, shared by both profile forms. Only the id prefix and
+        /// starting tags differ. The allowed-tags hint carries jpf-form-hint-warn because an
+        /// allow-list is subtractive: naming one tag hides everything without it.
         renderTagSection: function (mode, libraryTags, profile) {
             const p = mode + '-';
             const suggestions = p + 'tag-suggestions';
@@ -3602,8 +3525,8 @@
                     if (chipList.querySelector('.jpf-tag-chip')) {
                         chipList.removeAttribute('data-empty');
                     } else {
-                        // Set here too: a list that starts non-empty carries no label, and
-                        // removing its last chip would otherwise show an empty grey box.
+                        // Set here too: a list that starts non-empty has no label, and removing its last chip
+                        // would show an empty grey box.
                         chipList.setAttribute('data-empty-label', t('profileForm.noTags'));
                         chipList.setAttribute('data-empty', 'true');
                     }
@@ -3624,21 +3547,20 @@
                 addBtn.addEventListener('click', (e) => { e.preventDefault(); addTag(); input.focus(); });
                 input.addEventListener('keydown', (e) => {
                     if (isKey(e, 'Enter')) { e.preventDefault(); addTag(); }
-                    // The caret keeps left and right while typing, and the button sits to the
-                    // right of the box, so no arrow reached it. Right at the end of the text
-                    // is the way on.
+                    // The caret keeps left and right while typing and the button is right of the box, so no
+                    // arrow reached it. Right at the end of the text is the way on.
                     if (isKey(e, 'ArrowRight') && input.selectionStart === input.value.length
                         && input.selectionEnd === input.value.length) {
                         e.preventDefault();
                         addBtn.focus();
                     }
                 });
-                // Committing on blur means a typed-but-not-added tag isn't silently lost on save.
+                // Committing on blur keeps a typed-but-not-added tag from being lost on save.
                 input.addEventListener('blur', () => addTag());
 
-                // The button being pressed is the thing removed, so focus would fall to the
-                // page and a remote would restart from the top of the form. It goes to the
-                // chip that takes its place, else the one before, else the tag box.
+                // The pressed button is the thing removed, so focus would fall to the page and a remote
+                // would restart from the top of the form. It goes to the chip that takes its place, else
+                // the one before, else the tag box.
                 const removeChip = (removeBtn) => {
                     const chip = removeBtn.closest('.jpf-tag-chip');
                     const all = Array.prototype.slice.call(chipList.querySelectorAll('.jpf-tag-chip'));
