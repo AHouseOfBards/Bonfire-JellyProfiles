@@ -84,16 +84,26 @@ function bare(withApiClient) {
 }
 
 {
-    console.log('\n── r2-25-04: init gives up waiting for ApiClient ───────────────');
+    // r2-25-04 stopped init asking every 100 ms forever on a page with no ApiClient. It did
+    // that by giving up after a minute, and r3-05-01 found the cost of that: a page slower
+    // than a minute (a TV, a server-select page) never got Bonfire until a reload. So the
+    // quick asking still ends after about a minute, and after that it asks every few
+    // seconds instead of never. tests/js/initwait.js holds the second half.
+    console.log('\n── r2-25-04: init stops asking every 100 ms ────────────────────');
     const env = bare(false);
+    const delays = [];
+    env.sandbox.setTimeout = (fn, ms) => { delays.push(ms); env.timers.push(fn); return env.timers.length; };
     env.plugin.init();
     let rounds = 0;
     while (env.timers.length && rounds < 5000) {
         env.timers.splice(0).forEach(fn => fn());
         rounds++;
     }
-    ok('the retry stops by itself (' + rounds + ' rounds, ' + env.timers.length + ' pending)', env.timers.length === 0);
-    ok('and it waited about a minute, not a moment (' + rounds + ' rounds of 100 ms)', rounds >= 590);
+    const quick = delays.filter(d => !(d >= 1000)).length;
+    ok('the quick retry stops by itself (' + quick + ' asks under a second, of ' + delays.length + ')', quick <= 620 && delays.length > quick);
+    ok('and it asked quickly for about a minute, not a moment (' + quick + ' rounds of 100 ms)', quick >= 590);
+    ok('after that it never asks more often than every few seconds',
+       delays.slice(quick).every(d => d >= 1000), delays.slice(quick, quick + 5).join(','));
 }
 
 // ── r2-27-04 and r2-27-05 ────────────────────────────────────────────────────────────

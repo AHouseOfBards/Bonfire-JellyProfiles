@@ -48,7 +48,8 @@ const TERMS = {
 const KEYS = {
     'admin.households.maxProfiles': 'account',
     'admin.households.maxProfilesHint': 'account',
-    'admin.orphans.lede': 'account',
+    // admin.orphans.lede left this list in 2.0: it spoke of the main account's profile limit,
+    // and now says any account deleted in Dashboard → Users is cleaned up, main or not.
     'admin.security.requireMainPin': 'pin',
     'admin.security.requireMainPinHint': 'account',
     'admin.switcher.lede': 'account',

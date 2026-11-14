@@ -300,8 +300,11 @@ Ok("two routes make a profile (create, make-profile) and each raises created",
    Count(controllers, @"BonfireCampground\.RaiseCreated\(") == 2, "found " + Count(controllers, @"BonfireCampground\.RaiseCreated\("));
 Ok("two routes rename one (update, the profile's own edit) and each raises renamed",
    Count(controllers, @"BonfireCampground\.RaiseRenamed\(") == 2, "found " + Count(controllers, @"BonfireCampground\.RaiseRenamed\("));
+// Clean-up moved out of the controller in 2.0: Configuration/UserRecords.cs does it for the
+// route and for Jellyfin's user-deleted event alike, so it is read too.
+var removers = controllers + "\n" + Source(Path.Combine("Configuration", "UserRecords.cs"));
 Ok("three places remove one (delete, make-its-own-account, clean-up) and each raises deleted",
-   Count(controllers, @"BonfireCampground\.RaiseDeleted\(") == 3, "found " + Count(controllers, @"BonfireCampground\.RaiseDeleted\("));
+   Count(removers, @"BonfireCampground\.RaiseDeleted\(") == 3, "found " + Count(removers, @"BonfireCampground\.RaiseDeleted\("));
 Ok("the switch route expects its own session, then raises switched once",
    Count(controllers, @"BonfireCampground\.ExpectSwitch\(") == 1 && Count(controllers, @"BonfireCampground\.RaiseSwitched\(") == 1);
 Ok("the session listener raises switched for a native app",

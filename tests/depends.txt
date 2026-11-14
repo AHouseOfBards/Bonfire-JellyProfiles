@@ -1250,6 +1250,7 @@ js/copylint Configuration/ThemePattern.cs
 js/copylint Configuration/ThemeValidator.cs
 js/copylint Configuration/TileImage.cs
 js/copylint Configuration/TrustedAddressEntry.cs
+js/copylint Configuration/UserRecords.cs
 js/copylint Configuration/Viewing.cs
 js/copylint Configuration/Woff2Font.cs
 js/copylint Controllers/
@@ -1429,6 +1430,8 @@ js/dashlight tests/js/_lib.js
 js/dashlight tests/js/dashlight.js
 js/dashloader Web/profilesDashboard.html
 js/dashloader tests/js/dashloader.js
+js/dashround3 Web/profilesDashboard.html
+js/dashround3 tests/js/dashround3.js
 js/dashwarm Web/i18n/
 js/dashwarm Web/i18n/ca.json
 js/dashwarm Web/i18n/es.json
@@ -1899,6 +1902,9 @@ js/imagequality Web/profiles.js
 js/imagequality Web/profilesDashboard.html
 js/imagequality tests/js/_lib.js
 js/imagequality tests/js/imagequality.js
+js/initwait Web/profiles.js
+js/initwait tests/js/_lib.js
+js/initwait tests/js/initwait.js
 js/inject.test Web/profiles.js
 js/inject.test Web/styles.css
 js/inject.test Web/themes/

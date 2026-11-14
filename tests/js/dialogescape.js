@@ -1,5 +1,6 @@
 // r2-24-03 / r2-24-02: showAlert and showConfirmDialog escape their title and message
-// themselves, markup only on an explicit opt-in, and the alert's OK answers once.
+// themselves, always, and the alert's OK answers once. There was an opt-in for markup that no
+// caller used; r3-05-02 removed it, so a caller asking for markup gets text.
 // Drives the real dialogs against a recording element. Against the build before the fix
 // the raw text lands in the page as markup.
 //
@@ -45,10 +46,10 @@ function capture(run) {
     ok('a confirm writes its title and message as text', c.html().indexOf('<img') === -1 && c.html().indexOf('&lt;img') !== -1, c.html().slice(0, 200));
 
     const h = capture(() => PP.showConfirmDialog('T', 'a<br><strong>b</strong>', () => {}, null, true));
-    ok('a caller that passes markup says so, and gets it', h.html().indexOf('a<br><strong>b</strong>') !== -1);
+    ok('a caller that asks for markup still gets text', h.html().indexOf('<strong>') === -1 && h.html().indexOf('&lt;strong&gt;') !== -1, h.html().slice(0, 200));
 
     const h2 = capture(() => PP.showAlert('T', 'a<b>b</b>', null, true));
-    ok('an alert has the same opt-in', h2.html().indexOf('a<b>b</b>') !== -1);
+    ok('and so does an alert', h2.html().indexOf('<b>') === -1 && h2.html().indexOf('&lt;b&gt;') !== -1, h2.html().slice(0, 200));
 
     let closed = 0;
     const o = capture(() => PP.showAlert('T', 'M', () => { closed++; }));

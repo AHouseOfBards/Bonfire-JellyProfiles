@@ -178,7 +178,7 @@ async function main() {
         await ev(`window.__put = []; window.__blob = null; window.__dlName = '';
             var o0 = URL.createObjectURL; URL.createObjectURL = function (b) { window.__blob = b; return o0.call(URL, b); };
             var k0 = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dlName = this.download; return; } return k0.apply(this, arguments); };
-            var f0 = window.fetch; window.fetch = function (u) { if (/themes\\/(backgrounds|pattern-files)\\//.test(String(u))) return Promise.resolve({ ok: !!window.__present }); return f0.apply(this, arguments); };
+            var f0 = window.fetch; window.fetch = function (u) { if (/themes\\/(backgrounds|pattern-files)\\//.test(String(u))) return Promise.resolve({ ok: !!window.__present, status: window.__present ? 200 : 404 }); return f0.apply(this, arguments); };
             var a1 = ApiClient.ajax; ApiClient.ajax = function (o) { if (o && o.type === 'PUT') { window.__put.push(o.url); return Promise.resolve({ created: true }); } return a1.apply(this, arguments); }; 0`);
         await ev(CLICK(Q('#themeEditor .jpf-te-mode[data-view="advanced"]')));
         await ev(SET(Q('#teName'), 'Unsaved Mine', 'change'));
