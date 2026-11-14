@@ -205,11 +205,29 @@ try
     cacheField.SetValue(null, null);
     var cc = NewController();
     Shown(cc);
-    // The destination is a held-open file, so replacing it fails.
+    // On Windows the destination is a held-open file, so replacing it fails. Linux has no
+    // mandatory locks: a rename goes straight over a file another handle has open, so the
+    // same hold let the write succeed and these three checks failed on CI only (the
+    // v1.9.0.5 release run). There the directory is made read-only instead, which stops
+    // the temp file being created; a runner as root would ignore that, so it is checked.
     object clearResult;
-    using (var hold = new FileStream(roPath, FileMode.Open, FileAccess.Read, FileShare.None))
+    if (OperatingSystem.IsWindows())
     {
-        clearResult = clear.Invoke(cc, null);
+        using (var hold = new FileStream(roPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            clearResult = clear.Invoke(cc, null);
+        }
+    }
+    else
+    {
+        var was = File.GetUnixFileMode(roDir);
+        File.SetUnixFileMode(roDir, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        var probe = Path.Combine(roDir, "probe");
+        var blocked = false;
+        try { File.WriteAllText(probe, ""); File.Delete(probe); } catch (UnauthorizedAccessException) { blocked = true; } catch (IOException) { blocked = true; }
+        Ok("the read-only directory really refuses a new file (not running as root)", blocked);
+        try { clearResult = clear.Invoke(cc, null); }
+        finally { File.SetUnixFileMode(roDir, was); }
     }
     Ok("Clear reports failure when the file could not be written", clearResult is bool b && !b);
     Ok("the file is untouched, with no partial or temp file left", File.ReadAllText(roPath) == original

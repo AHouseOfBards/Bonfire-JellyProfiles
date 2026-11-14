@@ -98,32 +98,17 @@ console.log('\n── Every entry is installable ──────────�
 // offered a version whose install failed. It now writes the entry whole, after the release,
 // so a placeholder in the tree means someone wrote an entry by hand and the workflow will
 // refuse the tag (the version is already in the manifest).
-//
-// One entry is excused by name: 1.9.0.5, committed under the old process before it was
-// replaced. Delete it, add release-notes/1.9.0.5.md, and remove LEGACY_PLACEHOLDER with it.
-// It is a version, not "the version in the csproj", so it cannot grow into a general excuse.
-const LEGACY_PLACEHOLDER = '1.9.0.5';
 const csproj = fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'utf8');
 const inFlight = (/<Version>([^<]+)<\/Version>/.exec(csproj) || [])[1];
 ok('the csproj names a version to release (' + (inFlight || 'none found') + ')', !!inFlight);
 
 // Enumerated one version at a time. An "all checksums look fine" aggregate is exactly the
 // shape of check that let two uninstallable releases through.
-let placeholders = 0;
 versions.forEach(function (v) {
     const sum = String(v.checksum || '');
     const real = /^[0-9a-f]{32}$/i.test(sum) && !/^0+$/.test(sum);
-
-    if (!real && v.version === LEGACY_PLACEHOLDER) {
-        placeholders++;
-        console.log('  note  ' + v.version + ' still has the placeholder — the one hand-written '
-                    + 'entry left from the old process; the workflow will refuse its tag until it is removed');
-        return;
-    }
     ok(v.version + ' has a real checksum, not the placeholder', real);
 });
-
-ok('at most the one named legacy entry is waiting for a checksum (' + placeholders + ')', placeholders <= 1);
 
 // One historical tag does not follow the convention: 1.1.0.0 was released as `v1.1`,
 // before the three-part tag name settled. The URL is right — it serves, and `gh release
@@ -165,7 +150,11 @@ noteFiles.forEach(function (n) {
     ok('release-notes/' + n + ' is named for a four-part version', /^\d+\.\d+\.\d+\.\d+\.md$/.test(n));
     const text = fs.readFileSync(path.join(NOTES_DIR, n), 'utf8').replace(/\r\n/g, '\n');
     ok('release-notes/' + n + ' is not empty', text.trim() !== '');
-    const missing = text.split('\n').map(l => l.trim()).filter(l => l && changelog.indexOf(l) === -1);
+    // The "**Beta release** - please report issues on GitHub." banner is for the update
+    // dialog; CHANGELOG.md says which versions were betas in its own header and leaves it
+    // out of every section, so it is the one line not looked for.
+    const missing = text.split('\n').map(l => l.trim())
+        .filter(l => l && !/^\*\*Beta release\*\*/.test(l) && changelog.indexOf(l) === -1);
     ok('every line of release-notes/' + n + ' is in CHANGELOG.md', missing.length === 0,
        'missing: ' + missing.slice(0, 2).join(' | '));
     const inManifest = versions.some(v => v.version === n.replace(/\.md$/, ''));

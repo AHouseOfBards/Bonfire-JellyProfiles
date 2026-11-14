@@ -202,10 +202,18 @@ const nested = runSet(quick, { before: lockWith(h2.pid), env: { BONFIRE_LOCK_WAI
 h2.stop();
 check('a nested run, told the lock is held, does not take it', nested.status === 0 && /q[ ]+1 passed/.test(nested.out));
 
-const h3 = holder(3);
+// The holder used to sleep 3s from its own start. On a CI runner the run reached the lock
+// after that holder had already exited, took the lock as stale and never waited, so this
+// failed there and nowhere else (v1.9.0.5 release run). Now the holder lives until a
+// separate timer ends it 8s after the run is started, which is longer than any runner
+// takes to reach the lock, and the failure says which part was missing.
+const h3 = holder(60);
+cp.spawn('bash', ['-c', 'sleep 8; kill ' + h3.pid], { stdio: 'ignore', detached: true }).unref();
 const waited = runSet(quick, { before: lockWith(h3.pid), env: { BONFIRE_LOCK_WAIT: '30' } });
 h3.stop();
-check('a run waits for the lock and then goes ahead', waited.status === 0 && /waiting/.test(waited.out) && /q[ ]+1 passed/.test(waited.out) && waited.ms > 1500);
+const waitedOk = waited.status === 0 && /waiting/.test(waited.out) && /q[ ]+1 passed/.test(waited.out) && waited.ms > 1500;
+check('a run waits for the lock and then goes ahead', waitedOk);
+if (!waitedOk) console.log('      status ' + waited.status + ', waited ' + waited.ms + 'ms, said waiting: ' + /waiting/.test(waited.out) + '\n' + waited.out.split('\n').slice(0, 8).map(function (l) { return '      | ' + l; }).join('\n'));
 
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail === 0 ? 0 : 1);

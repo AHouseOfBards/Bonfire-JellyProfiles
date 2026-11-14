@@ -195,14 +195,14 @@ jobs:
           done
 
           # A checksum that already belongs to another version means this release is
-          # byte-identical to one that already shipped — the artefact was rebuilt from an
+          # byte-identical to one that already shipped — the artifact was rebuilt from an
           # unchanged tree, or the wrong zip was uploaded. Either way the release notes
           # describe changes that are not in the file.
           #
           # 1.1.2, 1.1.4 and 1.1.6 all carry 0b6481f7f56de24f3c9757d67a73f181. Three
           # releases, three sets of notes, one binary. Nothing in the pipeline noticed.
           #
-          # Only the channel being released to is searched. The same artefact under a beta
+          # Only the channel being released to is searched. The same artifact under a beta
           # version and a stable one is the normal outcome of promoting a beta.
           CLASH=$(git show "origin/${BRANCH}:manifest.json" | jq -r --arg c "$C" --arg v "$V" \
             '[.[0].versions[] | select(.checksum == $c and .version != $v) | .version] | join(", ")')
