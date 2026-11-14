@@ -5,29 +5,27 @@
  * the dashboard before our switcher pops up on screen. The same thing happens when
  * selecting a profile". Under half a second, on web, Android and the televisions.
  *
- *  1. Cold start with "Ask on startup" on. Nothing covered the page: jellyfin-web drew
- *     home as soon as it had a user, while the gate waited for the first route check, the
- *     profile list, and then faded in from opacity 0 over the top of it.
- *  2. Picking a profile from the switcher anywhere but home. executeProfileSwitch marks
- *     the new profile active before it reloads, and checkRoute's "overlay stuck off home"
+ *  1. Cold start with "Ask on startup" on. Nothing covered the page: jellyfin-web drew home
+ *     as soon as it had a user, while the gate waited for the first route check and the
+ *     profile list, then faded in from opacity 0 over the top of it.
+ *  2. Picking a profile from the switcher anywhere but home. executeProfileSwitch marks the
+ *     new profile active before it reloads, and checkRoute's "overlay stuck off home"
  *     cleanup matched exactly that, so the next 500 ms tick took the opaque gate down and
  *     showed the old profile's page until the navigation landed.
  *
- * This runs the real thing on a clock it controls: the inline head script reassembled
- * from WebInjection.cs, then profiles.js with init() swapped for an export, against a
- * page where jellyfin-web paints home at a chosen moment and the server answers after a
- * chosen delay. "Home is visible" is asked every 10 ms of that timeline, and means: home
- * has been painted, and none of these is on top of it —
+ * This runs the real thing on a clock it controls: the inline head script reassembled from
+ * WebInjection.cs, then profiles.js with init() swapped for an export, against a page where
+ * jellyfin-web paints home at a chosen moment and the server answers after a chosen delay.
+ * "Home is visible" is asked every 10 ms of that timeline: home has been painted, and none
+ * of these is on top of it:
  *
  *   - the startup cover (html[data-jpf-cover] with its rule in the document),
  *   - the gate, opaque: in the document, its inline opacity cleared, and its 220 ms fade
  *     finished,
  *   - the head script's switch hide (opacity 0 on <html>).
  *
- * Then the other half, which matters more: every way the cover can be left up by
- * mistake has to bring it down, because a screen that stays blank is far worse than a
- * flash.
- *
+ * The other half matters more: every way the cover can be left up by mistake has to bring
+ * it down, because a screen that stays blank is far worse than a flash.
  *     node tests/js/gatecover.js [profiles.js] [WebInjection.cs]
  *
  * Both arguments point at another checkout, which is how this was shown to fail against

@@ -3,11 +3,10 @@
  * travels with it, and that it can draw every letter of every language Bonfire ships.
  *
  * The last one is the point. A font that lacks "ł" does not fail: the browser draws that
- * one letter in the next font of the stack, and a Polish name comes out in two typefaces.
- * Nothing errors and no screenshot of an English screen shows it. So every character of
- * every translation is checked against every served font, one font and one character at a
- * time, in the file the browser would actually fetch for it (the subset whose
- * unicode-range holds it), read out of that file's own cmap.
+ * letter in the next font of the stack, and a Polish name comes out in two typefaces, with
+ * no error and nothing in a screenshot of an English screen. So every character of every
+ * translation is checked against every served font, one at a time, in the file the browser
+ * would fetch for it (the subset whose unicode-range holds it), read from that file's cmap.
  *
  *   node tests/js/fonts.js [path/to/fonts.json] [path/to/profiles.js]
  *

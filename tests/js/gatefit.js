@@ -1,11 +1,11 @@
 /*
  * Issue #31: the profile gate did not fit on the screen.
  *
- * The tiles were one fixed size per device class — 280px on a television — and the gate's
+ * The tiles were one fixed size per device class (280px on a television) and the gate's
  * content was capped at 900px on every screen. On a 1920x1080 set that meant two tiles to a
- * row, so four profiles became two rows that ran 247px off the bottom, six ran 662px, and
- * the household had to scroll with a remote to find themselves. Measured in Chromium with
- * the real script and stylesheet before the fix:
+ * row, so four profiles became two rows that ran 247px off the bottom and six ran 662px, and
+ * the household had to scroll with a remote to find themselves. Measured in Chromium with the
+ * real script and stylesheet before the fix:
  *
  *     1920x1080 tv  4 profiles  overflow 247px
  *     1280x720  tv  2 profiles  overflow 192px
@@ -14,18 +14,17 @@
  * The fix is fitGateToScreen: when the gate would scroll, it puts .jpf-fitted and a
  * --jpf-tile size on the gate's content and searches for the largest tile that fits.
  *
- * This harness has two halves, because either one alone is a restatement:
+ * Two halves, because either alone is a restatement:
  *
  *   1. The routine, driven against a modelled overlay whose scroll height follows from the
- *      tile size the routine sets — tiles wrap to rows by the available width, as flex-wrap
- *      does — so "it fits" is answered by the layout, not by the routine's own say-so.
- *   2. The stylesheet: every property the fitted rules set must actually win the cascade
- *      over every other rule that sets it on the same element. Resolved pairwise —
- *      specificity, then order — not string-matched. A rule present and outranked is the
- *      way this sheet has shipped a dead override before.
+ *      tile size the routine sets (tiles wrap to rows by the available width, as flex-wrap
+ *      does), so "it fits" is answered by the layout and not by the routine.
+ *   2. The stylesheet: every property the fitted rules set must win the cascade over every
+ *      other rule that sets it on the same element. Resolved pairwise (specificity, then
+ *      order), not string-matched. A present but outranked rule is how this sheet has
+ *      shipped a dead override before.
  *
  * Point it at an older client to see it fail:
- *
  *     node tests/js/gatefit.js /path/to/old/profiles.js
  */
 'use strict';
