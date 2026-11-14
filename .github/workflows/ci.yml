@@ -15,7 +15,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, beta]
+    branches: [main, beta, "probe/**"]
   workflow_call:
 
 # Read-only: nothing in this workflow writes to the repository, so its token should not
