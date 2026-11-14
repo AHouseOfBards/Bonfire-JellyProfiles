@@ -1574,7 +1574,6 @@
         'links.none': 'No accounts added yet. Add one below.',
         'links.username': 'Their username',
         'links.password': 'Their password',
-        'links.hint': "They type it once. It isn't saved.",
         'links.add': 'Add account',
         'links.needBoth': 'Enter their username and password.',
         'links.added': '{name} added.',
@@ -10972,7 +10971,6 @@
                     <div class="jpf-form-group">
                         <label for="links-password">${t('links.password')}</label>
                         <input type="password" id="links-password" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-protonpass-ignore="true" />
-                        <div class="jpf-form-hint">${t('links.hint')}</div>
                     </div>
                     <button type="button" id="links-add" class="profiles-btn jpf-btn-primary">${t('links.add')}</button>
                     ${shown.length ? `

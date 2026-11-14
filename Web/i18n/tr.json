@@ -342,7 +342,6 @@
   "links.none": "Henüz hesap eklenmedi. Aşağıdan bir tane ekleyin.",
   "links.username": "Kullanıcı adı",
   "links.password": "Parolası",
-  "links.hint": "Bir kez yazılır. Kaydedilmez.",
   "links.add": "Hesap ekle",
   "links.needBoth": "Kullanıcı adını ve parolasını girin.",
   "links.added": "{name} eklendi.",

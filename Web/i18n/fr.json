@@ -318,7 +318,6 @@
   "links.none": "Aucun compte ajouté pour l'instant. Ajoutez-en un ci-dessous.",
   "links.username": "Son nom d'utilisateur",
   "links.password": "Son mot de passe",
-  "links.hint": "Saisi une seule fois. Il n'est pas enregistré.",
   "links.add": "Ajouter le compte",
   "links.needBoth": "Saisissez son nom d'utilisateur et son mot de passe.",
   "links.added": "{name} a été ajouté.",

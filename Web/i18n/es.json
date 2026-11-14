@@ -342,7 +342,6 @@
   "links.none": "Aún no has añadido ninguna cuenta. Añade una abajo.",
   "links.username": "Su nombre de usuario",
   "links.password": "Su contraseña",
-  "links.hint": "La escribe una sola vez. No se guarda.",
   "links.add": "Añadir cuenta",
   "links.needBoth": "Escribe su nombre de usuario y su contraseña.",
   "links.added": "Se añadió {name}.",

@@ -154,7 +154,12 @@ has(js, 'Library tiles show what',
 has(js, 'class="jpf-libart-head"', 'the artwork column is labelled');
 
 // ── The admin page ─────────────────────────────────────────────────────────
-const tabNames = ['status', 'households', 'devices', 'security', 'look', 'setup', 'clients', 'messages', 'activity', 'troubleshoot'];
+// In strip order. Setup sits next to Status: it is the first place a new install needs.
+const tabNames = ['status', 'setup', 'households', 'devices', 'security', 'look', 'clients', 'messages', 'activity', 'troubleshoot'];
+const stripOrder = (html.match(/class="jpf-tab" role="tab" data-tab="[^"]+"/g) || []).map(function (s) { return /data-tab="([^"]+)"/.exec(s)[1]; });
+tabNames.forEach(function (n, i) {
+    ok(stripOrder[i] === n, 'tab ' + (i + 1) + ' in the strip is ' + n + ' (found ' + stripOrder[i] + ')');
+});
 tabNames.forEach(function (n) {
     ok(count(html, 'data-tab="' + n + '"') === 1, 'one tab button for ' + n);
     ok(count(html, 'data-panel="' + n + '"') === 1, 'one panel for ' + n);

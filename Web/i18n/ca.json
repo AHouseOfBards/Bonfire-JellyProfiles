@@ -318,7 +318,6 @@
   "links.none": "Encara no has afegit cap compte. Afegeix-ne un a sota.",
   "links.username": "El seu nom d'usuari",
   "links.password": "La seva contrasenya",
-  "links.hint": "L'escriu una sola vegada. No es desa.",
   "links.add": "Afegeix el compte",
   "links.needBoth": "Escriu el seu nom d'usuari i la contrasenya.",
   "links.added": "S'ha afegit {name}.",

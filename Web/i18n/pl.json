@@ -318,7 +318,6 @@
   "links.none": "Nie dodano jeszcze żadnych kont. Dodaj jedno poniżej.",
   "links.username": "Nazwa użytkownika",
   "links.password": "Hasło",
-  "links.hint": "Wpisywane raz. Nie jest zapisywane.",
   "links.add": "Dodaj konto",
   "links.needBoth": "Wpisz nazwę użytkownika i hasło.",
   "links.added": "Dodano {name}.",
