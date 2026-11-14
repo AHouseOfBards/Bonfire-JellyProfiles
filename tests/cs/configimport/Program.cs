@@ -20,15 +20,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 // ─────────────────────────────────────────────────────────────────────────────
 // Export, change, import: nothing may be lost (R-1146).
 //
-// Import restored a named list of about twenty-two fields and answered "success" for the
-// rest, so the SMTP settings, confirmed email addresses, the PIN-reset-by-email switch,
-// maintenance, first-time setup, starter avatars and the Quick Connect fields went missing
-// from a restore without a word. Each had been added to PluginConfiguration after the
-// import list was written, and nothing made anyone go back.
+// Import restored a named list of about twenty-two fields and answered "success" for the rest,
+// so the SMTP settings, confirmed email addresses, the PIN-reset-by-email switch, maintenance,
+// first-time setup, starter avatars and the Quick Connect fields went missing from a restore
+// without a word. Each was added to PluginConfiguration after the import list was written.
 //
-// So this compares EVERY public property of the configuration by reflection: a field added
-// next month is covered the day it is added, or this fails and names it. The only things
-// left out are an explicit list, each with its reason.
+// So this compares EVERY public property by reflection: a field added next month is covered
+// the day it is added, or this fails and names it. Only an explicit list is left out, each
+// with its reason.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -286,9 +285,8 @@ importRoute.Invoke(NewController(), new object[] { partial });
 Ok("a file without a setting leaves the current one", NoPw(Json(cfgType.GetProperty("Email").GetValue(live))) == snapshot["Email"]
    && Json(cfgType.GetProperty("Maintenance").GetValue(live)) == snapshot["Maintenance"]);
 
-// The SMTP password (R-1149, R-1312). A backup file is the thing an administrator puts
-// somewhere careless, so the export leaves the mail password out, and an import that does
-// not carry one keeps the password the server already has.
+// The SMTP password (R-1149, R-1312). A backup file ends up somewhere careless, so the export
+// leaves the mail password out, and an import without one keeps the server's own.
 Console.WriteLine();
 Console.WriteLine("── The SMTP password ────────────────────────────────────────────");
 {
@@ -340,9 +338,9 @@ Console.WriteLine("── The SMTP password ────────────
     Ok("a file from before the change, with a password, still restores it", LivePassword() == "from-old-backup", LivePassword());
 }
 
-// The emergency code. Its hash is a PIN hash of a short code, so the file would hand the
-// code to anyone who reads it. Left out like the mail password; an import without one keeps
-// the server's own, and the result says so, so the administrator knows to set it.
+// The emergency code. Its hash is a PIN hash of a short code, so the file would hand the code
+// to anyone who reads it. Left out like the mail password; an import without one keeps the
+// server's own, and the result says so.
 Console.WriteLine();
 Console.WriteLine("── The emergency code ───────────────────────────────────────────");
 {
@@ -392,9 +390,9 @@ Console.WriteLine("── The emergency code ───────────�
     Ok("a file from before the change, with a code, still restores it", LivePanic() == "from-old-backup", LivePanic());
     Ok("and says it was included", Flag(olderR, "emergencyCodeIncluded") && Flag(olderR, "emergencyCodeSet"), olderR.GetRawText());
 
-    // A backup from before 2.0 has no BonfireOn, so it leaves the switch as the server has
-    // it, and a new install starts off. The result says where it stands, so the page can
-    // say so instead of the household finding out from a television.
+    // A backup from before 2.0 has no BonfireOn, so it leaves the switch as the server has it,
+    // and a new install starts off. The result says where it stands, so the page can tell the
+    // household instead of a television.
     var onProp = cfgType.GetProperty("BonfireOn");
     var preTwo = new Dictionary<string, object>();
     foreach (var kv in fields) if (kv.Key != "BonfireOn") preTwo[kv.Key] = kv.Value;
@@ -531,9 +529,9 @@ Console.WriteLine("── A damaged or foreign file ─────────�
     Ok("a file without Mappings reports none, not zero",
        foreignR.TryGetProperty("mappings", out var mp) && mp.ValueKind == JsonValueKind.Null, foreignR.GetRawText());
 
-    // A backup from before 1.5.10 holds device names as the client encoded them ("Pixel+8").
-    // The devices list repairs those once per run, so one imported after that stayed encoded
-    // until a restart (r3-03-04). The import decodes them itself.
+    // A backup from before 1.5.10 holds device names as the client encoded them ("Pixel+8"). The
+    // devices list repairs those once per run, so one imported later stayed encoded until a
+    // restart (r3-03-04). The import decodes them itself.
     Overwrite(live, Defaults());
     var oldNames = JsonSerializer.SerializeToElement(new Dictionary<string, object>
     {

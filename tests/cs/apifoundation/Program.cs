@@ -20,9 +20,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 // ─────────────────────────────────────────────────────────────────────────────
 // What other apps and plugins build on (1.7.2).
 //
-//  - An API key from Dashboard → API Keys can call the admin routes. Jellyfin gives a key
-//    the administrator role but no user, and the admin check looked the user up, so every
-//    key was refused. A key is recognised by both claims together, never one.
+//  - An API key from Dashboard → API Keys can call the admin routes. Jellyfin gives a key the
+//    administrator role but no user, and the admin check looked the user up, so every key was
+//    refused. A key is recognized by both claims together, never one.
 //  - /list and /announcements carry an ETag, and answer 304 when it still matches.
 //  - GET /me says who the caller is.
 //  - IBonfireProfiles answers household questions for other plugins.
@@ -202,9 +202,9 @@ foreach (var route in new[] { "GetProfilesJs", "GetThemes" })
     Ok(route + ": another tag gets the body", Call(route, UserPrincipal(MAIN), rargs, new() { ["If-None-Match"] = "\"0000\"" }).status == 200);
 }
 
-// Turned off on the Status tab (2.0), profiles.js is the same script told to stay off (so the
-// settings page keeps its theme preview), under its own tag, and every load asks again so the
-// change reaches a browser on its next page load in either direction.
+// Turned off on the Status tab (2.0), profiles.js is the same script told to stay off (the
+// settings page keeps its theme preview), under its own tag. Every load asks again, so the
+// change reaches a browser on its next page load either way.
 {
     var onProp = cfgType.GetProperty("BonfireOn");
     string Body((int status, object value, HttpContext http) r) => (r.value as ContentResult)?.Content ?? r.value as string;
@@ -363,9 +363,9 @@ Ok("and the lock is written once, not once per refused try", locks.Count == 1 &&
 Console.WriteLine();
 Console.WriteLine("── A signed-in route does not enumerate the live lists ─────────");
 {
-    // A writer adds and removes a mapping under the configuration lock while the route
-    // runs. A route that walks the live list throws "collection was modified" now and then;
-    // one that reads a copy never does.
+    // A writer adds and removes a mapping under the configuration lock while the route runs. A
+    // route that walks the live list sometimes throws "collection was modified"; one that reads
+    // a copy never does.
     var lockField = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true)
         .GetField("ConfigLock", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
     var theLock = lockField.GetValue(null);
@@ -398,9 +398,9 @@ Console.WriteLine("── A signed-in route does not enumerate the live lists �
 }
 
 // ── POST /admin/cleanup-orphans ──────────────────────────────────────────────
-// R-1151: each Jellyfin user is looked up once (not once per row, per test, inside the
-// lock), the preview and the result count what is actually removed, and a member of a
-// group that is itself removed is not counted twice.
+// R-1151: each Jellyfin user is looked up once (not per row, per test, inside the lock), the
+// preview and result count what is removed, and a member of a removed group is not counted
+// twice.
 {
     Console.WriteLine();
     Console.WriteLine("── POST /admin/cleanup-orphans ─────────────────────────────────");

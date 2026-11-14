@@ -7,34 +7,21 @@ using System.Text.RegularExpressions;
 using System.Threading;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Every lock that guards the plugin configuration must be taken on ONE object
-// that outlives the configuration.
+// Every lock that guards the plugin configuration must be taken on one object that outlives the configuration.
 //
-// Twenty-six sites used to read `var config = Plugin.Instance?.Configuration;`
-// and then `lock (config)`. That looks like mutual exclusion and is not. When an
-// administrator saves the plugin's settings page, Jellyfin calls
-// BasePlugin<T>.UpdateConfiguration, which assigns a *new* configuration
-// instance. Every monitor already held on the old instance is now on an object
-// nothing else will ever lock, and every request that arrives afterwards locks
-// the new one. Two writers end up inside the critical section at once, and the
-// writes made against the stale reference are thrown away with it.
+// Twenty-six sites read `var config = Plugin.Instance?.Configuration;` and then `lock (config)`. When an administrator saved the settings page, Jellyfin's BasePlugin<T>.UpdateConfiguration assigned a new instance, so every monitor held on the old one was on an object nothing else locked: two writers got inside at once and writes against the stale reference were lost.
 //
 // This harness does not take that on trust. It:
-//   1. instantiates the real plugin and calls the real UpdateConfiguration, which
-//      Jellyfin's base class implements by replacing the instance. The plugin now
-//      overrides it to copy onto the instance in use, so this asserts the reference
-//      survives the save (P2-25) — the root of the defect below, not just its symptom;
-//   2. drives two threads through the old pattern, deterministically, and shows
-//      both get inside at once — then drives the same two threads through the
-//      real ConfigLock and shows they do not;
+//   1. instantiates the real plugin and calls the real UpdateConfiguration. Jellyfin's base
+//      class replaces the instance; the plugin overrides it to copy onto the instance in use,
+//      so this asserts the reference survives the save (P2-25), the root of the defect;
+//   2. drives two threads through the old pattern, deterministically, and shows both get inside
+//      at once, then drives them through the real ConfigLock and shows they do not;
 //   3. checks ConfigLock is static, so the transient controllers share it;
-//   4. enumerates every `lock (...)` in the plugin source, one at a time, and
-//      names any that is taken on something other than a known static object.
+//   4. enumerates every `lock (...)` in the plugin source and names any taken on something
+//      other than a known static object.
 //
-// (4) is the regression gate. It is deliberately an enumeration and not a count:
-// a total tells you something moved without telling you which thing, and this
-// repository has shipped three bugs past a check that answered the coarser
-// question.
+// (4) is the regression gate. It enumerates instead of counting, because a total says something moved without saying which.
 // ─────────────────────────────────────────────────────────────────────────────
 
 static string RepoRoot()
@@ -60,10 +47,7 @@ void Ok(string name, bool cond)
     else { fails.Add(name); Console.WriteLine("  FAIL  " + name); }
 }
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build to load. Output sits in bin/Release/<tfm>/, so the folder name is the framework the csproj resolved. `tests/run.sh cs10` runs against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 var dll = RepoPath("bin", "Release", tfm, "Jellyfin.Profiles.dll");
@@ -77,10 +61,7 @@ const BindingFlags Any = BindingFlags.Static | BindingFlags.Instance
 Console.WriteLine();
 Console.WriteLine("── The configuration instance really is replaced ───────────────");
 
-// Proof by execution, not by reading Jellyfin's source. The two stubs below are
-// the whole of what BasePlugin needs to be constructed: somewhere to pretend to
-// write, and a serializer that never succeeds, so the configuration is built
-// fresh rather than read off a disk we do not have.
+// Proof by execution, not by reading Jellyfin's source. These stubs are all BasePlugin needs: somewhere to pretend to write, and a serializer that never succeeds, so the configuration is built fresh.
 var pluginType = asm.GetType("Jellyfin.Profiles.Plugin", true);
 var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-configlock-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempDir);
@@ -120,16 +101,12 @@ if (plugin != null)
 
         // Exactly what Jellyfin's generic configuration save does.
         //
-        // These two assertions used to prove the defect: Jellyfin's own UpdateConfiguration
-        // assigns the new object, so everything that had read the configuration before
-        // taking ConfigLock went on mutating an orphan (P2-25). The plugin now overrides it
-        // to copy the saved values onto the instance in use, so the reference never
-        // changes — and the question is whether the values arrived.
+        // These two assertions used to prove the defect: Jellyfin's UpdateConfiguration assigns the new object, so readers that took the configuration before ConfigLock mutated an orphan (P2-25). The plugin now copies the saved values onto the instance in use, so the question is whether the values arrived.
         var replacement = Activator.CreateInstance(cfgType);
         cfgType.GetProperty("MaxProfilesPerUser").SetValue(replacement, 13);
-        // Two more things the override promises that nothing here read: that it persists
-        // what it just copied, exactly once, and that it tells subscribers. Dropping
-        // either stayed green, because the stub serializer and the event were never looked at.
+        // Two more promises of the override: it persists what it copied, exactly once, and tells
+        // subscribers. Dropping either stayed green because the stub serializer and the event were
+        // never looked at.
         var changedCalls = 0;
         // In Jellyfin's BasePlugin it is a delegate property, not an event.
         var changedProp = pluginType.GetProperty("ConfigurationChanged", Any);
@@ -189,13 +166,7 @@ if (plugin != null)
             Ok("a posted null " + name + " leaves the live one in place",
                cfgType.GetProperty(name).GetValue(afterSections) != null);
 
-        // R-1290: one int showed the copy ran, not that it copies everything. Every
-        // writable property gets its own value, different from the default, and each is
-        // checked one at a time, so a property the copy skips is named. A list carries one
-        // element. A property this harness cannot make a distinct value for fails by name
-        // rather than being skipped: a new setting of a new type must be taught here.
-        // Different from what the instance in use holds NOW, not from a fresh default:
-        // the plugin's constructor turns RequireMainPin on, so "true" was no change.
+        // R-1290: one int showed the copy ran, not that it copies everything. Every writable property gets its own value, different from the default, checked one at a time, so a skipped property is named. A list carries one element. A property this harness cannot make a distinct value for fails by name, so a new setting of a new type must be taught here. The value differs from what the instance holds now, because the constructor turns RequireMainPin on and "true" was no change.
         var fresh = configProp.GetValue(plugin);
         var full = Activator.CreateInstance(cfgType);
         var wanted = new List<PropertyInfo>();
@@ -269,10 +240,7 @@ if (plugin != null)
             Ok("an unknown proxy app is dropped", ((System.Collections.IList)pProp.GetValue(liveAfter)).Count == 0);
         }
 
-        // Turning Bonfire off or on reaches every reader through Plugin.IsOff at once, except
-        // two caches: the viewing-limits index and the tokens the proxy switcher has put down
-        // as not ours. admin/settings cleared both; Jellyfin's own configuration save, which
-        // lands here, did not, so a switch made there took up to minutes to reach a device.
+        // Turning Bonfire off or on reaches every reader through Plugin.IsOff, except two caches: the viewing-limits index and the tokens the proxy switcher has put down as not ours. admin/settings cleared both; Jellyfin's own configuration save, which lands here, did not, so a switch made there took minutes to reach a device.
         var tracker = asm.GetType("Jellyfin.Profiles.Auth.ViewingTracker", true);
         var generation = tracker.GetField("_indexGeneration", Any);
         var notOurs = (System.Collections.IDictionary)asm.GetType("Jellyfin.Profiles.Auth.ProxySwitcher", true)
@@ -290,11 +258,7 @@ if (plugin != null)
         Ok("and the apps the proxy switcher put down as not ours", !notOurs.Contains("harness-token"));
         notOurs.Clear();
 
-        // R-1290: the two-thread sections lock on an object this harness fetched, so they
-        // prove what `lock` does, and could not go red if the plugin stopped taking it.
-        // This runs the real UpdateConfiguration while the harness holds ConfigLock: it
-        // must wait. If it locked anything else (the configuration, a private object) or
-        // nothing, it walks straight through and this fails.
+        // R-1290: the two-thread sections lock on an object this harness fetched, so they prove what `lock` does and could not go red if the plugin stopped taking it. This runs the real UpdateConfiguration while the harness holds ConfigLock: it must wait. If it locked something else, or nothing, it walks through and fails.
         var realLock = baseCtl.GetField("ConfigLock", Any).GetValue(null);
         var held = new ManualResetEventSlim(false);
         var letGo = new ManualResetEventSlim(false);
@@ -322,10 +286,9 @@ try { Directory.Delete(tempDir, true); } catch { /* best effort */ }
 Console.WriteLine();
 Console.WriteLine("── Locking the instance gives no mutual exclusion ──────────────");
 
-// Deterministic, not a stress test. A race that has to be won by luck is a test
-// that passes by luck too. Thread A enters the critical section and waits; the
-// configuration is then replaced exactly as UpdateConfiguration replaces it; then
-// thread B enters. If the lock is the configuration itself, B walks straight in.
+// Deterministic, not a stress test: a race that has to be won by luck passes by luck. Thread A
+// enters the critical section and waits; the configuration is replaced as UpdateConfiguration
+// replaces it; then thread B enters. If the lock is the configuration itself, B walks in.
 var holder = new Holder { Cfg = Activator.CreateInstance(cfgType) };
 
 var brokenMax = RunTwoThreads(holder, cfgType, useInstanceAsLock: true, lockObject: null);
@@ -351,9 +314,8 @@ if (lockField != null)
         Ok("with `lock (ConfigLock)`, only one thread is inside at a time across the "
            + "same replacement (observed " + fixedMax + " concurrent)", fixedMax == 1);
 
-        // The deterministic test proves exclusion. This one proves the lock is
-        // being asked to guard the thing that actually breaks: List<T>.Add from
-        // several threads drops entries and can corrupt the backing array.
+        // The deterministic test proves exclusion. This one proves the lock guards what actually
+        // breaks: List<T>.Add from several threads drops entries and can corrupt the backing array.
         var cfg = Activator.CreateInstance(cfgType);
         var mappings = (System.Collections.IList)cfgType.GetProperty("Mappings").GetValue(cfg);
         var mappingType = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
@@ -385,10 +347,10 @@ if (lockField != null)
 Console.WriteLine();
 Console.WriteLine("── A PIN upgrade does not hash while holding ConfigLock (r2-08-06) ──");
 
-// VerifyPinAndUpgrade re-hashes a legacy PIN with PBKDF2 (150,000 rounds, tens of
-// milliseconds). Done inside ConfigLock it stalled every other configuration reader for
-// that long, once per legacy PIN entry. This holds the real method against a second
-// thread that keeps taking the lock and records the longest it ever had to wait.
+// VerifyPinAndUpgrade re-hashes a legacy PIN with PBKDF2 (150,000 rounds, tens of ms). Done
+// inside ConfigLock it stalled every other configuration reader for that long, once per legacy
+// PIN entry. This holds the real method against a second thread that keeps taking the lock and
+// records the longest wait.
 {
     var pinHasher = asm.GetType("Jellyfin.Profiles.Auth.PinHasher", true);
     var hashOnce = pinHasher.GetMethod("Hash", new[] { typeof(string) });
@@ -406,11 +368,7 @@ Console.WriteLine("── A PIN upgrade does not hash while holding ConfigLock (
 
     var legacy = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
         System.Text.Encoding.UTF8.GetBytes("1234"))).ToLowerInvariant();
-    // Only a wait on a lock someone else holds is timed (TryEnter failed first), so the
-    // watcher being descheduled on a busy machine is not mistaken for one; timing every
-    // pass failed the net10 gate at 392 ms with three agents and Chrome running. And the
-    // best of three trials is kept: the bug holds the lock for the whole hash in every
-    // trial, so it fails all three, while a one-off stall fails one.
+    // Only a wait on a lock someone else holds is timed (TryEnter failed first), so a descheduled watcher on a busy machine is not mistaken for one; timing every pass failed the net10 gate at 392 ms. The best of three trials is kept: the bug holds the lock for the whole hash every time and fails all three, a one-off stall fails one.
     double worst = double.MaxValue;
     object lastMapping = null;
     for (var trial = 0; trial < 3 && worst >= hashMs / 2; trial++)
@@ -454,12 +412,7 @@ Console.WriteLine("── A PIN upgrade does not hash while holding ConfigLock (
 Console.WriteLine();
 Console.WriteLine("── Every lock in the plugin, one at a time ─────────────────────");
 
-// A lock target is acceptable only if it is a static object whose lifetime does
-// not depend on the configuration. Each entry says why it is allowed, so adding
-// to this list is a decision somebody has to write down.
-// One field, two legal spellings: bare inside ProfilesBaseController, qualified from
-// anywhere else. Enumerated instead of prefix-stripped so a different type's ConfigLock
-// is still a failure.
+// A lock target is acceptable only if it is a static object whose lifetime does not depend on the configuration. Each entry says why. One field, two legal spellings: bare inside ProfilesBaseController, qualified elsewhere; enumerated rather than prefix-stripped, so another type's ConfigLock is still a failure.
 static bool IsConfigLock(string target) =>
     target == "ConfigLock" || target == "ProfilesBaseController.ConfigLock";
 
@@ -468,9 +421,7 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
     ["ConfigLock"]   = "static readonly on ProfilesBaseController; survives a settings save",
     ["PassLock"]     = "static readonly in Auth.MasterUpdateListener; guards which main accounts are being passed on to their profiles, never held across a call out",
     ["SyncLock"]     = "static readonly in Injection.WebInjection; makes the on/off check and the tag registration one step; reads one flag, never takes ConfigLock or saves",
-    // The same field, named from outside the class that declares it. Spelled out rather
-    // than matched by stripping the qualifier, which would have admitted any type's
-    // ConfigLock — and the whole point of this table is that one object is THE lock.
+    // The same field, named from outside its class. Spelled out, not matched by stripping the qualifier, which would admit any type's ConfigLock.
     ["ProfilesBaseController.ConfigLock"]
                      = "the same static readonly field, qualified from another class",
     ["AuditLogLock"] = "static readonly; guards the audit_log.json path and file",
@@ -490,11 +441,7 @@ var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
                      + "reference is stable for the key's lifetime and is never replaced",
 };
 
-// The vendored Campground.Shared library (2.0). Its locks are on its own objects, and it
-// cannot take Bonfire's configuration at all: it never names a Jellyfin.Profiles type, which
-// is asserted below rather than assumed. Allowed by file AND target, not by name, because
-// `_gate` here says nothing about a `_gate` Bonfire might add — and a new lock in a future
-// copy of the library fails until someone writes down why it is safe.
+// The vendored Campground.Shared library (2.0). Its locks are on its own objects and it never names a Jellyfin.Profiles type (asserted below). Allowed by file AND target, not name, so a new lock in a future copy of the library fails until someone writes down why.
 var sharedAllowed = new Dictionary<string, string>(StringComparer.Ordinal)
 {
     ["Campground.Shared/src/Contracts/EncoderLedger.cs|leases"]
@@ -533,8 +480,8 @@ var sources = Directory
              && !p.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)
              && !p.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)
              && !p.Contains(Path.DirectorySeparatorChar + "scratch" + Path.DirectorySeparatorChar)
-             // Other checkouts of the repo nested under this one, half-edited. Relative to
-             // the root, so a run from inside such a checkout still reads its own source.
+             // Other checkouts of the repo nested under this one, half-edited. Relative to the root, so a
+             // run from inside such a checkout reads its own source.
              && !Path.GetRelativePath(RepoRoot(), p).StartsWith(".claude" + Path.DirectorySeparatorChar))
     .OrderBy(p => p, StringComparer.Ordinal)
     .ToArray();
@@ -569,9 +516,7 @@ foreach (var path in sources)
 Ok("the scan actually found locks (" + sites + " sites) — a regex that matches nothing "
    + "would otherwise pass this whole section", sites >= 20);
 
-// `lock (x)` is one spelling of taking a monitor. Monitor.Enter(Configuration) and a
-// Synchronized method are others, and the scan above never saw them, so the orphaned-
-// monitor defect could come back in a form this section could not read.
+// `lock (x)` is one spelling of taking a monitor. Monitor.Enter(Configuration) and a Synchronized method are others the scan above never saw.
 var otherMonitors = new List<string>();
 var monitorRx = new Regex(@"\bMonitor\s*\.\s*(Try)?Enter\b|MethodImplOptions\s*\.\s*Synchronized", RegexOptions.Compiled);
 foreach (var path in sources)
@@ -602,10 +547,7 @@ Ok("the vendored Campground.Shared never names Bonfire's plugin or configuration
 Console.WriteLine();
 Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02) ──────");
 {
-    // The routes that add and remove mappings do it under ConfigLock, so a reader that
-    // enumerates without it can meet "Collection was modified", and the profile-limit
-    // count can be torn. Each reader is run while the harness holds the real lock: it must
-    // wait. One that walks the list unlocked returns at once.
+    // The routes that add and remove mappings work under ConfigLock, so a reader that enumerates without it can meet "Collection was modified" and the profile-limit count can be torn. Each reader runs while the harness holds the lock and must wait; one that walks the list unlocked returns at once.
     var realLock = baseCtl.GetField("ConfigLock", Any).GetValue(null);
     var cfg = Activator.CreateInstance(cfgType);
     var mapT = asm.GetType("Jellyfin.Profiles.Configuration.ProfileMapping", true);
@@ -654,9 +596,9 @@ Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02)
     WaitsForLock("HouseholdOf (the account-link routes' main-account check)", "HouseholdOf",
         new object[] { cfg, someone }, profilesCtl);
 
-    // A snapshot is read with no lock, so nothing in it may be a list the live configuration
-    // edits in place. A Bonfire's member list is (join, leave, kick): the snapshot used to
-    // share the group, and a reader walking it met the edit.
+    // A snapshot is read with no lock, so nothing in it may be a list the live configuration edits
+    // in place. A Bonfire's member list is (join, leave, kick): the snapshot used to share the
+    // group, and a reader walking it met the edit.
     var groupT = asm.GetType("Jellyfin.Profiles.Configuration.BonfireGroup", true);
     var groups = (System.Collections.IList)cfgType.GetProperty("BonfireGroups").GetValue(cfg);
     var liveGroup = Activator.CreateInstance(groupT);
@@ -676,17 +618,9 @@ Console.WriteLine("── Reads of the mapping list wait for the lock (r2-11-02)
 Console.WriteLine();
 Console.WriteLine("── Every save happens while the lock is held ───────────────────");
 
-// Holding the lock for the mutation and then dropping it before persisting puts the
-// read-modify-write and the write-to-disk in different critical sections: two requests
-// can interleave so the configuration on disk is neither of the two states either
-// request intended. Every SaveConfiguration() must therefore sit inside the ConfigLock
-// block that made the change it is saving.
+// Holding the lock for the mutation and dropping it before persisting puts the read-modify-write and the disk write in different critical sections, so two requests can interleave and leave a file that is neither state. Every SaveConfiguration() must sit inside the ConfigLock block that made the change it saves.
 //
-// This one was already true when it was written, so unlike the section above it never
-// had a failing build to prove itself against. The self-check below is what stands in
-// for that: it runs the same detector over a sample with one good call and one bad one
-// and requires it to pick out exactly the bad one. A detector that silently stopped
-// matching anything would pass the real scan and fail this.
+// This was already true when written, so it never had a failing build to fail against. The self-check below stands in: the detector runs over a sample with one good call and one bad one and must report exactly the bad one.
 var sample = new[]
 {
     "void Good() {",
@@ -704,10 +638,7 @@ Ok("the detector finds the unguarded save in a known-bad sample, and only that o
    + "(flagged lines: " + (sampleUnguarded.Count == 0 ? "none" : string.Join(", ", sampleUnguarded)) + ")",
    sampleUnguarded.Count == 1 && sampleUnguarded[0] == 8);
 
-// R-1290: the detector counted braces per line, strings and comments included. A "{" in
-// a string kept a closed lock open (an unguarded save read as guarded); a "}" in one
-// closed an open lock early (a guarded save read as unguarded). Each is pinned by a
-// sample the old counter gets wrong.
+// R-1290: the detector counted braces per line, strings and comments included. A "{" in a string kept a closed lock open; a "}" closed an open one early. Each is pinned by a sample the old counter gets wrong.
 var braceInString = new[]
 {
     "void A() {",
@@ -775,10 +706,7 @@ return 0;
 
 // ── plumbing ────────────────────────────────────────────────────────────────
 
-// Returns the 1-based line numbers of SaveConfiguration() calls that are not
-// lexically inside a `lock (ConfigLock)` block. Brace counting, not a parser:
-// enough for this codebase's formatting, and it reports lines rather than a
-// total so a failure names the call rather than the fact that one exists.
+// Returns the 1-based line numbers of SaveConfiguration() calls not inside a `lock (ConfigLock)` block. Brace counting, not a parser. It reports lines, not a total, so a failure names the call.
 static List<int> FindUnguardedSaves(IReadOnlyList<string> lines, Regex rx)
 {
     var bad = new List<int>();
@@ -818,9 +746,7 @@ static object DistinctValue(Type t, object def, string name)
 {
     var u = Nullable.GetUnderlyingType(t);
     if (u != null) t = u;
-    // r2-19-02: these are held to the rules admin/settings applies, so a made-up string or an
-    // out-of-range number is no longer carried over. Each gets a value that is valid and
-    // different from the live one; the copy is still checked for every one of them.
+    // r2-19-02: held to the rules admin/settings applies, so a made-up string or out-of-range number is not carried over. Each gets a value that is valid and different from the live one.
     switch (name)
     {
         case "PinGuessesPerDay": return def is int pg && pg == 7 ? 8 : 7;
@@ -883,9 +809,7 @@ static object DistinctValue(Type t, object def, string name)
     return null;
 }
 
-// A line with its strings (regular, verbatim, interpolated), char literals and comments
-// blanked, so that braces and keywords left are code. Strings that run over several lines
-// are not handled (this codebase has none a brace could hide in); block comments are.
+// A line with its strings (regular, verbatim, interpolated), char literals and comments blanked, so braces and keywords left are code. Multi-line strings are not handled (none here could hide a brace); block comments are.
 static string StripNonCode(string line, ref bool inBlockComment)
 {
     var sb = new System.Text.StringBuilder(line.Length);
@@ -925,12 +849,12 @@ static string StripNonCode(string line, ref bool inBlockComment)
     return sb.ToString();
 }
 
-// Runs the interleaving that breaks instance locking, and reports the greatest
-// number of threads seen inside the critical section at the same time.
+// Runs the interleaving that breaks instance locking and reports the most threads seen inside
+// the critical section at once.
 //
 //   A: read the config, take the lock, announce, wait to be released
 //   main: replace the configuration (what UpdateConfiguration does)
-//   B: read the config *again* — now a different object — and take the lock
+//   B: read the config again (now a different object) and take the lock
 //
 // With the configuration as the lock, B is locking something A never touched.
 static int RunTwoThreads(Holder holder, Type cfgType, bool useInstanceAsLock, object lockObject)
@@ -977,8 +901,8 @@ static int RunTwoThreads(Holder holder, Type cfgType, bool useInstanceAsLock, ob
     });
     b.Start();
 
-    // If exclusion holds, B is still blocked here and this wait times out — which
-    // is the passing case. Long enough that a slow CI box cannot fake a pass.
+    // If exclusion holds, B is still blocked here and this wait times out, the passing case. Long
+    // enough that a slow CI box cannot fake a pass.
     bInside.Wait(1500);
 
     release.Set();
@@ -1016,9 +940,8 @@ sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
     public void CreateAndCheckMarker(string path, string markerName, bool recursive = false) { }
 }
 
-// Never succeeds at reading, never writes anything. LoadConfiguration falls back
-// to a fresh instance, which is exactly what we want, and SaveConfiguration
-// becomes a no-op instead of touching the disk.
+// Never succeeds at reading, never writes. LoadConfiguration falls back to a fresh instance
+// and SaveConfiguration becomes a no-op instead of touching the disk.
 sealed class StubXml : MediaBrowser.Model.Serialization.IXmlSerializer
 {
     public void SerializeToStream(object obj, Stream stream) { }

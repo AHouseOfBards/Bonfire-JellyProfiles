@@ -21,9 +21,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 // Copy one profile's rules onto another: POST /copy-rules.
 //
 // A household can copy a profile's rating limit and tags, libraries and viewing limits onto
-// another profile in the same household. It does not copy allowed devices, name, picture
-// or PIN. The route is a security boundary: it changes what a profile can watch, so it is
-// held to what /update is held to, and each case below is its own check.
+// another profile in the same household, but not allowed devices, name, picture or PIN. The
+// route changes what a profile can watch, so it is held to what /update is held to.
 //
 //  - what is copied, and what is left alone;
 //  - the target ends exactly as if it had been edited to the same values (a twin profile is

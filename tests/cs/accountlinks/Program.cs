@@ -20,25 +20,21 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Other accounts in a household's switcher (issue #39), and an account made a profile
-// (1.7.2).
+// Other accounts in a household's switcher (issue #39), and an account made a profile (1.7.2).
 //
-// What it holds the plugin to:
-//
-//  - The rule, through the one function /switch, /verify-pin and /list share: an added
-//    account with no PIN opens with nothing (its password was the consent); one with a PIN
-//    asks for it, or not at home if its owner allows that for Bonfires; an administrator
-//    always asks, and is refused outright without a PIN. A stale link to what is now a
-//    profile opens nothing.
-//  - Adding: the main account only, with its main PIN, and the account's real password,
-//    rate limited. Never your own account, a profile, twice, or an administrator with no
-//    PIN. Either side can remove it; nobody else can.
+//  - The rule, through the one function /switch, /verify-pin and /list share: an added account
+//    with no PIN opens with nothing (its password was the consent); one with a PIN asks for it,
+//    or not at home if its owner allows that for Bonfires; an administrator always asks, and is
+//    refused without a PIN. A stale link to what is now a profile opens nothing.
+//  - Adding: the main account only, with its main PIN and the account's real password, rate
+//    limited. Never your own account, a profile, twice, or an administrator with no PIN.
+//    Either side can remove it; nobody else can.
 //  - /list draws the account, marked as added, and not its profiles; /switch opens it.
-//  - Making an account a profile: administrators only; never an administrator, an account
-//    with profiles, one in a Bonfire, or past the household's limit. It is signed out,
-//    hidden, put on Jellyfin's own provider, given a password nobody knows while it is
-//    still an account, and only then mapped; it keeps its PIN, libraries and tags, loses
-//    its main-account row, email and links, and the household's restrictions go on top.
+//  - Making an account a profile: administrators only; never an administrator, an account with
+//    profiles, one in a Bonfire, or past the household's limit. It is signed out, hidden, put on
+//    Jellyfin's own provider, given a password nobody knows, and only then mapped. It keeps its
+//    PIN, libraries and tags, loses its main-account row, email and links, and the household's
+//    restrictions go on top.
 //
 // Against 77b0d04 the first assertion fails: there is no such route. Against 74aa924 the
 // lockout checks fail: it checked the password through UserManager.AuthenticateUser.
@@ -275,9 +271,9 @@ Ok("and no session was made by trying", world.Sessions == 0);
 
 r = Call("AddAccountLink", HOME, B(("Username", "dad"), ("Password", "dadpw"), ("MasterPin", "1234")));
 Ok("the right password adds it", r.status == 200 && Linked(HOME, DAD), Text(r));
-// AuthenticateUser counts a wrong password towards the account's lockout, and with one set
-// Jellyfin turns the account off: a household could disable someone by guessing. So the
-// password goes to Jellyfin's provider, which only compares it.
+// AuthenticateUser counts a wrong password toward the account's lockout, and Jellyfin turns the
+// account off at the limit, so a household could disable someone by guessing. The password goes
+// to Jellyfin's provider, which only compares it.
 Ok("checked by Jellyfin's own provider, with no session", world.Sessions == 0 && world.ProviderCalls.Count > 0, string.Join(" | ", world.ProviderCalls));
 Ok("so a wrong password never counts towards the account's lockout", world.AuthCalls.Count == 0 && world.LockoutCount.Count == 0,
    string.Join(" | ", world.AuthCalls));
@@ -293,11 +289,7 @@ var nobody = Call("AddAccountLink", HOME, B(("Username", "NoSuchPerson"), ("Pass
 Ok("and the words are those for a name that does not exist", nobody.status == rq.status && (string)nobody.value == (string)rq.value, Text(nobody));
 Ok("and its password isn't tried anywhere", !world.ProviderCalls.Contains("Directory") && world.AuthCalls.Count == 0);
 
-// r2-10-04: these three refusals used to return before any hash was computed, so the
-// answer time told an unknown name, a disabled account and an LDAP one from a wrong
-// password. Each now spends a real hash first. The household's own PIN check costs a hash
-// too, so the baseline is a call that stops right after it (no username); a refusal has to
-// take at least a hash longer than that. The fake provider here does not hash.
+// r2-10-04: these refusals returned before any hash was computed, so response time told an unknown name, a disabled account and an LDAP one from a wrong password. Each now spends a real hash first. The PIN check costs a hash too, so the baseline stops right after it (no username); a refusal must take at least a hash longer. The fake provider does not hash.
 {
     long Time(string name, string ip)
     {
@@ -343,8 +335,7 @@ Ok("and once stopped, even the right one isn't tried", r.status == 429 && world.
 Ok("and none of that guessing counted towards the Lodger's lockout", !world.LockoutCount.ContainsKey(LODGER));
 ResetLimits();
 
-// r2-10-01: ten an hour was 240 guesses a day at one account, and nobody was told. A daily cap
-// per account, and each wrong password in the activity log.
+// r2-10-01: ten an hour was 240 guesses a day at one account, unnoticed. Now a daily cap per account, and each wrong password goes in the activity log.
 Services.Activity.Clear();
 r = Call("AddAccountLink", HOME, B(("Username", "Lodger"), ("Password", "wrong-one"), ("MasterPin", "1234")));
 Ok("a wrong password is written to the activity log as a warning naming both accounts",
@@ -407,9 +398,7 @@ r = Call("AddAccountLink", OTHER, B(("Username", "Lodger"), ("Password", "lpw"))
 Ok("and while it is, not even the right one from somewhere new is tried", r.status == 429 && !Linked(OTHER, LODGER), Text(r));
 ResetLimits();
 
-// R-1071: wrong passwords for somebody else's account spent the household's own PIN allowance
-// and sent the "PIN locked" email. A household with no PIN (NEIGHBOUR) pays nothing back: no
-// right PIN ever cleared it. Names that don't exist, so the per-account limit isn't what trips.
+// R-1071: wrong passwords for somebody else's account spent the household's own PIN allowance and sent the "PIN locked" email. A household with no PIN (NEIGHBOUR) pays nothing back, since no right PIN ever cleared it. The names don't exist, so the per-account limit isn't what trips.
 var pinBudget = asm.GetType("Jellyfin.Profiles.Controllers.PinBudget", true);
 for (int i = 0; i < 8; i++)
     Call("AddAccountLink", OTHER, B(("Username", "Stranger" + i), ("Password", "x")), ip: "10.1.0." + (i + 1));
@@ -666,9 +655,8 @@ groups.Remove(group);
 r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "kid")));
 Ok("a name the household already has is refused", r.status == 400 && (string)r.value == "A profile with this name already exists.", Text(r));
 // A display name that is someone's username (R-1336). Jellyfin looks a typed name up as a
-// username first, so a "Mum" tile reached the real Mum: it could never sign in, and every
-// wrong PIN counted against her. Refused wherever a name is set; an account's own name is
-// the one it is allowed to keep.
+// username first, so a "Mum" tile reached the real Mum, who could never sign in, and every
+// wrong PIN counted against her. Refused wherever a name is set; an account keeps its own name.
 r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "mum")));
 Ok("a name that is another account's username is refused, whatever its case", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
 // Creating one gets as far as making the account when it is not refused, which this
@@ -792,9 +780,9 @@ Ok("returned with its name", (string)P(r.value, "ProfileName") == "Lodger");
 Section("A picture that is refused leaves the one the profile has");
 
 // R-1108: SaveProfileImage and CopyLibraryAvatarToProfile answered a bare null for every
-// failure, and the edit stored that null as "no picture". A 3 MB upload deleted the profile's
-// picture and answered 200. (The pictures here are 9 MB: a fresh install's picture quality is
-// Maximum, 8 MB, so 3 MB is a picture it accepts. They are over the limit that is in force.) R-1109: any string under /plugins/profiles/image/ was stored as it came.
+// failure, and the edit stored that null as "no picture", so a 3 MB upload deleted the picture
+// and answered 200. The pictures here are 9 MB, over the 8 MB a fresh install accepts (picture
+// quality Maximum). R-1109: any string under /plugins/profiles/image/ was stored as it came.
 {
     var imageFolder = Path.Combine(tempDir, "plugins", "ProfilesManagement");
     Directory.CreateDirectory(imageFolder);
@@ -895,13 +883,7 @@ static byte[] PngBytes(int n) { var b = new byte[Math.Max(n, 8)]; new byte[] { 0
 // ── Deleting a profile that was an account ───────────────────────────────────
 Section("Deleting a profile that was an account");
 
-// Making an account a profile changes its password, hides it and puts a mapping on it, and
-// recorded nothing about it having been an account. The household's main account, who is not
-// an administrator, could then delete the profile: DeleteUserAsync took the account, its
-// watch history, favourites and resume points with it (R-1134). The person who makes the
-// profile now chooses what a later delete does; keep is the default.
-// A build that does not know the field has no such request property: that is a failed case,
-// not a crash that hides the cases after it.
+// Making an account a profile changes its password, hides it and maps it, and recorded nothing about it having been an account. The main account, not an administrator, could then delete the profile, and DeleteUserAsync took the account with its watch history, favorites and resume points (R-1134). The person who makes the profile now chooses what a later delete does; keep is the default. A build without the field has no such request property: that is a failed case, not a crash hiding the cases after it.
 (int status, object value) Soft(Func<(int status, object value)> call)
 {
     try { return call(); }
@@ -1065,9 +1047,7 @@ public class WorldProxy : DispatchProxy
     }
 }
 
-// Jellyfin's two registered providers, as the plugin finds them in the request's services.
-// The real DefaultAuthenticationProvider compares the hash and nothing else; the lockout
-// count lives in UserManager, which is what the add route must not go through.
+// Jellyfin's two registered providers, as the plugin finds them in the request's services. The real DefaultAuthenticationProvider only compares the hash; the lockout count lives in UserManager, which the add route must not use.
 public sealed class DefaultAuthenticationProvider : MediaBrowser.Controller.Authentication.IAuthenticationProvider,
     MediaBrowser.Controller.Authentication.IRequiresResolvedUser
 {

@@ -5,14 +5,13 @@ using System.Linq;
 using System.Reflection;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KnownDevices is one server-wide list that only ever grew. Every phone that
-// ever touched the server stayed in it forever, and the device picker is a list
-// an administrator has to read before deciding what a profile may be used on.
+// KnownDevices is one server-wide list that only ever grew: every phone that touched the
+// server stayed in it, and the device picker is what an administrator reads to decide what a
+// profile may be used on.
 //
-// Pruning it is only safe under one rule: a device some profile still names is
-// kept however old it is. AllowedDeviceIds being empty means "any device", so
-// removing the last entry from a whitelist does not tidy a list — it turns a
-// restriction off. That is the assertion this file exists for; the rest is the
+// Pruning is only safe under one rule: a device some profile still names is kept however old
+// it is. An empty AllowedDeviceIds means "any device", so removing the last entry from a
+// whitelist turns a restriction off. That is the assertion this file is for; the rest is the
 // boundary either side of it.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -33,10 +32,9 @@ void Ok(string name, bool cond)
     else { fails.Add(name); Console.WriteLine("  FAIL  " + name); }
 }
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build of the plugin to load. This harness's output sits in bin/Release/<tfm>/, so its
+// folder name is the framework the csproj resolved: there is no second place to keep in step.
+// tests/run.sh cs10 runs the whole set against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 var dll = System.IO.Path.Combine(RepoRoot(), "bin", "Release", tfm, "Jellyfin.Profiles.dll");
@@ -159,9 +157,9 @@ if (prune != null)
     var known = (IList)cfgType.GetProperty("KnownDevices").GetValue(config);
     foreach (var d in devices) known.Add(Device(d.Id, d.Days));
 
-    // Two profiles, so the whitelist that protects a device is not necessarily on the
-    // profile that last used it. One of them has an empty list, which means "any device"
-    // and must contribute nothing to the protected set.
+    // Two profiles, so the whitelist that protects a device is not necessarily on the profile
+    // that last used it. One has an empty list ("any device"), which must add nothing to the
+    // protected set.
     var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 
     var withWhitelist = Activator.CreateInstance(mappingType);
@@ -179,8 +177,8 @@ if (prune != null)
         known.Cast<object>().Select(d => (string)deviceType.GetProperty("DeviceId").GetValue(d)),
         StringComparer.Ordinal);
 
-    // Enumerated one device at a time. A count would say the wrong number survived
-    // without saying which, and a wrongly-kept device and a wrongly-dropped one cancel out.
+    // Enumerated one device at a time: a count would not say which survived, and a wrongly kept
+    // device and a wrongly dropped one cancel out.
     foreach (var d in devices)
     {
         var kept = survivors.Contains(d.Id);
@@ -239,8 +237,8 @@ if (prune != null)
     Console.WriteLine();
     Console.WriteLine("── An empty whitelist does not protect everything ──────────────");
 
-    // If "no restriction" were folded into the protected set as a wildcard, nothing would
-    // ever be pruned and this whole feature would be inert while looking like it worked.
+    // If "no restriction" were folded into the protected set as a wildcard, nothing would ever be
+    // pruned and the feature would be inert while looking like it worked.
     var onlyUnrestricted = Activator.CreateInstance(cfgType);
     var known2 = (IList)cfgType.GetProperty("KnownDevices").GetValue(onlyUnrestricted);
     known2.Add(Device("forgotten-phone", 900));
@@ -265,12 +263,11 @@ if (prune != null)
 Console.WriteLine();
 Console.WriteLine("── One device that got a new id is one row ─────────────────────");
 {
-    // The owner's screenshot: one household, four "Family Room TV" rows from Jellyfin
-    // Android TV, and Tidy up duplicates doing nothing, because it only groups ids that
-    // share a base64 user agent. Two causes, both drawn here: a television that minted a
-    // new id (reinstall, reset, cleared data) and never used the old one again, and one
-    // television signed in as four accounts, which Android TV turns into four ids
-    // (sha1(id + "+" + account)) used side by side.
+    // The owner's screenshot: one household, four "Family Room TV" rows from Jellyfin Android TV,
+    // and Tidy up duplicates doing nothing because it only groups ids that share a base64 user
+    // agent. Two causes, both drawn here: a television that minted a new id (reinstall, reset,
+    // cleared data) and never used the old one, and one television signed in as four accounts,
+    // which Android TV turns into four ids (sha1(id + "+" + account)) used side by side.
     var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", true);
     var sight = registry.GetMethod("RecordSighting", Any);
     var mergeSame = registry.GetMethod("MergeSameDevices", Any);
@@ -338,10 +335,10 @@ Console.WriteLine("── One device that got a new id is one row ────�
         Ok("a merge by time keeps no alias for an old id", !ids.Take(3).Any(id => Answers(h.List, id)));
     }
 
-    // 1b. Owner decision, 2026-11-12: a device on an allow list is never joined by the time
-    //     rule. An unproven merge of two different devices hands the allowed one's
-    //     permission to the other: a kid's iPad renamed "Family Room TV", the real TV unused
-    //     for a week. Only proof (one id derived from the other) may merge it.
+    // 1b. Owner decision, 2026-11-12: a device on an allow list is never joined by the time rule.
+    //     An unproven merge hands the allowed device's permission to the other: a kid's iPad
+    //     renamed "Family Room TV", the real TV unused for a week. Only proof (one id derived from
+    //     the other) may merge it.
     {
         var h = Household(1);
         var allow = (IList)mappingType.GetProperty("AllowedDeviceIds")
@@ -402,8 +399,8 @@ Console.WriteLine("── One device that got a new id is one row ────�
         if (forgetScreens != null) forgetScreens.Invoke(null, null);
     }
 
-    // 1c. R2-02-02: a household at its row cap gives up its oldest unlisted row for a new
-    //     device instead of refusing it, and an allow-listed row is never the one to go.
+    // 1c. R2-02-02: a household at its row cap gives up its oldest unlisted row for a new device
+    //     instead of refusing it; an allow-listed row is never the one to go.
     {
         var cap = (int)registry.GetField("MaxDevicesPerHousehold", Any).GetRawConstantValue();
         var h = Household(1);
@@ -419,8 +416,8 @@ Console.WriteLine("── One device that got a new id is one row ────�
         Ok("the oldest row nothing depends on went", !Ids(h.List).Contains("minted-0001-xxxxxxxx"));
     }
 
-    // 2. One television, four accounts: four derived ids in use side by side. The time rule
-    //    cannot join these; the derivation can, once the set's own id has been seen.
+    // 2. One television, four accounts: four derived ids used side by side. The time rule cannot
+    //    join these; the derivation can, once the set's own id has been seen.
     {
         if (forgetScreens != null) forgetScreens.Invoke(null, null);
         var h = Household(3);

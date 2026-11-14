@@ -493,11 +493,8 @@ Ok("and is not mailed on being judged not a player", Sent() == before);
 notePlayer.Invoke(null, new object[] { "svc-jfago", true });
 Ok("but a playback start within its ten minutes sends the notice that was held", Sent() == before + 1 && Last().To == "other@example.com", (Sent() - before) + "");
 
-// A device judged not a player teaches Bonfire what a service looks like: its client and
-// name. A later new device with the same pair is held like any unjudged one, not dropped: the
-// judgement at sixty seconds only means "nothing reported yet", and a second TV of the same
-// model is exactly the device this notice is for. It used to be dropped for good, so that TV
-// was never announced even once it played (r3-01-01).
+// A device judged not a player teaches Bonfire what a service looks like: its client and name.
+// A device judged not a player teaches Bonfire what a service looks like: its client and name. A later new device with the same pair is held like any unjudged one, not dropped: the judgment at sixty seconds only means "nothing reported yet", and a second TV of the same model is what this notice is for. It used to be dropped for good, so that TV was never announced even once it played (r3-01-01).
 void Seen(string id, string name, string client) =>
     registry.GetMethod("RecordAndSave").Invoke(null, new object[] { id, name, client, OTHER, null });
 before = Sent();
@@ -535,8 +532,7 @@ for (var i = 0; i < 20; i++) Device("dev-flood-" + i, "Flood " + i, MAIN);
 Ok("a flood of made-up devices is capped per account (R-1056)", Sent() - beforeFlood <= 3, (Sent() - beforeFlood) + " mails");
 
 // A device name is set by the client. It is cut and stripped before it goes in a mail.
-// OTHER has used its fifteen-minute device budget above (the cap is checked on MAIN); this
-// check is about the name, so it starts from an empty budget.
+// OTHER has used its fifteen-minute device budget above (the cap is checked on MAIN); this check is about the name, so it starts from an empty budget.
 {
     var budgetField = asm.GetType("Jellyfin.Profiles.Mail.Notifications", true)
         .GetField("DeviceBudget", BindingFlags.Static | BindingFlags.NonPublic);
@@ -576,10 +572,7 @@ onSend = null;
 notesType.GetMethod("PinLocked", Any).Invoke(null, new object[] { KID4, "Fourth", null });
 Ok("the next event is mailed after a failed send (R-1058)", Sent() == before + 1 && Last().Body.Contains("Fourth"), (Sent() - before) + "");
 
-// Two TVs failing the same profile's PIN together are one notice (r2-18-02). The quiet-period
-// check and the set were two steps, so both got in. The window is nanoseconds wide, so the
-// harness holds each thread in it until the other has arrived, for up to a second: both
-// arrive when nothing excludes them, and only one can when the two steps are one.
+// Two TVs failing the same profile's PIN together are one notice (r2-18-02). The quiet-period check and the set were two steps, so both got in. The window is nanoseconds wide, so the harness holds each thread in it until the other arrives (up to a second): both arrive when nothing excludes them, and only one can when the two steps are one.
 {
     var RaceKid = Guid.NewGuid(); Map(RaceKid, OTHER, "Race");
     var arrived = 0;

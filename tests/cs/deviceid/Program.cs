@@ -13,10 +13,10 @@ using System.Threading.Tasks;
 // campground.device.v1: what Bonfire answers to getDevice from its own device record
 // (KnownDevices), asked the way a caller asks, through the shared registry.
 //
-// StableKey is the recorded id after Bonfire's merges; DisplayName is the household's own
-// name for it, else the client's. It is a grouping key and never an access boundary: Bonfire's
-// device restrictions match the id the client sent, so the section at the end proves a key two
-// ids share opens nothing, and that no restriction code reads the capability.
+// StableKey is the recorded id after Bonfire's merges; DisplayName is the household's name
+// for the device, else the client's. It is a grouping key, never an access boundary: device
+// restrictions match the id the client sent. The last section proves a key two ids share
+// opens nothing and that no restriction code reads the capability.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,8 +153,8 @@ List<JsonElement> Members(JsonElement e) => e.TryGetProperty("members", out var 
 
 void SetConfig(string prop, object value) => cfgType.GetProperty(prop).SetValue(config, value);
 
-// Offered under test: the provider the plugin registers at startup, wired to a user lookup that
-// needs no Jellyfin. Absent today; Ok() below reports each case that depends on it.
+// Offered under test: the provider the plugin registers at startup, wired to a user lookup
+// that needs no Jellyfin. Absent today; Ok() below reports each case that depends on it.
 if (provider != null)
 {
     var provide = provider.GetMethod("Provide", Any);
@@ -188,9 +188,9 @@ Ok("no device id, no answer", offered && IsNull(GetDevice(null, "Android TV", "S
 Console.WriteLine();
 Console.WriteLine("── The key is a grouping key, never an access boundary ─────────");
 
-// Restrictions match the id the client sent. A profile allowed only on dev-B (which is
-// merged into dev-A, so getDevice calls both "dev-A") must not let dev-A in on the strength
-// of the shared key. And dev-A, the kept one, is not on a list that names only dev-B.
+// Restrictions match the id the client sent. A profile allowed only on dev-B (merged into
+// dev-A, so getDevice calls both "dev-A") must not let dev-A in on the shared key, and dev-A,
+// the kept one, is not on a list that names only dev-B.
 var allowedMap = Activator.CreateInstance(mapType);
 mapType.GetProperty("ProfileUserId").SetValue(allowedMap, KID);
 mapType.GetProperty("MasterUserId").SetValue(allowedMap, MAIN);

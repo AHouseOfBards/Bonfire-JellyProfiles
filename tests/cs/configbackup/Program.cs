@@ -1,13 +1,13 @@
 // configbackup: a configuration file that won't read must not cost every household (R-1127).
 //
-// Jellyfin's BasePlugin.LoadConfiguration, on any exception reading the file, creates a
-// default configuration and SAVES it over the file. Every household, PIN, link and theme
-// went, with no copy kept. A crash mid-write is enough, and so is an enum value the
-// running Jellyfin doesn't know.
+// Jellyfin's BasePlugin.LoadConfiguration, on any exception reading the file, creates a default
+// configuration and SAVES it over the file. Every household, PIN, link and theme went, with no
+// copy kept. A crash mid-write is enough, and so is an enum value the running Jellyfin does
+// not know.
 //
-// Driven through the real Plugin and Jellyfin's real BasePlugin<T>, with a serializer that
-// reads and writes XML the way Jellyfin's does, so the load path that does the damage is
-// Jellyfin's own code, not a model of it.
+// Driven through the real Plugin and Jellyfin's real BasePlugin<T>, with a serializer that reads
+// and writes XML the way Jellyfin's does, so the load path that does the damage is Jellyfin's
+// own code.
 //
 //   dotnet run --project tests/cs/configbackup -c Release
 
@@ -118,10 +118,10 @@ admin.SaveConfiguration();
 var restarted = new Plugin(new StubPaths(turnedOff), new RealXml());
 Ok("an administrator who turned it off is not overruled at the next start", !restarted.Configuration.RequireMainPin);
 
-// Only the last good copy left: an administrator deleted the file to reset (r2-19-03). It
-// used to be read as "being recovered", which skipped the new-install branch: Bonfire came
-// up on with no main PIN rule, and the first save overwrote the copy. Now it is a new
-// install, and the copy is moved aside, not restored.
+// Only the last good copy left: an administrator deleted the file to reset (r2-19-03). That
+// used to read as "being recovered", which skipped the new-install branch, so Bonfire came up
+// on with no main PIN rule and the first save overwrote the copy. Now it is a new install and
+// the copy is moved aside.
 var recovering = NewDir();
 var saver = new Plugin(new StubPaths(recovering), new RealXml());
 saver.Configuration.RequireMainPin = false;
@@ -152,8 +152,8 @@ Ok("the unreadable copies are pruned to a few (" + pileKept.Length + ")", pileKe
 Ok("and the newest one, the one just made, is among them",
    pileKept.Any(f => File.ReadAllText(f).StartsWith("<PluginConfiguration><Mappings><Prof")));
 
-// Jellyfin's LoadConfiguration saves the plain defaults the moment it finds no file, so a
-// value the constructor set only in memory after that was gone at the next restart.
+// Jellyfin's LoadConfiguration saves the plain defaults the moment it finds no file, so a value
+// the constructor set only in memory was gone at the next restart.
 var restartedNew = new Plugin(new StubPaths(brandNew), new RealXml());
 Ok("a new install that restarts before anything is saved still requires a main PIN",
    restartedNew.Configuration.RequireMainPin);
@@ -208,13 +208,13 @@ Console.WriteLine();
 Console.WriteLine("── A different version starts: the file is copied first (R-1319) ──");
 
 // Rolling the plugin back loads a file written by a newer one, and the first save writes it
-// back without every setting the older version doesn't know. Re-upgrading then finds them
-// gone. Nothing kept a copy. The version that last ran is written down beside the file, and
-// when the running version differs, the file is copied to <file>.<old version>.bak before
-// anything in this start can save. The newest few are kept.
+// back without every setting the older version does not know, so re-upgrading finds them gone.
+// The version that last ran is written beside the file; when the running version differs, the
+// file is copied to <file>.<old version>.bak before anything in this start can save. The
+// newest few are kept.
 //
-// The version comes from an internal constructor so this can play several; against a build
-// without it, the public one is used and the version never changes, which is the bug.
+// The version comes from an internal constructor so this can play several. Against a build
+// without it the public one is used and the version never changes, which is the bug.
 Plugin AtVersion(string folder, string version)
 {
     var ctor = typeof(Plugin).GetConstructor(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null,

@@ -14,11 +14,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 // The audit log file (audit_log.json).
 //
 // R-1120: RecordAuditLog copied the list under the lock and wrote the copy later, on a
-//   background task. Two switches close together meant two writes, and whichever took
-//   the lock last won, which could be the older copy. The file then lacked the newest
-//   entry until the next switch.
+//   background task. Two switches close together meant two writes, and the one that took
+//   the lock last won, which could be the older copy, so the newest entry was missing until
+//   the next switch.
 // R-1121: a file that would not parse was read as empty, and the next switch wrote a
-//   one-entry log over it. A damaged log is evidence; it is moved aside, not replaced.
+//   one-entry log over it. A damaged log is evidence: it is moved aside, not replaced.
 //
 // Both drive the real methods against a real file.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,9 +82,9 @@ try
     Console.WriteLine();
     Console.WriteLine("── The file ends up holding the newest entry (R-1120) ──────────");
 
-    // Two entries recorded while the lock is held, so both background writes queue behind
-    // it and are released together: which runs first is up to the scheduler. The old code
-    // wrote each one's own copy, so about one run in two left the one-entry copy on disk.
+    // Two entries recorded while the lock is held, so both background writes queue behind it and
+    // are released together. The old code wrote each one's own copy, so about one run in two left
+    // the one-entry copy on disk.
     var bad = 0;
     for (var i = 0; i < 80 && bad < 3; i++)
     {
@@ -126,9 +126,8 @@ try
     Console.WriteLine();
     Console.WriteLine("── Entries age out, and an administrator can clear the log (R-1313) ──");
 
-    // The log names accounts, devices and addresses. Newest-1000 alone kept a quiet
-    // server's entries for years, so each also expires by age. Every case here starts
-    // from a fresh cache.
+    // The log names accounts, devices and addresses. Newest-1000 alone kept a quiet server's
+    // entries for years, so each also expires by age. Every case starts from a fresh cache.
     var snapshot = baseType.GetMethod("GetAuditLogSnapshot", Any);
     var clear = baseType.GetMethod("ClearAuditLog", Any);
     var maxAgeField = baseType.GetField("AuditLogMaxAge", Any);
@@ -153,14 +152,14 @@ try
 
     // Recording prunes too, so the file itself shrinks, not just the view.
     record.Invoke(ac, new object[] { "main", "next" });
-    // The write is off-thread. One second was not enough once, under the full gate's load
-    // (the net10 pass, 2026-11-11); a log that never prunes still fails, after the wait.
+    // The write is off-thread. One second was not enough under the full gate's load (net10 pass,
+    // 2026-11-11); a log that never prunes still fails after the wait.
     for (var w = 0; w < 500 && Count(aged) != 2; w++) Thread.Sleep(10);
     Ok("and the file loses it the next time it is written", Count(aged) == 2);
 
-    // The pruning write above runs off-thread and can still hold the file for a moment after
-    // its contents are on disk (the full gate, 2026-11-13: "being used by another process").
-    // Wait for it to let go; this changes when the harness writes, not what it checks.
+    // The pruning write can still hold the file briefly after its contents are on disk (full
+    // gate, 2026-11-13: "being used by another process"). Wait for it to let go; this changes when
+    // the harness writes, not what it checks.
     for (var w = 0; ; w++)
     {
         try { File.WriteAllText(aged, "[" + Entry("a", DateTime.UtcNow) + "," + Entry("b", DateTime.UtcNow) + "]"); break; }
@@ -175,9 +174,8 @@ try
     Console.WriteLine();
     Console.WriteLine("── A failed read is not cached and never overwritten (r2-08-02) ──");
 
-    // A file another process holds open fails to read with an IOException, not a
-    // JsonException. That read as empty, was cached, and the next switch wrote a
-    // one-entry log over the intact file.
+    // A file another process holds open fails to read with an IOException, not a JsonException.
+    // That read as empty, was cached, and the next switch wrote a one-entry log over the file.
     var locked = Path.Combine(dir, "locked.json");
     var original = "[" + Entry("keep", DateTime.UtcNow) + "," + Entry("keep2", DateTime.UtcNow) + "]";
     File.WriteAllText(locked, original);
@@ -206,10 +204,10 @@ try
     var cc = NewController();
     Shown(cc);
     // On Windows the destination is a held-open file, so replacing it fails. Linux has no
-    // mandatory locks: a rename goes straight over a file another handle has open, so the
-    // same hold let the write succeed and these three checks failed on CI only (the
-    // v1.9.0.5 release run). There the directory is made read-only instead, which stops
-    // the temp file being created; a runner as root would ignore that, so it is checked.
+    // mandatory locks, so a rename goes straight over an open file and the same hold let the write
+    // succeed: these checks failed on CI only (v1.9.0.5 release run). There the directory is made
+    // read-only instead, which stops the temp file being created. A runner as root ignores that,
+    // so it is checked.
     object clearResult;
     if (OperatingSystem.IsWindows())
     {
@@ -255,8 +253,8 @@ try
     File.Delete(tmpPath + ".tmp");
     Ok("and no other temp file is left beside it", Directory.GetFiles(tmpDir).Length == 1);
 
-    // With no plugin instance there is no data folder. The log used to go to a file in the
-    // system temp folder, a copy of usernames and addresses nobody would think to look for.
+    // With no plugin instance there is no data folder. The log used to go to the system temp
+    // folder, a copy of usernames and addresses nobody would look for.
     var fallback = Path.Combine(Path.GetTempPath(), "bonfire_audit_log_fallback.json");
     try { File.Delete(fallback); } catch { }
     pathField.SetValue(null, null);

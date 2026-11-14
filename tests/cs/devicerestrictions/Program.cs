@@ -5,20 +5,17 @@ using System.Linq;
 using System.Reflection;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// A device restriction has two ways to be wrong, and only one of them is loud.
+// A device restriction has two ways to be wrong, and only one is loud.
 //
-//   Too narrow: the restriction refuses a device it should have allowed. Taken to
-//   its limit it refuses *every* device, and the profile cannot be reached from
-//   anywhere — which is what "restricting sub-profiles to specific devices breaks
-//   the gate" turned out to mean.
+//   Too narrow: it refuses a device it should allow. At the limit it refuses every device and
+//   the profile cannot be reached from anywhere, which is what "restricting sub-profiles to
+//   specific devices breaks the gate" turned out to mean.
 //
-//   Too wide: the restriction quietly stops restricting. An empty AllowedDeviceIds
-//   means "any device", so anything that can empty a whitelist switches the feature
-//   off without saying so. tests/cs/devices covers the pruning route into this;
-//   here it is the forget-a-device and merge-two-devices routes.
+//   Too wide: it quietly stops restricting. An empty AllowedDeviceIds means "any device", so
+//   anything that empties a whitelist switches the feature off silently. tests/cs/devices
+//   covers the pruning route into this; here it is forget-a-device and merge-two-devices.
 //
-// Both directions are asserted here because a fix aimed at one of them is exactly
-// how a project acquires the other.
+// Both directions are asserted because a fix aimed at one is how the other gets in.
 //
 // Point it at an older build to watch it fail:
 //   BONFIRE_DLL=/path/to/old/Jellyfin.Profiles.dll dotnet run --project tests/cs/devicerestrictions -c Release
@@ -46,10 +43,7 @@ void Ok(string name, bool cond, string detail = null)
     }
 }
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build to load. Output sits in bin/Release/<tfm>/, so the folder name is the framework the csproj resolved. `tests/run.sh cs10` runs against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 
@@ -67,9 +61,8 @@ var baseCtl = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController"
 const BindingFlags Any = BindingFlags.Static | BindingFlags.Instance
                        | BindingFlags.NonPublic | BindingFlags.Public;
 
-// Every member this file drives. Missing ones are reported once, as a failure, rather
-// than thrown one at a time — pointed at a build from before the fix, the useful output
-// is "none of this exists yet", not a stack trace from the first line.
+// Every member this file drives. Missing ones are reported once, as a failure, not thrown one
+// at a time: against a build from before the fix the useful output is "none of this exists".
 MethodInfo M(string name)
 {
     var m = baseCtl.GetMethod(name, Any);
@@ -105,8 +98,8 @@ object Mapping(Guid profile, Guid master, params string[] allowed)
     return m;
 }
 
-// EvaluateDeviceRestriction takes IEnumerable<KnownDevice>, so the list has to be the
-// real generic type — an ArrayList is rejected by the reflection binder.
+// EvaluateDeviceRestriction takes IEnumerable<KnownDevice>, so the list must be the real
+// generic type; the reflection binder rejects an ArrayList.
 IList KnownList(params object[] devices)
 {
     var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(deviceType));
@@ -115,9 +108,8 @@ IList KnownList(params object[] devices)
 }
 
 string Access(object mapping, string deviceId, IEnumerable known)
-    // From 1.6.3.3 it also takes the mappings (null here: exact comparison, which is what
-    // this file tests). Passed only when the build has the parameter, so this still runs
-    // against an older one.
+    // From 1.6.3.3 it also takes the mappings (null here: exact comparison). Passed only when the
+    // build has the parameter, so this still runs against an older one.
     => evaluate.Invoke(null, evaluate.GetParameters().Length == 4
         ? new object[] { mapping, deviceId, known, null }
         : new object[] { mapping, deviceId, known }).ToString();
@@ -127,10 +119,9 @@ var child = Guid.NewGuid();
 
 // ── The header the DeviceId is read out of ──────────────────────────────────
 //
-// This is where the severe half of the bug lived. The restriction is checked against
-// GetAuthorizationParameter("DeviceId"), and a header that fails to parse yields null,
-// which is indistinguishable from a device that is not on the list. Every one of these
-// is a header a real Jellyfin client sends.
+// The severe half of the bug. The restriction is checked against
+// GetAuthorizationParameter("DeviceId"), and a header that fails to parse yields null, which
+// looks like a device not on the list. Each header here is one a real Jellyfin client sends.
 if (parse != null)
 {
     Console.WriteLine();
@@ -143,38 +134,38 @@ if (parse != null)
     Ok("an ordinary header still reads", P(plain, null, "DeviceId") == "abc123");
     Ok("the scheme prefix is not mistaken for a value", P(plain, null, "Client") == "Jellyfin Web");
 
-    // Jellyfin's own AuthorizationContext falls back to this header; a number of clients
-    // still send only it. Reading Authorization alone returned null for every parameter,
-    // so those clients were refused by a device check they were never measured against.
+    // Jellyfin's AuthorizationContext falls back to this header, and some clients send only it.
+    // Reading Authorization alone returned null for every parameter, so those clients were refused
+    // by a device check they were never measured against.
     var emby = "MediaBrowser Client=\"Jellyfin Android\", Device=\"Pixel\", DeviceId=\"xyz789\", Version=\"2.6\"";
     Ok("X-Emby-Authorization is read when Authorization is absent", P(null, emby, "DeviceId") == "xyz789");
     Ok("X-Emby-Authorization is read when Authorization is empty", P("", emby, "DeviceId") == "xyz789");
     Ok("Authorization wins when both are present",
        P(plain, emby, "DeviceId") == "abc123");
 
-    // r2-08-04: Jellyfin's GetParts assigns `result[key] = ...`, so a key sent twice
-    // keeps the LAST value. The first used to win, so a device check and Jellyfin could
-    // read different DeviceIds from one header.
+    // r2-08-04: Jellyfin's GetParts assigns `result[key] = ...`, so a key sent twice keeps the
+    // LAST value. The first used to win, so the device check and Jellyfin could read different
+    // DeviceIds from one header.
     var twice = "MediaBrowser Client=\"Web\", DeviceId=\"first\", Device=\"TV\", DeviceId=\"last\"";
     Ok("a repeated key keeps the last value, as Jellyfin does", P(twice, null, "DeviceId") == "last");
     Ok("a key sent once is unaffected", P(twice, null, "Device") == "TV");
 
-    // The device name is user-settable and travels unencoded, so a comma in it used to
-    // shift every parameter after it out of alignment — including DeviceId.
+    // The device name is user-settable and travels unencoded, so a comma in it shifted every
+    // parameter after it out of alignment, DeviceId included.
     var comma = "MediaBrowser Client=\"Jellyfin Web\", Device=\"Living Room, TV\", DeviceId=\"tv-1\", Version=\"10.11.5\"";
     Ok("a comma inside a quoted value does not split it", P(comma, null, "Device") == "Living Room, TV");
     Ok("a comma in the device name does not lose the DeviceId", P(comma, null, "DeviceId") == "tv-1");
 
-    // Jellyfin URL-decodes every value. Not decoding recorded one device under two
-    // spellings and displayed "Xbox%20One" in the picker.
+    // Jellyfin URL-decodes every value. Not decoding recorded one device under two spellings and
+    // showed "Xbox%20One" in the picker.
     var encoded = "MediaBrowser Client=\"Jellyfin\", Device=\"Xbox%20One\", DeviceId=\"box\", Version=\"1\"";
     Ok("values are URL-decoded", P(encoded, null, "Device") == "Xbox One");
 
     Ok("an absent parameter is null", P(plain, null, "Nonsense") == null);
     Ok("no header at all is null", P(null, null, "DeviceId") == null);
 
-    // R-1124: the scheme was stripped only when it was "MediaBrowser", so a header that
-    // opens with "Emby " had its first parameter read as "Emby Client".
+    // R-1124: the scheme was stripped only when it was "MediaBrowser", so a header opening with
+    // "Emby " had its first parameter read as "Emby Client".
     Ok("an Emby-scheme header reads its first parameter",
        P("Emby Client=\"Old App\", DeviceId=\"e1\"", null, "Client") == "Old App");
     Ok("and the rest", P("Emby Client=\"Old App\", DeviceId=\"e1\"", null, "DeviceId") == "e1");
@@ -184,14 +175,13 @@ if (parse != null)
     Ok("the scheme prefix is matched case-insensitively",
        P("mediabrowser Client=\"Low\", DeviceId=\"lc1\"", null, "DeviceId") == "lc1"
        && P("EMBY Client=\"Low\", DeviceId=\"lc2\"", null, "Client") == "Low");
-    // A repeated parameter must answer one way every time, and it is the last, because that
-    // is what Jellyfin's GetParts does (r2-08-04; this once pinned the first). The device
-    // check reads DeviceId from here; which of two it reads must not depend on header order
-    // being shuffled by a proxy that appends.
+    // A repeated parameter must answer one way every time, and it is the last, as in Jellyfin's
+    // GetParts (r2-08-04; this once pinned the first). Which of two the device check reads must not
+    // depend on a proxy that appends shuffling header order.
     Ok("a repeated parameter answers with the last",
        P("MediaBrowser DeviceId=\"first\", Client=\"c\", DeviceId=\"second\"", null, "DeviceId") == "second");
-    // Base64 device ids end in '='. Quoted, the sign is part of the value; the parameters
-    // after it must still line up.
+    // Base64 device ids end in '='. Quoted, the sign is part of the value and the parameters after
+    // it must still line up.
     var padded = "MediaBrowser Client=\"Web\", DeviceId=\"YWJjZA==\", Version=\"1\", Token=\"t==\"";
     Ok("an equals sign inside a quoted value stays in it", P(padded, null, "DeviceId") == "YWJjZA==");
     Ok("and the parameters after it still line up", P(padded, null, "Version") == "1" && P(padded, null, "Token") == "t==");
@@ -204,14 +194,9 @@ if (parse != null)
 
     // ── The defect itself, pinned ───────────────────────────────────────────
     //
-    // Everything above passes trivially against a build that never had the bug, and a
-    // build that still has it fails only because the method is missing — which proves
-    // nothing about the old behaviour. So the shipped rule is transcribed here and run
-    // against the same headers, pairwise. Each pair says: this input, under the rule
-    // 1.5.9 shipped, produced this wrong answer, and produces the right one now.
+    // Everything above passes trivially against a build that never had the bug, and a build that still has it fails only because the method is missing. So the shipped rule is transcribed here and run against the same headers, pairwise: this input gave this wrong answer under the rule 1.5.9 shipped and gives the right one now.
     //
-    // Verbatim from ProfilesBaseController.GetAuthorizationParameter as of 046b88b:
-    // read Authorization only, Split(','), StartsWith(name + "="), Trim('"', ' ').
+    // Verbatim from ProfilesBaseController.GetAuthorizationParameter as of 046b88b: Authorization only, Split(','), StartsWith(name + "="), Trim('"', ' ').
     string Shipped(string authHeader, string name)
     {
         if (string.IsNullOrEmpty(authHeader)) return null;
@@ -227,22 +212,22 @@ if (parse != null)
         return null;
     }
 
-    // The severe one. A client that sends only X-Emby-Authorization had no DeviceId as
-    // far as the plugin was concerned, and a null DeviceId fails the device check — so a
-    // profile restricted to a device was unreachable from every such client.
+    // The severe one. A client that sends only X-Emby-Authorization had no DeviceId as far as the
+    // plugin knew, and a null DeviceId fails the check, so a restricted profile was unreachable
+    // from every such client.
     Ok("PINNED: the shipped rule found no DeviceId in an X-Emby-Authorization request",
        Shipped(null, "DeviceId") == null && P(null, emby, "DeviceId") == "xyz789");
 
-    // The quiet one. Splitting on every comma breaks a value that legitimately contains
-    // one, and the device name is free text the user types.
+    // The quiet one. Splitting on every comma breaks a value that contains one, and the device
+    // name is free text.
     Ok("PINNED: the shipped rule truncated a device name at its comma",
        Shipped(comma, "Device") == "Living Room" && P(comma, null, "Device") == "Living Room, TV");
 
     Ok("PINNED: the shipped rule left values URL-encoded",
        Shipped(encoded, "Device") == "Xbox%20One" && P(encoded, null, "Device") == "Xbox One");
 
-    // Not every difference is a fix: the ordinary case has to be unchanged, or the new
-    // parser is a rewrite rather than a repair.
+    // Not every difference is a fix: the ordinary case must be unchanged, or the new parser is a
+    // rewrite, not a repair.
     Ok("the ordinary header reads identically under both rules",
        Shipped(plain, "DeviceId") == P(plain, null, "DeviceId")
        && Shipped(plain, "Client") == P(plain, null, "Client"));
@@ -268,8 +253,8 @@ if (evaluate != null)
     Ok("a list of blank strings is not a restriction",
        Access(Mapping(child, master, "", "   "), "anything", known) == "NotRestricted");
 
-    // A master is not a sub-profile. Restricting one would be a way to lock an owner out
-    // of their own household with no route back in.
+    // A master is not a sub-profile. Restricting one would lock an owner out of their own
+    // household with no way back in.
     Ok("a master account is never device-restricted",
        Access(Mapping(master, master, "laptop"), "phone", known) == "NotRestricted");
     Ok("no mapping at all is not a restriction",
@@ -278,9 +263,7 @@ if (evaluate != null)
     Ok("a device that is not on a live list is refused",
        Access(Mapping(child, master, "laptop"), "phone", known) == "DeniedNotOnList");
 
-    // The two refusals below were one message. They have different causes and different
-    // answers, and telling somebody "not allowed on this device" when the profile is
-    // allowed on no device at all is how the report read as "it breaks the gate".
+    // The two refusals below were one message, but have different causes. "Not allowed on this device" for a profile allowed on no device is how the report read as "it breaks the gate".
     Ok("a request with no DeviceId is refused as its own case",
        Access(Mapping(child, master, "laptop"), null, known) == "DeniedNoDeviceId");
     Ok("a blank DeviceId is refused as its own case",
@@ -326,9 +309,9 @@ if (unrestricted != null)
     var openNone = (IList)unrestricted.Invoke(null, new object[] { openCfg, new[] { "tv" } });
     Ok("a profile that was never restricted cannot be widened", openNone.Count == 0);
 
-    // Added by the test audit: when a household forgets a device, only that household's
-    // profiles are named. Dropping the filter made one household's forget refuse over
-    // another household's restrictions, naming profiles it has no business seeing (R-1048).
+    // When a household forgets a device, only that household's profiles are named. Dropping the
+    // filter made one household's forget refuse over another household's restrictions, naming
+    // profiles it should not see (R-1048).
     var householdWise = M("HouseholdProfilesLeftUnrestrictedBy");
     if (householdWise != null)
     {
@@ -377,8 +360,8 @@ if (merge != null)
     Ok("and the merged-into device may now be used",
        Access(map, "wan-id", known) == "Allowed");
 
-    // The old id is the same machine at its other address, and it comes back. It used to
-    // make a fresh record no list named, and the profile was refused there (R-1049).
+    // The old id is the same machine at its other address, and it comes back. It used to make a
+    // fresh record no list named, and the profile was refused there (R-1049).
     Ok("the old address, coming back, is still the allowed device",
        Access(map, "lan-id", known) == "Allowed", Access(map, "lan-id", known));
     var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", true);
@@ -462,8 +445,8 @@ if (disambiguate != null)
     Ok("devices that already read differently are left alone",
        distinct[0] == "Living room TV" && distinct[1] == "Chrome");
 
-    // R-1116: it renamed the list it was given, so a caller that passed live records would
-    // have stored a display name as the device's real one.
+    // R-1116: it renamed the list it was given, so a caller passing live records would have
+    // stored a display name as the device's real one.
     var handed = KnownList(
         Device("iiiiii99", "", "Jellyfin Web", master),
         Device("jjjjjj00", "Chrome", "Jellyfin Web", master),
@@ -514,12 +497,7 @@ if (disambiguate != null)
     Ok("a device with neither name nor client still says something",
        !string.IsNullOrWhiteSpace(blank[0]));
 
-    // The shape a jellyfin-web device id actually has. generateDeviceId() is
-    // btoa(navigator.userAgent + '|' + Date.now()), so every id one browser ever mints
-    // begins with the same forty-odd characters -- the base64 of its user agent -- and
-    // the timestamps end in zeros, so the tails collide too. Taking a fragment from
-    // either end produced four rows all reading "Chrome (TW96aW)", which is base64 for
-    // "Mozil". Reported from a real device picker, with a screenshot.
+    // The shape of a jellyfin-web device id: generateDeviceId() is btoa(navigator.userAgent + '|' + Date.now()), so every id one browser mints begins with the same forty-odd characters and the timestamps end in zeros, so the tails collide too. A fragment from either end gave four rows all reading "Chrome (TW96aW)", base64 for "Mozil". Reported from a real device picker.
     const string UaPrefix = "TW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMCkg";
     var realistic = Labels(
         Device(UaPrefix + "MTc1NjYwMDAwMDAwMA", "Chrome", "Jellyfin Web", master),
@@ -587,9 +565,9 @@ if (decodeLegacy != null)
 
     string D(string name) => (string)decodeLegacy.Invoke(null, new object[] { name });
 
-    // "Pixel+8" is a URL-encoded space, stored when the header parser returned values
-    // verbatim. It stays wrong until that phone next contacts the server, which for a
-    // whitelisted device can be months.
+    // "Pixel+8" is a URL-encoded space, stored when the header parser returned values verbatim. It
+    // stays wrong until that phone next contacts the server, which can be months for a whitelisted
+    // device.
     Ok("a plus that was a space is decoded", D("Pixel+8") == "Pixel 8");
     Ok("a percent escape is decoded", D("Xbox%20One") == "Xbox One");
 
@@ -608,12 +586,7 @@ if (decodeLegacy != null)
 Console.WriteLine();
 Console.WriteLine("── One television, several ids (1.6.3.3) ───────────────────────");
 
-// A television sends its bare id from its sign-in screen and a derived one once somebody
-// is signed in, and Jellyfin starts a session under each — so one set is two rows in the
-// device list, both named after it. Restricting a profile by ticking the signed-in row hid
-// it from that television's own sign-in screen and refused its PIN there: the screen asks
-// with the bare id, and the check compared ids exactly. Reproduced against 1.6.3.2 before
-// this was written.
+// A television sends its bare id from its sign-in screen and a derived one once somebody is signed in, so one set is two rows in the device list. Restricting a profile by ticking the signed-in row hid it from that television's sign-in screen and refused its PIN there: the screen asks with the bare id and the check compared ids exactly. Reproduced against 1.6.3.2.
 {
     static string Sha1(string v) => Convert.ToHexString(
         System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(v))).ToLowerInvariant();
@@ -673,15 +646,13 @@ Console.WriteLine("── One television, several ids (1.6.3.3) ─────�
     Ok("Roku, which appends the account name, is matched when both ids are on record for the household",
        Check(Mapping(KIDS, HOUSE, ROKU + "Bard_kids"), ROKU, known, maps) == "Allowed");
 
-    // And nothing wider. Each of these is a different device, or a derivation over
-    // somebody outside the profile's household.
+    // And nothing wider: each of these is a different device, or a derivation over somebody
+    // outside the profile's household.
     Ok("a different television is still refused",
        Check(kids, "aaaabbbbccccdddd", known, maps) != "Allowed");
     Ok("a derivation over an account outside the household is not the same television",
        Check(Mapping(KIDS, HOUSE, Sha1(TV + "+" + OTHER)), TV, known, maps) != "Allowed");
-    // The same, with the outsider actually on the server: a master of another household
-    // whose row is in the very list the check builds "the household" from. Counting every
-    // account as a member let a television derived over a stranger's id count as this one.
+    // The same, with the outsider on the server: a master of another household whose row is in the list "the household" is built from. Counting every account as a member let a television derived over a stranger's id count as this one.
     var withStranger = Maps(kids, Mapping(HOUSE, HOUSE), Mapping(OTHER, OTHER));
     Ok("a derivation over another household's real master is still not the same television",
        Check(Mapping(KIDS, HOUSE, Sha1(TV + "+" + OTHER)), TV, known, withStranger) != "Allowed");

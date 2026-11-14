@@ -11,10 +11,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 // ─────────────────────────────────────────────────────────────────────────────
 // R-1119: who the caller is.
 //
-// An API key from Dashboard -> API Keys carries a user id claim of all zeros. That is
-// not a user. GetCurrentUserId returned it as one, and elsewhere in the plugin an empty
-// id means "unset" or "every household", so a key reaching a route that is not guarded
-// by an administrator check was treated as a very large caller.
+// An API key from Dashboard -> API Keys carries a user id claim of all zeros, which is not
+// a user. GetCurrentUserId returned it anyway, and an empty id elsewhere means "unset" or
+// "every household", so a key on a route with no administrator check acted as a very large
+// caller.
 // ─────────────────────────────────────────────────────────────────────────────
 
 static string RepoRoot()

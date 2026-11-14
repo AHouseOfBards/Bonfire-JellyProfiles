@@ -10,25 +10,11 @@ using MediaBrowser.Controller.Authentication;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BonfirePinAuthenticationProvider — the thing that lets a television offer a
-// profile at all.
+// BonfirePinAuthenticationProvider: what lets a television offer a profile at all.
 //
-// This is the highest-stakes code in the plugin. It is reached during Jellyfin's
-// own authentication, and it is reached for accounts that have nothing to do with
-// Bonfire: a user with no AuthenticationProviderId is offered EVERY enabled
-// provider in turn, and the first success wins. A wrong "yes" here is not a bug in
-// a switcher, it is an authentication bypass on somebody else's account.
+// Jellyfin offers an account with no AuthenticationProviderId every enabled provider in turn and the first success wins, so a wrong "yes" here is an authentication bypass on someone else's account. The tests are mostly refusals, each checked separately.
 //
-// So the tests below are mostly about refusal, and every refusal is checked
-// separately rather than as "it throws for bad input".
-//
-// The type-shape section is not decoration either. We ship ONE net9 assembly for
-// both Jellyfin 10.11 and 12.0, and the two versions do not agree on the
-// interface: 12.0 removed HasPassword from IAuthenticationProvider. An implicit
-// implementation survives that — it is just an extra public method nobody calls —
-// while an explicit one makes the runtime look for an interface member that does
-// not exist, and the type fails to load. On a server, that means no authentication
-// provider, for anybody.
+// Type shape matters too. One net9 assembly ships for 10.11 and 12.0, and 12.0 removed HasPassword from IAuthenticationProvider. An implicit implementation survives as an unused public method; an explicit one makes the type fail to load, leaving the server with no authentication provider.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic
@@ -54,10 +40,7 @@ static string RepoRoot()
     return d ?? throw new Exception("could not find the repository root");
 }
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build to load. Output sits in bin/Release/<tfm>/, so the folder name is the framework the csproj resolved. `tests/run.sh cs10` runs against net10.0.
 var tfm = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
 
@@ -76,9 +59,7 @@ Ok("it implements IAuthenticationProvider", typeof(IAuthenticationProvider).IsAs
 Ok("and IRequiresResolvedUser, so it is handed the profile",
    typeof(IRequiresResolvedUser).IsAssignableFrom(providerType));
 
-// An explicit interface implementation is compiled as a private method whose name
-// carries the interface's full name. Finding one means the type would fail to load on
-// whichever Jellyfin version does not declare that member.
+// An explicit interface implementation compiles to a private method named with the interface's full name. Finding one means the type fails to load on a Jellyfin without that member.
 var explicitImpls = providerType
     .GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
     .Where(m => m.IsFinal && m.IsVirtual && m.Name.Contains('.'))
@@ -89,8 +70,8 @@ Ok("no member is implemented explicitly", explicitImpls.Length == 0,
        ? string.Join(", ", explicitImpls) + " — would not load on a Jellyfin whose interface omits it"
        : null);
 
-// 12.0 dropped this from the interface. Keeping it as a plain public method is what lets
-// 10.11 still skip the password box for a profile with no PIN.
+// 12.0 dropped this from the interface. A plain public method lets 10.11 still skip the
+// password box for a profile with no PIN.
 var hasPassword = providerType.GetMethod("HasPassword", Any, null, new[] { typeof(User) }, null);
 Ok("HasPassword is still present for 10.11", hasPassword != null && hasPassword.IsPublic);
 
@@ -111,19 +92,14 @@ Ok("the configuration has an EnableClientPinLogin flag", enableProp != null);
 Ok("and it is OFF by default — this changes how the server authenticates",
    (bool)enableProp.GetValue(config) == false);
 
-// NullLogger<T> has both a public constructor and an Instance property depending on the
-// abstractions version; take whichever is there rather than assuming.
+// NullLogger<T> has a public constructor or an Instance property depending on the abstractions version; use whichever exists.
 var loggerType = typeof(NullLogger<>).MakeGenericType(providerType);
 var instanceProp = loggerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
 var logger = instanceProp != null
     ? instanceProp.GetValue(null)
     : Activator.CreateInstance(loggerType, nonPublic: true);
 Ok("a logger can be supplied to the provider", logger != null);
-// Both arguments, explicitly: Activator.CreateInstance does not apply default
-// parameter values, so `IServiceProvider? services = null` is not enough to satisfy it.
-// The provider resolves IUserManager from this rather than taking it in the constructor,
-// because Jellyfin's UserManager takes IEnumerable<IAuthenticationProvider> and asking
-// for it directly would be a dependency cycle.
+// Both arguments explicit: Activator.CreateInstance does not apply default values. The provider resolves IUserManager from this, not the constructor, because UserManager takes IEnumerable<IAuthenticationProvider> and asking for it directly would be a dependency cycle.
 var provider = Activator.CreateInstance(providerType, logger, ServiceStub.Create());
 Ok("the provider can be constructed", provider != null);
 
@@ -161,11 +137,7 @@ mappings.Add(Mapping(LONER, LONER, "5555"));    // master-shaped, but owns no pr
 mappings.Add(Mapping(KID, MASTER, "4821"));
 mappings.Add(Mapping(GUEST, MASTER, null));
 
-// The names a household actually typed, which are what a sign-in screen now shows and
-// therefore what a client sends back. The system usernames stay Bardkids / Bardguest.
-// Set by identity, not by position. These were indexed into the list and adding one
-// fixture above them silently renamed the wrong rows — the harness went red on two
-// unrelated assertions and pointed at the code.
+// The names a household typed, which a sign-in screen shows and a client sends back. System usernames stay Bardkids / Bardguest. Set by identity, not list position: indexing renamed the wrong rows when a fixture was added above them.
 void NameIt(Guid profileId, string name)
 {
     foreach (var m in mappings)
@@ -228,31 +200,16 @@ Ok("a null resolved user is refused", Try(null, "4821") == "!AuthenticationExcep
 Ok("an account Bonfire has never heard of is refused",
    Try(MakeUser(OUTSID, "someone-else"), "4821") == "!AuthenticationException");
 
-// THIS USED TO EXPECT A REFUSAL, on the grounds that a master "on many servers
-// administers the whole server". That is true of exactly one account per server — the one
-// that set it up. A real forty-household server has one admin among forty masters, so the
-// rule was wrong for almost every user of it, and it came from my test fixture having one
-// master who was also the admin. Allowing administrators too is a deliberate decision, taken
-// knowingly, with a warning under the PIN field.
+// This used to expect a refusal, on the grounds that a master administers the server. That holds for one account per server; a forty-household server has one admin among forty masters. Allowing administrators is deliberate, with a warning under the PIN field.
 //
-// A master keeps its real password. Jellyfin binds a user to exactly ONE provider:
-//
-//     if (!string.IsNullOrEmpty(authenticationProviderId))
-//         providers = providers.Where(i => string.Equals(
-//             authenticationProviderId, i.GetType().FullName, ...)).ToList();
-//
-// so a master bound to this provider would otherwise lose password sign-in everywhere,
-// the web included, and be left with four digits in front of an account that may
-// administer the server. The provider delegates to Jellyfin's own to keep both — which is
-// also the safety net, because a bug in the PIN path cannot lock anybody out.
+// A master keeps its real password. Jellyfin binds a user to exactly one provider (a set AuthenticationProviderId filters the list to that type), so a master bound to this provider would lose password sign-in everywhere. The provider delegates to Jellyfin's own to keep both, so a bug in the PIN path cannot lock anybody out.
 Ok("a master with a PIN opens with that PIN",
    Try(MakeUser(MASTER, "bard"), "9999") == "bard");
 
 Ok("and the wrong PIN does not open it",
    Try(MakeUser(MASTER, "bard"), "1111") == "!AuthenticationException");
 
-// The delegation. The stub stands in for Jellyfin's own provider and accepts exactly one
-// password, so this fails if the PIN path swallows the credential instead of passing it on.
+// The stub stands in for Jellyfin's provider and accepts one password; this fails if the PIN path swallows the credential instead of passing it on.
 Ok("a master's real password still works, through Jellyfin's own provider",
    Try(MakeUser(MASTER, "bard"), "the-real-password") == "bard");
 
@@ -274,26 +231,14 @@ Ok("an empty PIN does not open a PIN-protected profile",
 
 // ── a PIN-less profile, and the device it is being opened from ──────────────
 //
-// This used to be one line — "a profile with no PIN opens with an empty box" — and the
-// provider obliged unconditionally. The reasoning came from the web switcher, where "no
-// PIN" means "no extra challenge for somebody already signed in as the master", because
-// the gate is only reached after the household has authenticated.
+// This used to be "no PIN opens with an empty box", which came from the web switcher where the master is already signed in. A client sign-in screen has no prior authentication, and anything that can POST /Users/AuthenticateByName reaches this provider. Sub-profile usernames are predictable (`<master>_<profile>`) and published by the /Users/Public injection, so on an internet-facing server one guessed username opened a PIN-less profile. Found on a live server.
 //
-// A client sign-in screen has no prior authentication at all, and this provider is
-// reached by anything that can POST /Users/AuthenticateByName. Sub-profile usernames are
-// predictable (`<master>_<profile>`) and published by Bonfire's own /Users/Public
-// injection, so on an internet-facing server a PIN-less profile was an account a stranger
-// could enter by guessing one username. It was found by trying it on a live server.
-//
-// The behaviour that was wanted is kept: type nothing, get in — on a device the household
-// signed in on. Everywhere else it is refused.
+// Kept: type nothing, get in, on a device the household signed in on. Refused elsewhere.
 Ok("the provider can see which device a request came from", capture != null);
 
 // ── an app that gets the profile picker ─────────────────────────────────────
 //
-// On an app ticked for the picker, the household signs in as the main account and picks
-// there. A profile signed in directly would skip the picker's keypad and leave a profile
-// token the app keeps — the Roku problem (#40) again — so it is refused, on that app only.
+// On an app ticked for the picker the household signs in as the main account and picks there. A profile signed in directly would skip the keypad and leave a profile token the app keeps (the Roku problem, #40), so it is refused on that app only.
 var captureClient = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static, new[] { typeof(string), typeof(string) });
 var proxyProp = cfgType.GetProperty("ProxyClients");
 Ok("the provider can see which app a request came from", captureClient != null && proxyProp != null);
@@ -322,9 +267,7 @@ void Remember(string deviceId, Guid owner)
     devicesList.Add(d);
 }
 
-// A request is at home unless a case says otherwise, as the household's own television is.
-// Where the caller is is the middleware's to decide (R-1334); a build without that records
-// nothing about it, and then the 1-argument form is all there is.
+// A request is at home unless a case says otherwise. Where the caller is belongs to the middleware (R-1334); a build without that records nothing, so only the 1-argument form exists.
 void FromDevice(string deviceId, bool home = true)
 {
     if (captureAt != null) captureAt.Invoke(null, new object[] { deviceId, null, home });
@@ -343,11 +286,7 @@ Ok("a profile with no PIN opens with an empty box on a device the household uses
 Ok("but a typed value is still refused, even on that device",
    Try(MakeUser(GUEST, "Bardguest"), "1234") == "!AuthenticationException");
 
-// A PIN-less profile, or one with a device list, rests on a device id the client supplies,
-// and "PIN login on other apps" on let it open from any network for anybody who had seen a
-// household's id (R-1334). Now it opens from the home network only, unless the
-// administrator allows anywhere. A PIN stays a credential: a profile with one and no list
-// is not asked where it is.
+// A PIN-less profile, or one with a device list, rests on a device id the client supplies. "PIN login on other apps" let it open from any network for anyone who had seen a household's id (R-1334). It now opens from the home network only, unless the administrator allows anywhere. A PIN stays a credential: a profile with one and no list is not asked where it is.
 var fromAnywhere = cfgType.GetProperty("ClientPinLoginFromAnywhere");
 void Anywhere(bool on) => fromAnywhere?.SetValue(config, on);
 var kidRowHere = mappings.Cast<object>().First(m => (Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == KID);
@@ -389,12 +328,7 @@ FromDevice("neighbours-tv");
 Ok("and refused from a device belonging to a different household",
    Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
 
-// THIS USED TO EXPECT THE OPPOSITE: "a PIN is a real credential, so it stands on its own".
-// It is four digits, and with the full system name ("Bardkids") it was four digits from
-// any address on the internet, for an administrator's account as much as a child's. The
-// rule now (R-1344, decided for every account, administrators included): a PIN works only
-// on a device the household has signed in on with a password. The password still works
-// anywhere.
+// This used to expect the opposite ("a PIN stands on its own"). With the full system name it was four digits from any address on the internet, for an administrator as much as a child. Now (R-1344, every account) a PIN works only on a device the household has signed in on with a password. The password still works anywhere.
 FromDevice("some-strangers-laptop");
 Ok("a profile's PIN does not open it from a device the household has never used",
    Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
@@ -426,29 +360,14 @@ FromDevice("family-tv");
 Console.WriteLine();
 Console.WriteLine("── The name the household typed ───────────────────────────────");
 
-// The sign-in screen now offers "kids", so "kids" is what the client sends back — the
-// picker puts the displayed name straight into the username field. Jellyfin cannot
-// resolve it, and hands the provider a null user:
+// The sign-in screen offers "kids", so the client sends "kids" back as the username. Jellyfin cannot resolve it and hands the provider a null user; when the provider succeeds with a different username, UserManager.AuthenticateUser looks that one up instead. So the provider says which account "kids" meant.
 //
-//     if (user is null)                                    // UserManager.AuthenticateUser
-//     {
-//         string updatedUsername = authResult.Username;
-//         if (success && authenticationProvider is not DefaultAuthenticationProvider)
-//         {
-//             username = updatedUsername;                  // trust our answer
-//             user = Users.FirstOrDefault(i => string.Equals(username, i.Username, ...));
-//
-// So the provider says which account "kids" meant, and Jellyfin looks that up instead.
-//
-// Which "kids" is decided by the DEVICE, not by the name: two households on one server
-// can each have one, and the system usernames (Bardkids, Smithkids) are what keep them
-// apart everywhere else.
+// Which "kids" is decided by the DEVICE, not the name: two households can each have one, and the system usernames (Bardkids, Smithkids) keep them apart elsewhere.
 var authNoUser = providerType.GetMethod("Authenticate", Any, null,
     new[] { typeof(string), typeof(string) }, null);
 
-// The accounts the provider will look up once it has decided which profile a display
-// name meant. These are the SYSTEM usernames, which is the whole point: the household
-// typed "kids" and the account is "Bardkids".
+// The accounts the provider looks up once it has decided which profile a display name meant.
+// These are the SYSTEM usernames: the household typed "kids" and the account is "Bardkids".
 UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
 UserManagerStub.Add(LONER, MakeUser(LONER, "loner"));
 UserManagerStub.Add(KID, MakeUser(KID, "Bardkids"));
@@ -489,13 +408,12 @@ Ok("nor by its display name", TryName("kids", "4821") == "!AuthenticationExcepti
 UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
 Ok("turned back on, it opens again", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 
-// The full system username keeps working — Jellyfin resolves it itself and never reaches
-// this path, but a client that remembers the old name must not break.
+// The full system username keeps working: Jellyfin resolves it itself and never reaches this
+// path, but a client that remembers the old name must not break.
 Ok("the system username still opens the profile",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 
-// Without a known device there is no household, so there is no way to say which "kids"
-// was meant. Declining is the only honest answer.
+// Without a known device there is no household, so no way to say which "kids" was meant.
 FromDevice("some-strangers-laptop");
 Ok("a display name from an unknown device is refused",
    TryName("kids", "4821") == "!AuthenticationException");
@@ -509,8 +427,8 @@ FromDevice("family-tv");
 Ok("a display name no profile in this household has is refused",
    TryName("nobody-by-that-name", "4821") == "!AuthenticationException");
 
-// The master is reachable by its own real name and must not become reachable by PIN
-// through this path as a side effect.
+// The master is reachable by its own real name and must not become reachable by PIN through
+// this path as a side effect.
 Ok("the master's name does not open the master by PIN",
    TryName("bard", "9999") == "!AuthenticationException");
 
@@ -535,10 +453,7 @@ string Message(User user, string password)
     catch (TargetInvocationException ex) { return ex.InnerException.Message; }
 }
 
-// The master's own correct PIN used to be in this list, as a refusal. It is not a
-// refusal any more, so it was returning null and the check was failing for the right
-// reason. Replaced with LONER — a self-row with a PIN that owns no profiles — which this
-// provider does still refuse itself.
+// The master's own correct PIN used to be listed as a refusal; it returned null and the check failed for the wrong reason. Replaced with LONER, a self-row with a PIN that owns no profiles.
 var messages = new[]
 {
     Message(MakeUser(OUTSID, "someone-else"), "4821"),
@@ -546,11 +461,7 @@ var messages = new[]
     Message(MakeUser(KID, "Bardkids"), "4822"),
     Message(MakeUser(GUEST, "Bardguest"), "1234")
 }.Distinct().ToArray();
-// A master's failed PIN is refused by JELLYFIN, not by us, because the provider hands
-// the credential on to DefaultAuthenticationProvider — so it reads exactly like any
-// ordinary account's failure, which is the right thing for it to read like. It is
-// deliberately not folded into the uniformity check above; that check exists to stop this
-// provider's own refusals from saying which accounts are Bonfire profiles.
+// A master's failed PIN is refused by Jellyfin, since the provider hands the credential to DefaultAuthenticationProvider, so it reads like any ordinary failure. Kept out of the uniformity check above, which covers this provider's own refusals.
 Ok("a master's failed PIN is refused by Jellyfin, so it looks like any other account",
    Message(MakeUser(MASTER, "bard"), "not-the-password") != null);
 
@@ -560,10 +471,7 @@ Ok("all four refusals carry one identical message", messages.Length == 1,
 Console.WriteLine();
 Console.WriteLine("── HasPassword cannot hide a real account's password box ──────");
 
-// With a blank AuthenticationProviderId, GetAuthenticationProviders(user)[0] is whichever
-// provider DI happened to hand back first — so this method can be the one Jellyfin asks
-// about an account that is nothing to do with us. Answering false would remove the
-// password prompt from a real user's login.
+// With a blank AuthenticationProviderId, GetAuthenticationProviders(user)[0] is whichever provider DI returns first, so Jellyfin may ask this method about an unrelated account. Answering false would remove a real user's password prompt.
 Ok("an unknown account is reported as having a password",
    (bool)hasPassword.Invoke(provider, new object[] { MakeUser(OUTSID, "someone-else") }) == true);
 Ok("a PIN-protected profile is reported as having one",
@@ -574,8 +482,8 @@ Ok("a profile with no PIN is reported as having none",
 Console.WriteLine();
 Console.WriteLine("── A PIN is not an account password ───────────────────────────");
 
-// Jellyfin calls ChangePassword when an administrator sets a password on the account.
-// Writing the PIN there would create a second place it lives, and the two would drift.
+// Jellyfin calls ChangePassword when an administrator sets a password on the account. Writing
+// the PIN there would create a second place it lives, and the two would drift.
 var changePassword = providerType.GetMethod("ChangePassword", Any, null,
     new[] { typeof(User), typeof(string) }, null);
 string changed;
@@ -588,8 +496,8 @@ catch (TargetInvocationException ex) { changed = ex.InnerException.GetType().Nam
 Ok("setting an account password on a profile is refused, not silently ignored",
    changed == "AuthenticationException", changed);
 
-// A master's real password is Jellyfin's to change. Refusing it here left a master bound
-// for its PIN unable to change its password, or have an administrator reset it.
+// A master's real password is Jellyfin's to change. Refusing it here left a master bound for
+// its PIN unable to change its password or have an administrator reset it.
 try
 {
     changePassword.Invoke(provider, new object[] { MakeUser(MASTER, "bard"), "hunter2" });
@@ -607,12 +515,9 @@ devicesList.Clear();
 Remember("family-tv", MASTER);
 FromDevice("family-tv");
 
-// Jellyfin's lockout never applied here: LoginAttemptsBeforeLockout is null on every
-// account Bonfire creates, and Jellyfin reads null as "never lock". So a four-digit PIN
-// sat behind no limit at all, reachable by anything that can POST /Users/AuthenticateByName.
+// Jellyfin's lockout never applied: LoginAttemptsBeforeLockout is null on every Bonfire account, which means never lock. A four-digit PIN had no limit, reachable by anything that can POST /Users/AuthenticateByName.
 var rlType = asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true);
-// The account's one allowance (PinBudget): a quarter hour, then a day. Read under the names
-// they had before R-1002 too, so this file still runs against an older build.
+// The account's one allowance (PinBudget): a quarter hour, then a day. Also read under its pre-R-1002 names so the file runs against an older build.
 var limiters = new[] { ("AccountPin", "ClientPin"), ("AccountPinDaily", "ClientPinDaily") }
     .Select(n => rlType.GetField(n.Item1, Any)?.GetValue(null) ?? rlType.GetField(n.Item2, Any)?.GetValue(null))
     .ToArray();
@@ -654,9 +559,8 @@ Ok("and once the window has passed it opens again", Try(MakeUser(KID, "Bardkids"
     ForgetAttempts(OLDKID);
 }
 
-// Checked and counted as one step. A check followed later by a count let every one of a
-// burst of parallel guesses through, because each passed the check before any failure
-// had been recorded.
+// Checked and counted as one step. A check followed later by a count let every guess of a
+// parallel burst through, because each passed the check before any failure was recorded.
 ForgetAttempts(KID);
 var burst = Enumerable.Range(0, 40).Select(i => Task.Run(() => Try(MakeUser(KID, "Bardkids"), (1000 + i).ToString()))).ToArray();
 Task.WaitAll(burst);
@@ -664,12 +568,7 @@ Ok("forty guesses at once still use up the allowance",
    Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
 ForgetAttempts(KID);
 
-// R-1287: the assertion above passes against a limiter that checks, lets every guess of a
-// burst through, and counts afterwards: forty are compared, forty are counted, and the right
-// PIN is then refused all the same. What matters is how many guesses were COMPARED. The
-// provider says so when it turns one away ("too many wrong PINs"), so a provider of its own
-// with a counting logger gives the number: forty minus those. At most five, and with forty
-// distinct wrong PINs exactly five, may reach the hash.
+// R-1287: the assertion above passes against a limiter that checks, lets a whole burst through and counts afterward (forty compared, forty counted, right PIN refused anyway). What matters is how many guesses were compared. The provider says when it turns one away ("too many wrong PINs"), so a counting logger gives the number: forty minus those. At most five, exactly five with forty distinct wrong PINs, may reach the hash.
 {
     var counting = Activator.CreateInstance(typeof(CountingLogger<>).MakeGenericType(providerType));
     var burstProvider = Activator.CreateInstance(providerType, counting, ServiceStub.Create());
@@ -690,9 +589,7 @@ ForgetAttempts(KID);
     ForgetAttempts(KID);
 }
 
-// A guess the quarter hour refused is not a guess, and must not spend the day (R-1001). Both
-// were counted on every request, so twenty refused requests from anyone closed a profile's
-// PIN for a day, renewable one request at a time.
+// A guess the quarter hour refused must not spend the day (R-1001). Both were counted on every request, so twenty refused requests closed a profile's PIN for a day, renewable one request at a time.
 for (int i = 0; i < 25; i++) Try(MakeUser(KID, "Bardkids"), (10000 + i).ToString());
 rlReset.Invoke(limiters[0], new object[] { KID.ToString("N") });   // the quarter hour passes
 Ok("refused guesses don't use up the day: five counted, and the right PIN opens after the quarter hour",
@@ -713,8 +610,8 @@ for (int i = 0; i < 8; i++) Try(MakeUser(KID, "Bardkids"), "not-a-pin-" + i);
 Ok("a password that is not PIN-shaped does not use up the allowance",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 
-// A master's real password goes through this provider every time it signs in, on the web
-// as much as anywhere. That must neither count against the PIN nor be blocked by it.
+// A master's real password goes through this provider every time it signs in, on the web as
+// much as anywhere. It must neither count against the PIN nor be blocked by it.
 ForgetAttempts(MASTER);
 for (int i = 0; i < 8; i++) Try(MakeUser(MASTER, "bard"), DefaultAuthenticationProvider.ThePassword);
 Ok("a master signing in with its password does not use up its PIN allowance",
@@ -729,9 +626,7 @@ ForgetAttempts(MASTER);
 Console.WriteLine();
 Console.WriteLine("── A master bound here always keeps its password ──────────────");
 
-// Jellyfin offers an account bound to this provider no other, so a refusal here is a
-// refusal everywhere. A master that cleared its PIN, or deleted its last profile, stayed
-// bound until something repaired it — and every sign-in with its real password was refused.
+// Jellyfin offers an account bound to this provider no other, so a refusal here is a refusal everywhere. A master that cleared its PIN or lost its last profile stayed bound, and every real-password sign-in was refused.
 var DROPPED = Guid.NewGuid();
 mappings.Add(Mapping(DROPPED, DROPPED, null));    // a master row with no PIN any more
 User BoundUser(Guid id, string name)
@@ -751,9 +646,7 @@ Ok("an account that is not bound here is still declined outright",
 Console.WriteLine();
 Console.WriteLine("── The emergency disable must not lock anyone out ─────────────");
 
-// It used to report the provider disabled, and Jellyfin then handed every bound account
-// InvalidAuthProvider — so a master bound for its PIN lost its password on the one day the
-// administrator most needs to sign in.
+// It used to report the provider disabled, and Jellyfin then gave every bound account InvalidAuthProvider, so a bound master lost its password on the day an administrator most needs to sign in.
 var panicField = pluginType.GetField("_panicDisabled", Any);
 // On the family television, so it is the disable that refuses the PINs below (R-1344).
 devicesList.Clear();
@@ -799,21 +692,13 @@ ForgetAttempts(KID);
 Console.WriteLine();
 Console.WriteLine("── An empty provider id makes a user row UNREADABLE ────────────");
 
-// This is the constraint 1.6.1.2 broke, asserted here so nobody re-derives the reasoning
-// that led to breaking it. Clearing AuthenticationProviderId makes Jellyfin try every
-// provider, which is genuinely what GetAuthenticationProviders does — but the same field
-// is validated when EF Core materialises the row, on every single load:
+// The constraint 1.6.1.2 broke. Clearing AuthenticationProviderId makes Jellyfin try every provider, but EF Core validates the field when it materializes the row, on every load:
 //
 //   ArgumentException: The value cannot be an empty string. (Parameter 'authenticationProviderId')
 //      at Jellyfin.Database.Implementations.Entities.User..ctor(...)
 //      at Jellyfin.Server.Implementations.Users.UserManager.GetUsers()
 //
-// GetUsers() enumerates EVERY user, so two blanked sub-profiles took down user lookup for
-// a whole 40-user server: HTTP 400 on every endpoint that lists users, on every client,
-// unfixable from inside the plugin because the read path throws too. It needed manual SQL.
-//
-// The read path tolerating empty is exactly why this was missed. Checking one path and
-// calling the question settled is what this repository's testing rules are written against.
+// GetUsers() enumerates every user, so two blanked sub-profiles took down user lookup on a 40-user server: HTTP 400 on every endpoint that lists users, unfixable from the plugin because the read path throws too. It needed manual SQL. The read path tolerating empty is why this was missed.
 string emptyProviderResult;
 try
 {
@@ -827,9 +712,7 @@ Ok("Jellyfin itself refuses an empty AuthenticationProviderId", emptyProviderRes
 Console.WriteLine();
 Console.WriteLine("── So the reconciliation must never write one ──────────────────");
 
-// Drives the REAL ProfilesBootstrapTask against a stub user manager and records every
-// value it writes. A source scan could not have caught the original bug: the code read
-// correctly and wrote a value the database would not accept back.
+// Drives the real ProfilesBootstrapTask against a stub user manager and records every value it writes. A source scan could not have caught the original bug: the code read correctly and wrote a value the database would not accept back.
 var taskType = asm.GetType("Jellyfin.Profiles.ProfilesBootstrapTask", true);
 var reconcile = taskType.GetMethod("ReconcileAuthProviders", Any);
 Ok("the bootstrap task exposes its reconciliation", reconcile != null);
@@ -877,15 +760,7 @@ if (reconcile != null)
     Ok("it points them at Bonfire's provider",
        writes.All(w => w == providerType.FullName), string.Join(", ", writes.Distinct()));
 
-    // A master that has set a PIN is bound as well, or Jellyfin would only ever offer it
-    // DefaultAuthenticationProvider and the PIN could not be reached:
-    //
-    //     if (!string.IsNullOrEmpty(authenticationProviderId))
-    //         providers = providers.Where(i => string.Equals(
-    //             authenticationProviderId, i.GetType().FullName, ...)).ToList();
-    //
-    // The password keeps working because the provider delegates to Jellyfin's own, which
-    // is asserted separately above.
+    // A master that has set a PIN is bound too, or Jellyfin would only offer it DefaultAuthenticationProvider and the PIN could not be reached (a set AuthenticationProviderId filters to that provider, as above). The password keeps working because the provider delegates, asserted above.
     Ok("a master that set a PIN is bound too, so its PIN can be reached",
        users[MASTER].AuthenticationProviderId == providerType.FullName,
        users[MASTER].AuthenticationProviderId);
@@ -897,9 +772,7 @@ if (reconcile != null)
            == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
        users[LONER].AuthenticationProviderId);
 
-    // A master that clears its PIN must come off this provider straight away. It used to
-    // stay bound for good: the reconciliation only ever looked at masters that HAD a PIN,
-    // so one that no longer did was never visited again.
+    // A master that clears its PIN must come off this provider at once. It stayed bound because reconciliation only visited masters that had a PIN.
     var masterRow = mappings.Cast<object>().First(m =>
         (Guid)mappingType.GetProperty("ProfileUserId").GetValue(m) == MASTER);
     var masterPin = mappingType.GetProperty("PinHash").GetValue(masterRow);
@@ -950,9 +823,7 @@ if (reconcile != null)
     foreach (var m in mappings.Cast<object>().Where(m => (Guid)mappingType.GetProperty("MasterUserId").GetValue(m) == ADM).ToList()) mappings.Remove(m);
     users.Remove(ADM); users.Remove(ADMKID);
 
-    // Delegation goes to Jellyfin's own provider, so a master that signs in some other way
-    // (LDAP, SSO) must never be bound: its real password would then be checked by a
-    // provider that has never heard of it.
+    // Delegation goes to Jellyfin's own provider, so a master that signs in another way (LDAP, SSO) must never be bound: a provider that has never heard of it would check its real password.
     const string Ldap = "Jellyfin.Plugin.LDAP_Auth.LdapAuthenticationProviderPlugin";
     var LDAPM = Guid.NewGuid();
     var LDAPKID = Guid.NewGuid();
@@ -966,9 +837,7 @@ if (reconcile != null)
     Ok("a master that signs in through another provider is never bound",
        users[LDAPM].AuthenticationProviderId == Ldap, users[LDAPM].AuthenticationProviderId);
 
-    // R-1102: with client PIN off, a profile of an LDAP master was pointed at the master's
-    // provider, which has never heard of it ("could never sign in", as a made-standalone
-    // profile is already told). It goes on Jellyfin's own, as StandaloneProviderId says.
+    // R-1102: with client PIN off, a profile of an LDAP master was pointed at the master's provider, which has never heard of it. It goes on Jellyfin's own, as StandaloneProviderId says.
     enableProp.SetValue(config, false);
     users[LDAPKID].AuthenticationProviderId = providerType.FullName;
     reconcile.Invoke(task, null);
@@ -997,8 +866,7 @@ if (reconcile != null)
         mappings.Remove(row);
     }
 
-    // Feature OFF: they go back to whatever the MASTER uses — read from the master rather
-    // than hardcoded, so an upstream rename cannot strand them.
+    // Feature OFF: they go back to whatever the master uses, read from the master so an upstream rename cannot strand them.
     enableProp.SetValue(config, false);
     users[KID].AuthenticationProviderId = providerType.FullName;
     users[GUEST].AuthenticationProviderId = providerType.FullName;
@@ -1011,17 +879,9 @@ if (reconcile != null)
        writes.All(w => w == users[MASTER].AuthenticationProviderId),
        string.Join(", ", writes.Distinct()));
 
-    // NOBODY may be left pointing at this provider once it is switched off.
+    // Nobody may be left pointing at this provider once it is switched off. A disabled provider is filtered out of GetAuthenticationProviders, so a bound account matches nothing, gets InvalidAuthProvider and cannot sign in.
     //
-    // A disabled provider is filtered out of GetAuthenticationProviders, so an account
-    // still bound to it matches nothing, falls through to Jellyfin's InvalidAuthProvider
-    // and cannot authenticate at all.
-    //
-    // Binding masters introduced an ordering hazard: sub-profiles are restored by reading
-    // their MASTER's current provider, and when the master has a PIN it is bound to this
-    // one too. Restore the sub-profile first and it copies the very id being retired.
-    // Asserted on the end state rather than on the order, so it holds however the loop is
-    // arranged later.
+    // Ordering hazard: sub-profiles are restored from their master's current provider, and a bound master reads as this one, so restoring a sub-profile first copies the id being retired. Asserted on the end state, not the order.
     Ok("no account is left on Bonfire's provider once the feature is off",
        users.Values.All(u => u.AuthenticationProviderId != providerType.FullName),
        string.Join(", ", users.Values
@@ -1033,25 +893,15 @@ if (reconcile != null)
            == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider"),
        string.Join(" | ", users.Values.Select(u => u.Username + "=" + u.AuthenticationProviderId)));
 
-    // THIS ASSERTION WAS VACUOUS once masters started being bound. It ran after the
-    // feature had been switched off and reconciliation had already restored everything, so
-    // it passed whether or not a master was ever bound at all — a check answering a
-    // coarser question than the one it was named for. The state is now asserted while the
-    // feature is ON, above, where the two answers actually differ.
+    // This assertion was vacuous once masters were bound: it ran after the feature was off and everything restored, so it passed whether or not a master was ever bound. The state is now asserted while the feature is ON, above.
     //
-    // Restoring a master goes to Jellyfin's own provider rather than through
-    // MasterProviderId, which for a master reads back whatever it is bound to at that
-    // moment — this provider — and would pin it here permanently.
+    // Restoring a master goes to Jellyfin's own provider, not MasterProviderId, which reads back the provider it is bound to now (this one) and would pin it there.
     Ok("switching the feature off puts the master back on Jellyfin's provider",
        users[MASTER].AuthenticationProviderId
            == "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
        users[MASTER].AuthenticationProviderId);
 
-    // Accounts bound here that the configuration no longer knows about (R-1318). Jellyfin
-    // replaces an unreadable PluginConfiguration.xml with defaults, and a rollback drops
-    // what an older build can't read: the mappings are gone, the accounts are still bound,
-    // and a bound account is offered no provider but this one. With the feature off it is
-    // offered nothing at all, so a main account's real password stopped working.
+    // Accounts bound here that the configuration no longer knows about (R-1318). Jellyfin replaces an unreadable PluginConfiguration.xml with defaults and a rollback drops what an older build can't read: the mappings are gone, the accounts are still bound, and with the feature off they are offered no provider, so a main account's real password stopped working.
     var ORPHANM = Guid.NewGuid();
     var ORPHANKID = Guid.NewGuid();
     users[ORPHANM] = MakeUser(ORPHANM, "forgotten");
@@ -1085,10 +935,7 @@ if (reconcile != null)
 Console.WriteLine();
 Console.WriteLine("── A profile limited to certain devices ───────────────────────");
 
-// Device restrictions are enforced in the switcher and in verify-pin, and were enforced
-// NOWHERE on the sign-in-screen path — so a profile limited to the living room television
-// could be opened with its PIN from any phone on the internet. The restriction is the
-// whole reason somebody sets it.
+// Device restrictions were enforced in the switcher and verify-pin but nowhere on the sign-in-screen path, so a profile limited to the living room television opened with its PIN from any phone on the internet.
 devicesList.Clear();
 Remember("family-tv", MASTER);
 knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Living Room TV");
@@ -1135,29 +982,13 @@ FromDevice("family-tv");
 Console.WriteLine();
 Console.WriteLine("── Quick Connect, after the first sign-in ─────────────────────");
 
-// Android TV opens its sign-in screen on Quick Connect and there is no way to ask it not
-// to: ARG_SKIP_QUICKCONNECT exists in UserLoginFragment and no caller ever sets it. The
-// only lever is the response to POST /QuickConnect/Initiate — 401 makes the client take
-// its own UnavailableQuickConnectState path straight to the credentials form.
+// Android TV opens its sign-in screen on Quick Connect and cannot be told not to: ARG_SKIP_QUICKCONNECT exists in UserLoginFragment and no caller sets it. The only lever is the response to POST /QuickConnect/Initiate: 401 sends the client to its credentials form.
 //
-// It cannot be decided per profile. initiateQuickConnect() takes no arguments and the
-// client randomises the device id for it:
+// It cannot be decided per profile. initiateQuickConnect() takes no arguments and the client randomizes the device id for it (forUser(UUID.randomUUID())), so the request carries no user. The device name is not randomized, so this matches on that.
 //
-//     quickConnectApi.update(baseUrl = server.address,
-//         deviceInfo = defaultDeviceInfo.forUser(UUID.randomUUID()))
+// Not the client name: the test app reports "Jellyfin Android TV" while current source builds "Jellyfin for Android TV".
 //
-// so the request carries no user and not even the set's usual id. What it does carry
-// unrandomised is the device NAME, which is what this matches on.
-//
-// Deliberately NOT the client name. The installed test app reports "Jellyfin Android TV"
-// while the current app source builds "Jellyfin for Android TV" — the string is not stable
-// across versions, so matching it would break silently on an app update.
-//
-// The rule, as asked for: leave Quick Connect alone the first time, because before
-// anyone has signed in there is no profile list to reach and Quick Connect is the easy way
-// in. Afterwards, go straight to the PIN. "This account's first time" is not observable
-// here — the request has no account — so the observable equivalent is "this is a device we
-// have never seen a household sign in on".
+// The rule as asked for: leave Quick Connect alone the first time, because there is no profile list before anyone signs in; afterward go straight to the PIN. "This account's first time" is not observable (the request has no account), so it is "a device we have never seen a household sign in on".
 var gateType = asm.GetType("Jellyfin.Profiles.Auth.QuickConnectGate", false);
 Ok("there is a gate for Quick Connect", gateType != null);
 
@@ -1219,16 +1050,9 @@ if (shouldDeny != null)
 
     // ── only the client that needs it ──────────────────────────────────────────
     //
-    // Refusing Quick Connect exists to reach a password field the app is standing in
-    // front of. Every other client surveyed has one of its own: Roku's Quick Connect is a
-    // button beside the password box, Swiftfin focuses the password field when a user is
-    // picked, Findroid and Wholphin open on a credentials form. Denying theirs turns a
-    // deliberate press into "Quick Connect not available" and fixes nothing.
+    // Refusing Quick Connect exists to reach a password field the app is standing in front of. Other clients have their own: Roku's Quick Connect is a button beside the password box, Swiftfin focuses the password field, Findroid and Wholphin open on a credentials form. Denying theirs fixes nothing.
     //
-    // Before this, the gate matched on the device name alone — so a household that turned
-    // this on for its television had silently broken Quick Connect on its Roku, on the
-    // same home network, as soon as both were recorded. Paired with the positive case
-    // above so neither direction can pass by accident.
+    // The gate used to match the device name alone, so turning this on for a television broke Quick Connect on a Roku on the same network once both were recorded. Paired with the positive case above.
     devicesList.Clear();
     Remember("shared-tv", MASTER);
     knownType.GetProperty("DeviceName").SetValue(devicesList[0], "Living Room TV");
@@ -1256,12 +1080,7 @@ if (shouldDeny != null)
 
     // ── other people's televisions of the same model (1.6.3.3) ─────────────────
     //
-    // Android TV reports its model as its name, so every set of one make shares it. Until
-    // 1.6.3.3 a household's "SHIELD Android TV" took Quick Connect away from every other
-    // SHIELD on the server, including people who never use Bonfire, for good: their
-    // devices are never recorded, so nothing could say the name was theirs too. Now a
-    // sign-in by an account outside every household notes the name, and a noted name
-    // keeps Quick Connect for everybody.
+    // Android TV reports its model as its name, so every set of one make shares it. Until 1.6.3.3 a household's "SHIELD Android TV" took Quick Connect from every other SHIELD on the server, including people who never use Bonfire. Now a sign-in by an account outside every household notes the name, and a noted name keeps Quick Connect for everybody.
     var sharedProp = cfgType.GetProperty("QuickConnectSharedDeviceNames");
     var note = gateType.GetMethod("NoteSharedName", BindingFlags.Public | BindingFlags.Static);
     Ok("there is a record of television names used outside every household", sharedProp != null && note != null);
@@ -1323,11 +1142,7 @@ if (shouldDeny != null)
 
     // ── an account with no password to type (SSO) ──────────────────────────────
     //
-    // The refusal sends the app to its password field. An SSO account has none: its
-    // AuthenticationProviderId names no installed provider, so Jellyfin files it under the
-    // invalid provider, and SSO works only through the web UI or Quick Connect. The request
-    // names no account, so the household that owns the matching device is asked instead.
-    // Judged by the provider, never by a plugin's name.
+    // The refusal sends the app to its password field, and an SSO account has none: its AuthenticationProviderId names no installed provider, so SSO works only through the web UI or Quick Connect. The request names no account, so the household that owns the matching device is asked. Judged by the provider, never by a plugin's name.
     var denyFor = gateType.GetMethod("ShouldDenyFor", BindingFlags.Public | BindingFlags.Static);
     var noPath = gateType.GetMethod("HasNoPasswordPath", BindingFlags.Public | BindingFlags.Static);
     Ok("the gate can be told which accounts have no password", denyFor != null && noPath != null);
@@ -1395,10 +1210,7 @@ if (shouldDeny != null)
 
 // ── a sign-in with no note ───────────────────────────────────────────────────
 //
-// The middleware starts a sign-in note only for POSTs under /Users. SSO signs in through
-// its own endpoint (POST /sso/OID/Auth/{provider}), so its sign-in reaches the session
-// listener with no note at all, and that must count as a password sign-in: the device is
-// recorded. A PIN, an empty box or a switch always starts a note and marks it.
+// The middleware starts a sign-in note only for POSTs under /Users. SSO signs in through its own endpoint (POST /sso/OID/Auth/{provider}), so it reaches the session listener with no note and must count as a password sign-in. A PIN, an empty box or a switch always starts a note.
 {
     var reqDevice = asm.GetType("Jellyfin.Profiles.Auth.RequestDevice", false);
     var may = reqDevice?.GetMethod("MayMakeDeviceKnown", BindingFlags.Public | BindingFlags.Static);
@@ -1438,19 +1250,13 @@ if (shouldDeny != null)
 Console.WriteLine();
 Console.WriteLine("── The way Jellyfin calls it (1.6.3.3) ────────────────────────");
 
-// Everything above calls the provider's methods directly. Jellyfin does not. This is its
-// own dispatch, copied from Jellyfin.Server.Implementations/Users/UserManager.cs at
-// v10.11.5, line 852 (unchanged on master):
+// Everything above calls the provider's methods directly; Jellyfin does not. This copies its dispatch from Jellyfin.Server.Implementations/Users/UserManager.cs at v10.11.5, line 852:
 //
 //     var authenticationResult = provider is IRequiresResolvedUser requiresResolvedUser
 //         ? await requiresResolvedUser.Authenticate(username, password, resolvedUser)
 //         : await provider.Authenticate(username, password);
 //
-// When a name does not resolve — "kids" off a sign-in screen, rather than the system
-// username — resolvedUser is null, and the three-argument form is still the one called.
-// It refused a null user outright, so from 1.6.1.11 to 1.6.3.2 every sub-profile chosen
-// from a sign-in screen was refused, while the section above, calling the two-argument
-// overload by hand, passed.
+// When a name does not resolve ("kids" off a sign-in screen), resolvedUser is null and the three-argument form is still called. It refused a null user, so from 1.6.1.11 to 1.6.3.2 every sub-profile chosen from a sign-in screen was refused while the section above, calling the two-argument overload, passed.
 async Task<(string Username, bool Success)> AuthenticateWithProvider(
     IAuthenticationProvider p, string username, string password, User? resolvedUser)
 {
@@ -1505,23 +1311,13 @@ Ok("nor with no device at all", !Sign("kids", "4821").Success);
 Console.WriteLine();
 Console.WriteLine("── What an Android TV actually sends (1.6.3.5) ─────────────────");
 
-// The section above sends the television's plain id with the sign-in. Jellyfin Android
-// TV never does. Signing in by name it builds a one-off id out of the NAME typed:
-//
-//     // AuthenticationRepository.authenticateCredential
+// The section above sends the television's plain id. Jellyfin Android TV never does: signing in by name it builds a one-off id from the typed name:
 //     jellyfin.createApi(server.address, deviceInfo = defaultDeviceInfo.forUser(username))
 //     // forUser(user: String) = copy(id = SHA-1("${id}+$user") as lowercase hex)
 //
-// 1.6.3.3 did not recognise that id, so every profile chosen from an Android TV sign-in
-// screen was refused as "a device no household has signed in on" — on a television that
-// had listed the household two seconds earlier. Replayed here from that server's log.
+// 1.6.3.3 did not recognize that id, so every profile chosen from an Android TV sign-in screen was refused as "a device no household has signed in on". Replayed from that server's log.
 //
-// And 1.6.3.4 did not either, because this section then RECORDED the set's plain id and
-// checked the hash against it. A real set never causes that record. Its plain id is sent
-// only by the sign-in screen; it signs in as sha1(id + "+" + name) and browses as
-// sha1(id + "+" + accountId), and those two are all the session listener ever writes. So the
-// fixture below is exactly what Bonfire holds for the television in that log, and the
-// sequence is the app's: the list from the sign-in screen, then the sign-in.
+// 1.6.3.4 did not either: this section then recorded the set's plain id and checked the hash against it, but a real set never causes that record. Its plain id is sent only by the sign-in screen; it signs in as sha1(id + "+" + name) and browses as sha1(id + "+" + accountId), the only two the session listener writes. The fixture is what Bonfire held for the television in that log, in the app's order: the list, then the sign-in.
 static string Sha1Hex(string v) => Convert.ToHexString(
     System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(v))).ToLowerInvariant();
 
@@ -1593,12 +1389,7 @@ Ok("an id hashed from one name does not admit another", !Sign("kids", "4821").Su
 Console.WriteLine();
 Console.WriteLine("── Read under the lock, not while sign-ins write (1.6.3.3) ────");
 
-// The provider walked Mappings and KnownDevices unlocked, and a television signing in is
-// exactly when the session listener appends a device row: "collection was modified",
-// which Jellyfin does not catch from a provider, so a refusal became a 500. A race is not
-// reproducible on demand, so this asks the question it reduces to instead: does a sign-in
-// walk either list without holding ConfigLock? Tripwire<T> counts the walks that do.
-// (LINQ takes its span fast path only for an exact List<T>, so a subclass is enumerated.)
+// The provider walked Mappings and KnownDevices unlocked, and a television signing in is when the session listener appends a device row: "collection was modified", which Jellyfin does not catch from a provider, so a refusal became a 500. A race cannot be reproduced on demand, so this asks what it reduces to: does a sign-in walk either list without holding ConfigLock? Tripwire<T> counts those walks. (LINQ's span fast path is only for an exact List<T>, so a subclass is enumerated.)
 var lockObj = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true)
     .GetField("ConfigLock", Any)?.GetValue(null);
 Ok("there is a configuration lock to hold", lockObj != null);
@@ -1636,9 +1427,7 @@ finally
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Added by the test audit. Each block below is a break to the provider that stayed
-// green against everything above, and several were a way in rather than a way out:
-// they say what the change was, so none is a restatement of the code.
+// Added by the test audit. Each block is a break to the provider that stayed green against everything above; several were a way in rather than out.
 // ─────────────────────────────────────────────────────────────────────────────
 Console.WriteLine();
 Console.WriteLine("── Test audit: what a change to the provider could let in ──────");
@@ -1650,9 +1439,7 @@ devicesList.Clear();
 Remember("family-tv", MASTER);
 FromDevice("family-tv");
 
-// A main account with NO PIN whose profile has one. FindMasterWithPin must look at the
-// main account's own row. Matching any row of the household found the child's PIN, and
-// the child's four digits then opened the main account from its television.
+// A main account with no PIN whose profile has one. FindMasterWithPin must use the main account's own row: matching any row of the household found the child's PIN and opened the main account from its television.
 var MASTNP = Guid.NewGuid();
 var KIDNP = Guid.NewGuid();
 mappings.Add(Mapping(MASTNP, MASTNP, null));
@@ -1807,9 +1594,7 @@ public class ProviderUserManager : DispatchProxy
     }
 }
 
-// Records every AuthenticationProviderId the reconciliation writes. DispatchProxy rather
-// than an implementation because IUserManager gains and loses members between patch
-// releases — the same reason tests/cs/pipeline uses it.
+// Records every AuthenticationProviderId the reconciliation writes. DispatchProxy, not an implementation, because IUserManager gains and loses members between patch releases (as in tests/cs/pipeline).
 public class RecordingUserManager : DispatchProxy
 {
     private Dictionary<Guid, User> _users;
@@ -1852,10 +1637,7 @@ public class RecordingUserManager : DispatchProxy
     }
 }
 
-// Just enough of a service provider to hand back a user manager, and just enough of a
-// user manager to answer GetUserById. DispatchProxy because IUserManager gains and loses
-// members between patch releases and a hand-written implementation would not compile
-// against two of them.
+// Just enough of a service provider and user manager to answer GetUserById. DispatchProxy because IUserManager changes between patch releases and a hand-written implementation would not compile against two of them.
 public class ActivityRecorder : DispatchProxy
 {
     public List<ActivityLog> Entries;
@@ -1892,10 +1674,7 @@ sealed class ServiceStub : IServiceProvider
         if (serviceType == typeof(MediaBrowser.Model.Activity.IActivityManager))
             return ActivityRecorder.Create(Activity);
 
-        // What the provider asks for when it needs to check a real password. Both of
-        // Jellyfin's own are here on purpose: InvalidAuthProvider exists to refuse
-        // everything, so a lookup of "whichever provider is not ours" would pick the wrong
-        // one about half the time depending on registration order.
+        // What the provider asks for to check a real password. Both of Jellyfin's own are here because InvalidAuthProvider refuses everything, so "whichever is not ours" would pick the wrong one about half the time.
         if (serviceType == typeof(IEnumerable<IAuthenticationProvider>))
         {
             return new IAuthenticationProvider[]
