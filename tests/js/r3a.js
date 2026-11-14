@@ -3,8 +3,8 @@
  *
  *   node tests/js/r3a.js [old/profiles.js [old/styles.css]]
  *
- * Both arguments are optional and exist so this can be pointed at the build carrying the
- * bugs: it has to fail there before it is allowed to pass here.
+ * Both arguments are optional so this can be pointed at the build carrying the bugs: it
+ * must fail there before it may pass here.
  *
  * The CSS half resolves the cascade for a named element (specificity, then source order)
  * instead of looking for a string, because a rule that is present and outranked is the
@@ -157,8 +157,8 @@ function before(marker, take) {
     return at < 0 ? '' : SRC.slice(Math.max(0, at - take), at);
 }
 
-// r2-31-02 was wrong: both handlers strip spaces before the six-digit check, and the server
-// takes "123 456" (tests/cs/email). maxlength 6 cut a pasted "123 456" to "123 45".
+// r2-31-02 was wrong: both handlers strip spaces before the six-digit check, and the
+// server takes "123 456" (tests/cs/email). maxlength 6 cut a pasted "123 456" to "123 45".
 console.log('\n── r2-31-02: a code pasted as "123 456" fits both code fields ──────');
 ['onboarding-email-code', 'account-email-code'].forEach(id => {
     const m = new RegExp('id="' + id + '" maxlength="(\\d+)" ').exec(SRC);

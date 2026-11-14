@@ -1,11 +1,11 @@
 // Creating and deleting a profile (r2-11-05, -06, -08), read from the controller source.
 //
-// These are shape checks, not behaviour: the C# harnesses cannot make a mapping write throw
-// or watch the order of two calls, so the order and the placement are read from the text.
-// Each is aimed at the one method it is about, and each names what it found.
+// These are shape checks, not behavior: the C# harnesses cannot make a mapping write throw
+// or watch the order of two calls, so order and placement are read from the text. Each
+// targets one method and names what it found.
 //
-//  - Delete removes the mapping first and the picture after, so a failure part way cannot leave
-//    a mapping that points at an account that is gone.
+//  - Delete removes the mapping first and the picture after, so a failure part way cannot
+//    leave a mapping that points at an account that is gone.
 //  - No picture is written or removed inside a ConfigLock block (create wrote one inside it).
 //  - Create's rollback removes the picture it wrote.
 //  - Delete has no loop that revokes the same tokens once per session and breaks after one.

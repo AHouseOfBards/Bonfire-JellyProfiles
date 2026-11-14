@@ -4,10 +4,10 @@
 //  - r2-25-03  with no Campground runtime, history was wrapped by assignment with no
 //              marker, so a second bindEvents wrapped the wrapper and every navigation
 //              ran checkRoute twice.
-//  - r2-25-04  init() retried every 100 ms for as long as the page was open when there
-//              was no ApiClient.
+//  - r2-25-04  init() retried every 100 ms while the page was open when there was no
+//              ApiClient.
 //  - r2-27-04  the library artwork picker, opened while already open, returned without
-//              telling its caller, which was left waiting.
+//              telling its caller, which kept waiting.
 //  - r2-27-05  initLockoutTimer read a 401 as a hiccup: it armed from the cached list
 //              and asked again in 30 s with the dead token.
 //  - r2-28-01  the PIN keypad's pause timer survived leaving the screen, then spent a
@@ -84,11 +84,11 @@ function bare(withApiClient) {
 }
 
 {
-    // r2-25-04 stopped init asking every 100 ms forever on a page with no ApiClient. It did
-    // that by giving up after a minute, and r3-05-01 found the cost of that: a page slower
-    // than a minute (a TV, a server-select page) never got Bonfire until a reload. So the
-    // quick asking still ends after about a minute, and after that it asks every few
-    // seconds instead of never. tests/js/initwait.js holds the second half.
+    // r2-25-04 stopped init asking every 100 ms forever on a page with no ApiClient, by
+    // giving up after a minute. r3-05-01 found the cost: a page slower than a minute (a TV,
+    // a server-select page) never got Bonfire until a reload. So the quick asking still
+    // ends after about a minute, then continues every few seconds. tests/js/initwait.js
+    // holds the second half.
     console.log('\n── r2-25-04: init stops asking every 100 ms ────────────────────');
     const env = bare(false);
     const delays = [];
