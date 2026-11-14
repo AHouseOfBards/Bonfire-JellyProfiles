@@ -24,20 +24,18 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The profile picker for apps with no switcher (Moonfin first).
 //
-// The household signs into its main account; the app's home shows a "Profiles" library
-// with a folder per profile; opening one opens that profile, through a keypad of folders
-// when it has a PIN. From then on every request on the main account's token reaches
-// Jellyfin as the profile's.
+// The household signs into its main account; the app's home shows a "Profiles" library with
+// a folder per profile; opening one opens that profile (through a keypad of folders when it
+// has a PIN). After that every request on the main account's token reaches Jellyfin as the
+// profile's.
 //
-// This drives the real middleware, request by request, as Moonfin would, and checks
-// what Jellyfin is handed and what the app is told. Against 1.7.1.1 the first
-// assertion fails: the app is shown the main account's libraries.
+// Drives the real middleware request by request, as Moonfin would, and checks what Jellyfin
+// is handed and what the app is told. Against 1.7.1.1 the first assertion fails: the app is
+// shown the main account's libraries.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();
@@ -327,8 +325,8 @@ Console.WriteLine();
 Console.WriteLine("── On the picker, what it does not draw is refused ─────────────");
 
 // A child gets here after Switch profile, a restart or a maintenance bounce, with detail
-// pages still on the app's back stack. Everything the picker does not recognise used to
-// pass on as the main account.
+// pages still on the app's back stack. Anything the picker did not recognize used to pass on
+// as the main account.
 var someItem = Guid.NewGuid().ToString("N");
 var strangers = new (string method, string path, string what)[]
 {
@@ -398,9 +396,9 @@ Console.WriteLine("── A profile with a PIN: the keypad ───────
 
 var kidsId = IdOf(back, "Kids");
 
-// Its owner skips the PIN at home. Bonfire's middleware runs in front of Jellyfin's
-// forwarded-headers handling, so behind a reverse proxy every request arrived from the
-// proxy's own address and looked like home (R-1029).
+// Its owner skips the PIN at home. Bonfire's middleware runs before Jellyfin's forwarded-
+// headers handling, so behind a reverse proxy every request came from the proxy's address
+// and looked like home (R-1029).
 mapType.GetProperty("BypassPinOnLocalNetwork").SetValue(kidsMapping, true);
 var proxied = Get("/Users/" + N(MASTER) + "/Items?ParentId=" + kidsId + "&Recursive=false", remote: "127.0.0.1", forwardedFor: "203.0.113.9");
 Ok("behind a reverse proxy, a Moonfin on the internet still gets the keypad",
@@ -441,10 +439,9 @@ Ok("another app on the same account is untouched", atv.reachedJellyfin && seenAu
 var anon = Get("/System/Info/Public", token: "");
 Ok("a request with no token is untouched", anon.reachedJellyfin);
 
-// These two ran with the app in the Kids profile, and asserted that turning Bonfire off
-// handed the app to Jellyfin on the main account's token: the very thing the section
-// below says must not happen to a child. They are about the picker being off, so they
-// now run on the picker, which is what they were meant to show.
+// These two ran with the app in the Kids profile and asserted that turning Bonfire off hands
+// the app to Jellyfin on the main account's token, which the section below says must not
+// happen to a child. They are about the picker being off, so they now run on the picker.
 Children(IdOf(kidsHome.body, "Switch profile"));
 
 Set("ProxyClients", new List<string>());
@@ -499,10 +496,10 @@ Ok("back in the Kids profile", Get("/UserViews").reachedJellyfin && seenAuth.Con
 Console.WriteLine();
 Console.WriteLine("── A child's TV is never left on the main account ───────────────");
 
-// Leaving the swap used to fail open: the emergency code, the app unticked and an error
-// inside the picker each handed the request to Jellyfin on the main account's token, so a
-// TV left in a child's profile became the unrestricted account, silently. Now it is
-// signed out, and asks for the main password again.
+// Leaving the swap used to fail open: the emergency code, the app unticked and an error in
+// the picker each handed the request to Jellyfin on the main account's token, so a TV left
+// in a child's profile became the unrestricted account. Now it is signed out and asks for
+// the main password again.
 void ProxyReset() => switcher.GetMethod("Reset", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
 void Child()  // put the TV in Kids from a clean start
 {
@@ -806,9 +803,9 @@ Ok("signing out of the app signs the profile out too",
 Console.WriteLine();
 Console.WriteLine("── Profile sessions from before a restart (R-1037) ─────────────");
 
-// Jellyfin's tokens do not expire. The picker forgets the profile session it minted when the
-// server restarts, so nothing ever signed it out: one valid token per device and profile,
-// for good. What it minted is kept on disk and ended at the next start.
+// Jellyfin's tokens do not expire. The picker forgot the profile session it minted when the
+// server restarted, so nothing ever signed it out: one valid token per device and profile,
+// for good. What it minted is now kept on disk and ended at the next start.
 var marksType = asm.GetType("Jellyfin.Profiles.Auth.PickerMarks");
 var switcherType = asm.GetType("Jellyfin.Profiles.Auth.ProxySwitcher");
 void Restart() => switcherType.GetMethod("SimulateRestart", BindingFlags.Static | BindingFlags.NonPublic)?.Invoke(null, null);
@@ -874,8 +871,8 @@ Console.WriteLine("── A request racing the first read of the marks file (r2-
 
 
 // Load used to say "loaded" before it had read anything, and Any read that flag without the
-// lock, so a request arriving during the read saw no marks: a child's TV on the main token
-// was served as the main account. A slow read is made with a big file.
+// lock, so a request during the read saw no marks and a child's TV on the main token was
+// served as the main account. A slow read is made with a big file.
 {
     ProxyReset();
     var marksFile = Path.Combine(tempDir, "plugins", "ProfilesManagement", "proxy_picker.json");
@@ -907,10 +904,10 @@ Console.WriteLine();
 Console.WriteLine("── A restart does not let a child's TV onto the main account ───");
 
 // The picker's sessions and its marks on a child's TV are in memory. A restart emptied both,
-// so a TV that was in a child's profile sent its next request on the main account's token with
-// nothing of ours looking at it, and whenever nothing of ours was going to answer (the app
-// unticked, the profiles deleted, the emergency code, a bare image request) Jellyfin did,
-// as the main account. What was kept on disk is what is checked here.
+// so a TV in a child's profile sent its next request on the main account's token with nothing
+// of ours looking at it. Whenever nothing of ours answered (app unticked, profiles deleted,
+// emergency code, a bare image request) Jellyfin did, as the main account. What was kept on
+// disk is what is checked here.
 {
     var before = sessionLog.LoggedOut.Count;
     Child();
@@ -1017,8 +1014,8 @@ Ok("and the next request finds the picker, not a dead profile",
    !after.reachedJellyfin && Names(after.body) == "Profiles", Names(after.body));
 
 // A 401 is not always the token (r2-04-01): a plugin route that refuses a request answers
-// 401 too, and that used to put the child back on the picker. Only a token Jellyfin no longer
-// has does.
+// 401 too, and that used to put the child back on the picker. Only a token Jellyfin no
+// longer has does.
 {
     Children(IdOf(Children(IdOf(after.body, "Profiles")), "Open"));
     var profileId = sessionLog.Minted.Last();
@@ -1044,9 +1041,9 @@ Ok("a profile whose main account is turned off is not opened", sessionLog.Minted
 Ok("and the keypad says why", Names(shut).Contains("turned off"), Names(shut));
 UserManagerStub.Disabled.Remove(MASTER);
 
-// Closed for maintenance. The picker refused a profile with "Closed for maintenance.", its
-// own two words, while every other way in says the administrator's message. Text only: the
-// profile still does not open, and nothing else about the keypad changes.
+// Closed for maintenance. The picker refused a profile with its own words, "Closed for
+// maintenance.", while every other way in shows the administrator's message. Text only: the
+// profile still does not open.
 var maintType = asm.GetType("Jellyfin.Profiles.Configuration.MaintenanceMode", true);
 object Closed(string message)
 {
@@ -1126,7 +1123,7 @@ var stillPicker = Get("/UserViews");
 Ok("and opens nothing until it is typed", !stillPicker.reachedJellyfin && Names(stillPicker.body) == "Profiles", Names(stillPicker.body));
 // OK before four digits is not a guess. It spent one of the five tries, so five presses on
 // an empty keypad locked the profile on every app (R-1034). Each press is on the keypad the
-// last one returned, as the app does; the same tile twice is the app's reload, not a press.
+// last one returned, as the app does; the same tile twice is the app's reload.
 var shortOk = mainPad;
 for (var i = 0; i < 6; i++) shortOk = Press(shortOk, "OK");
 Ok("OK on an empty keypad just shows the keypad again", Names(shortOk) == Names(mainPad), Names(shortOk));
@@ -1329,8 +1326,8 @@ Console.WriteLine("── The picker speaks the app's language ─────�
 Console.WriteLine();
 Console.WriteLine("── What each refusal on the picker rests on ────────────────────");
 {
-    // Each check below was found removable with the whole file staying green (test audit,
-    // wave 4). One scenario per check, each built so that only that check can produce it.
+    // Each check below was found removable with the whole file green (test audit, wave 4).
+    // One scenario per check, built so only that check can produce it.
     var MASTER2 = Guid.NewGuid();
     string NewTok() { var t = Guid.NewGuid().ToString("N"); deviceTokens[t] = (MASTER, "Moonfin for Android TV"); return t; }
     string Kid(string tok, string id) => Get("/Users/" + N(MASTER) + "/Items?ParentId=" + id + "&Recursive=false", token: tok).body;

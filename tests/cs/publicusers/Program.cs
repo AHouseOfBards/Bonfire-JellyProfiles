@@ -19,27 +19,21 @@ using Jellyfin.Database.Implementations.Enums;
 using MediaBrowser.Model.Users;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// What we actually write into /Users/Public.
+// What we write into /Users/Public.
 //
-// This file exists because 1.6.1.2 shipped a crash. The injector took its UserDto
-// from Jellyfin — which was the rule, and which tests/js/publicusers.js checks —
-// and then serialized it with a JsonSerializerOptions built by hand: a naming
-// policy and ignore-nulls, which looked like the whole job. It is not. Jellyfin's
-// JsonDefaults carries nine converters, and two of them decide whether a client
-// can read the result at all:
+// 1.6.1.2 shipped a crash here. The injector took its UserDto from Jellyfin (the rule,
+// checked by tests/js/publicusers.js) and serialized it with a hand-built
+// JsonSerializerOptions: a naming policy and ignore-nulls. Jellyfin's JsonDefaults carries
+// nine converters, and two decide whether a client can read the result at all:
 //
 //   enums   UserPolicy.SyncPlayAccess, UserPolicy.BlockUnratedItems and
-//           UserConfiguration.SubtitleMode serialize as INTEGERS without
+//           UserConfiguration.SubtitleMode serialize as integers without
 //           JsonStringEnumConverter. Every Jellyfin client expects strings.
-//   Guids   Jellyfin writes them "N" — dashless. The default writes dashes.
+//   Guids   Jellyfin writes them "N" (dashless). The default writes dashes.
 //
-// The Android TV app crashed on the first profile it was handed. The source gate
-// could not have seen it: the code read correctly and did the wrong thing.
-//
-// So this harness does not read the source. It serializes a real DTO through the
-// real assembly and reads the bytes back.
-// ─────────────────────────────────────────────────────────────────────────────
+// The Android TV app crashed on the first profile it was handed. The source gate could not
+// see it: the code read correctly and did the wrong thing. So this harness serializes a real
+// DTO through the real assembly and reads the bytes back.
 
 int pass = 0;
 var fails = new List<string>();
@@ -61,8 +55,8 @@ static string RepoRoot()
     return d ?? throw new Exception("could not find the repository root");
 }
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved.
+// Which build of the plugin to load. This harness's output sits in bin/Release/<tfm>/, so
+// its folder name is the framework the csproj resolved.
 var tfm = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).Name;
 var asm = Assembly.LoadFrom(Path.Combine(RepoRoot(), "bin", "Release", tfm, "Jellyfin.Profiles.dll"));
@@ -121,12 +115,10 @@ Ok("a profile is added to an empty list", produced != null);
 var json = produced == null ? "" : Encoding.UTF8.GetString(produced);
 Console.WriteLine("        " + (json.Length > 150 ? json.Substring(0, 150) + "…" : json));
 
-// R-1043: this is an anonymous endpoint, and the entry used to be Jellyfin's whole UserDto:
-// Policy (administrator, folders, tags, schedules), Configuration, last login. Only what a
-// tile is drawn from is written now, so the enums that crashed 1.6.1.2 (Policy's SyncPlayAccess
-// and BlockUnratedItems, Configuration's SubtitleMode) are no longer in the entry at all, and
-// the three assertions that checked they were written as strings have nothing to check. The
-// Guid assertions below still apply to the ids that are written.
+// R-1043: this is an anonymous endpoint, and the entry used to be Jellyfin's whole UserDto
+// (Policy, Configuration, last login). Only what a tile is drawn from is written now, so the
+// enums that crashed 1.6.1.2 are no longer in the entry and the three assertions that they
+// were written as strings have nothing to check. The Guid assertions still apply.
 Ok("the account's policy is not published", !json.Contains("Policy", StringComparison.OrdinalIgnoreCase)
    && !json.Contains("IsAdministrator", StringComparison.OrdinalIgnoreCase) && !json.Contains("secret-tag", StringComparison.Ordinal));
 Ok("nor its configuration", !json.Contains("Configuration\"", StringComparison.OrdinalIgnoreCase)
@@ -139,9 +131,9 @@ Ok("nor when it last signed in or was active", !json.Contains("LastLoginDate", S
     Ok("it carries exactly what a tile is drawn from", keys == "EnableAutoLogin,HasConfiguredEasyPassword,HasConfiguredPassword,HasPassword,Id,Name,PrimaryImageTag,ServerId", keys);
 
     // Issue #43. Wholphin and the current Android TV release parse this list with
-    // jellyfin-sdk-kotlin 1.7.1, whose UserDto has no default for these four. One entry
-    // without one fails the whole list, so the app shows an error instead of a picker.
-    // Named one at a time: "what a tile is drawn from" was the coarser question.
+    // jellyfin-sdk-kotlin 1.7.1, whose UserDto has no default for these four. One entry without
+    // one fails the whole list and the app shows an error instead of a picker. Named one at a
+    // time: "what a tile is drawn from" was the coarser question.
     foreach (var required in new[] { "Id", "HasPassword", "HasConfiguredPassword", "HasConfiguredEasyPassword" })
     {
         Ok("the Kotlin SDK's required field " + required + " is there", entry != null && entry.ContainsKey(required), keys);
@@ -157,21 +149,17 @@ Ok("Guids are dashless, the way Jellyfin writes them",
 Ok("and no dashed Guid is present at all",
    !json.Contains("8e3cdfa5-79a8", StringComparison.OrdinalIgnoreCase));
 
-// Case is not cosmetic here, and the two assertions above cannot see it because they are
-// both OrdinalIgnoreCase.
-//
-// Android TV parses every id through the Kotlin SDK's UUIDSerializer, which re-inserts
-// the dashes with this regex before handing the string to UUID.fromString:
+// Case matters, and the two assertions above cannot see it because both are
+// OrdinalIgnoreCase. Android TV parses every id through the Kotlin SDK's UUIDSerializer,
+// which re-inserts the dashes with
 //
 //     "^([a-z\d]{8})([a-z\d]{4})([a-z\d]{4})([a-z\d]{4})([a-z\d]{12})$"
 //
-// [a-z\d] does not match uppercase hex, so an uppercase id matches nothing, keeps its
-// dashless 32-character form, and UUID.fromString throws. `id` is a non-null UUID field,
-// so deserialize() throws rather than returning null — which fails the WHOLE response,
-// not our row: getPublicServerUsers catches ApiClientException and returns emptyList(),
-// so the picker shows nothing at all, real accounts included, with only a Timber line to
-// say why. .NET's "N" format is lowercase and this has never been wrong; it is asserted
-// because nothing else would notice if it became wrong.
+// [a-z\d] does not match uppercase hex, so an uppercase id keeps its dashless form and
+// UUID.fromString throws. `id` is non-null, so deserialize() throws and the WHOLE response
+// fails (getPublicServerUsers catches ApiClientException and returns emptyList()): the
+// picker shows nothing, real accounts included, with only a Timber line to say why. .NET's
+// "N" format is lowercase; this is asserted because nothing else would notice a change.
 Ok("Guids are lowercase, which is what the Kotlin SDK's [a-z\\d] regex will accept",
    json.Contains("8e3cdfa579a84bb9bd9a0e96b7dc974a", StringComparison.Ordinal),
    "an uppercase id throws in UUIDSerializer and empties the entire user list");
@@ -196,9 +184,9 @@ if (parsed != null)
     Ok("the id survives", parsed[0].Id == profileId);
     Ok("the name survives", parsed[0].Name == "Bardkids");
     // Was "the enum survives as its own value" (Policy.SyncPlayAccess); see R-1043 above.
-    // (Not asserted as Policy == null: Jellyfin's own UserDto fills a missing Policy with a
-    // default one, so that says nothing about the wire. "the account's policy is not
-    // published" above checks the bytes.)
+    // Not asserted as Policy == null: Jellyfin's UserDto fills a missing Policy with a default,
+    // so that says nothing about the wire. "the account's policy is not published" above
+    // checks the bytes.
     Ok("and nothing of the real policy came back through it", parsed[0].Policy?.IsAdministrator != true && parsed[0].Policy?.SyncPlayAccess != SyncPlayUserAccessType.JoinGroups);
     Ok("the flags a password box needs survive", parsed[0].HasPassword == true && parsed[0].PrimaryImageTag == "tag1");
 }
@@ -222,8 +210,8 @@ Ok("and it reads back too", camelParsed != null && camelParsed.Length == 1);
 Console.WriteLine();
 Console.WriteLine("── It leaves what Jellyfin returned alone ─────────────────────");
 
-// A server that shows its users publicly already has entries here, and they must come
-// through untouched — we are adding to somebody else's answer.
+// A server that shows its users publicly already has entries here. They must come through
+// untouched: we add to somebody else's answer.
 var existing = "[{\"Name\":\"someone-else\",\"Id\":\"11111111111111111111111111111111\"}]";
 var merged = Encoding.UTF8.GetString(Run("application/json; profile=\"PascalCase\"", existing));
 Ok("an existing user is still there", merged.Contains("someone-else", StringComparison.Ordinal));
@@ -232,10 +220,10 @@ Ok("and ours is added alongside", merged.Contains("Bardkids", StringComparison.O
 var mergedParsed = JsonSerializer.Deserialize<UserDto[]>(merged, JsonDefaults.PascalCaseOptions);
 Ok("the merged list is two users", mergedParsed.Length == 2, mergedParsed.Length.ToString());
 
-// R-1284: tests/js/publicusers.js can only say the source has no "Remove"; a rename or an
-// alias gets past it. This is the behaviour: several entries, with fields we know nothing
-// of, come back byte for byte and in order, and ours is last. Removing, filtering,
-// rewriting or reordering any of them fails here whatever the code is called.
+// R-1284: tests/js/publicusers.js can only say the source has no "Remove"; a rename or alias
+// gets past it. This is the behavior: several entries, with fields we know nothing of, come
+// back byte for byte and in order, and ours is last. Removing, filtering, rewriting or
+// reordering any of them fails here whatever the code is called.
 var theirs = new[]
 {
     "{\"Name\":\"first\",\"Id\":\"11111111111111111111111111111111\",\"Extra\":{\"n\":[1,2,3]}}",
@@ -258,8 +246,8 @@ Ok("and ours is the last one",
    keptArray != null && keptArray.Count == theirs.Length + 1
    && keptArray[theirs.Length]["Name"]?.GetValue<string>() == "Bardkids");
 
-// Already present by id: adding a second copy would show one person twice on the
-// sign-in screen, which on a public-users server is the normal case for the master.
+// Already present by id: a second copy would show one person twice on the sign-in screen,
+// which on a public-users server is the normal case for the master.
 var dup = "[{\"Name\":\"Bardkids\",\"Id\":\"8e3cdfa579a84bb9bd9a0e96b7dc974a\"}]";
 var dupResult = Run("application/json; profile=\"PascalCase\"", dup);
 Ok("a user Jellyfin already returned is not added twice", dupResult == null,
@@ -268,12 +256,12 @@ Ok("a user Jellyfin already returned is not added twice", dupResult == null,
 Console.WriteLine();
 Console.WriteLine("── Whose television is this? ──────────────────────────────────");
 
-// ResolveHousehold decides whether to touch the response at all, and it shipped in
-// 1.6.1.4 with NO coverage. It required the signed-in account to have a mapping row of
-// its own — which a MASTER usually does not have, because creating a profile writes a row
-// for the profile only and a master's own row is written just once, lazily, the first time
-// switcher preferences are saved. So signing in as yourself on a new television, the very
-// first step of the whole feature, produced an empty list.
+// ResolveHousehold decides whether to touch the response at all, and it shipped in 1.6.1.4
+// with no coverage. It required the signed-in account to have a mapping row of its own,
+// which a MASTER usually lacks: creating a profile writes a row for the profile only, and
+// the master's own row is written once, lazily, when switcher preferences are first saved.
+// So signing in as yourself on a new television, the first step of the feature, produced an
+// empty list.
 var resolve = injectorType.GetMethod("ResolveHousehold", BindingFlags.Public | BindingFlags.Static);
 Ok("the injector exposes its household lookup", resolve != null);
 
@@ -326,7 +314,7 @@ if (resolve != null)
     }
 
     var mappings = (System.Collections.IList)cfgType.GetProperty("Mappings").GetValue(config);
-    // Deliberately NO row for MASTER — this is the shape a real household actually has.
+    // No row for MASTER: the shape a real household has.
     mappings.Add(Mapping(KID, MASTER));
     mappings.Add(Mapping(GUEST, MASTER));
 
@@ -341,10 +329,9 @@ if (resolve != null)
         });
     }
 
-    // Silence was its own defect. 1.6.1.4 and 1.6.1.5 declined for six different reasons
-    // and logged none of them, so a household seeing nothing had no way to learn whether
-    // the request even arrived. Asserted rather than trusted, because a logger parameter is
-    // exactly the kind of thing a later refactor drops as unused.
+    // Silence was its own defect. 1.6.1.4 and 1.6.1.5 declined for six reasons and logged none,
+    // so a household seeing nothing could not tell whether the request even arrived. Asserted
+    // because a logger parameter is what a refactor drops as unused.
     var loggerParam = resolve.GetParameters().LastOrDefault();
     Ok("the lookup accepts a logger, so it can say why it declined",
        loggerParam != null && typeof(Microsoft.Extensions.Logging.ILogger).IsAssignableFrom(loggerParam.ParameterType),
@@ -358,8 +345,8 @@ if (resolve != null)
        afterMasterSignIn.Contains(MASTER) && afterMasterSignIn.Contains(KID)
        && afterMasterSignIn.Contains(GUEST));
 
-    // Switching into a sub-profile makes IT the newest session; the household must not
-    // empty, which is why the resolution goes through the master rather than the user.
+    // Switching into a sub-profile makes it the newest session; the household must not empty,
+    // so the resolution goes through the master rather than the user.
     var afterProfileSignIn = Resolve("tv-1", KID);
     Ok("after switching into a profile the household is unchanged",
        afterProfileSignIn.Count == 3 && afterProfileSignIn.Contains(MASTER));
@@ -396,27 +383,25 @@ if (resolve != null)
     Console.WriteLine();
     Console.WriteLine("-- After the television signs out -----------------------------");
 
-    // THE BLOCKER, and the reason 1.6.1.4 through 1.6.1.6 could never work on the client
-    // they were built for.
-    //
-    // Jellyfin treats a Device row as belonging to a SESSION, not to a device:
+    // The blocker that kept 1.6.1.4 through 1.6.1.6 from working on the client they were built
+    // for. Jellyfin treats a Device row as belonging to a session, not a device:
     //
     //     public async Task Logout(Device device)          // SessionManager
     //     { await _deviceManager.DeleteDevice(device); }
     //
-    // and Android TV's "Switch account" destroys the session BEFORE opening the picker:
+    // and Android TV's "Switch account" destroys the session before opening the picker:
     //
     //     sessionRepository.destroyCurrentSession()
     //     activity?.startActivity(ActivityDestinations.startup(activity))
     //
-    // So the exact action that opens the picker deletes the only record we keyed on. It
-    // showed up in a production log seconds after a successful sign-in on that same set:
+    // So opening the picker deletes the only record we keyed on. A production log showed it
+    // seconds after a successful sign-in on the same set:
     //
     //     user list requested by device "9a6dae35cc29c74f", which nobody has signed in on yet
     //
-    // Bonfire keeps its own DeviceId -> master record instead, which survives a sign-out
-    // precisely because it is not a session artefact. Every assertion below drives the
-    // device manager EMPTY - the way a real television presents itself at the picker.
+    // Bonfire keeps its own DeviceId -> master record, which survives a sign-out because it is
+    // not a session artifact. Every assertion below drives the device manager empty, as a real
+    // television presents itself at the picker.
     var devicesList = (System.Collections.IList)cfgType.GetProperty("KnownDevices").GetValue(config);
     var knownType = asm.GetType("Jellyfin.Profiles.Configuration.KnownDevice", true);
 
@@ -445,8 +430,8 @@ if (resolve != null)
     Ok("and to the same household the deleted Device row would have given",
        signedOut.Contains(MASTER) && signedOut.Contains(KID) && signedOut.Contains(GUEST));
 
-    // Ownership is the whole content of the record. Rows written before MasterUserId
-    // existed carry Guid.Empty, and those identify nobody.
+    // Ownership is the whole record. Rows written before MasterUserId existed carry
+    // Guid.Empty and identify nobody.
     Remember("tv-unowned", Guid.Empty);
     Ok("a remembered device with no owner resolves to nothing",
        ResolveSignedOut("tv-unowned").Count == 0);
@@ -456,13 +441,13 @@ if (resolve != null)
     Ok("a remembered device owned by a non-Bonfire account resolves to nothing",
        ResolveSignedOut("tv-stranger").Count == 0);
 
-    // A device we have no record of stays nothing. This is what stops a forged DeviceId
-    // from walking the server's households.
+    // A device we have no record of stays nothing. This stops a forged DeviceId from walking
+    // the server's households.
     Ok("a television Bonfire has never seen resolves to nothing",
        ResolveSignedOut("tv-never").Count == 0);
 
-    // Revocation has to mean something once the record is ours rather than Jellyfin's:
-    // removing the row in the dashboard is the only way to forget a television.
+    // Revocation has to mean something once the record is ours, not Jellyfin's: removing the
+    // row in the dashboard is the only way to forget a television.
     var savedRows = new List<object>();
     foreach (var d in devicesList) savedRows.Add(d);
     devicesList.Clear();
@@ -470,8 +455,8 @@ if (resolve != null)
        ResolveSignedOut("tv-signedout").Count == 0);
     foreach (var d in savedRows) devicesList.Add(d);
 
-    // And the live path must keep working. A set somebody IS signed in on has to resolve
-    // from Jellyfin's own record, with nothing of ours to help it.
+    // The live path must keep working: a set somebody is signed in on resolves from Jellyfin's
+    // own record.
     devicesList.Clear();
     Ok("a signed-in device still resolves with no remembered record",
        Resolve("tv-1", MASTER).Count == 3);
@@ -480,8 +465,8 @@ if (resolve != null)
     Console.WriteLine("-- A profile this device may not open -------------------------");
 
     // The provider refuses a device-restricted profile from a device not on its list, so
-    // offering it on that device's sign-in screen is a door that does not open. Listing it
-    // also tells anyone holding the television which profiles exist but are barred.
+    // offering it there is a door that does not open, and it tells anyone holding the
+    // television which profiles exist but are barred.
     devicesList.Clear();
     mappings.Clear();
     var ANYWHERE = Guid.NewGuid();
@@ -515,12 +500,10 @@ if (resolve != null)
     Console.WriteLine();
     Console.WriteLine("-- Who fills the record in ------------------------------------");
 
-    // KnownDevices has existed since the device-restrictions work and already had
-    // everything the map needed: a DeviceId, a MasterUserId, a LastSeen, pruning, and a
-    // dashboard row an administrator can delete. What it did not have was a writer that a
-    // television ever reaches - both call sites were authenticated Bonfire routes, which
-    // only the web switcher calls. The map was populated exclusively by the one client
-    // that had no use for it.
+    // KnownDevices already had everything the map needed (DeviceId, MasterUserId, LastSeen,
+    // pruning, a dashboard row an administrator can delete). It had no writer a television ever
+    // reaches: both call sites were authenticated Bonfire routes that only the web switcher
+    // calls, so the map was filled only by the client that had no use for it.
     var registry = asm.GetType("Jellyfin.Profiles.Auth.DeviceRegistry", false);
     Ok("device recording is reachable without a controller", registry != null);
 
@@ -536,22 +519,22 @@ if (resolve != null)
         Ok("and the household then resolves from that record alone",
            ResolveSignedOut("tv-fresh").Count == 3);
 
-        // The name rules are shipped behaviour being moved, not rewritten, so they are
-        // pinned here: a client that sends nothing must never blank a name that was good.
+        // The name rules are shipped behavior being moved, so they are pinned: a client that
+        // sends nothing must never blank a good name.
         record.Invoke(null, new object[] { config, "tv-fresh", "", "Android TV", MASTER, now, null });
         Ok("a later sign-in with no name does not blank the name we had",
            (string)knownType.GetProperty("DeviceName").GetValue(devicesList[0]) == "Living Room TV");
 
-        // Signing in as a sub-profile must attribute the set to the household, not to the
-        // profile - otherwise the second person to use the television takes it over and
-        // the master's own profiles stop appearing.
+        // Signing in as a sub-profile attributes the set to the household, not the profile;
+        // otherwise the second person to use the television takes it over and the master's
+        // profiles stop appearing.
         devicesList.Clear();
         record.Invoke(null, new object[] { config, "tv-kid", "Bedroom", "Android TV", MASTER, now, null });
         Ok("a device is attributed to the master, so the household survives a switch",
            (Guid)knownType.GetProperty("MasterUserId").GetValue(devicesList[0]) == MASTER);
 
-        // An id with surrounding space is a different string to every ordinal comparison
-        // in the plugin, including the whitelist checks. It is trimmed at the door.
+        // An id with surrounding space is a different string to every ordinal comparison in the
+        // plugin, whitelist checks included. It is trimmed at the door.
         devicesList.Clear();
         record.Invoke(null, new object[] { config, "  tv-spaced  ", "TV", "Android TV", MASTER, now, null });
         Ok("a device id is trimmed before it is stored",
@@ -578,9 +561,9 @@ if (resolve != null)
         record.Invoke(null, new object[] { config, null, "TV", "Android TV", MASTER, now, null });
         Ok("a sign-in with no device id records nothing", devicesList.Count == 0);
 
-        // One browser or Roku, two households (R-1050). It stayed the first one's for good:
-        // the second could not restrict a profile to it, and once a PIN needed a household
-        // device (R-1344), its PINs were refused there.
+        // One browser or Roku, two households (R-1050). It stayed the first one's for good: the
+        // second could not restrict a profile to it, and once a PIN needed a household device
+        // (R-1344), its PINs were refused there.
         var NEIGHBOUR = Guid.NewGuid();
         devicesList.Clear();
         record.Invoke(null, new object[] { config, "tv-shared", "Lounge", "Roku", MASTER, now, null });
@@ -625,8 +608,8 @@ if (resolve != null)
                 if ((string)knownType.GetProperty("DeviceName").GetValue(r) == "Lounge") leaked = true;
         Ok("a whitelisted id does not reveal a device another household owns", seenByOutsider != null && !leaked);
 
-        // R-1115: whether a whitelisted id matched a record depended on the comparer of the
-        // set the caller built. Device ids are compared ignoring case everywhere else.
+        // R-1115: whether a whitelisted id matched a record depended on the comparer of the set
+        // the caller built. Device ids are compared ignoring case everywhere else.
         devicesList.Clear();
         var unowned = Activator.CreateInstance(knownType);
         knownType.GetProperty("DeviceId").SetValue(unowned, "Tv-Unowned");
@@ -645,22 +628,18 @@ if (resolve != null)
     Console.WriteLine();
     Console.WriteLine("-- One television, two device ids ------------------------------");
 
-    // The defect that made 1.6.1.7 useless, and the reason it looked like nothing was
-    // recorded when the recording was perfect.
-    //
-    // Android TV uses a DIFFERENT device id once a user is chosen. SessionRepository
-    // applies `defaultDeviceInfo.forUser(userId)`, and forUser is:
+    // The defect that made 1.6.1.7 useless while looking as if nothing was recorded, though the
+    // recording was fine. Android TV uses a different device id once a user is chosen.
+    // SessionRepository applies `defaultDeviceInfo.forUser(userId)`:
     //
     //     fun DeviceInfo.forUser(user: String): DeviceInfo = copy(
     //         id = SHA-1("${id}+$user") as lowercase hex)
     //
-    // At the picker there is no session, so `defaultDeviceInfo` is used unchanged - the
-    // raw ANDROID_ID. So we record a per-user hash and are then asked about the base id,
-    // and the two can never be equal.
+    // At the picker there is no session, so the raw ANDROID_ID is used. We record a per-user
+    // hash and are asked about the base id; the two can never be equal.
     //
-    // These are real values, from a 2026-09-10 15:09 production log. Keeping the actual
-    // triple means this test fails if the derivation ever changes shape, rather than only
-    // if my re-implementation of it disagrees with itself.
+    // These are real values from a 2026-09-10 15:09 production log, so the test fails if the
+    // derivation changes shape, not only if my re-implementation disagrees with itself.
     static string Sha1(string value) => Convert.ToHexString(
         System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(value)))
         .ToLowerInvariant();
@@ -683,8 +662,8 @@ if (resolve != null)
        viaHash.Count == 2 && viaHash.Contains(LOG_MASTER),
        viaHash.Count + " user(s)");
 
-    // Jellyfin for Android derives differently - it appends the user id with no hash and
-    // no separator. Same log, device 6044d6840404e4e8.
+    // Jellyfin for Android appends the user id with no hash and no separator. Same log,
+    // device 6044d6840404e4e8.
     devicesList.Clear();
     Remember("6044d6840404e4e8" + LOG_MASTER.ToString(), LOG_MASTER);
     var viaConcat = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
@@ -695,8 +674,8 @@ if (resolve != null)
     Ok("and one recorded with the user id appended resolves too",
        viaConcat.Count == 2 && viaConcat.Contains(LOG_MASTER));
 
-    // A sub-profile is what gets signed into after the first switch, so the hash is taken
-    // over the PROFILE's id while the record still belongs to the master.
+    // A sub-profile is signed into after the first switch, so the hash is over the profile's
+    // id while the record belongs to the master.
     devicesList.Clear();
     Remember(Sha1(TV_BASE + "+" + KID.ToString()), LOG_MASTER);
     var viaProfile = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
@@ -707,8 +686,8 @@ if (resolve != null)
     Ok("a hash taken over a sub-profile's id still resolves to the household",
        viaProfile.Count == 2 && viaProfile.Contains(LOG_MASTER));
 
-    // The derivation must not become a way to guess at households. A hash over an account
-    // Bonfire knows nothing about matches no record.
+    // The derivation must not become a way to guess at households: a hash over an account
+    // Bonfire does not know matches no record.
     devicesList.Clear();
     Remember(Sha1(TV_BASE + "+" + STRANGER.ToString()), Guid.Empty);
     var viaStranger = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
@@ -719,7 +698,7 @@ if (resolve != null)
     Ok("a hash over an account Bonfire does not know resolves to nothing",
        viaStranger.Count == 0);
 
-    // And the plain case must not regress: most clients send one id and never derive it.
+    // The plain case must not regress: most clients send one id and never derive it.
     devicesList.Clear();
     Remember("plain-tv", LOG_MASTER);
     var viaExact = (IReadOnlyList<Guid>)resolve.Invoke(null, new object[]
@@ -739,15 +718,15 @@ if (resolve != null)
     //     if isChainValid(localGlobal, "session.user.friendlyName")
     //         deviceName = deviceName + localGlobal.session.user.friendlyName
     //
-    // so it sends the bare channel client id at its sign-in screen and the appended one
-    // once somebody is in. The Android TV derivations cannot help: those are applied
-    // forwards over household GUIDs, and this suffix is a name - and not always a name we
-    // hold, because AboutMe() asks /Users/{id}, which we do not rewrite, so a token
-    // restore appends the REAL username while a PIN login appends the household's name.
+    // It sends the bare channel client id at its sign-in screen and the appended one once
+    // somebody is in. The Android TV derivations cannot help: they apply forwards over
+    // household GUIDs, and this suffix is a name, not always one we hold (AboutMe() asks
+    // /Users/{id}, which we do not rewrite, so a token restore appends the real username while a
+    // PIN login appends the household's name).
     //
-    // It is reversed at recording time instead, where SessionInfo.UserName says which name
-    // was used. Concatenation is reversible when the suffix is known; SHA-1 is not, which
-    // is the whole reason the two are handled in opposite directions.
+    // So it is reversed at recording time, where SessionInfo.UserName says which name was used.
+    // Concatenation is reversible when the suffix is known; SHA-1 is not, which is why the two
+    // are handled in opposite directions.
     var baseController = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesBaseController", true);
     var parseAuth = baseController.GetMethod(
         "ParseAuthorizationParameter", BindingFlags.Static | BindingFlags.NonPublic);
@@ -767,9 +746,8 @@ if (resolve != null)
         Ok("the bare id is recovered from an appended account name",
            Bare(ROKU + "BardFamily", "BardFamily") == ROKU);
 
-        // friendlyName strips everything outside [a-zA-Z0-9\-\_], so the name on the wire
-        // is not the name on the account. Underscores and hyphens survive; spaces and
-        // punctuation do not.
+        // friendlyName strips everything outside [a-zA-Z0-9\-\_], so the name on the wire is not
+        // the name on the account: underscores and hyphens survive, spaces and punctuation do not.
         Ok("a name with spaces is matched as Roku strips it",
            Bare(ROKU + "BardFamily", "Bard Family") == ROKU);
         Ok("an underscore survives the strip, because Roku keeps it",
@@ -787,19 +765,18 @@ if (resolve != null)
         Ok("no name means no reversal", Bare(ROKU + "BardFamily", null) == null);
         Ok("and no device id means none either", Bare(null, "BardFamily") == null);
 
-        // A name of one or two characters is a coincidence waiting to happen - and a name
-        // that strips to nothing must never match every device on the server.
+        // A name of one or two characters is a coincidence waiting to happen, and a name that
+        // strips to nothing must never match every device on the server.
         Ok("a name that strips to nothing is refused", Bare(ROKU + "!!", "!!") == null);
         Ok("a very short name is refused", Bare(ROKU + "ab", "ab") == null);
 
-        // The remainder must still look like a device id. An account whose name is nearly
-        // the whole id must not leave a two-character stub that some unrelated client
-        // might genuinely send.
+        // The remainder must still look like a device id: an account whose name is nearly the
+        // whole id must not leave a two-character stub some unrelated client might send.
         Ok("a strip that would leave a stub is refused",
            Bare("abcdXYZlongname", "XYZlongname") == null);
 
-        // Ordinal: Roku appends the stripped name verbatim, so a case-folded comparison
-        // could only ever strip the wrong number of characters.
+        // Ordinal: Roku appends the stripped name verbatim, so a case-folded comparison could
+        // only strip the wrong number of characters.
         Ok("the suffix is matched with case, as Roku writes it",
            Bare(ROKU + "BardFamily", "bardfamily") == null);
 
@@ -821,10 +798,10 @@ if (resolve != null)
     Console.WriteLine();
     Console.WriteLine("-- The header each client really sends ------------------------");
 
-    // Read from each client's source. The shapes differ enough that a parser written
-    // against one of them would silently return null for the others, and a null DeviceId
-    // is indistinguishable from a device nobody has used - the exact failure that made
-    // device restrictions unreachable before ParseAuthorizationParameter was fixed.
+    // Read from each client's source. The shapes differ enough that a parser written against
+    // one would return null for the others, and a null DeviceId looks like a device nobody has
+    // used: the failure that made device restrictions unreachable before
+    // ParseAuthorizationParameter was fixed.
     devicesList.Clear();
     mappings.Clear();
     mappings.Add(Mapping(KID, LOG_MASTER));
@@ -837,8 +814,8 @@ if (resolve != null)
          + "Version=\"2.1.0\", DeviceId=\"roku-device-0001\"",
          "roku-device-0001"),
 
-        // Swiftfin, via jellyfin-sdk-swift's authorizationHeaders: UNQUOTED values, built
-        // from a dictionary so the field order is not fixed either.
+        // Swiftfin, via jellyfin-sdk-swift's authorizationHeaders: unquoted values, built from a
+        // dictionary, so the field order is not fixed either.
         ("Swiftfin",
          "MediaBrowser DeviceId=tvOS_9F8E7D6C, Device=Apple TV, Client=Swiftfin tvOS, Version=1.3.0",
          "tvOS_9F8E7D6C"),
@@ -892,10 +869,9 @@ if (resolve != null)
     Console.WriteLine();
     Console.WriteLine("-- Both kinds of profile are offered ---------------------------");
 
-    // A PIN-less profile is still listed, because on a device the household uses it still
-    // opens - see BonfirePinAuthenticationProvider. Listing only PIN-protected ones was
-    // considered and rejected: it would have hidden the profiles most households set up
-    // first, on the one screen this feature exists to serve.
+    // A PIN-less profile is still listed: on a device the household uses it still opens (see
+    // BonfirePinAuthenticationProvider). Listing only PIN-protected ones was rejected; it
+    // would hide the profiles most households set up first, on the screen this feature serves.
     devicesList.Clear();
     mappings.Clear();
     var PINNED = Guid.NewGuid();
@@ -918,14 +894,11 @@ if (resolve != null)
     Console.WriteLine();
     Console.WriteLine("-- The name a household actually uses -------------------------");
 
-    // Sub-profiles are created with a system username of `<master>_<profile>` to avoid
-    // colliding with every other household on the server, so the sign-in screen was
-    // offering "Bardkids" where the household calls that person "kids". The name is
-    // rewritten to the one they chose.
-    //
-    // This has to be done in the response rather than by renaming the account: the system
-    // username is what keeps two households' "kids" apart, and the web switcher, the audit
-    // log and Jellyfin's own dashboard all show it.
+    // Sub-profiles get a system username of `<master>_<profile>` so households' accounts do not
+    // collide, so the sign-in screen offered "Bardkids" where the household says "kids". The
+    // name is rewritten in the response, not by renaming the account: the system username keeps
+    // two households' "kids" apart, and the web switcher, audit log and Jellyfin's dashboard
+    // all show it.
     devicesList.Clear();
     mappings.Clear();
     mappings.Add(MappingNamed(profileId, MASTER, "kids"));
@@ -937,20 +910,19 @@ if (resolve != null)
     Ok("and the system username is not shown",
        !friendly.Contains("Bardkids", StringComparison.Ordinal));
 
-    // camelCase is the other half of the content negotiation and must be rewritten too -
-    // the property is "name" there, and missing it would show the raw username on exactly
-    // the clients that ask for camelCase.
+    // camelCase is the other half of content negotiation and must be rewritten too: the
+    // property is "name" there, and missing it shows the raw username on those clients.
     var friendlyCamel = Encoding.UTF8.GetString(
         Run("application/json; profile=\"CamelCase\"", "[]", config));
     Ok("the same rewrite happens in a camelCase response",
        friendlyCamel.Contains("\"kids\"", StringComparison.Ordinal)
        && !friendlyCamel.Contains("Bardkids", StringComparison.Ordinal));
 
-    // A display name that is another account's username is not offered (R-1336). Jellyfin
-    // looks a typed name up as a username before it asks the provider anything, so a "kids"
-    // tile would sign in as the real "kids": it could never open, and each wrong PIN would
-    // count against that account. The profile falls back to its system username, which is
-    // its own. This covers a config that predates the check and an account made later.
+    // A display name that is another account's username is not offered (R-1336). Jellyfin looks
+    // a typed name up as a username before asking the provider, so a "kids" tile would sign in
+    // as the real "kids": it could never open, and each wrong PIN would count against that
+    // account. The profile falls back to its system username. This covers a config that
+    // predates the check and an account made later.
     UserManagerStub.Usernames.Add("Kids");
     var collided = Encoding.UTF8.GetString(Run("application/json", "[]", config));
     Ok("a profile whose name is another account's username keeps its system username",
@@ -958,8 +930,8 @@ if (resolve != null)
        collided.Length > 400 ? collided.Substring(0, 200) : collided);
     UserManagerStub.Usernames.Clear();
 
-    // Nothing to rename is not an error - a master, or a server that has not upgraded its
-    // mappings, must come back exactly as Jellyfin wrote it.
+    // Nothing to rename is not an error: a master, or a server that has not upgraded its
+    // mappings, comes back exactly as Jellyfin wrote it.
     mappings.Clear();
     var untouched = Encoding.UTF8.GetString(Run("application/json", "[]", config));
     Ok("an account with no mapping keeps the name Jellyfin gave it",
@@ -974,14 +946,11 @@ if (resolve != null)
     mappings.Add(Mapping(KID, MASTER));
     mappings.Add(Mapping(GUEST, MASTER));
 
-    // Recording must be scoped to households Bonfire actually runs.
-    //
-    // Every account on the server signs in, not just households with profiles. The
-    // listener asks HouseholdOf for the owning master, and HouseholdOf answers with the
-    // user's OWN id when it finds no mapping — a sensible answer to the question it was
-    // asked, and a wrong one to key a filter on, because it is never Guid.Empty. Left
-    // that way, a forty-user server would write a KnownDevices row for every phone and
-    // browser that ever signed in, into an XML file that is rewritten whole.
+    // Recording is scoped to households Bonfire runs. Every account on the server signs in,
+    // not just households with profiles, and the listener asks HouseholdOf for the owning
+    // master. HouseholdOf answers with the user's own id when it finds no mapping, which is
+    // never Guid.Empty and so wrong to filter on: a forty-user server would write a
+    // KnownDevices row for every phone and browser into an XML file that is rewritten whole.
     var isHousehold = registry?.GetMethod("IsHousehold", BindingFlags.Public | BindingFlags.Static);
     Ok("the registry can say whether an account is a Bonfire household at all",
        isHousehold != null);
@@ -998,9 +967,8 @@ if (resolve != null)
            !(bool)isHousehold.Invoke(null, new object[] { config, Guid.Empty }));
     }
 
-    // The writer is only half of it. A listener nobody registered does nothing at all,
-    // which is the silent-failure shape that has cost this project four releases, so the
-    // subscription is asserted rather than assumed.
+    // The writer is only half of it. A listener nobody registered does nothing, the silent
+    // failure that has cost four releases, so the subscription is asserted.
     var listener = asm.GetType("Jellyfin.Profiles.Auth.BonfireSessionListener", false);
     Ok("something subscribes to authentication so every client feeds the map",
        listener != null);
@@ -1011,11 +979,9 @@ if (resolve != null)
     Ok("and it is registered with the DI container",
        registrar.Contains("BonfireSessionListener"));
 
-    // The writing half has to be as loud as the reading half, and in 1.6.1.7 it was not:
-    // the recording logged at Debug, so a household that saw no profiles could not be told
-    // apart from a listener that never fired or never started. That is the same defect
-    // 1.6.1.6 shipped to fix on the reading side, repeated one release later on the other
-    // side of the same feature.
+    // The writing half has to be as loud as the reading half. In 1.6.1.7 the recording logged
+    // at Debug, so a household seeing no profiles could not be told from a listener that never
+    // fired. That is the defect 1.6.1.6 fixed on the reading side, repeated on the other.
     var listenerSrc = File.ReadAllText(
         Path.Combine(RepoRoot(), "Auth", "BonfireSessionListener.cs"));
     Ok("the listener announces itself at startup, so silence means it did not start",
@@ -1023,9 +989,8 @@ if (resolve != null)
        && listenerSrc.Split(new[] { "StartAsync" }, StringSplitOptions.None)[1]
                      .Split(new[] { "StopAsync" }, StringSplitOptions.None)[0]
                      .Contains("LogInformation"));
-    // Per call, not "no LogDebug in the file": the sign-in of an account outside any household
-    // is Debug on purpose (R-1018), since every other account on the server signs in there.
-    // What must stay loud is each line that says something was recorded.
+    // Per call, not "no LogDebug in the file": signing in as an account outside any household
+    // is Debug on purpose (R-1018). Each line that says something was recorded must stay loud.
     var logCalls = System.Text.RegularExpressions.Regex.Matches(listenerSrc, @"_logger\.(Log\w+)\(\s*""([^""]*)""");
     string LevelOf(string phrase) => logCalls.Cast<System.Text.RegularExpressions.Match>()
         .Where(m => m.Groups[2].Value.Contains(phrase)).Select(m => m.Groups[1].Value).FirstOrDefault() ?? "missing";
@@ -1041,7 +1006,7 @@ if (resolve != null)
 Console.WriteLine();
 Console.WriteLine("-- The name a client remembers --------------------------------");
 
-// Name stripping on /Users/Public alone lasted until somebody used the profile, and then
+// Name stripping on /Users/Public alone lasted until somebody used the profile, then
 // reverted. Android TV keeps its own copy of every account it has signed into:
 //
 //     val storedUsers = serverUserRepository.getStoredServerUsers(server)
@@ -1049,13 +1014,12 @@ Console.WriteLine("-- The name a client remembers ------------------------------
 //     val publicUsers = serverUserRepository.getPublicServerUsers(server)
 //         .filterNot { it.id in storedUserIds }          // ours is dropped
 //
-// and `holder.cardView.name = user.name` paints the STORED name. That copy is written by
-// authenticateFinish from the account's real DTO — getCurrentUser() on a token restore,
-// or the authentication response on a PIN login — so the friendly name survived exactly
-// until the first sign-in. On the test television BardFamily read "family", Bard_test did not,
-// and the difference was that Bard_test had been signed into on that television.
-//
-// So the two endpoints that tell a client who it is are rewritten too.
+// and `holder.cardView.name = user.name` paints the stored name. That copy is written by
+// authenticateFinish from the account's real DTO (getCurrentUser() on a token restore, the
+// authentication response on a PIN login), so the friendly name survived only until the first
+// sign-in. On the test television BardFamily read "family" and Bard_test did not, because
+// Bard_test had been signed into there. So the two endpoints that tell a client who it is
+// are rewritten too.
 var rewriterType = asm.GetType("Jellyfin.Profiles.Auth.ProfileNameRewriter", false);
 Ok("there is a rewriter for the name a client stores", rewriterType != null);
 
@@ -1119,8 +1083,8 @@ if (rewrite != null)
     catch (Exception ex) { notAString = "threw " + (ex.InnerException ?? ex).GetType().Name; }
     Ok("a Name that is not a string is left as it is", notAString == "<untouched>", notAString);
 
-    // POST /Users/AuthenticateByName — the user is nested under an AuthenticationResult,
-    // and this is the body that a PIN login stores.
+    // POST /Users/AuthenticateByName: the user is nested under an AuthenticationResult, and
+    // this is the body a PIN login stores.
     var auth = Run2("{\"User\":{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("N")
                     + "\"},\"AccessToken\":\"abc\",\"ServerId\":\"s\"}");
     Ok("a nested user in an authentication result is renamed",
@@ -1129,8 +1093,8 @@ if (rewrite != null)
     Ok("and the rest of the authentication result survives",
        auth != null && auth.Contains("abc", StringComparison.Ordinal));
 
-    // A master is a real account with a real username, and everything else on the server
-    // knows it by that. Never renamed.
+    // A master is a real account with a real username that everything else knows it by.
+    // Never renamed.
     Ok("a master is left alone",
        Run2("{\"Name\":\"Bard\",\"Id\":\"" + OWNER.ToString("N") + "\"}") == null);
 
@@ -1143,8 +1107,8 @@ if (rewrite != null)
     Ok("a dashed id resolves the same as a dashless one",
        dashed != null && dashed.Contains("\"family\"", StringComparison.Ordinal));
 
-    // Bodies that are not a user. Returning null means "leave Jellyfin's bytes alone",
-    // which is the only safe answer on an endpoint every client depends on.
+    // Bodies that are not a user: null means "leave Jellyfin's bytes alone", the only safe
+    // answer on an endpoint every client depends on.
     Ok("an array is left alone", Run2("[{\"Name\":\"x\"}]") == null);
     Ok("a body with no id is left alone", Run2("{\"Name\":\"Bard_Family\"}") == null);
     Ok("something that is not JSON is left alone", Run2("<html>nope</html>") == null);
@@ -1166,14 +1130,11 @@ if (rewrite != null)
 Console.WriteLine();
 Console.WriteLine("-- The emergency disable reaches the rewriting ----------------");
 
-// Panic used to have one job: serve an inert client script. That covered everything while
-// all of Bonfire lived in that script. It does not now — the plugin edits Jellyfin's own
-// responses, and if one of those is what has gone wrong, an inert script recovers nothing.
-//
-// Asserted here rather than in tests/cs/pipeline because these two predicates also require
-// EnableClientProfileList, and that harness has no plugin to switch it on with: the
-// assertions read false there whether panic works or not. Here the setting is on, so panic
-// is the only thing that can be making the difference — which is the whole point.
+// Panic used to serve only an inert client script. That stopped being enough once the plugin
+// began editing Jellyfin's own responses: if one of those goes wrong, an inert script
+// recovers nothing. Asserted here rather than in tests/cs/pipeline because these predicates
+// also need EnableClientProfileList, which that harness cannot switch on, so they read false
+// there either way. Here the setting is on, so panic is the only thing deciding.
 var mw = asm.GetType("Jellyfin.Profiles.ProfilesIndexMiddleware", true);
 var pluginT = asm.GetType("Jellyfin.Profiles.Plugin", true);
 var panicField = pluginT.GetField("_panicDisabled", BindingFlags.Static | BindingFlags.NonPublic);
@@ -1193,8 +1154,8 @@ if (panicField != null && ownUser != null && publicUsers != null)
         return (bool)m.Invoke(null, new object[] { ctx });
     }
 
-    // The plugin created earlier in this file is Plugin.Instance, and its
-    // EnableClientProfileList is on — so without panic these are all true.
+    // The plugin created earlier in this file is Plugin.Instance with EnableClientProfileList
+    // on, so without panic these are all true.
     Ok("with the setting on, the user list is ours", Path(publicUsers, "GET", "/Users/Public"));
     Ok("and so is the own-user response", Path(ownUser, "GET", "/Users/Me"));
     Ok("and the authentication response", Path(ownUser, "POST", "/Users/AuthenticateByName"));
@@ -1250,10 +1211,10 @@ if (panicField != null && ownUser != null && publicUsers != null)
 Console.WriteLine();
 Console.WriteLine("── Why a profile goes missing from one television ──────────────");
 
-// Android TV, Roku and Wholphin show the users stored on the device and only ADD
-// /Users/Public on top, so when the injection does not happen - or loses one profile - the
-// one that vanishes is the profile that television never signed in as. These cases are
-// the ways that happened with nothing in the log.
+// Android TV, Roku and Wholphin show the users stored on the device and only add
+// /Users/Public on top, so when the injection does not happen or loses a profile, the one
+// that vanishes is the profile that television never signed in as. These cases are the ways
+// that happened with nothing in the log.
 {
     var xPlugin = pluginT.GetProperty("Instance").GetValue(null);
     var xCfgType = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
@@ -1517,8 +1478,8 @@ Console.WriteLine("── Why a profile goes missing from one television ──�
         Ok("and finishes as soon as the lock is free", run.Wait(5000));
 
         // A session with no account is not a sign-in. Jellyfin may raise SessionStarted for a
-        // request that has no user yet, and treating it as one noted the television's name as
-        // shared, which switches the Quick Connect skip off for that model.
+        // request with no user yet; treating it as one noted the television's name as shared,
+        // which switches the Quick Connect skip off for that model.
         var thePlugin = asm.GetType("Jellyfin.Profiles.Plugin", true)
             .GetProperty("Instance", BindingFlags.Public | BindingFlags.Static).GetValue(null);
         var theConfig = thePlugin.GetType().GetProperty("Configuration").GetValue(thePlugin);
@@ -1580,8 +1541,8 @@ public class StartedResponseFeature : Microsoft.AspNetCore.Http.Features.HttpRes
     public override bool HasStarted => true;
 }
 
-// IUserManager gains and loses members between patch releases, so it is proxied rather
-// than implemented — the same reason tests/cs/pipeline does it.
+// IUserManager gains and loses members between patch releases, so it is proxied rather than
+// implemented, as in tests/cs/pipeline.
 public class UserManagerStub : DispatchProxy
 {
     private Guid _id;
@@ -1607,9 +1568,8 @@ public class UserManagerStub : DispatchProxy
     {
         switch (targetMethod.Name)
         {
-            // Returns a non-null placeholder: the injector only checks it for null before
-            // asking for the DTO, and constructing a real User here would tie this harness
-            // to an entity shape that has moved twice.
+            // A non-null placeholder: the injector only null-checks it before asking for the DTO,
+            // and a real User would tie this harness to an entity shape that has moved twice.
             case "GetUserById":
                 return (Guid)args[0] == _id
                     ? System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
