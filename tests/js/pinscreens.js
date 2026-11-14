@@ -1,11 +1,13 @@
 /*
- * The maintenance screen, the Emergency disable dialog and the PIN reset screen on a phone and a tablet,
- * each element asked on its own:
+ * The maintenance screen, the Emergency disable dialog and the PIN reset screen on a phone
+ * and a tablet, each element asked on its own:
  *   - "Check again" and "Sign out" do not touch;
- *   - the Emergency disable dialog keeps a side margin and its code field is dressed like the other fields;
- *   - the PIN reset screen keeps the gutter the other screens do, and "New PIN" is as wide as "Code".
+ *   - the Emergency disable dialog keeps a side margin and its code field is dressed like
+ *     the other fields;
+ *   - the PIN reset screen keeps the gutter the other screens do, and "New PIN" is as wide
+ *     as "Code".
  *
- * Needs Chrome and the Material Icons font, like formfactors.js, and says it was skipped without them.
+ * Needs Chrome and the Material Icons font, like formfactors.js; skips without them.
  *
  *     node tests/js/pinscreens.js [/path/to/old/profiles.js]
  */

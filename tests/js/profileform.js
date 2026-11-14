@@ -1,20 +1,17 @@
 /*
  * The shared profile-form renderers (P5-9 to P5-15).
  *
- * Add Profile and Edit Profile were two functions copied from each other and then
- * edited apart — 213 identical normalised lines, ten runs of six or more. The copies
- * had already drifted, and the duplicated *comments* were the tell: the same sentence
- * about sending null rather than an empty array sat verbatim in both.
+ * Add Profile and Edit Profile were two functions copied from each other and edited apart:
+ * 213 identical normalized lines, ten runs of six or more. They had already drifted; the
+ * same sentence about sending null rather than an empty array sat verbatim in both.
  *
- * Merging them is only safe if the two modes still render what they each rendered
- * before, and no harness looked at that. This one does: it calls each renderer in both
- * modes and checks the differences that are supposed to exist, and the sameness that
- * is supposed to exist. A merge that quietly gave the create form the edit form's
- * behaviour would pass every other harness in the suite.
+ * Merging is safe only if each mode still renders what it did before, and no harness
+ * looked at that. This one calls each renderer in both modes and checks the differences
+ * that should exist and the sameness that should exist. A merge that gave the create form
+ * the edit form's behavior would pass every other harness.
  *
- * Against a pre-merge build this fails structurally — the renderers do not exist there.
- * Say so rather than calling it a bisect. What it does catch is the next edit to one
- * mode that was meant to apply to both.
+ * Against a pre-merge build this fails structurally (the renderers do not exist there),
+ * so it is not a bisect. It catches the next edit to one mode that was meant for both.
  *
  *   node tests/js/profileform.js [path/to/profiles.js]
  */
@@ -104,8 +101,8 @@ console.log('── devices: what differs between the modes, and what must not �
 const dCreate = P.renderDeviceDropdown('create', DEVICES, null);
 const dEdit = P.renderDeviceDropdown('edit', DEVICES, PROFILE);
 
-// Both forms can be in the document at once, so create prefixes its ids. Duplicate
-// ids would make getElementById a coin toss.
+// Both forms can be in the document at once, so create prefixes its ids; duplicate ids
+// would make getElementById a coin toss.
 ok('create prefixes its element ids', dCreate.indexOf('id="create-devices-dropdown-trigger"') !== -1);
 ok('edit does not', dEdit.indexOf('id="devices-dropdown-trigger"') !== -1);
 ok('and the two never collide',
@@ -120,13 +117,13 @@ ok('and leaves the others alone', !/value="bbb"[^>]*checked/.test(dEdit));
 ok('create ticks nothing', dCreate.indexOf('checked') === -1);
 
 // Rename, merge and forget change a device for the whole household, so since 1.7.2 they
-// live in Settings → Your account (tests/js/accountsettings.js). A profile only ticks.
+// live in Settings > Your account (tests/js/accountsettings.js). A profile only ticks.
 for (const tool of ['jpf-device-delete-btn', 'jpf-device-rename-btn', 'jpf-device-merge-btn', 'devices-tidy-btn']) {
     ok('neither form offers ' + tool, dEdit.indexOf(tool) === -1 && dCreate.indexOf(tool) === -1);
 }
 
-// Both spellings, because the list can arrive as the plugin's camelCase JSON or
-// straight off a Jellyfin DTO.
+// Both spellings: the list can arrive as the plugin's camelCase JSON or straight off a
+// Jellyfin DTO.
 ok('a PascalCase device is rendered too', dEdit.indexOf('Phone') !== -1);
 ok('and so is its client', dEdit.indexOf('Android') !== -1);
 
@@ -150,8 +147,8 @@ console.log('── rating: five options, and the right one preselected ──�
 const rCreate = P.renderRatingSelect('create', null);
 const rEdit = P.renderRatingSelect('edit', 14);
 
-// Counted, because an option added to one copy and not the other is exactly the drift
-// this merge removes — and there is only one copy now to count.
+// Counted, because an option added to one copy and not the other is the drift this merge
+// removes; there is only one copy now.
 ok('five options in create', (rCreate.match(/<option/g) || []).length === 5);
 ok('five options in edit', (rEdit.match(/<option/g) || []).length === 5);
 ok('create preselects "no restrictions"', /<option value="" selected/.test(rCreate));
@@ -160,9 +157,9 @@ ok('and only that one', (rEdit.match(/selected/g) || []).length === 1);
 ok('ids are prefixed per mode',
     rCreate.indexOf('id="create-rating-select"') !== -1
     && rEdit.indexOf('id="edit-rating-select"') !== -1);
-// null and undefined both mean "unset"; a profile that has never had a rating set
-// arrives as undefined, and treating that as "no option selected" would silently
-// clear the rating on the next save.
+// null and undefined both mean "unset"; a profile never given a rating arrives as
+// undefined, and reading that as "no option selected" would clear the rating on the next
+// save.
 ok('an undefined rating selects "no restrictions" too',
     /<option value="" selected/.test(P.renderRatingSelect('edit', undefined)));
 
@@ -179,8 +176,8 @@ ok('both editors share one suggestions list per mode',
     (tCreate.match(/create-tag-suggestions/g) || []).length >= 3);
 ok('and the modes do not share ids',
     tCreate.indexOf('edit-tag-suggestions') === -1);
-// An allow-list is subtractive: naming one tag hides everything without it. That
-// warning existing in only one of two copies is the drift this merge removes.
+// An allow-list is subtractive: naming one tag hides everything without it. That warning
+// in only one of two copies is the drift this merge removes.
 ok('the allowed-tags warning is present in both',
     tCreate.indexOf('jpf-form-hint-warn') !== -1 && tEdit.indexOf('jpf-form-hint-warn') !== -1);
 
@@ -200,9 +197,9 @@ ok('the allowed-tags hint exists once',
 console.log();
 console.log('── the server\'s placeholder device labels are translated ─────────');
 
-// The server names three English placeholders and sends a code beside each. The
-// table is rewritten to marked text so the test can tell "translated by the client"
-// from "the server's English passed through".
+// The server names three English placeholders and sends a code beside each. The table is
+// rewritten to marked text so the test can tell "translated by the client" from "the
+// server's English passed through".
 {
     const marked = runnable
         .replace("'profileForm.deviceUnrecognised': 'Unrecognized device'", "'profileForm.deviceUnrecognised': 'ZZ-unrecognised'")

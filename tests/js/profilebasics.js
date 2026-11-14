@@ -1,9 +1,9 @@
 // The profile forms as Basics plus a closed "More settings", and the Kids preset (1.7.2).
 //
 // Runs the real showAddProfileModal and showEditProfileModal against a stub DOM, reads
-// back where each control was drawn, then submits and reads what was sent. The point of
-// the second half: a setting tucked into a closed <details> must still be sent with its
-// value, or every new profile would silently lose its auto-lock and home-network choice.
+// back where each control was drawn, then submits and reads what was sent. The second
+// half matters because a setting in a closed <details> must still be sent with its value,
+// or every new profile would lose its auto-lock and home-network choice.
 //
 // Red against 1.7.1, which drew every control in four open sections and had no preset.
 //
@@ -60,7 +60,7 @@ function halves(html) {
 const has = (part, id) => part.indexOf('id="' + id + '"') !== -1;
 
 (async () => {
-    // ── 1. The Kids preset, on its own ──────────────────────────────────────────────
+    // -- 1. The Kids preset, on its own --------------------------------------------
     console.log('\n── The Kids preset ─────────────────────────────────────────────');
 
     const from = typeof PP.kidsRatingFrom === 'function' ? PP.kidsRatingFrom.bind(PP) : null;
@@ -90,8 +90,8 @@ const has = (part, id) => part.indexOf('id="' + id + '"') !== -1;
     for (const id of ['create-lockout-select', 'create-local-bypass-checkbox', 'create-theme-select']) {
         ok('More has ' + id, has(h.more, id) && !has(h.basics, id));
     }
-    // Moved out of More by the owner's decision (P2-605): keeping a child to one device is
-    // the common parental task.
+    // Moved out of More by the owner (P2-605): keeping a child to one device is the common
+    // parental task.
     ok('Basics has the allowed devices, More does not',
         has(h.basics, 'create-devices-dropdown-trigger') && !has(h.more, 'create-devices-dropdown-trigger'));
     ok('More has the tags', /create-blocked-tags/.test(h.more) && !/create-blocked-tags/.test(h.basics));

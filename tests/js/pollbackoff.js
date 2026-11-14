@@ -1,13 +1,13 @@
 /*
- * What the 500 ms route poll sends to a server that is slow or failing, and what one
- * resize costs it afterwards.
+ * What the 500 ms route poll sends to a server that is slow or failing, and what one resize
+ * costs it afterwards.
  *
  * routetick.js measures the synchronous DOM work of an unchanged tick with a fetch that
- * never answers and nothing else. That cannot see the poll's network behaviour, which is
- * where four defects sat (beta 9 review):
+ * never answers. That cannot see the poll's network behavior, where four defects sat
+ * (beta 9 review):
  *
  *   R-1183  Users page: a failed admin/mappings fetch reset its guard, so the next tick
- *           asked again — a request every 500 ms for as long as the page stayed open.
+ *           asked again, every 500 ms while the page stayed open.
  *   R-1190  Home with the gate due: every tick sent its own /list until the gate existed,
  *           and every failure forgot the saved master, even on a 500 or a network blip.
  *   R-1242  The button's prefetch cleared its pending flag on failure with no pause, and
@@ -15,7 +15,7 @@
  *   R-1241  A resize marked the corner pill dirty and only the pill path cleared it, so on
  *           a theme whose geometric header search finds an anchor the walk re-ran forever.
  *
- * Ticks are counted, not timed: the clock is fake and only moves when this file moves it,
+ * Ticks are counted, not timed: the clock is fake and moves only when this file moves it,
  * so "at most one request in 20 ticks" means exactly that.
  *
  *     node tests/js/pollbackoff.js /path/to/old/profiles.js
@@ -261,7 +261,7 @@ function prefetchEnv(fetchImpl) {
 {
     const env = prefetchEnv(rejects);
     // Called directly as well as through the tick: whether the tick reaches it depends on
-    // the bubble's placement, which is not what is under test here.
+    // the bubble's placement, which is not under test here.
     for (let i = 0; i < 20; i++) { env.plugin.checkRoute(); env.plugin._prefetchProfiles(); await flush(); }
     ok('a failing prefetch sends one /list in 20 ticks (' + env.count('plugins/profiles/list') + ')',
        env.count('plugins/profiles/list') === 1);
@@ -285,8 +285,8 @@ function prefetchEnv(fetchImpl) {
 
 console.log('\n── R-1247: a prefetch in flight when the cache is invalidated ───');
 {
-    // The list request is out; an edit invalidates the cache; the pre-edit answer then lands.
-    // It must not be written back over the invalidated cache.
+    // The list request is out; an edit invalidates the cache; the pre-edit answer then
+    // lands and must not be written back over it.
     let release = null;
     const slow = () => new Promise(resolve => {
         release = () => resolve({ ok: true, status: 200, json: () => Promise.resolve([{ profileUserId: 'old', profileName: 'Before the edit' }]) });

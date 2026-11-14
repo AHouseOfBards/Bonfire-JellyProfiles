@@ -6,7 +6,7 @@
  * cannot tell "gone" from "bad input" if the code depends on the route.
  *
  * Pairwise: every `return <Result>("Profile not found.")` in the controllers is listed and
- * each one must be NotFound.
+ * must be NotFound.
  *
  *   node tests/js/profile404.js [path-to-Controllers-dir]
  */

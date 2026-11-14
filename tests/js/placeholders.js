@@ -1,12 +1,11 @@
 /*
- * Placeholder text, measured in a real browser. A field's ::placeholder had no rule of its own,
- * so every theme showed the browser's default grey, which on a dark or tinted field fell under
- * 4.5:1 (the PIN field in the profile form, the code field on Sharing).
+ * Placeholder text, measured in a real browser. A field's ::placeholder had no rule, so
+ * every theme showed the browser's default grey, under 4.5:1 on a dark or tinted field
+ * (the PIN field in the profile form, the code field on Sharing).
  *
- * Asked of each empty field on its own, in every theme: the computed ::placeholder colour,
- * composited over the field's own background and the layers behind it, against 4.5:1. Fields
- * whose placeholder is a single space are the PIN boxes, which draw their own dots, and are
- * not text anyone reads.
+ * Each empty field, in every theme: the computed ::placeholder colour, composited over the
+ * field's background and the layers behind it, against 4.5:1. Fields whose placeholder is
+ * a single space are the PIN boxes, which draw their own dots; nobody reads them.
  *
  *     node tests/js/placeholders.js [/path/to/old/profiles.js]
  */
@@ -32,7 +31,7 @@ function themes() {
         .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')).id).sort();
 }
 
-// Runs in the page: the colours only. The arithmetic is below, where it can be read.
+// Runs in the page: colours only. The arithmetic is below.
 const MEASURE = `(function () {
   var out = [];
   [].slice.call(document.querySelectorAll('input, textarea')).forEach(function (e) {
@@ -78,8 +77,8 @@ async function main() {
             const fields = await c.evaluate(MEASURE);
             if (process.env.PROBE) console.log(where, JSON.stringify(fields));
             fields.forEach(f => {
-                // Behind everything is the page, which a gate paints over; white is the worst
-                // case for a light placeholder and the browser's own fallback.
+                // Behind everything is the page, which a gate paints over; white is the
+                // worst case for a light placeholder and the browser's fallback.
                 let bg = { r: 255, g: 255, b: 255, a: 1 };
                 for (let i = f.layers.length - 1; i >= 0; i--) { const l = parse(f.layers[i]); if (l && l.a > 0) bg = over(l, bg); }
                 const fg = over(parse(f.color), bg);
