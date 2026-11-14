@@ -8,31 +8,30 @@ using Jellyfin.Profiles.Configuration;
 namespace Jellyfin.Profiles.Auth
 {
     /// <summary>
-    /// The addresses an administrator has said are a household's own (issue #42: a parent's
-    /// house the server is not in). Each entry is an address or range plus the main accounts
-    /// it is for. Off while there are no entries.
+    /// The addresses an administrator has said are a household's own (issue #42: a parent's house
+    /// the server is not in). Each entry is an address or range plus the main accounts it is for.
+    /// Off while there are no entries.
     ///
-    /// <para><b>What it feeds.</b> <c>CanSkipPin</c>, and only for a household an entry names:
-    /// from that address its main account and its profiles open without a PIN, whatever
-    /// the household chose for "No PIN on the server's network". It is not "local": the
-    /// cross-household bypass, the "seen at home" memory and the device records never read
-    /// it. It never reaches an administrator account (checked where it is used, because rights
-    /// change after an entry is saved), a switch into another household, an account no entry
-    /// names, or the main PIN that guards changing household settings.</para>
+    /// <para><b>What it feeds.</b> <c>CanSkipPin</c>, only for a household an entry names: from
+    /// that address its main account and profiles open without a PIN, whatever the household chose
+    /// for "No PIN on the server's network". It is not "local": the cross-household bypass, the
+    /// "seen at home" memory and the device records never read it. It never reaches an
+    /// administrator account (checked where used, because rights change after an entry is saved),
+    /// a switch into another household, an account no entry names, or the main PIN that guards
+    /// household settings.</para>
     ///
     /// <para><b>Fixed limits, not settings.</b> A looser value lets a stranger past a PIN, so an
-    /// administrator can only be stricter:
-    /// at most <see cref="MaxEntries"/> entries, and no range wider than /16 for IPv4 or /48
-    /// for IPv6. A /16 is 65,536 addresses, already more than any one household has; /48 is the
-    /// smallest block an ISP routinely hands to a single customer, and a /64 is what a home
-    /// network is given. A /0 or /8 typed by mistake would trust a large part of the internet.</para>
+    /// administrator can only be stricter: at most <see cref="MaxEntries"/> entries, and no range
+    /// wider than /16 for IPv4 or /48 for IPv6. A /16 is 65,536 addresses, more than any household
+    /// has; /48 is the smallest block an ISP routinely gives one customer, and a /64 is a home
+    /// network. A /0 or /8 typed by mistake would trust much of the internet.</para>
     ///
     /// <para><b>Strict parsing.</b> <see cref="IPAddress.TryParse(string, out IPAddress)"/> accepts
-    /// "1", "10.1", "0x7f.1" and a leading zero as octal; each of those is an address nobody
-    /// meant. Only dotted decimal with four parts, no leading zeros, and colon-form IPv6
-    /// without a zone are taken. An IPv4-mapped IPv6 entry is refused (write it as IPv4);
-    /// the same mapped form arriving on a request is turned back into IPv4 before the
-    /// comparison, so a dual-stack socket cannot hide a trusted address nor smuggle one.</para>
+    /// "1", "10.1", "0x7f.1" and a leading zero as octal, none of which anyone meant. Only dotted
+    /// decimal with four parts and no leading zeros, and colon-form IPv6 without a zone, are
+    /// taken. An IPv4-mapped IPv6 entry is refused (write it as IPv4); the same form arriving on a
+    /// request is turned back into IPv4 before comparison, so a dual-stack socket cannot hide a
+    /// trusted address or smuggle one.</para>
     /// </summary>
     public static class TrustedAddresses
     {
@@ -46,9 +45,8 @@ namespace Jellyfin.Profiles.Auth
         public const int MinPrefixV6 = 48;
 
         /// <summary>
-        /// Reads one entry: an address, or an address and a prefix length ("203.0.113.0/24").
-        /// On success <paramref name="canonical"/> is the network written back in full, with
-        /// the host bits cleared.
+        /// Reads one entry: an address, or an address and a prefix length ("203.0.113.0/24"). On
+        /// success <paramref name="canonical"/> is the network written in full, host bits cleared.
         /// </summary>
         public static bool TryParse(string? text, out byte[] network, out int prefix, out string canonical, out string? error)
         {
@@ -158,11 +156,11 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The entries that are valid, the address written in full, once each, no more than
+        /// The valid entries, addresses written in full, once each, at most
         /// <see cref="MaxEntries"/>. For a backup file: a restore keeps what it can and never
-        /// widens past the limits. Whether an account still exists, or is now an administrator,
-        /// is not asked here but every time an address is used (<see cref="Applies"/>), so a
-        /// file from another server can only name accounts that fail closed.
+        /// widens past the limits. Whether an account exists or is now an administrator is asked
+        /// each time an address is used (<see cref="Applies"/>), so a file from another server can
+        /// only name accounts that fail closed.
         /// </summary>
         public static List<TrustedAddressEntry> Normalize(IEnumerable<TrustedAddressEntry>? entries)
         {
@@ -183,12 +181,12 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Whether <paramref name="address"/>, the one Jellyfin resolved after its known
-        /// proxies, is a listed address that names <paramref name="household"/>, and
-        /// neither that main account nor <paramref name="account"/> (the one being opened) is an
-        /// administrator. False for no list, no address, or an entry that no longer parses
-        /// (a hand-edited file); never throws. <paramref name="isAdministrator"/> is asked
-        /// only after an entry matched, so the feature costs nothing while it is off.
+        /// Whether <paramref name="address"/>, as Jellyfin resolved it after its known proxies, is
+        /// a listed address that names <paramref name="household"/>, and neither that main account
+        /// nor <paramref name="account"/> (the one being opened) is an administrator. False for no
+        /// list, no address, or an entry that no longer parses (a hand-edited file); never throws.
+        /// <paramref name="isAdministrator"/> is asked only after an entry matched, so the feature
+        /// costs nothing while off.
         /// </summary>
         public static bool Applies(
             PluginConfiguration? config, IPAddress? address, Guid household, Guid account, Func<Guid, bool> isAdministrator)
@@ -226,9 +224,9 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Whether the account carries administrator rights, answering yes when it cannot
-        /// tell (no such user, a failed lookup): here a wrong yes costs one PIN, a wrong
-        /// no lets an administrator in without one.
+        /// Whether the account carries administrator rights, yes when it cannot tell (no such
+        /// user, a failed lookup): a wrong yes costs one PIN, a wrong no lets an administrator in
+        /// without one.
         /// </summary>
         public static bool IsAdministrator(MediaBrowser.Controller.Library.IUserManager? users, Guid userId)
         {
