@@ -12,54 +12,28 @@ namespace Jellyfin.Profiles.Auth
     /// <summary>
     /// Bonfire's own record of which household a device belongs to.
     ///
-    /// <para><b>Why we keep one at all.</b> Jellyfin already tracks devices, and
-    /// <c>IDeviceManager</c> looked like the obvious place to ask "who uses this
-    /// television". It is not, because a <c>Device</c> row belongs to a <i>session</i>
-    /// rather than to a device:</para>
+    /// <para>Jellyfin's <c>IDeviceManager</c> cannot answer "who uses this television", because a
+    /// <c>Device</c> row belongs to a session, not a device. <c>SessionManager.Logout</c> deletes it,
+    /// and Android TV's "Switch account" destroys the session before it opens the picker. So the
+    /// action that opens the picker deletes the evidence the picker needs. 1.6.1.4 through 1.6.1.6
+    /// were built on <c>IDeviceManager</c> and could not work on that client.</para>
     ///
-    /// <code>
-    /// public async Task Logout(Device device)          // SessionManager
-    /// {
-    ///     await _deviceManager.DeleteDevice(device).ConfigureAwait(false);
-    /// </code>
+    /// <para>This is not a new store. <see cref="PluginConfiguration.KnownDevices"/> already held
+    /// a device id, an owning master and a last-seen stamp. What it lacked was a writer a television
+    /// reaches, since both call sites were authenticated Bonfire routes that only the web switcher
+    /// calls. <see cref="BonfireSessionListener"/> is that writer.</para>
     ///
-    /// <para>and Android TV's "Switch account" destroys the session <b>before</b> it opens
-    /// the picker:</para>
-    ///
-    /// <code>
-    /// sessionRepository.destroyCurrentSession()
-    /// activity?.startActivity(ActivityDestinations.startup(activity))
-    /// </code>
-    ///
-    /// <para>So the exact action that opens the picker deletes the evidence the picker
-    /// needs. 1.6.1.4 through 1.6.1.6 shipped against <c>IDeviceManager</c> and could never
-    /// have worked on the client they were built for. Ours survives a sign-out precisely
-    /// because it is not a session artefact.</para>
-    ///
-    /// <para><b>This is not a new store.</b> <see cref="PluginConfiguration.KnownDevices"/>
-    /// has held exactly this — a device id, an owning master, a last-seen stamp — since the
-    /// device-restrictions work, along with pruning and a dashboard row an administrator can
-    /// delete. What it lacked was a writer a television ever reaches: both call sites were
-    /// authenticated Bonfire routes, which only the web switcher calls, so the map was
-    /// populated exclusively by the one client that had no use for it. See
-    /// <see cref="BonfireSessionListener"/>, which is the writer that fixes that.</para>
-    ///
-    /// <para><b>Not a security boundary, but not nothing.</b> A device id is client-supplied.
-    /// Forging one reveals a household's profile <i>names</i> and makes the forger eligible to
-    /// try that household's PINs from there (the device list and the PIN tries both key on
-    /// it). Entry still needs the PIN, which is rate-limited, and library and rating
-    /// enforcement is server-side regardless.</para>
+    /// <para>Not a security boundary. A device id is client-supplied. Forging one reveals a
+    /// household's profile names and lets the forger try that household's PINs from there. Entry still
+    /// needs the PIN, which is rate-limited, and library and rating enforcement is server-side.</para>
     /// </summary>
     public static class DeviceRegistry
     {
         /// <summary>
-        /// The master account a device belongs to, or <see cref="Guid.Empty"/> if we have no
-        /// usable record of it.
-        /// <para>
-        /// Records written before <c>MasterUserId</c> existed carry <c>Guid.Empty</c>, and
-        /// those identify nobody — returning them would hand whichever household asked first
-        /// a device that might belong to another.
-        /// </para>
+        /// The master account a device belongs to, or <see cref="Guid.Empty"/> if we have no usable
+        /// record of it. Records written before <c>MasterUserId</c> existed carry <c>Guid.Empty</c> and
+        /// identify nobody; returning them would give the first household to ask a device that might be
+        /// another's.
         /// </summary>
         public static Guid FindMaster(PluginConfiguration? config, string? deviceId)
         {
@@ -68,47 +42,30 @@ namespace Jellyfin.Profiles.Auth
                 return Guid.Empty;
             }
 
-            // Trimmed on both sides. The stored id is trimmed at the door by Record, and an
-            // id arriving with a stray space is a different string to every ordinal
+            // Trimmed on both sides: an id with a stray space is a different string to every ordinal
             // comparison in the plugin.
             var wanted = deviceId.Trim();
 
             var exact = Lookup(config, wanted);
             if (exact != Guid.Empty) return exact;
 
-            // ── one television, two device ids ───────────────────────────────────────
+            // One television, two device ids. This made 1.6.1.7 useless. Some clients derive a per-user
+            // device id once somebody is signed in and send the plain one when nobody is, which is the
+            // sign-in screen we are answering.
             //
-            // This is what made 1.6.1.7 useless while recording perfectly. Some clients
-            // derive a PER-USER device id once somebody is signed in, and send the plain
-            // one when nobody is — which is exactly the sign-in screen we are answering.
+            // Jellyfin Android TV (SessionRepository.setCurrentSession) uses
+            // id = SHA-1("${id}+$user") as lowercase hex. A production log from 2026-09-10 confirms it:
+            // sha1("9a6dae35cc29c74f" + "+" + "8615867e-3617-4ad3-8d62-639b3bdc1305") was the id the session
+            // carried, while the picker asked about "9a6dae35cc29c74f". Jellyfin for Android appends the
+            // user id with no separator.
             //
-            // Jellyfin Android TV, SessionRepository.setCurrentSession:
+            // A hash cannot be reversed, so the derivation is applied forwards: for every account Bonfire
+            // knows, work out what this device's id would be had that account signed in, and look for that.
+            // A sign-in screen is opened by hand, so this is not on a hot path.
             //
-            //     val deviceInfo = session?.let { defaultDeviceInfo.forUser(it.userId) }
-            //         ?: defaultDeviceInfo
-            //
-            //     fun DeviceInfo.forUser(user: String): DeviceInfo = copy(
-            //         id = SHA-1("${id}+$user") as lowercase hex)
-            //
-            // Verified against a production log from 2026-09-10:
-            // sha1("9a6dae35cc29c74f" + "+" + "8615867e-3617-4ad3-8d62-639b3bdc1305")
-            //   == "7629ac2570f4154e81c8ce3f99a6d4764eb7e734", the id the session carried,
-            // while the picker asked about "9a6dae35cc29c74f".
-            //
-            // Jellyfin for Android appends instead of hashing, no separator - the same log
-            // shows both "6044d6840404e4e8" and that id with the household guid glued on.
-            //
-            // A hash cannot be reversed, so the derivation is applied FORWARDS: for every
-            // account Bonfire knows, work out what this device's id would have become had
-            // that account signed in on it, and look for that. Bounded by the number of
-            // Bonfire users rather than the server's, and a sign-in screen is opened by
-            // hand — this is not on any hot path.
-            //
-            // EVERY derivation is tried and the most recently seen record wins. It used to
-            // return the first match in Mappings order, which on a television two households
-            // have both signed in on meant the older household's profiles whenever it was
-            // configured first - while the comment in PublicUserInjector promised "most
-            // recent".
+            // Every derivation is tried and the most recently seen record wins. It used to return the first
+            // match in Mappings order, so a television two households had used showed the older household's
+            // profiles.
             KnownDevice? best = null;
             void Consider(string id)
             {
@@ -128,11 +85,10 @@ namespace Jellyfin.Profiles.Auth
                 Consider(Sha1Hex(wanted + "+" + suffix));
             }
 
-            // Jellyfin Android TV signs in through sha1(id + "+" + the name typed), and the
-            // name typed is the one the sign-in screen showed: the household's name for the
-            // profile. The session that sign-in starts is recorded under that id, so a
-            // television whose later, account-derived session was never recorded is still
-            // placed by it.
+            // Jellyfin Android TV signs in through sha1(id + "+" + the name typed), and the name typed is
+            // the one the sign-in screen showed: the household's name for the profile. The session that
+            // starts is recorded under that id, so a television whose later account-derived session was
+            // never recorded is still placed by it.
             foreach (var name in HouseholdNames(config))
             {
                 Consider(Sha1Hex(wanted + "+" + name));
@@ -142,30 +98,20 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The recorded device a sign-in came from, when the client built the id it signed
-        /// in with out of the <i>name being signed in as</i> — or the id as sent, otherwise.
+        /// The recorded device a sign-in came from, when the client built its id from the name being
+        /// signed in as. Otherwise the id as sent.
         ///
-        /// <para><b>Why.</b> Jellyfin Android TV signs in by name through a one-off device id:</para>
+        /// <para>Jellyfin Android TV signs in by name through a one-off id,
+        /// <c>defaultDeviceInfo.forUser(username)</c>, so choosing "Family" on a television whose id is
+        /// <c>9a6dae35cc29c74f</c> signs in as <c>sha1("9a6dae35cc29c74f+Family")</c>. That id is not
+        /// on record when it is checked (the session it starts is recorded afterwards), and it comes from
+        /// a name, so neither <see cref="FindMaster"/> nor <see cref="IsSameDevice"/> could place it.
+        /// 1.6.3.3 refused every profile chosen from an Android TV sign-in screen. Taken from a production
+        /// log (2026-10-02).</para>
         ///
-        /// <code>
-        /// // AuthenticationRepository.authenticateCredential
-        /// jellyfin.createApi(server.address, deviceInfo = defaultDeviceInfo.forUser(username))
-        /// // forUser(user: String) = copy(id = SHA-1("${id}+$user") as lowercase hex)
-        /// </code>
-        ///
-        /// <para>So choosing the "Family" card on a television whose id is
-        /// <c>9a6dae35cc29c74f</c> signs in as <c>sha1("9a6dae35cc29c74f+Family")</c> — an id
-        /// not on record at the moment it is checked (the session it starts is recorded
-        /// afterwards, once the sign-in succeeds), derived from a <i>name</i> rather than an
-        /// account id, so neither <see cref="FindMaster"/>'s forward derivation nor
-        /// <see cref="IsSameDevice"/> could place it. 1.6.3.3 refused every profile chosen from an Android TV sign-in screen
-        /// with "no household has signed in on" this device. Taken from a production log
-        /// (2026-10-02), where the television had listed that household seconds earlier.</para>
-        ///
-        /// <para>Applied backwards from the records: for every device a household has signed
-        /// in on, what would its id be had this name been typed on it? One hash per recorded
-        /// device, on a sign-in — not on any hot path. Only a 40-character hex id can be a
-        /// SHA-1, so anything else is returned untouched without hashing at all.</para>
+        /// <para>Applied backwards from the records: for each device a household has signed in on, what
+        /// would its id be had this name been typed on it? One hash per recorded device, on a sign-in
+        /// only. Only a 40-character hex id can be a SHA-1, so anything else is returned without hashing.</para>
         /// </summary>
         public static string? ResolveSignInDevice(PluginConfiguration? config, string? deviceId, string? username)
         {
@@ -177,18 +123,14 @@ namespace Jellyfin.Profiles.Auth
 
             if (sent.Length != 40 || !sent.All(Uri.IsHexDigit)) return sent;
 
-            // The television's plain id is the one thing that would let us check this hash —
-            // and it is not recorded (the session THIS sign-in starts is recorded under the
-            // hash by the session listener, but only once the sign-in has succeeded, after
-            // this check). Android TV sends the plain id from its sign-in screen only:
-            // signing in uses the name-derived id above, and the session afterwards uses
-            // sha1(id + "+" + accountId), which is what the session listener writes down.
-            // 1.6.3.4 searched the records alone and so could never succeed on a real set.
-            // The sign-in screen's own request is where the plain id is seen, so those are
-            // remembered (NoteSignInScreen) and tried first; the records second.
+            // The plain id is the one thing that would let us check this hash, and it is not recorded:
+            // the session this sign-in starts is recorded under the hash, but only after the sign-in
+            // succeeds. Android TV sends the plain id from its sign-in screen only. 1.6.3.4 searched the
+            // records alone and could never succeed on a real set. So the sign-in screen's own request is
+            // remembered (NoteSignInScreen) and tried first, the records second.
             var candidates = RecentSignInScreens()
-                // Aliases too: MergeSameDevices can fold the set's own id into one of its
-                // derived ids, and that alias is then the only place the plain id is kept.
+                // Aliases too: MergeSameDevices can fold the set's own id into a derived id, and then the
+                // alias is the only place the plain id is kept.
                 .Concat(config.KnownDevices.ToList()
                     .Where(r => r.MasterUserId != Guid.Empty)
                     .SelectMany(r => new[] { r.DeviceId }.Concat(r.Aliases ?? new List<string>()))
@@ -208,27 +150,26 @@ namespace Jellyfin.Profiles.Auth
             return sent;
         }
 
-        // ── sign-in screens recently seen ────────────────────────────────────────────
+        // Sign-in screens recently seen
 
         /// <summary>
-        /// Plain device ids whose sign-in screen was recently answered with a household's
-        /// profiles, and when. In memory only: this is evidence for the sign-in that follows a
-        /// list, seconds later, not a record. Bounded, and old entries lapse.
+        /// Plain device ids whose sign-in screen was recently answered with a household's profiles, and
+        /// when. In memory only: evidence for the sign-in that follows the list, not a record. Bounded,
+        /// and old entries lapse.
         /// </summary>
         private static readonly ConcurrentDictionary<string, DateTime> _signInScreens =
             new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>How long a sign-in screen is remembered. A set left on the PIN field
-        /// overnight asks for the list again when it wakes.</summary>
+        /// <summary>How long a sign-in screen is remembered. A set left on the PIN field overnight
+        /// asks for the list again when it wakes.</summary>
         internal static readonly TimeSpan SignInScreenMemory = TimeSpan.FromHours(12);
 
         internal const int MaxSignInScreens = 512;
 
         /// <summary>
-        /// Notes that this device's sign-in screen was offered a household's profiles. Called
-        /// by <see cref="PublicUserInjector.ResolveHousehold"/> once it has placed the device
-        /// in a household — never for a device it could not place, so a stranger's request
-        /// adds nothing a sign-in could use.
+        /// Notes that this device's sign-in screen was offered a household's profiles. Called by
+        /// <see cref="PublicUserInjector.ResolveHousehold"/> once it has placed the device, never for one
+        /// it could not place, so a stranger's request adds nothing a sign-in could use.
         /// </summary>
         public static void NoteSignInScreen(string? deviceId)
         {
@@ -265,27 +206,23 @@ namespace Jellyfin.Profiles.Auth
         internal static void ForgetSignInScreens() => _signInScreens.Clear();
 
         /// <summary>
-        /// Whether two device ids are one television, by the three derivations the clients
-        /// this plugin supports apply to their own id once somebody is signed in.
+        /// Whether two device ids are one television, by the three derivations the supported clients
+        /// apply to their own id once somebody is signed in.
         ///
-        /// <para><b>Why device restrictions need this.</b> A television sends its bare id from
-        /// its sign-in screen and a derived one afterwards, and Jellyfin starts a session
-        /// under each — so one television is two rows in the device list, both named after
-        /// the set. A profile restricted to "the living-room TV" by ticking the signed-in row
-        /// was hidden from that television's sign-in screen and refused there, because the
-        /// screen asks with the bare id and the check compared ids exactly.
-        /// <see cref="FindMaster"/> had always known the derivations; the restriction check
-        /// did not.</para>
+        /// <para>A television sends its bare id from its sign-in screen and a derived one afterwards, and
+        /// Jellyfin starts a session under each, so one television is two rows in the device list. A
+        /// profile restricted to "the living-room TV" by ticking the signed-in row was hidden from that
+        /// television's sign-in screen, which asks with the bare id, because the check compared ids
+        /// exactly.</para>
         ///
-        /// <para>Applied in both directions, over <paramref name="householdMembers"/> only:
-        /// the derivation is over whoever is signed in, which for a restricted profile's
-        /// television is somebody in that profile's household.</para>
+        /// <para>Applied in both directions, over <paramref name="householdMembers"/> only: the
+        /// derivation is over whoever is signed in, which for a restricted profile's television is
+        /// somebody in that profile's household.</para>
         ///
-        /// <para><b>Roku</b> appends a <i>name</i>, which is not in the configuration in every
-        /// form Roku uses (see <see cref="BareDeviceIdFor"/>). So a Roku pair is accepted only
-        /// when both ids are on record for the same household — the session listener records
-        /// the bare id beside the appended one for exactly this reason — and one is the other
-        /// plus a suffix Roku could have written.</para>
+        /// <para>Roku appends a name that is not in the configuration in every form Roku uses (see
+        /// <see cref="BareDeviceIdFor"/>). A Roku pair is accepted only when both ids are on record for
+        /// the same household (the session listener records the bare id beside the appended one for this)
+        /// and one is the other plus a suffix Roku could have written.</para>
         /// </summary>
         public static bool IsSameDevice(
             string? a,
@@ -307,10 +244,9 @@ namespace Jellyfin.Profiles.Auth
                 if (DerivedFrom(x, y, suffix) || DerivedFrom(y, x, suffix)) return true;
             }
 
-            // The id Android TV signs in with: sha1(bare + "+" + the name typed). The session
-            // that sign-in starts is recorded under it, so it is a row an administrator can
-            // tick - and then the sign-in screen, which asks with the bare id, was filtered
-            // out of its own profile because only account ids were tried above.
+            // The id Android TV signs in with: sha1(bare + "+" + the name typed). The session that
+            // sign-in starts is recorded under it, so an administrator can tick it, and the sign-in screen,
+            // which asks with the bare id, was then filtered out of its own profile.
             foreach (var name in memberNames ?? Enumerable.Empty<string>())
             {
                 if (string.IsNullOrWhiteSpace(name)) continue;
@@ -326,16 +262,15 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Whether <paramref name="other"/> is an id the device that sent
-        /// <paramref name="sent"/> has used, under any account Bonfire knows (issue #41).
+        /// Whether <paramref name="other"/> is an id the device that sent <paramref name="sent"/> has
+        /// used, under any account Bonfire knows (issue #41).
         ///
-        /// <para><see cref="IsSameDevice"/> relates a bare id to its derivations. This also
-        /// relates two derivations of one bare id to each other: Jellyfin for Android sends
-        /// <c>base + mainId</c> from the picker and <c>base + profileId</c> once the page has
-        /// reloaded into the profile, and neither is derived from the other. So the bare id is
-        /// recovered first, by stripping a known account id from the end (Android appends,
-        /// which is reversible), and every derivation is then compared against that. A SHA-1
-        /// id (Android TV) cannot be stripped, but it still matches its own bare id here.</para>
+        /// <para><see cref="IsSameDevice"/> relates a bare id to its derivations. This also relates two
+        /// derivations of one bare id: Jellyfin for Android sends <c>base + mainId</c> from the picker and
+        /// <c>base + profileId</c> once the page reloads into the profile, and neither comes from the
+        /// other. So the bare id is recovered first by stripping a known account id from the end, and
+        /// every derivation is compared against that. A SHA-1 id (Android TV) cannot be stripped but
+        /// still matches its own bare id.</para>
         /// </summary>
         public static bool IsSamePhysicalDevice(string? sent, string? other, PluginConfiguration? config)
         {
@@ -362,17 +297,17 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// True when <paramref name="derived"/> is what <paramref name="bare"/> becomes once
-        /// the account <paramref name="userSuffix"/> signs in: Jellyfin for Android appends
-        /// the id, Jellyfin Android TV hashes <c>bare + "+" + id</c>.
+        /// True when <paramref name="derived"/> is what <paramref name="bare"/> becomes once the account
+        /// <paramref name="userSuffix"/> signs in. Jellyfin for Android appends the id, Jellyfin Android
+        /// TV hashes <c>bare + "+" + id</c>.
         /// </summary>
         private static bool DerivedFrom(string bare, string derived, string userSuffix)
             => string.Equals(derived, bare + userSuffix, StringComparison.OrdinalIgnoreCase)
                || string.Equals(derived, Sha1Hex(bare + "+" + userSuffix), StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
-        /// True when <paramref name="appended"/> is <paramref name="bare"/> with a Roku-style
-        /// name appended, and both are recorded for the same household.
+        /// True when <paramref name="appended"/> is <paramref name="bare"/> with a Roku-style name
+        /// appended, and both are recorded for the same household.
         /// </summary>
         private static bool IsRokuPair(string bare, string appended, IEnumerable<KnownDevice>? knownDevices)
         {
@@ -389,8 +324,8 @@ namespace Jellyfin.Profiles.Auth
             var other = rows.FirstOrDefault(d => string.Equals(d.DeviceId?.Trim(), appended, StringComparison.OrdinalIgnoreCase));
             if (owner == null || other == null) return false;
 
-            // A household that owns both. Not "the same last household": on a Roku two
-            // households share, the two rows can be last seen by different ones (R-1050).
+            // A household that owns both, not "the same last household": on a Roku two households
+            // share, the two rows can be last seen by different ones (R-1050).
             return AddOwners(owner.Owners, owner.MasterUserId).Any(other.OwnedBy);
         }
 
@@ -411,10 +346,10 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// True if <paramref name="householdId"/> has signed in on this device, under any of
-        /// the ids <see cref="FindMaster"/> knows it by (R-1050). FindMaster answers "whose
-        /// profiles does this sign-in screen show", which is one household; this answers
-        /// "may this household's PIN be typed here", which on a shared device is several.
+        /// True if <paramref name="householdId"/> has signed in on this device, under any of the ids
+        /// <see cref="FindMaster"/> knows it by (R-1050). FindMaster answers "whose profiles does this
+        /// sign-in screen show", which is one household. This answers "may this household's PIN be typed
+        /// here", which on a shared device is several.
         /// </summary>
         public static bool IsOwnedBy(PluginConfiguration? config, string? deviceId, Guid householdId)
         {
@@ -439,9 +374,7 @@ namespace Jellyfin.Profiles.Auth
         private static KnownDevice? LookupRow(PluginConfiguration config, string deviceId)
             => Row(config.KnownDevices, deviceId);
 
-        /// <summary>
-        /// The record for this id: its own, or else the one it was merged into (R-1049).
-        /// </summary>
+        /// <summary>The record for this id: its own, or the one it was merged into (R-1049).</summary>
         internal static KnownDevice? Row(IEnumerable<KnownDevice>? devices, string? deviceId)
         {
             var wanted = deviceId?.Trim();
@@ -452,8 +385,8 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The names households gave their profiles - what an Android TV sign-in screen
-        /// shows and so what it hashes into the device id it signs in with.
+        /// The names households gave their profiles. An Android TV sign-in screen shows them and hashes
+        /// them into the device id it signs in with.
         /// </summary>
         internal static IEnumerable<string> HouseholdNames(PluginConfiguration config)
         {
@@ -467,12 +400,9 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Every account in any household Bonfire runs — masters and sub-profiles both.
-        /// <para>
-        /// Sub-profiles are included because after the first switch it is a profile, not the
-        /// master, that a television is signed in as, so the per-user id is derived over the
-        /// profile's own guid while the record still belongs to the household.
-        /// </para>
+        /// Every account in any household Bonfire runs, masters and sub-profiles both. Sub-profiles are
+        /// included because after the first switch a television is signed in as a profile, so the per-user
+        /// id is derived over the profile's guid while the record still belongs to the household.
         /// </summary>
         private static IEnumerable<Guid> HouseholdMembers(PluginConfiguration config)
         {
@@ -487,49 +417,31 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The shortest device id we will ever store as a derivation of another. Roku's own
-        /// id is a 36-character channel client id, so this rejects nothing real — it exists
-        /// so an account with a short name can never strip a device id down to a stub that
-        /// some unrelated client might genuinely send.
+        /// The shortest device id we will store as a derivation of another. Roku's id is a 36-character
+        /// channel client id, so this rejects nothing real. It stops an account with a short name from
+        /// stripping a device id down to a stub another client might send.
         /// </summary>
         internal const int MinimumBareDeviceIdLength = 8;
 
         /// <summary>
-        /// The id this client would have sent <i>before</i> anyone signed in, when the id it
-        /// is sending now was built by appending the account's name to it — or null when it
-        /// was not built that way.
+        /// The id this client would have sent before anyone signed in, when the id it sends now was built
+        /// by appending the account's name. Null when it was not built that way.
         ///
-        /// <para><b>Why this is reversed here and not derived at lookup.</b> Jellyfin Roku
-        /// appends the signed-in account's name to its device id, in
-        /// <c>session.user.SetServerDeviceName()</c>:</para>
+        /// <para>Jellyfin Roku appends the signed-in account's name to its device id in
+        /// <c>session.user.SetServerDeviceName()</c>, with everything outside <c>[^a-zA-Z0-9\-\_]</c>
+        /// removed from the name. So a Roku sends the bare id at its sign-in screen and the appended one
+        /// once somebody is in, the same split that made 1.6.1.7 useless on Android TV.</para>
         ///
-        /// <code>
-        /// deviceName = localGlobal.device.id                  ' getChannelClientID()
-        /// if isChainValid(localGlobal, "session.user.friendlyName")
-        ///     deviceName = deviceName + localGlobal.session.user.friendlyName
-        /// </code>
+        /// <para>This cannot be derived forwards as Android TV is, because the suffix is a name, not a
+        /// Guid, and not always a name we hold. Roku's <c>AboutMe()</c> asks <c>/Users/{id}</c>, which
+        /// Bonfire does not rewrite, so after a launch that restores a stored token the suffix is the
+        /// real username, while after a fresh PIN login it is the household's name for the profile.</para>
         ///
-        /// <para>where <c>friendlyName</c> is the account name with everything outside
-        /// <c>[^a-zA-Z0-9\-\_]</c> removed. So a Roku sends the bare id at its sign-in screen
-        /// and the appended one once somebody is in — the same split that made 1.6.1.7
-        /// useless on Android TV.</para>
+        /// <para>So it is reversed when recording, where <c>SessionInfo.UserName</c> says exactly which
+        /// name the client used. Concatenation is reversible when the suffix is known.</para>
         ///
-        /// <para><b>Roku cannot be handled the way Android TV is.</b> That derivation is
-        /// applied forwards over <see cref="HouseholdMembers"/>, which yields Guids; this
-        /// suffix is a <i>name</i>. Worse, it is not always a name we hold:
-        /// <c>ProfileMapping</c> carries <c>ProfileName</c>, but Roku's <c>AboutMe()</c> asks
-        /// <c>/Users/{id}</c> — which Bonfire does not rewrite — so on a launch that restores
-        /// a stored token the suffix is the account's <i>real</i> username, while on a fresh
-        /// PIN login it is the household's name for it. Guessing which would mean trying
-        /// every name we know and hoping.</para>
-        ///
-        /// <para><b>So it is reversed at the moment of recording instead</b>, where
-        /// <c>SessionInfo.UserName</c> says exactly which name the client used. Concatenation
-        /// is reversible when the suffix is known; that is the whole reason the Android TV
-        /// hash has to be applied forwards and this does not.</para>
-        ///
-        /// <para>Ordinal, not case-insensitive: Roku appends the name verbatim after
-        /// stripping, so a case-folded comparison could only ever strip the wrong thing.</para>
+        /// <para>Ordinal, not case-insensitive: Roku appends the name verbatim after stripping, so a
+        /// case-folded comparison could only strip the wrong thing.</para>
         /// </summary>
         public static string? BareDeviceIdFor(string? deviceId, string? accountName)
         {
@@ -538,8 +450,8 @@ namespace Jellyfin.Profiles.Auth
 
             var friendly = RokuFriendlyName(accountName);
 
-            // A very short suffix is a coincidence waiting to happen — "c74f" is a plausible
-            // account name and also the tail of a real ANDROID_ID.
+            // A very short suffix is a coincidence waiting to happen: "c74f" is a plausible account name
+            // and also the tail of a real ANDROID_ID.
             if (friendly.Length < 3) return null;
 
             if (!id.EndsWith(friendly, StringComparison.Ordinal)) return null;
@@ -549,9 +461,8 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// An account name the way Roku writes it into a device id: everything outside
-        /// <c>[a-zA-Z0-9\-\_]</c> removed, matching its own
-        /// <c>CreateObject("roRegex", "[^a-zA-Z0-9\-\_]", "")</c>.
+        /// An account name as Roku writes it into a device id: everything outside <c>[a-zA-Z0-9\-\_]</c>
+        /// removed, matching its <c>CreateObject("roRegex", "[^a-zA-Z0-9\-\_]", "")</c>.
         /// </summary>
         internal static string RokuFriendlyName(string name)
         {
@@ -569,12 +480,8 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Lowercase hex SHA-1, matching Kotlin's
-        /// <c>digest().joinToString("") { "%02x".format(it) }</c>.
-        /// <para>
-        /// Not a security use — it re-derives an identifier another program already chose,
-        /// so the algorithm is theirs to pick and ours to match.
-        /// </para>
+        /// Lowercase hex SHA-1, matching Kotlin's <c>digest().joinToString("") { "%02x".format(it) }</c>.
+        /// Not a security use: it re-derives an identifier another program chose.
         /// </summary>
         private static string Sha1Hex(string value)
         {
@@ -594,11 +501,11 @@ namespace Jellyfin.Profiles.Auth
         public const int MaxKnownDevices = 2000;
 
         /// <summary>
-        /// Notes that <paramref name="ownerId"/>'s household was seen on this device. Returns
-        /// true when something changed that is worth writing to disk.
-        /// <para><b>Caller must hold <see cref="ProfilesBaseController.ConfigLock"/>.</b>
-        /// Separated from the saving so a harness can drive it without a plugin instance —
-        /// see <see cref="RecordAndSave"/> for the call the plugin actually makes.</para>
+        /// Notes that <paramref name="ownerId"/>'s household was seen on this device. Returns true when
+        /// something changed that is worth writing to disk.
+        /// <para><b>Caller must hold <see cref="ProfilesBaseController.ConfigLock"/>.</b> Separate from
+        /// the saving so a harness can drive it without a plugin instance; see
+        /// <see cref="RecordAndSave"/>.</para>
         /// </summary>
         public static bool Record(
             PluginConfiguration? config,
@@ -613,11 +520,10 @@ namespace Jellyfin.Profiles.Auth
         /// <summary>
         /// <see cref="Record"/>, saying whether this sighting may make the device known.
         /// <para>
-        /// False for a session a PIN, an empty box or a switch started, and for an
-        /// authenticated Bonfire call: those refresh a record that exists (last seen, name),
-        /// and never make one or add a household to one. A PIN works only on a device
-        /// somebody signed in on with the password, and a record made by a PIN sign-in would
-        /// be a device the PIN had vouched for itself.
+        /// False for a session a PIN, an empty box or a switch started, and for an authenticated Bonfire
+        /// call. Those refresh a record that exists (last seen, name) and never make one or add a
+        /// household to one. A PIN works only on a device somebody signed in on with the password, and a
+        /// record made by a PIN sign-in would be a device the PIN had vouched for itself.
         /// </para>
         /// </summary>
         public static bool RecordSighting(
@@ -632,16 +538,15 @@ namespace Jellyfin.Profiles.Auth
         {
             if (config?.KnownDevices == null) return false;
 
-            // Trimmed at the door. The id is compared against whitelists with an ordinal
-            // comparison in several places, so a stray space is a different device — and the
-            // record written here is what those comparisons are made against.
+            // Trimmed at the door: ids are compared ordinally against whitelists, so a stray space is a
+            // different device.
             deviceId = deviceId?.Trim();
             deviceName = deviceName?.Trim();
             client = client?.Trim();
             if (string.IsNullOrEmpty(deviceId) || deviceId.Length > MaxDeviceIdLength) return false;
 
-            // An id merged into another record updates that record (R-1049); it used to make
-            // a fresh one, which no device list named.
+            // An id merged into another record updates that record (R-1049). It used to make a fresh
+            // one that no device list named.
             var existing = Row(config.KnownDevices, deviceId);
 
             var save = false;
@@ -650,11 +555,9 @@ namespace Jellyfin.Profiles.Auth
             {
                 existing.LastSeen = now;
 
-                // A name only ever improves. A client that sends nothing must not replace a
-                // good name with a blank — which is how rows ended up reading "Unknown
-                // Device" despite having been named at some point — and a name an
-                // administrator typed outranks whatever the client reports, or the rename
-                // would last until this device's next request.
+                // A name only improves. A client that sends nothing must not blank a good name (rows read
+                // "Unknown Device"), and an administrator's typed name outranks the client's, or the rename
+                // would last until the next request.
                 if (!existing.NameIsCustom && !ProfilesBaseController.IsPlaceholderDeviceName(deviceName))
                 {
                     existing.DeviceName = deviceName!;
@@ -662,35 +565,28 @@ namespace Jellyfin.Profiles.Auth
 
                 if (!string.IsNullOrWhiteSpace(client)) existing.Client = client;
 
-                // LastSeen was in-memory only, to keep a full PluginConfiguration.xml rewrite
-                // off every request. The cost was that it never survived a restart: the
-                // device list came back ordered by whenever each record was first written,
-                // and "last seen" showed a date from before the restart — so the column an
-                // administrator uses to decide what to revoke was reliably wrong after every
-                // server update.
+                // LastSeen used to be in memory only, to keep a PluginConfiguration.xml rewrite off every
+                // request. It never survived a restart, so the device list was ordered by first write and "last
+                // seen" was wrong after every server update.
                 //
-                // Written at most once an hour per device instead. That is far finer than the
-                // "unseen for 180 days" question the value is actually used to answer, and it
-                // is one write an hour rather than one a request.
+                // Now written at most once an hour. That is far finer than the "unseen for 180 days" question it
+                // answers.
                 //
-                // Throttled against when LastSeen was last *persisted*, not last seen: LastSeen
-                // is bumped in memory on every request, so comparing against it would never
-                // reach an hour on a device that is in regular use — which is every device
-                // this matters for.
+                // Throttled against when LastSeen was last persisted, not last seen: LastSeen is bumped in
+                // memory on every request, so comparing against it would never reach an hour on a device in
+                // regular use.
                 //
-                // One stamp for all devices, not one each: a save writes the whole file, so
-                // every device's in-memory LastSeen goes out with it. A stamp per device made
-                // twenty devices twenty rewrites an hour (SD-card wear on a Pi), and was a
-                // dictionary that never shrank. The cost is that a device seen only between
-                // two saves is written with the next one, whoever causes it.
+                // One stamp for all devices: a save writes the whole file, so every device's LastSeen goes out
+                // with it. A stamp per device meant twenty rewrites an hour (SD-card wear on a Pi) and a
+                // dictionary that never shrank. A device seen only between two saves is written with the next.
                 if (now - ProfilesBaseController.LastSeenPersistedAt >= ProfilesBaseController.DeviceLastSeenWriteInterval)
                 {
                     ProfilesBaseController.LastSeenPersistedAt = now;
                     save = true;
                 }
 
-                // Claim ownership for records written before MasterUserId existed. This is
-                // the one case worth persisting immediately, so it happens exactly once.
+                // Claim ownership for records written before MasterUserId existed. Persisted at once, so it
+                // happens exactly once.
                 if (!mayGrant)
                 {
                     // Refresh only: whose device it is stays as it was.
@@ -701,9 +597,9 @@ namespace Jellyfin.Profiles.Auth
                     save = true;
                 }
 
-                // Another household on the same device (R-1050). It used to stay the first
-                // owner's for good. Now both own it, and the sign-in screen shows whoever was
-                // here last. Saved only when the household changes, not on every request.
+                // Another household on the same device (R-1050). The first owner used to keep it for good.
+                // Now both own it, and the sign-in screen shows whoever was here last. Saved only when the
+                // household changes.
                 else if (ownerId != Guid.Empty && existing.MasterUserId != ownerId)
                 {
                     existing.Owners = AddOwners(existing.Owners, existing.MasterUserId, ownerId);
@@ -717,13 +613,12 @@ namespace Jellyfin.Profiles.Auth
             }
             else
             {
-                // A new row is bounded, per household and overall, so a signed-in account
-                // cannot grow a file that is rewritten whole on every save.
+                // A new row is bounded per household and overall, so a signed-in account cannot grow a file
+                // that is rewritten whole on every save.
                 //
-                // A household at its cap gives up its oldest row nobody depends on instead of
-                // refusing the new device (R2-02-02): a household that fills its 200 rows
-                // with ids it minted would otherwise never record a real device again, and
-                // nothing said so.
+                // A household at its cap gives up its oldest row nobody depends on rather than refusing the new
+                // device (R2-02-02). Otherwise one that fills its 200 rows with ids it minted would never record
+                // a real device again, silently.
                 if (ownerId != Guid.Empty && config.KnownDevices.Count(d => d.OwnedBy(ownerId)) >= MaxDevicesPerHousehold)
                 {
                     var allowed = (config.Mappings ?? new List<ProfileMapping>())
@@ -759,11 +654,9 @@ namespace Jellyfin.Profiles.Auth
                 config.KnownDevices.Add(new KnownDevice
                 {
                     DeviceId = deviceId,
-                    // Left blank rather than stamped "Unknown Device". The picker fills a
-                    // blank in from the client name and, failing that, from the device id, so
-                    // a nameless device still reads as something an administrator can tell
-                    // apart — see DisambiguateDeviceNames. Storing the placeholder made every
-                    // nameless device render as the same row.
+                    // Left blank, not "Unknown Device". The picker fills a blank from the client name or the
+                    // device id (see DisambiguateDeviceNames). Storing the placeholder made every nameless device
+                    // render as the same row.
                     DeviceName = ProfilesBaseController.IsPlaceholderDeviceName(deviceName)
                         ? string.Empty
                         : deviceName!,
@@ -778,64 +671,61 @@ namespace Jellyfin.Profiles.Auth
                 save = true;
             }
 
-            // Only while we are writing anyway, and at most once a day. KnownDevices is a
-            // single server-wide list that only ever grew: every phone that ever hit the
-            // server stayed in it forever, and the device picker is a list an administrator
-            // has to read.
+            // Only while writing anyway, and at most once a day. KnownDevices is one server-wide list
+            // that only grew, so every phone that ever hit the server stayed in it and the device picker
+            // became hard to read.
             if (save) save |= ProfilesBaseController.PruneStaleDevices(config, now, logger);
 
-            // Riding on a write that is happening anyway (a new id, or the hourly LastSeen
-            // save), so a television that got a new id tidies itself without anyone opening
-            // the device list. The list read does the same for households that are not seen.
+            // Riding on a write already happening (a new id, or the hourly LastSeen save) lets a
+            // television with a new id tidy itself without anyone opening the device list. The list read does
+            // the same for households that are not seen.
             if (save && ownerId != Guid.Empty) MergeSameDevices(config, ownerId, now);
 
             return save;
         }
 
         /// <summary>
-        /// How long a new id must be in use, with the old one silent, before the two are
-        /// taken for one device. A fixed limit: a shorter wait merges two tablets that are
-        /// both used but not every week, which widens a device restriction.
+        /// How long a new id must be in use, with the old one silent, before the two are taken for one
+        /// device. A fixed limit: a shorter wait merges two tablets that are both used but not every
+        /// week, which widens a device restriction.
         /// </summary>
         internal static readonly TimeSpan SameDeviceQuietPeriod = TimeSpan.FromDays(7);
 
         /// <summary>
-        /// Folds this household's records that are one device into one, and returns how many
-        /// records went. Caller must hold <see cref="ProfilesBaseController.ConfigLock"/>.
-        /// Idempotent: a second run finds nothing.
+        /// Folds this household's records that are one device into one, and returns how many records
+        /// went. Caller must hold <see cref="ProfilesBaseController.ConfigLock"/>. Idempotent.
         ///
-        /// <para>Only records with the same client app and the same reported name, owned by
-        /// this household, are compared, and then one of two things must hold:</para>
+        /// <para>Only records with the same client app and reported name, owned by this household, are
+        /// compared, and then one of two things must hold.</para>
         ///
-        /// <para><b>The ids are derived from one another.</b> Jellyfin for Android sends its
-        /// own id at the sign-in screen and <c>id + accountId</c> once signed in; Android TV
-        /// sends <c>sha1(id + "+" + account)</c> per account (SessionRepository.setCurrentSession,
-        /// util/sdk/DeviceInfoExtensions.kt). So one television used by four profiles is four
-        /// ids in use side by side, and nothing about timing can join them. The derivation
-        /// can, given the set's own id: from a record, from stripping an account id off the
-        /// end, or from a sign-in screen seen in the last few hours. This is proof, not a guess.</para>
+        /// <para><b>The ids are derived from one another.</b> Jellyfin for Android sends its own id at
+        /// the sign-in screen and <c>id + accountId</c> once signed in; Android TV sends
+        /// <c>sha1(id + "+" + account)</c> per account (SessionRepository.setCurrentSession,
+        /// util/sdk/DeviceInfoExtensions.kt). One television used by four profiles is four ids in use side
+        /// by side, and timing cannot join them. The derivation can, given the set's own id: from a
+        /// record, from stripping an account id off the end, or from a sign-in screen seen in the last few
+        /// hours. This is proof, not a guess.</para>
         ///
-        /// <para><b>The old id fell silent when the new one appeared</b> (owner decision,
-        /// 2026-11-12): a reinstall, a reset, cleared site data. The older record's last
-        /// sighting is no later than the newer one's first, and the newer one has been around
-        /// for <see cref="SameDeviceQuietPeriod"/>. Two records used in overlapping weeks — a
-        /// second "Family Room TV" at another home, a tablet renamed to match — never merge.
-        /// Nor does a row on any profile's allow list (aliases included) by this rule: only
-        /// proof, the paragraph above, may merge it, because a wrong guess would hand its
-        /// permission to another device. Not by address: addresses change and proxies hide them.</para>
+        /// <para><b>The old id fell silent when the new one appeared</b> (owner decision, 2026-11-12): a
+        /// reinstall, a reset, cleared site data. The older record's last sighting is no later than the
+        /// newer one's first, and the newer one has been around for <see cref="SameDeviceQuietPeriod"/>.
+        /// Records used in overlapping weeks, such as a second "Family Room TV" at another home, never
+        /// merge. Neither does a row on any profile's allow list (aliases included) by this rule, because
+        /// a wrong guess would hand its permission to another device. Not by address: addresses change
+        /// and proxies hide them.</para>
         ///
-        /// <para>Into the newer record, by <see cref="ProfilesBaseController.MergeDeviceRecords"/>:
-        /// add before remove, so no whitelist passes through empty, and the old id stays as an
-        /// alias. Two browser windows on two origins are side by side and not derived, so they
-        /// stay apart; Tidy up duplicates is still how those are joined.</para>
+        /// <para>Merged into the newer record by
+        /// <see cref="ProfilesBaseController.MergeDeviceRecords"/>: add before remove, so no whitelist
+        /// passes through empty, and the old id stays as an alias. Two browser windows on two origins are
+        /// not derived, so they stay apart; Tidy up duplicates joins those.</para>
         /// </summary>
         internal static int MergeSameDevices(PluginConfiguration? config, Guid householdId, DateTime now)
         {
             if (config?.KnownDevices == null || householdId == Guid.Empty) return 0;
 
-            // The cheap test first (R2-02-03). This runs under ConfigLock on a write, and what
-            // follows hashes every row against every recent sign-in screen on the server. No
-            // two of this household's rows share a name and app, no pair can be one device.
+            // The cheap test first (R2-02-03). This runs under ConfigLock on a write, and what follows
+            // hashes every row against every recent sign-in screen. If no two rows share a name and app, no
+            // pair can be one device.
             var sameLabel = config.KnownDevices
                 .Where(d => d.OwnedBy(householdId) && !string.IsNullOrWhiteSpace(d.DeviceId)
                             && !ProfilesBaseController.IsPlaceholderDeviceName(d.DeviceName)
@@ -894,18 +784,16 @@ namespace Jellyfin.Profiles.Auth
                         if (i > j && Derived(older, newer, members, names, screens, config.KnownDevices))
                             return (older.DeviceId, newer.DeviceId, true);
 
-                        // Never by time when either row is on an allow list (owner decision,
-                        // 2026-11-12): a guess that two devices are one would hand the allowed
-                        // device's permission to the other. Only proof, above, may merge it.
+                        // Never by time when either row is on an allow list (owner decision, 2026-11-12): a guess
+                        // would hand the allowed device's permission to the other. Only proof may merge it.
                         if (Allowed(older) || Allowed(newer)) continue;
 
                         if (newer.FirstSeen != DateTime.MinValue
                             && older.LastSeen <= newer.FirstSeen
                             && now - newer.FirstSeen >= SameDeviceQuietPeriod)
                         {
-                            // A guess, so no alias is left behind (R2-02-01): the old id would
-                            // be honoured by every allow check once the newer row is allowed,
-                            // and the older device may be a different one.
+                            // A guess, so no alias is left (R2-02-01): the old id would be honoured by every allow
+                            // check once the newer row is allowed, and the older device may be a different one.
                             return (older.DeviceId, newer.DeviceId, false);
                         }
                     }
@@ -955,11 +843,10 @@ namespace Jellyfin.Profiles.Auth
         /// <summary>
         /// <see cref="Record"/>, with the lock and the save around it.
         /// <para>
-        /// The configuration is read <b>inside</b> the lock deliberately. Jellyfin's own
-        /// save replaced <c>Plugin.Configuration</c> wholesale, so a reference taken before
-        /// the lock could be an orphan by the time the lock was held. Plugin.UpdateConfiguration
-        /// now copies onto the instance in use instead (P2-25), but this remains the shape
-        /// to prefer: it does not depend on that override staying in place.
+        /// The configuration is read inside the lock on purpose. Jellyfin's own save used to replace
+        /// <c>Plugin.Configuration</c>, so a reference taken before the lock could be an orphan.
+        /// Plugin.UpdateConfiguration now copies onto the instance in use (P2-25), but this shape does
+        /// not depend on that staying in place.
         /// </para>
         /// </summary>
         public static void RecordAndSave(
@@ -988,8 +875,8 @@ namespace Jellyfin.Profiles.Auth
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return;
 
-                // New to this household, so a second household on a shared device is told too
-                // (R-1050). A record from before owners existed being claimed is not news.
+                // New to this household, so a second household on a shared device is told too (R-1050).
+                // Claiming a record from before owners existed is not news.
                 var id = deviceId?.Trim();
                 var row = string.IsNullOrEmpty(id) || config.KnownDevices == null ? null : Row(config.KnownDevices, id);
                 isNew = mayGrant && !string.IsNullOrEmpty(id) && config.KnownDevices != null
@@ -1002,8 +889,8 @@ namespace Jellyfin.Profiles.Auth
 
                 if (isNew)
                 {
-                    // Keyed by the record's own id, which is what the judgement finds, even
-                    // when the sighting arrived under an alias.
+                    // Keyed by the record's own id, which is what the judgement finds, even when the sighting
+                    // arrived under an alias.
                     var recorded = Row(config.KnownDevices, id);
                     judged = recorded?.CanPlay;
                     heldId = recorded?.DeviceId ?? id;
@@ -1011,7 +898,7 @@ namespace Jellyfin.Profiles.Auth
                 }
             }
 
-            // Outside the lock: it takes a snapshot, and sends on its own task.
+            // Outside the lock: it takes a snapshot and sends on its own task.
             if (isNew && ownerId != Guid.Empty && judged != false && !looksLikeService)
             {
                 var label = string.IsNullOrWhiteSpace(deviceName) ? (client ?? string.Empty) : deviceName!;
@@ -1021,11 +908,10 @@ namespace Jellyfin.Profiles.Auth
                 }
                 else
                 {
-                    // Not yet judged a player: a service signing in as the household
-                    // (jfa-go) is sighted the same way and must not be announced as a
-                    // device. The judgement arrives at NotePlayerAndSave, about a minute
-                    // after sign-in for an app and at once on a playback start; it
-                    // releases or drops this. No timer here, one entry per new device.
+                    // Not yet judged a player: a service signing in as the household (jfa-go) is sighted the
+                    // same way and must not be announced as a device. The judgement arrives at NotePlayerAndSave,
+                    // about a minute after an app signs in and at once on a playback start, and releases or drops
+                    // this. No timer here, one entry per new device.
                     HoldNewDevice(ownerId, heldId ?? deviceId ?? string.Empty, label, logger);
                 }
             }
@@ -1054,10 +940,10 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The device was judged a player: send each household's held notice for it. A device
-        /// judged not a player keeps its notice for what is left of its ten minutes, because
-        /// the judgement at sixty seconds is only "no capabilities yet": a playback start in
-        /// that time is what proves it a player after all.
+        /// The device was judged a player: send each household's held notice for it. A device judged not
+        /// a player keeps its notice for the rest of its ten minutes, because the judgement at sixty
+        /// seconds only means "no capabilities yet" and a playback start can still prove it a player.
+        /// </summary>
         /// </summary>
         private static void ReleaseHeld(string? canonicalId, bool canPlay)
         {
@@ -1076,18 +962,17 @@ namespace Jellyfin.Profiles.Auth
         public static readonly TimeSpan PlayerGrace = TimeSpan.FromSeconds(60);
 
         /// <summary>
-        /// Whether a session's reported capabilities are those of a player. Jellyfin keeps them
-        /// in memory per session, and they are empty at SessionStarted: an app posts them a
-        /// moment after it signs in, so this is asked after <see cref="PlayerGrace"/>, not at
-        /// the sign-in.
+        /// Whether a session's reported capabilities are those of a player. Jellyfin keeps them in memory
+        /// per session and they are empty at SessionStarted, since an app posts them a moment after it
+        /// signs in. So this is asked after <see cref="PlayerGrace"/>, not at sign-in.
         /// </summary>
         public static bool ReportsPlayback(int playableMediaTypes, bool supportsMediaControl)
             => playableMediaTypes > 0 || supportsMediaControl;
 
         /// <summary>
-        /// Records what a session showed about <paramref name="deviceId"/>. True is sticky;
-        /// false only fills in a device nothing has been learned about. Returns true when
-        /// something changed. <b>Caller holds <see cref="ProfilesBaseController.ConfigLock"/>.</b>
+        /// Records what a session showed about <paramref name="deviceId"/>. True is sticky; false only
+        /// fills in a device nothing is known about. Returns true when something changed.
+        /// <b>Caller holds <see cref="ProfilesBaseController.ConfigLock"/>.</b>
         /// </summary>
         public static bool NotePlayer(PluginConfiguration? config, string? deviceId, bool canPlay)
         {
@@ -1127,9 +1012,9 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// A device judged not a player records its client and name as what a service looks
-        /// like; one later judged a player takes its fingerprint back out, so a real app that
-        /// was slow to report is not remembered as a service. Returns true when the list changed.
+        /// A device judged not a player records its client and name as what a service looks like. One
+        /// later judged a player takes its fingerprint back out, so a real app slow to report is not
+        /// remembered as a service. Returns true when the list changed.
         /// <b>Caller holds <see cref="ProfilesBaseController.ConfigLock"/>.</b>
         /// </summary>
         private static bool LearnService(PluginConfiguration config, KnownDevice row, bool canPlay)
@@ -1164,25 +1049,22 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Whether a device row belongs in a household's device list: a player, one nothing is
-        /// known about yet, or one a profile is already restricted to. The last is never
-        /// dropped, because the edit form rebuilds the whitelist from what it was shown.
+        /// Whether a device row belongs in a household's device list: a player, one nothing is known
+        /// about yet, or one a profile is already restricted to. The last is never dropped, because the
+        /// edit form rebuilds the whitelist from what it was shown.
         /// </summary>
         public static bool IsListedFor(KnownDevice device, ISet<string> whitelistedDeviceIds)
             => device.CanPlay != false
                || (whitelistedDeviceIds?.Contains(device.DeviceId) ?? false);
 
         /// <summary>
-        /// Whether Bonfire runs this account's household at all — that is, whether it owns
-        /// sub-profiles or is one.
+        /// Whether Bonfire runs this account's household at all: whether it owns sub-profiles or is one.
         /// <para>
-        /// The filter for the sign-in listener, and it has to be asked separately from
-        /// <see cref="HouseholdOf"/>, which answers "whose household is this account in"
-        /// with the account itself when it knows of no mapping. That is the right answer to
-        /// that question and a useless one to filter on, because it is never
-        /// <see cref="Guid.Empty"/>: keying on it would record a device for every account on
-        /// the server, and on a forty-user server that is every phone and browser writing a
-        /// row into an XML file that gets rewritten whole.
+        /// The filter for the sign-in listener. It is separate from <see cref="HouseholdOf"/>, which
+        /// returns the account itself when it knows of no mapping and so is never
+        /// <see cref="Guid.Empty"/>. Keying on that would record a device for every account on the server,
+        /// and on a forty-user server that is every phone and browser writing a row into an XML file
+        /// that is rewritten whole.
         /// </para>
         /// </summary>
         public static bool IsHousehold(PluginConfiguration? config, Guid userId)
@@ -1193,13 +1075,11 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The household an account belongs to: its master if it is a sub-profile, itself
-        /// otherwise.
+        /// The household an account belongs to: its master if it is a sub-profile, itself otherwise.
         /// <para>
-        /// A device must be attributed to the <i>household</i>, never to whoever happened to
-        /// sign in. Attributing it to a sub-profile would mean the second person to use a
-        /// television took it over, and the master's own profiles would stop being offered on
-        /// it.
+        /// A device is attributed to the household, never to whoever signed in. Attributing it to a
+        /// sub-profile would let the second person to use a television take it over, and the master's own
+        /// profiles would stop being offered on it.
         /// </para>
         /// </summary>
         public static Guid HouseholdOf(PluginConfiguration? config, Guid userId)
