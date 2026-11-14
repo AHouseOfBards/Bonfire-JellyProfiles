@@ -1,8 +1,8 @@
 /*
  * ni-C3: Ctrl+Shift+B is the plugin's only when an emergency code is set.
  *
- *  - bindPanicShortcut: took Ctrl+Shift+B on every page with preventDefault even when no
- *    emergency code is set, so the browser's own use of the key was dead.
+ *  - bindPanicShortcut: took Ctrl+Shift+B on every page with preventDefault even with no
+ *    emergency code set, killing the browser's own use of the key.
  *
  * The real methods are cut out of the source and run against stubs.
  *

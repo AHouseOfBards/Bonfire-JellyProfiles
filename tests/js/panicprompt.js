@@ -1,8 +1,7 @@
 // The emergency-disable prompt (R-1185, R-1188).
 //
-//  - R-1185: it showed the browser's own "Failed to fetch" and reported a 500 as
-//    "incorrect code". A wrong code is 401/403 (or 400); a server fault or no connection
-//    is not the person's mistake.
+//  - R-1185: it showed the browser's "Failed to fetch" and reported a 500 as "incorrect
+//    code". A wrong code is 401/403 (or 400); a server fault or no connection is not.
 //  - R-1188: the code box was named only by its placeholder and the error was not
 //    announced.
 //
@@ -51,7 +50,7 @@ async function attempt(status) {
     const limited = await attempt(429);
     ok('too many attempts keeps its own message', /\S/.test(limited.text) && limited.text !== incorrect && limited.text !== fault.text, limited.text);
 
-    // R-1182: the viewing-time dialogs showed the browser's own words for a dead connection.
+    // R-1182: the viewing-time dialogs showed the browser's words for a dead connection.
     const env = S.loadPlugin(L.readProfiles());
     const alerts = [];
     env.PP.showAlert = (title, body) => alerts.push(String(body));

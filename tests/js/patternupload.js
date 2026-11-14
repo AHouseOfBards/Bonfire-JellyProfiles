@@ -1,6 +1,6 @@
 // An uploaded pattern picture (png or webp, named by a hash) reaches the stylesheet as a
-// url() to the pattern route, and the ten built-in pictures all exist as files with a
-// display name in every language. Runs the real themeCss.
+// url() to the pattern route, and the ten built-in pictures exist as files with a display
+// name in every language. Runs the real themeCss.
 //
 //   node tests/js/patternupload.js [path/to/profiles.js]
 
@@ -41,7 +41,7 @@ const hash = 'a'.repeat(32);
 ['../' + hash + '.png', hash + '.png"', 'a'.repeat(31) + '.png', 'A'.repeat(32) + '.png', hash + '.png\n'].forEach(n => {
     ok('a name that is not a stored picture\'s draws nothing: ' + JSON.stringify(n), deco_of(gen.themeCss(deco(n), patterns)) === 'none');
 });
-// A second pattern's upload is drawn too; it was only ever looked up among the built-in ones.
+// A second pattern's upload is drawn too; it was only looked up among the built-in ones.
 function second(image) {
     const t = deco('snow');
     t.decorations.push({ name: 'pattern2', image: image, size: 120, drift: 'none' });
@@ -73,8 +73,8 @@ ok('the dashboard has an English name for every picture',
 ok('and lists every picture for the editor\'s drop-down',
     NAMES.every(n => new RegExp('\\b' + n + ": 'admin\\.themes\\.pattern\\." + n + "'").test(html)));
 
-// A tile that is not transparent hides the theme under it, and one that leaves its own
-// edge has a seam. Cheap proxies: no background rectangle, nothing past the canvas.
+// A non-transparent tile hides the theme under it, and one that leaves its own edge has
+// a seam. Proxies: no background rectangle, nothing past the canvas.
 NAMES.forEach(n => {
     const svg = fs.readFileSync(path.join(L.themesDir(), 'patterns', n + '.svg'), 'utf8');
     ok(n + ' has a transparent background', !/<rect[^>]*width=['"]100%/.test(svg) && !/<rect[^>]*width=['"]240['"]/.test(svg));

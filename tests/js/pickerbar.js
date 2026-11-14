@@ -1,30 +1,28 @@
 /*
  * The picker's button row (Manage profiles, Settings, Cancel) when the households do not fit.
+ * The picker's button row (Manage profiles, Settings, Cancel) when the households do not fit.
  *
- * It sat after every household, so with several of them joined through Bonfires it was
- * pushed far below the fold. Decided: when they do not fit, the row sticks to the bottom
- * of the screen, drawn like the Save bar on the profile forms; when they fit, it stays in
- * the flow, where it always was.
+ * It sat after every household, so with several joined through Bonfires it was pushed far
+ * below the fold. Now, when they do not fit, the row sticks to the bottom of the screen,
+ * drawn like the Save bar on the profile forms; when they fit, it stays in the flow.
  *
- * Asked of every theme on a phone, a desktop and a television, with two households and
- * with one, at sizes that overflow and sizes that fit. Whether a case overflows is read off
- * the page (the gate's scrollHeight against its clientHeight), never assumed from the
- * count, and each device must have at least one case of each kind so the checks below can
- * not pass by asking nothing.
+ * Checked for every theme on a phone, a desktop and a television, with two households and
+ * with one, at sizes that overflow and sizes that fit. Overflow is read off the page
+ * (the gate's scrollHeight against clientHeight), never assumed from the count, and each
+ * device needs at least one case of each kind so the checks cannot pass by asking nothing.
  *
  * Overflowing:
- *   - the row is inside the viewport, is sticky, and its panel is opaque;
- *   - every tile, brought into view the way the remote does (_focusVisibly), is on screen
- *     and clear of the row;
- *   - walking Down with the remote's own mover (_moveOverlayFocus) from the first tile
- *     reaches the row, never lands on a tile under it, and Up from the row returns to a
- *     tile in the last row.
+ *   - the row is in the viewport, sticky, and its panel is opaque;
+ *   - every tile, brought into view as the remote does (_focusVisibly), is on screen and
+ *     clear of the row;
+ *   - Down from the first tile with the remote's mover (_moveOverlayFocus) reaches the row
+ *     and never lands on a tile under it; Up from the row returns to a tile in the last row.
  * Fitting:
- *   - the row is in the normal flow (not stuck, not sticky) and below the last household,
- *     and Down from the first tile still reaches it.
+ *   - the row is in normal flow (not stuck, not sticky) below the last household, and Down
+ *     from the first tile still reaches it.
  *
- * Needs Chrome; says it was skipped, exiting 0, without it. The stylesheet is always the
- * checkout's own, so pointing argv[2] at an older profiles.js removes the script half.
+ * Needs Chrome; skips with exit 0 without it. The stylesheet is always the checkout's, so
+ * an older profiles.js in argv[2] removes only the script half.
  *
  *     node tests/js/pickerbar.js [/path/to/old/profiles.js]
  */
@@ -60,7 +58,7 @@ function themes() {
         .map(f => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')).id).sort();
 }
 
-// Runs in the page. Reports numbers and names, never asserts.
+// Runs in the page. Reports numbers and names; asserts nothing.
 const MEASURE = `(function () {
   var root = document.getElementById('profiles-gate-overlay');
   var P = window.__bonfire;
@@ -165,8 +163,8 @@ async function main() {
     const c = await chrome.launch();
     const seen = {};
     try {
-        // Every theme, size and case is its own page, independent of the others, so they are
-        // measured several at a time (chrome.js checks()), in the order a serial loop would give.
+        // Each theme, size and case is its own page, so they are measured several at a time
+        // (chrome.js checks()), in serial-loop order.
         // `c` inside the callback is that scene's own tab.
         const grid = [];
         for (const theme of themes()) {
@@ -205,7 +203,7 @@ async function main() {
                         ok(w + ': Down still reaches the row', m.reached, 'after ' + m.steps + ' steps');
                     }
         });
-        // The theme headings, printed as the results reach each theme.
+        // The theme headings, printed as results reach each theme.
         let heading = null;
         results.forEach(a => {
             const theme = a[0].split(' ')[0];
