@@ -1,19 +1,15 @@
 <div id="profilesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="libraryloading,embyrouter,selectmenu,dialogHelper">
 <style>
-    /* Every colour on this page that is not Jellyfin's own, named once, here.
+    /* Every color on this page that is not Jellyfin's own, named once, here.
        The page wears the warm Bonfire theme (Web/themes/bonfire.json): its ember for
-       buttons, tabs, headings, links and focus rings, and three status colours that stay
+       buttons, tabs, headings, links and focus rings, plus three status colors that stay
        apart from it. Jellyfin's background, surfaces and text are left alone.
 
-       This used to read the dashboard theme's --accent, which is Jellyfin blue on every
-       theme but one. It no longer does: the colours below do not follow it.
-
-       These are the dark dashboard theme's. bonfire.json's accent (#ffb347) is built for a
-       dark page and is 1.9:1 on white, so the light themes get a darker ember from the
-       same family, in the block below. jellyfin-web marks the theme with a data-theme
-       attribute on <html> (src/scripts/themeManager.js), and appletv is its second light
-       scheme. Tints are plain rgba, not color-mix, so there is one value to read.
-       tests/js/dashwarm.js measures every pair. */
+       These are the dark dashboard theme's. The ember (#ffb347) is 1.9:1 on white, so the
+       light themes get a darker ember from the same family in the block below. jellyfin-web
+       sets a data-theme attribute on <html> (src/scripts/themeManager.js); appletv is its
+       second light scheme. Tints are plain rgba, not color-mix, so there is one value to
+       read. tests/js/dashwarm.js measures every pair. */
     #profilesConfigurationPage {
         --jpf-accent: #ffb347;          /* text, tab underline, button fill */
         --jpf-accent-hover: #ffc773;    /* button fill under the pointer or focus */
@@ -22,8 +18,8 @@
         --jpf-accent-tint: rgba(255, 179, 71, 0.12);
         --jpf-accent-tint-hover: rgba(255, 179, 71, 0.22); /* a secondary button under the pointer or focus */
         --jpf-accent-line: rgba(255, 179, 71, 0.35);
-        /* Distinct from the accent and from each other. Warn is yellow rather than
-           orange, because #ff9900 was one step from the ember. */
+        /* Distinct from the accent and from each other. Warn is yellow, not orange:
+           #ff9900 was one step from the ember. */
         --jpf-good: #51cf66;
         --jpf-bad: #ff6b6b;
         --jpf-bad-fill: #cc3333;        /* a filled badge, white label */
@@ -34,8 +30,8 @@
         --jpf-bad-line: rgba(255, 107, 107, 0.35);
         --jpf-warn-tint: rgba(255, 224, 102, 0.12);
         --jpf-warn-line: rgba(255, 224, 102, 0.35);
-        /* Hairlines, washes and strong text. White on the dark themes, black on the
-           light ones; the light block below flips every one. The number is the alpha. */
+        /* Hairlines, washes and strong text. White on dark themes, black on light ones;
+           the light block below flips every one. The number is the alpha. */
         --jpf-ink-hi: #ffffff;
         --jpf-scheme: dark;
         --jpf-w04: rgba(255, 255, 255, 0.04);
@@ -103,10 +99,9 @@
     #profilesConfigurationPage a:focus-visible,
     #profilesConfigurationPage .button-link:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
     /* Secondary buttons: every raised button that is not a primary, a link or the red
-       badge. Jellyfin's own .raised is a grey box, which sat badly against the ember
-       (owner, 1.9.0.4 eye test). Keyed on .raised rather than a class of our own so that
-       a button built in script cannot be missed and come out grey. The :not()s also lift
-       it over jellyfin-web's .raised and .button-accent, whatever order they load in. */
+       badge. Jellyfin's .raised is a grey box that sat badly against the ember (1.9.0.4
+       eye test). Keyed on .raised so a button built in script cannot come out grey. The
+       :not()s lift it over jellyfin-web's .raised and .button-accent in either load order. */
     #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad) {
         background: var(--jpf-accent-tint);
         color: var(--jpf-accent);
@@ -116,15 +111,12 @@
     #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):focus { background: var(--jpf-accent-tint-hover); color: var(--jpf-accent-hover); }
     #profilesConfigurationPage .raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad):focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
 
-    /* The header: Bonfire's mark, the same svg the client's switcher draws, and its
-       name. A header, not a banner. */
+    /* The header: Bonfire's mark (the client switcher's svg) and its name. */
     #profilesConfigurationPage .jpf-brand { display: flex; align-items: center; gap: 0.5em; margin: 0 0 1.25em 0; }
     #profilesConfigurationPage .jpf-brand-mark { font-size: 1.5rem; width: 1em; height: 1em; flex-shrink: 0; color: var(--jpf-accent); fill: currentColor; }
     #profilesConfigurationPage .jpf-brand-name { font-size: 1.15rem; font-weight: 600; color: var(--jpf-accent); }
 
-    /* Five unrelated jobs — limits, pictures, accounts, history, the panic switch —
-       used to be one column five screens tall, so finding any of them meant
-       scrolling past the other four. */
+    /* Five unrelated jobs used to be one column five screens tall. */
     #profilesConfigurationPage .jpf-tabs {
         display: flex;
         flex-wrap: wrap;
@@ -132,10 +124,9 @@
         margin: 0 0 2em 0;
         border-bottom: 1px solid var(--jpf-w14);
     }
-    /* Every other control on this page is is="emby-button" and inherits Jellyfin's
-       styling. These are plain buttons, so everything the user agent would otherwise
-       supply has to be turned off by hand — including the border and background that
-       made them read as five little white chips. */
+    /* Every other control here is is="emby-button" and inherits Jellyfin's styling.
+       These are plain buttons, so the user agent's border and background (five little
+       white chips) are turned off by hand. */
     #profilesConfigurationPage .jpf-tab {
         -webkit-appearance: none;
         appearance: none;
@@ -166,7 +157,7 @@
         color: var(--jpf-accent);
         border-bottom-color: var(--jpf-accent);
     }
-    /* The household chevron's turn: here and not in its style attribute, which a media
+    /* The household chevron's turn. Here, not in its style attribute, which a media
        query cannot override. */
     #profilesConfigurationPage .toggle-chevron {
         transition: transform 0.15s ease;
@@ -181,26 +172,21 @@
         outline: 2px solid var(--jpf-ring);
         outline-offset: -2px;
     }
-    /* Stated rather than left to the user agent: this page sets display on plenty of
-       its own containers, and one of them inheriting past [hidden] would show two
-       tabs at once. */
+    /* Stated so one container inheriting past [hidden] cannot show two tabs at once. */
     #profilesConfigurationPage .jpf-tab-panel[hidden] {
         display: none;
     }
-    /* Each section still carries the 3em that separated it from the one above, which
-       is now a gap at the top of a tab. */
+    /* Each section still carries the 3em that separated it from the one above; now it is
+       a gap at the top of a tab. */
     #profilesConfigurationPage .jpf-tab-panel > .sectionTitleContainer:first-child {
         margin-top: 0 !important;
     }
 
     /* The number box beside each account, in the Accounts table.
-       It carried six stacked !important declarations inline, which is what you
-       write when you have lost an argument with a stylesheet you cannot see. The
-       opponent is emby-input: `is="emby-input"` upgrades the element and
-       jellyfin-web's own rules then set width, height, padding and margin. An
-       id-scoped selector outranks all of them on specificity alone, so none of
-       the !importants were ever doing work that this rule does not do — and
-       leaving them meant the next person could not override the box at all. */
+       emby-input upgrades the element and jellyfin-web's own rules set width, height,
+       padding and margin. An id-scoped selector outranks them on specificity alone, so
+       the six inline !importants it replaces were never needed, and they stopped anyone
+       overriding the box. */
     #profilesConfigurationPage .user-limit-input {
         width: 60px;
         height: 28px;
@@ -210,8 +196,8 @@
         box-sizing: border-box;
     }
 
-    /* Audit log controls. Classes rather than inline style attributes: this page
-       had 112 of those and they are being retired, not added to. */
+    /* Audit log controls. Classes, not inline style attributes: this page had 112 of
+       those and they are being retired. */
     #profilesConfigurationPage .jpf-audit-controls {
         display: flex;
         flex-wrap: wrap;
@@ -247,14 +233,13 @@
         text-align: left;
         width: 100%;
         /* The 15px side padding was added to the 100% width: every row stuck out 30px past
-           its list, which is the horizontal scrollbar, and on a wide screen pushed what sat
-           at a row's right end past the box. */
+           its list (horizontal scrollbar), and pushed a row's right end past the box. */
         box-sizing: border-box;
         padding: 12px 15px;
         border-bottom: 1px solid var(--jpf-w06);
     }
-    /* space-between distributes nothing once the row is narrow, which ran the
-       timestamp straight into the address: "12:09:28 PMIP: 127.0.0.1". */
+    /* space-between distributes nothing once the row is narrow, which ran the timestamp
+       into the address: "12:09:28 PMIP: 127.0.0.1". */
     #profilesConfigurationPage .jpf-audit-meta {
         display: flex;
         flex-wrap: wrap;
@@ -270,10 +255,10 @@
         opacity: 0.7;
         margin-top: 2px;
     }
-    /* On a screen wide enough, the four parts line up as columns: time, who switched to
-       whom, device, address. The meta line dissolves so its two spans become cells; its
-       dimming moves onto the spans, because a box that does not exist cannot be dimmed.
-       Narrower than this, the stacked form above stands. */
+    /* Wide enough, the four parts line up as columns: time, who switched to whom, device,
+       address. The meta line dissolves so its two spans become cells; the dimming moves
+       onto the spans, because a box that does not exist cannot be dimmed. Narrower than
+       this, the stacked form above stands. */
     @media (min-width: 900px) {
         #profilesConfigurationPage .jpf-audit-row {
             display: grid;
@@ -324,21 +309,14 @@
     }
 
     /* == A vocabulary for this page ==========================================
-       This file carried 132 inline style attributes across 55 distinct values,
-       most of them variations on the same handful of ideas: a notice box, a
-       small status line, a spacing tweak. Five of the boxes were amber and no
-       two of them were the same amber.
+       This file carried 132 inline style attributes across 55 distinct values, mostly
+       the same few ideas: a notice box, a small status line, a spacing tweak. They are
+       consolidated, not transcribed, so a color that shifted slightly is the
+       consolidation working.
 
-       They are consolidated rather than transcribed. Turning 55 values into 55
-       single-use classes would move the problem into the stylesheet and make it
-       harder to read; what follows is the set the page actually needed. Where a
-       colour has shifted slightly, that is the consolidation doing its job.
-
-       Note on display:none. The boxes below are shown and hidden from script by
-       assigning to style.display, which is inline and therefore beats these
-       rules in the cascade either way. Nothing in this page sets
-       style.display = '' (checked), which is the one pattern that would break
-       against a class-supplied `display: none`. */
+       The boxes below are shown and hidden by assigning style.display, which is inline
+       and beats these rules either way. Nothing here sets style.display = '', the one
+       pattern that would break against a class-supplied `display: none`. */
 
     #profilesConfigurationPage .jpf-hidden { display: none; }
 
@@ -360,9 +338,9 @@
     #profilesConfigurationPage .jpf-extras-form > .fieldDescription { flex: 0 0 100%; }
     #profilesConfigurationPage .jpf-extras-form.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-link-select { margin-bottom: 0; min-width: 14em; }
-    /* The arrow of every select points up while its list is open and down while it is closed.
-       bindSelectArrows puts .jpf-select-open on the select's container. jellyfin-web inserts an
-       empty label before each upgraded select; where the markup has its own, that one is spare. */
+    /* The arrow of every select points up while its list is open. bindSelectArrows puts
+       .jpf-select-open on the select's container. jellyfin-web inserts an empty label
+       before each upgraded select; where the markup has its own, that one is spare. */
     #profilesConfigurationPage .selectArrow { display: inline-block; -webkit-transition: -webkit-transform 0.15s ease; transition: transform 0.15s ease; }
     #profilesConfigurationPage .jpf-select-open > .selectArrowContainer .selectArrow { -webkit-transform: rotate(180deg); transform: rotate(180deg); }
     #profilesConfigurationPage .selectLabel:empty { display: none; }
@@ -387,11 +365,11 @@
         display: flex; align-items: center; flex-wrap: wrap;
         padding: 0.55em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.2);
     }
-    /* The theme cards beside each built-in and under the default select: the editor's card,
-       smaller. Its own look is the theme's tokens; these rules only size and place it. */
+    /* The theme cards beside each built-in and under the default select: the editor's
+       card, smaller. Its look is the theme's tokens; these rules only size and place it. */
     #profilesConfigurationPage .jpf-ob-row .jpf-theme-preview { flex: 0 0 9em; width: 9em; margin: 0.2em 1em 0.2em 0; }
     #profilesConfigurationPage .jpf-theme-slot { margin-top: 0.75em; width: 11em; max-width: 100%; }
-    /* The line of sample text is left off the small ones: twelve cards in a list are long enough. */
+    /* No sample text on the small cards: twelve in a list are long enough. */
     #profilesConfigurationPage .jpf-ob-row .jpf-te-preview-text,
     #profilesConfigurationPage .jpf-theme-slot .jpf-te-preview-text { display: none; }
     #profilesConfigurationPage .jpf-ob-name { flex: 1 1 12em; font-weight: 600; }
@@ -399,9 +377,9 @@
     #profilesConfigurationPage .jpf-ob-box { display: inline-flex; align-items: center; margin-left: 1.5em; cursor: pointer; }
     #profilesConfigurationPage .jpf-ob-box input { margin: 0 0.4em 0 0; }
     #profilesConfigurationPage .jpf-ob-box input:disabled + span { opacity: 0.45; }
-    /* The built-in and custom theme lists as a grid of cards (owner, 1.9.0.4 eye test: one
-       narrow column left most of a wide monitor empty). min() keeps a track from being
-       wider than a 360px phone's list. A card is the preview on top, the name, then Hide. */
+    /* The built-in and custom theme lists as a grid of cards (1.9.0.4 eye test: one
+       narrow column left most of a wide monitor empty). min() keeps a track inside a
+       360px phone's list. A card is the preview, the name, then Hide. */
     #profilesConfigurationPage .jpf-theme-cards,
     #profilesConfigurationPage .jpf-te-list.jpf-theme-cards {
         display: grid; max-width: none; gap: 1em;
@@ -453,8 +431,8 @@
     #profilesConfigurationPage .jpf-ann-buttons { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
 
     /* Themes (1.7.2): the three lists, and the editor with its preview beside the
-       fields. The preview's own look comes from the theme's tokens, which themeCss
-       writes on its data-jpf-theme; the rules here only place what it draws. */
+       fields. The preview's look comes from the theme's tokens (themeCss writes them on
+       its data-jpf-theme); these rules only place what it draws. */
     #profilesConfigurationPage .jpf-te-list { margin: 0.5em 0 1em; max-width: 52em; }
     #profilesConfigurationPage .jpf-te-item {
         display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px;
@@ -478,9 +456,9 @@
         margin: 1em 0 2em;
     }
     #profilesConfigurationPage .jpf-te-title { margin: 0 0 0.75em; overflow-wrap: anywhere; }
-    /* The bar. Sticky with the -webkit- prefix like the preview; bindThemePreviewStick sets
-       its top to Jellyfin's header, and on Chromium 53 (no sticky at all) moves it by a
-       transform. Opaque and above the preview (z-index 2). */
+    /* The bar. Sticky with the -webkit- prefix like the preview; bindThemePreviewStick
+       sets its top to Jellyfin's header, and on Chromium 53 (no sticky) moves it by a
+       transform. Opaque, above the preview (z-index 2). */
     #profilesConfigurationPage .jpf-te-bar {
         position: relative; position: -webkit-sticky; position: sticky; top: 0; z-index: 3;
         display: flex; align-items: center; gap: 8px;
@@ -512,14 +490,14 @@
         #profilesConfigurationPage .jpf-te-bar { gap: 6px; }
         #profilesConfigurationPage .jpf-te-bar-opt { display: none; }
         #profilesConfigurationPage .jpf-te-more { display: block; }
-        /* The name is what says which theme this is, so it keeps room and the count gives
-           way: it was squeezed to nothing at 480 px, with File in the bar. */
+        /* The name says which theme this is, so it keeps room and the count gives way:
+           it was squeezed to nothing at 480 px with File in the bar. */
         #profilesConfigurationPage .jpf-te-bar-name { min-width: 4em; }
         #profilesConfigurationPage .jpf-te-count { min-width: 0; max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; }
     }
-    /* At phone width one row cannot hold the name and the controls: Save was cut to "Sav" and
-       the bar ran 9 px past the card. The name and the problem count share the first row, and
-       the controls keep their size on the second. */
+    /* At phone width one row cannot hold the name and the controls: Save was cut to "Sav"
+       and the bar ran 9 px past the card. Name and problem count share the first row; the
+       controls keep their size on the second. */
     @media (max-width: 480px) {
         #profilesConfigurationPage .jpf-te-bar { flex-wrap: wrap; row-gap: 4px; }
         #profilesConfigurationPage .jpf-te-bar > * { flex-shrink: 0; -webkit-box-ordinal-group: 3; order: 2; }
@@ -530,7 +508,7 @@
         display: flex; gap: 2px; margin: 0 0 1.25em;
         border-bottom: 1px solid var(--jpf-w14);
     }
-    /* The tab strip's look, under a class of its own: initTabs binds every .jpf-tab. */
+    /* The tab strip's look, under its own class: initTabs binds every .jpf-tab. */
     #profilesConfigurationPage .jpf-te-mode {
         -webkit-appearance: none; appearance: none;
         background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
@@ -540,13 +518,12 @@
     #profilesConfigurationPage .jpf-te-mode.is-active { opacity: 1; font-weight: 600; border-bottom-color: var(--jpf-accent); }
     #profilesConfigurationPage .jpf-te-mode:focus-visible { outline: 2px solid var(--jpf-ring); outline-offset: -2px; }
     /* row-reverse with the preview first: it sits right of the fields while both fit, and
-       on a line of its own above them once they do not. The bases are sized so both fit
-       the dashboard's column on a desktop (26em + 20em did not, so it always wrapped below). */
+       on its own line above them when not. The bases are sized so both fit the dashboard's
+       column on a desktop (26em + 20em did not, so it always wrapped). */
     #profilesConfigurationPage .jpf-te-body { display: flex; flex-direction: row-reverse; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
-    /* The preview takes 45% of the editor beside the fields: at 18em it was a 240 px card
-       too small to judge a theme by. Sticky below Jellyfin's header (bindThemePreviewStick
-       sets top to the header's foot), and on Chromium 53, which has no sticky, the same
-       function moves it with a transform instead. */
+    /* The preview takes 45% of the editor: at 18em it was a 240 px card, too small to
+       judge a theme by. Sticky below Jellyfin's header (bindThemePreviewStick sets top),
+       and moved by a transform on Chromium 53, which has no sticky. */
     #profilesConfigurationPage .jpf-te-fields { flex: 1 1 21em; min-width: 0; }
     #profilesConfigurationPage .jpf-te-side { flex: 0 1 45%; min-width: 16em; position: relative; position: -webkit-sticky; position: sticky; top: 0.5em; z-index: 2; }
     #profilesConfigurationPage .jpf-te-side .jpf-theme-preview { padding: 28px 18px; gap: 16px; }
@@ -557,7 +534,7 @@
     #profilesConfigurationPage .jpf-te-side .jpf-te-preview-primary,
     #profilesConfigurationPage .jpf-te-side .jpf-theme-preview-button { font-size: 0.85rem; padding: 6px 16px; }
     /* A phone has no room beside the form: the preview is a short strip along the top,
-       name and tiles only, with Expand on it for the full picker. Tablet and below, on the
+       name and tiles only, with Expand for the full picker. Tablet and below, on the
        page's one scale (tests/js/breakpoints.js). */
     @media (max-width: 899px) {
         #profilesConfigurationPage .jpf-te-side { flex: 1 1 100%; min-width: 0; }
@@ -576,23 +553,22 @@
             -webkit-transform: translateY(-50%); transform: translateY(-50%);
         }
     }
-    /* Three columns, from 1280 px, in Advanced only: the group list, the preview, and the
-       selected group's fields. The class is set by applyThemeColumns from the same width the
-       script asks (themeWide3), so the CSS and the script cannot disagree about the number.
-       Between 900 and 1279 px, and in Simple, none of this applies. The outline and the preview
-       are sticky together; the preview is larger than the one beside the fields. */
+    /* Three columns, from 1280 px, in Advanced only: group list, preview, and the
+       selected group's fields. applyThemeColumns sets the class from the same width the
+       script asks (themeWide3), so CSS and script cannot disagree. Between 900 and 1279
+       px, and in Simple, none of this applies. The outline and preview are sticky
+       together; the preview is larger than the one beside the fields. */
     #profilesConfigurationPage .jpf-te-outline { display: none; }
-    /* The media query repeats the script's 1280: the fixed tracks can never reach a phone,
-       even if the class were left on after the window shrank. */
+    /* The media query repeats the script's 1280: the fixed tracks can never reach a
+       phone, even if the class were left on after the window shrank. */
     @media (min-width: 1280px) {
         #profilesConfigurationPage .jpf-te-3col .jpf-te-body {
             display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(24em, 30%);
             grid-template-rows: minmax(0, 1fr);
             grid-template-areas: "outline preview fields"; gap: 24px; align-items: stretch;
-            /* The editor uses the window: the body is as tall as what is left of it below the
-               bar, the preview grows into that, and the fields scroll inside their own column
-               rather than making the page long. It was a 28em strip beside a 25em column, and
-               on a 2900 px window the rest of the screen was empty. */
+            /* The body is as tall as what is left of the window below the bar, the preview
+               grows into it, and the fields scroll in their own column. It was a 28em strip
+               beside a 25em column, and a 2900 px window was mostly empty. */
             height: calc(100vh - 12em); min-height: 30em;
         }
         #profilesConfigurationPage .jpf-te-3col .jpf-te-fields { overflow-y: auto; min-height: 0; padding-right: 4px; }
@@ -626,19 +602,19 @@
     #profilesConfigurationPage .jpf-te-opt.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-te-ocount { font-size: 0.8rem; font-weight: 400; opacity: 0.75; }
     #profilesConfigurationPage .jpf-te-opt.jpf-te-has-problem::after { content: "!"; color: var(--jpf-bad); font-weight: 700; }
-    /* One group at a time. Its heading stays as a title and no longer folds; the outline is the way
-       between groups. */
+    /* One group at a time. Its heading stays as a title and no longer folds; the outline
+       moves between groups. */
     #profilesConfigurationPage .jpf-te-3col .jpf-te-group:not(.is-selected) { display: none; }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-group > summary { pointer-events: none; list-style: none; font-size: 1.1rem; }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-group > summary::-webkit-details-marker { display: none; }
-    /* The colours sit two across: a colour is a swatch and a short box, and the column is wide
-       enough for a pair. (.jpf-te-colors is Simple's grid; its 14em minimum put four colours in one
-       column at this width.) */
+    /* The colors sit two across: a swatch and a short box, and the column fits a pair.
+       (.jpf-te-colors is Simple's grid; its 14em minimum put four colors in one column
+       at this width.) */
     #profilesConfigurationPage .jpf-te-3col .jpf-te-adv.jpf-te-adv-color { display: inline-grid; width: 50%; box-sizing: border-box; padding: 6px 8px 6px 0; vertical-align: top; }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-adv.jpf-te-adv-color.jpf-hidden { display: none; }
-    /* The preview opens its fields (Advanced only): each part names its group in data-te-group.
-       Hover and a focused field outline a part with is-hot and is-focus, which script sets so that
-       only the innermost part under the pointer is marked, not the card around it too. The add
+    /* The preview opens its fields (Advanced only): each part names its group in
+       data-te-group. Hover and a focused field outline a part with is-hot and is-focus,
+       which script sets so only the innermost part under the pointer is marked. The add
        tile, card, sheet and text box are drawn for this and are not in the lists' cards. */
     #profilesConfigurationPage .jpf-te-preview-extra { display: none; }
     #profilesConfigurationPage .jpf-te.is-advanced .jpf-te-preview-extra { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; }
@@ -668,12 +644,12 @@
         gap: 10px 16px; margin-bottom: 1.5em;
     }
     #profilesConfigurationPage .jpf-te-color { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; }
-    /* A long name wraps beside its swatch. Without this, "Background, top" dropped below the
-       swatch at phone width while "Accent" stayed beside it. */
+    /* A long name wraps beside its swatch: "Background, top" dropped below it at phone
+       width while "Accent" stayed beside it. */
     #profilesConfigurationPage .jpf-te-color > .jpf-te-sw { flex-shrink: 0; }
     #profilesConfigurationPage .jpf-te-color > span { flex: 1 1 0; min-width: 0; }
-    /* "More" on a Simple control opens Advanced at its group; the follow hint is the same
-       link in words. Advanced is not there below 900 px, so neither are they. */
+    /* "More" on a Simple control opens Advanced at its group; the follow hint is the
+       same link in words. Advanced is not there below 900 px, so neither are they. */
     #profilesConfigurationPage .jpf-te-link { margin-top: 4px; padding: 2px 8px; font-size: 0.8rem; opacity: 0.85; }
     #profilesConfigurationPage .jpf-te-color .jpf-te-link { margin: 0 0 0 auto; }
     #profilesConfigurationPage .jpf-te-hintlink {
@@ -687,8 +663,8 @@
         #profilesConfigurationPage .jpf-te-link, #profilesConfigurationPage .jpf-te-hintlink { display: none; }
         #profilesConfigurationPage .jpf-te-narrow { display: block; }
     }
-    /* The colour squares are buttons that open the popup below, not input type=color: that
-       opens a different native dialog in every browser. */
+    /* The color squares are buttons that open the popup below, not input type=color,
+       which opens a different native dialog in every browser. */
     #profilesConfigurationPage .jpf-te .jpf-te-sw {
         -webkit-appearance: none; appearance: none;
         width: 42px; height: 32px; padding: 0; margin: 0; flex-shrink: 0; cursor: pointer;
@@ -696,8 +672,8 @@
     }
     #profilesConfigurationPage .jpf-te .jpf-te-sw:focus { outline: 2px solid var(--jpf-ring); outline-offset: 2px; }
     #profilesConfigurationPage .jpf-te { position: relative; }
-    /* Drawn inside the editor and placed by script (positionColorPopup), which keeps it off
-       the preview card. Opaque and above the sticky card (z-index 2). */
+    /* Drawn inside the editor and placed by script (positionColorPopup), off the preview
+       card. Opaque, above the sticky card (z-index 2). */
     #profilesConfigurationPage .jpf-te-pop {
         position: absolute; z-index: 5; box-sizing: border-box; width: 17.5em; max-width: calc(100% - 8px);
         padding: 10px; border-radius: 8px; border: 1px solid var(--jpf-accent-line);
@@ -708,11 +684,10 @@
     /* The expanded preview: the profile picker's own classes under the theme being edited
        (data-jpf-theme), so Bonfire's stylesheet draws it. One fixed layer over the whole
        window, Jellyfin's header included, as the real picker is. It was absolute inside the
-       page and sized to the part of it on screen; on a live server that drew it at the top
-       of the page with the dashboard showing under it. positionThemeExpanded corrects for an
-       ancestor that makes fixed relative to itself. The gate rules below are the real
-       overlay's, under another id: the real id is the client's, and its route poll would
-       take a copy of it down. */
+       page, and on a live server it drew at the top of the page with the dashboard showing
+       under it. positionThemeExpanded corrects for an ancestor that makes fixed relative
+       to itself. The gate rules below are the real overlay's under another id: the real id
+       is the client's, and its route poll would take a copy down. */
     #profilesConfigurationPage .jpf-te-xwrap { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1100; overflow: hidden; }
     #profilesConfigurationPage #teExpandGate {
         position: relative; width: 100%; height: 100%; box-sizing: border-box;
@@ -756,24 +731,24 @@
     #profilesConfigurationPage .jpf-te-bad > span,
     #profilesConfigurationPage .jpf-te-bad .jpf-te-adv-label { color: var(--jpf-bad); }
     /* The row a problem names: a red edge down its side and its message under it. Its group,
-       closed or open, carries a "!" on the summary so a problem inside is not out of sight. */
+       open or closed, carries a "!" on the summary so a problem inside is not out of sight. */
     #profilesConfigurationPage .jpf-te-field.jpf-te-bad { border-left: 3px solid var(--jpf-bad); padding-left: 8px; }
     #profilesConfigurationPage details.jpf-te-has-problem > summary::after { content: "!"; margin-left: 0.5em; color: var(--jpf-bad); font-weight: 700; }
     #profilesConfigurationPage .jpf-te-msg { flex-basis: 100%; color: var(--jpf-bad); font-size: 0.85rem; margin-top: 4px; }
     #profilesConfigurationPage .jpf-te-group { margin: 0 0 0.5em; }
-    /* The search hides rows and groups. .jpf-hidden is declared far above and the rules for
-       .jpf-te-adv (display: grid) are the same specificity and later, so they are named. */
+    /* The search hides rows and groups. .jpf-hidden is declared far above, and the
+       .jpf-te-adv rules (display: grid) are the same specificity and later, so they are named. */
     #profilesConfigurationPage .jpf-te-adv.jpf-hidden, #profilesConfigurationPage .jpf-te-group.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-te-search { width: 100%; box-sizing: border-box; margin: 0 0 0.75em; }
     #profilesConfigurationPage .jpf-te-group > summary { cursor: pointer; font-weight: 600; padding: 0.45em 0; }
-    /* The path above its control, then the hint: with the preview taking 45% of the editor
+    /* The path above its control, then the hint: with the preview at 45% of the editor
        there is no room for the path beside a shadow's boxes or a slider. */
     #profilesConfigurationPage .jpf-te-adv {
         display: grid; grid-template-columns: minmax(0, 1fr);
         align-items: center; gap: 4px 12px; padding: 6px 0;
     }
     #profilesConfigurationPage .jpf-te-adv { position: relative; }
-    /* A changed row: a dot and a Reset at its top right, and room for them beside the name. */
+    /* A changed row: a dot and a Reset at its top right, with room beside the name. */
     #profilesConfigurationPage .jpf-te-marks { display: none; position: absolute; top: 6px; right: 0; align-items: center; gap: 6px; }
     #profilesConfigurationPage .jpf-te-adv.is-changed > .jpf-te-marks { display: inline-flex; }
     #profilesConfigurationPage .jpf-te-adv.is-changed > .jpf-te-adv-label { padding-right: 6em; }
@@ -810,9 +785,9 @@
     #profilesConfigurationPage .jpf-te-lname { flex: 0 0 9em; font-size: 0.9rem; }
     #profilesConfigurationPage .jpf-te-lrow .jpf-te-pair { flex: 1 1 8em; min-width: 0; }
     #profilesConfigurationPage .jpf-te-lrow .jpf-te-selbox { flex: 1 1 8em; width: auto; }
-    /* The editor's dropdowns sit in a selectContainer so jellyfin-web draws their arrow. Its
-       own arrow position counts on a label above the select, which these rows do not have,
-       so the arrow is centred on the select instead. */
+    /* The editor's dropdowns sit in a selectContainer so jellyfin-web draws their arrow.
+       Its arrow position counts on a label above the select, which these rows lack, so the
+       arrow is centered on the select instead. */
     #profilesConfigurationPage .jpf-te-selbox { margin: 0; min-width: 0; }
     #profilesConfigurationPage .jpf-te-selbox .selectArrowContainer { top: 50%; -webkit-transform: translateY(-50%); transform: translateY(-50%); }
     #profilesConfigurationPage .jpf-te-selbox .selectArrow { display: block; margin: 0; font-size: 1.5em; line-height: 1; }
@@ -861,8 +836,7 @@
         border-color: var(--jpf-good-line);
         color: var(--jpf-good);
     }
-    /* Quieter than .jpf-note-warn: used where the box is advisory rather than a
-       problem, such as the beta channel notice. */
+    /* Quieter than .jpf-note-warn: for an advisory box, such as the beta channel notice. */
     #profilesConfigurationPage .jpf-note-soft {
         background: var(--jpf-warn-tint);
         border-color: var(--jpf-warn-line);
@@ -922,21 +896,19 @@
         background: rgba(0, 0, 0, 0.15);
     }
 
-    /* Spacing. Named for the rhythm of the page rather than for their values,
-       so changing the rhythm is one edit. */
+    /* Spacing, named for the rhythm of the page, so changing it is one edit. */
     #profilesConfigurationPage .jpf-section { margin-top: 3em; }
     #profilesConfigurationPage .jpf-lede { margin-bottom: 1em; }
     /* A heading that opens a new group of settings inside one form. */
     #profilesConfigurationPage .jpf-subhead { margin-top: 1.5em; }
     #profilesConfigurationPage .jpf-block-end { margin-bottom: 3em; }
     /* A closed Advanced section is a line of text. With nothing under it, the Save button
-       after it read as part of it. Margins between siblings collapse, so a heading that
-       follows (3em) is unchanged. */
+       after it read as part of it. Sibling margins collapse, so a following heading (3em)
+       is unchanged. */
     #profilesConfigurationPage .jpf-advanced { margin-bottom: 1.5em; }
 
-    /* The rest of the vocabulary. Layout that belongs to one element still gets
-       a name -- .jpf-avatar-grid says what it is, where a repeated
-       grid-template-columns in the markup said only how. */
+    /* The rest of the vocabulary. Layout that belongs to one element still gets a name:
+       .jpf-avatar-grid says what it is, where a repeated grid-template-columns did not. */
     #profilesConfigurationPage .jpf-sublist { margin: 6px 0 0 0; padding-left: 20px; }
     #profilesConfigurationPage .jpf-label-block { display: block; margin-bottom: 6px; }
     #profilesConfigurationPage .jpf-quiet { opacity: 0.85; }
@@ -955,9 +927,9 @@
     }
     /* A secondary action with its own hint under it, beside the primary one. */
     #profilesConfigurationPage .jpf-actions > .jpf-action-hint { align-self: flex-start; }
-    /* jellyfin-web gives every .emby-button a 0.3em margin all round, which indents the
-       first button of a row a few pixels from the text above it. Spacing between buttons is
-       the gap on the row, so the left margin goes and every row starts on the content edge. */
+    /* jellyfin-web gives every .emby-button a 0.3em margin, which indents a row's first
+       button from the text above it. Spacing between buttons is the row's gap, so the left
+       margin goes and every row starts on the content edge. */
     #profilesConfigurationPage [is="emby-button"],
     #profilesConfigurationPage [is="emby-linkbutton"] { margin-left: 0; }
     #profilesConfigurationPage .jpf-avatar-grid {
@@ -968,32 +940,30 @@
     }
     /* The "no avatars yet" line is the grid's only child: across every column, not one. */
     #profilesConfigurationPage .jpf-avatar-grid > .fieldDescription { grid-column: 1 / -1; }
-    /* The two coloured badges on the version chip: one for a build that will not
-       run, one for a build that is merely out of date. */
+    /* The two badges on the version chip: a build that will not run, and one that is
+       merely out of date. */
     #profilesConfigurationPage .jpf-badge-bad { background: var(--jpf-bad-fill); color: #fff; }
     #profilesConfigurationPage .jpf-btn-quiet {
         background: var(--jpf-w08);
         color: var(--jpf-w75);
     }
 
-    /* Classes for the rows this page builds in script. Only the repeated ones:
-       a structural style that appears once, inside the template of the row it
-       belongs to, is clearer where it is than behind a name used nowhere else. */
+    /* Classes for the rows this page builds in script. Only the repeated ones; a style
+       that appears once is clearer inside its own row template. */
     #profilesConfigurationPage .jpf-list-pad { padding: 15px; }
     #profilesConfigurationPage .jpf-error { color: var(--jpf-bad); }
     #profilesConfigurationPage .jpf-dim { opacity: 0.8; }
     #profilesConfigurationPage .jpf-divider { border-bottom: 1px solid var(--jpf-w08); }
     #profilesConfigurationPage .jpf-grow { flex: 1; min-width: 0; }
 
-    /* Spacing that appears more than once. Named for the step rather than the
-       pixel count, so the rhythm of the page is one edit rather than a search. */
+    /* Spacing used more than once, named for the step, not the pixel count. */
     #profilesConfigurationPage .jpf-mt-1 { margin-top: 8px; }
     #profilesConfigurationPage .jpf-mt-2 { margin-top: 12px; }
     #profilesConfigurationPage .jpf-mt-3 { margin-top: 14px; }
     #profilesConfigurationPage .jpf-mb-0 { margin-bottom: 4px; }
     #profilesConfigurationPage .jpf-mb-1 { margin-bottom: 8px; }
     #profilesConfigurationPage .jpf-mb-2 { margin-bottom: 10px; }
-    /* A notice box that is a single line of text does not need the full padding. */
+    /* A one-line notice box does not need the full padding. */
     #profilesConfigurationPage .jpf-note-tight { padding: 12px 18px; }
 
     /* Status. The level is the word in the chip and the stripe, never colour alone. */
@@ -1022,8 +992,8 @@
     #profilesConfigurationPage .jpf-check-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     @media (max-width: 480px) {
         #profilesConfigurationPage .jpf-check { grid-template-columns: 1fr; gap: 4px; }
-        /* One column on a phone: server over port, an announcement over its buttons, a
-           label over its field. */
+        /* One column on a phone: server over port, an announcement over its buttons, a label
+           over its field. */
         #profilesConfigurationPage .jpf-email-server { grid-template-columns: 1fr; }
         #profilesConfigurationPage .jpf-ann-item { grid-template-columns: 1fr; }
         #profilesConfigurationPage .jpf-ann-buttons { grid-column: 1; grid-row: auto; }
@@ -1056,10 +1026,9 @@
 
     /* Every field takes the page's own wash and ink. jellyfin-web only styles what upgrades
        (is="emby-input" and friends); the report box, the date and search boxes and anything
-       a script writes are plain elements, and a plain element takes the browser's white, which
-       matches no theme (the report box flashed white when it opened). The colours are the same
-       tokens as everything else here, so they flip with the light themes; color-scheme gives
-       the date picker, the select's list and the scrollbars the matching face. */
+       a script writes are plain elements, which take the browser's white (the report box
+       flashed white when it opened). The tokens flip with the light themes; color-scheme
+       gives the date picker, select list and scrollbars the matching face. */
     #profilesConfigurationPage input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="range"]):not([type="color"]),
     #profilesConfigurationPage select,
     #profilesConfigurationPage textarea {
@@ -1077,23 +1046,21 @@
                 <span class="jpf-brand-name" translate="no">Bonfire</span>
             </div>
             <!-- Installed or updated while Jellyfin was running. The pipeline hook can only
-                 be added at startup, so this build is not serving anything yet — while the
-                 previous build usually still is, which is why the switcher keeps working.
-                 Nothing is wrong with the file or its permissions, so this must not be the
-                 failure banner (issue #25). -->
+                 be added at startup, so this build is not serving yet; the previous build
+                 usually still is, which is why the switcher keeps working. Nothing is wrong
+                 with the file or its permissions, so this is not the failure banner (#25). -->
             <div class="jpf-hidden jpf-note jpf-note-warn" id="restartRequiredContainer">
                 <strong class="jpf-note-title"><span aria-hidden="true">↻ </span><span data-i18n="admin.banner.restartTitle">Restart Jellyfin to finish updating Bonfire</span></strong>
                 <span data-i18n="admin.banner.restartBody">Until then the old version keeps running.</span>
                 <!-- Filled in from the mechanism's runningVersion / newestInstalledVersion. The
-                     banner used to assert a restart was needed and stop there, which the reader
-                     had no way to check: someone who has already restarted, or who pressed
-                     Jellyfin's Restart button on a Docker image where it does not restart the
-                     process, sees the same words either way. Two numbers can be checked. -->
+                     banner used to say a restart was needed and stop there, which looks the same
+                     after a restart, or after Restart on a Docker image that does not restart
+                     the process. Two numbers can be checked. -->
                 <div class="jpf-hidden jpf-status" id="restartVersions"></div>
                 <div class="jpf-note-detail" data-i18n="admin.banner.restartDocker"><strong>On Docker, restart the container.</strong> Jellyfin's own Restart button doesn't restart the process on most images.</div>
             </div>
-            <!-- Shown when the settings could not be read. Save is refused while it is up,
-                 because the form is showing defaults and a save would write them. -->
+            <!-- Shown when the settings could not be read. Save is refused while it is up:
+                 the form shows defaults and a save would write them. -->
             <div class="jpf-hidden jpf-note jpf-note-error jpf-note-tight" id="configLoadError" role="alert">
                 <strong><span data-i18n="admin.loadFailed">Couldn't load the settings. Nothing can be saved until they load.</span></strong>
                 <div class="jpf-actions jpf-mt-3">
@@ -1111,14 +1078,13 @@
                 </div>
             </div>
 
-            <!-- Above the tabs on purpose: the banners above this line report that the
-                 plugin is not working, and must not be hidden behind a tab nobody has a
-                 reason to open. There is no banner for "all is well" or for a pre-release
-                 build any more: each only repeated a Status row on every tab (owner,
-                 1.9.0.4 eye test). Status still lists both. -->
+            <!-- Above the tabs on purpose: the banners above report that the plugin is not
+                 working, and must not hide behind a tab nobody has a reason to open. No banner
+                 for "all is well" or a pre-release build: each only repeated a Status row on
+                 every tab (1.9.0.4 eye test). Status still lists both. -->
             <!-- Grouped by job, not by when each setting was added. Status is first because
-                 it is the one an administrator opens the page to read. Setup is next because it
-                 is the first place someone who has just installed the plugin needs to go. -->
+                 it is what an administrator opens the page to read; Setup is next, for someone
+                 who has just installed the plugin. -->
             <div class="jpf-tabs" role="tablist" aria-label="Bonfire settings sections" data-i18n-aria-label="admin.tab.label">
                 <button type="button" class="jpf-tab" role="tab" data-tab="status" id="jpfTabStatus" aria-controls="jpfPanelStatus" data-i18n="admin.tab.status">Status</button>
                 <button type="button" class="jpf-tab" role="tab" data-tab="setup" id="jpfTabSetup" aria-controls="jpfPanelSetup" data-i18n="admin.tab.setup">Setup</button>
@@ -1136,12 +1102,12 @@
             <div class="jpf-tab-panel" id="jpfPanelStatus" data-panel="status" role="tabpanel" aria-labelledby="jpfTabStatus" hidden>
                 <div class="sectionTitleContainer jpf-row">
                     <h2 class="sectionTitle" data-i18n="admin.status.title">Status</h2>
-                    <!-- Filled in from the server's own version; no hardcoded literal to go stale. -->
+                    <!-- Filled in from the server's own version, so no literal goes stale. -->
                     <span class="jpf-pill" id="pluginVersionBadge">…</span>
                 </div>
-                <!-- Saved on its own, the moment it changes: it is not one of the fields Save
-                     sends. Off on a new install (the Plugin constructor). No hint line, by
-                     decision: the Status list says "Bonfire is off." while it is. -->
+                <!-- Saved on its own, the moment it changes; Save does not send it. Off on a
+                     new install (the Plugin constructor). No hint line, by decision: Status
+                     says "Bonfire is off." while it is. -->
                 <div class="checkboxContainer">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="bonfireOn" />
@@ -1150,9 +1116,9 @@
                 </div>
                 <div class="fieldDescription jpf-lede" id="statusSummary" data-i18n="admin.status.checking">Checking…</div>
                 <div class="jpf-checks" id="statusChecks"></div>
-                <!-- Asked once, on a new install: nothing else on this page is off by default
-                     and worth a question. Gone when answered, or when anything shows it
-                     was never a new install (renderGettingStarted decides). -->
+                <!-- Asked once, on a new install: nothing else here is off by default and worth
+                     a question. Gone when answered, or when anything shows it was never a new
+                     install (renderGettingStarted decides). -->
                 <div class="jpf-hidden jpf-note jpf-mt-3" id="onboardingAsk">
                     <strong class="jpf-label-block" data-i18n="admin.onboarding.askTitle">Show first-time setup?</strong>
                     <span data-i18n="admin.onboarding.askBody">New main accounts get a few screens to set a main PIN and make a profile.</span>
@@ -1240,13 +1206,10 @@
 
                 <details class="jpf-advanced jpf-section">
                     <summary data-i18n="admin.advanced.title">Advanced</summary>
-                    <!-- The emergency code comes first, with its own button, and the PIN
-                         settings last, so the tab's Save sits directly under what it saves.
-                         It used to be the other way round: "Save code" and then the page's
-                         Save, stacked after the emergency section, which read as two saves
-                         for one thing (owner, 1.9.0.4 eye test). The code is not saved by the
-                         page's Save because it is write-only and blank means "turn it off":
-                         a shared Save would clear it whenever the box was left empty. -->
+                    <!-- The emergency code comes first, with its own button, and the PIN settings
+                         last, so the tab's Save sits under what it saves (1.9.0.4 eye test). The
+                         code is not saved by the page's Save: it is write-only and blank means
+                         "turn it off", so a shared Save would clear it whenever the box was empty. -->
                     <div class="sectionTitleContainer" id="jpfEmergency">
                         <h2 class="sectionTitle" data-i18n="admin.panic.title">Emergency disable code</h2>
                     </div>
@@ -1292,10 +1255,10 @@
                     <h2 class="sectionTitle" data-i18n="admin.theme.title">Default theme</h2>
                 </div>
                 <div class="fieldDescription jpf-lede" data-i18n="admin.theme.lede">Bonfire's screens only.</div>
-                <!-- The words after each name are there so an administrator can tell them
-                     apart without opening a profile. They describe the look only; no theme
-                     is named after, or claims any link to, a real service. Jellyfin Dark and
-                     Light name the server's own web client, which Bonfire runs inside. -->
+                <!-- The words after each name let an administrator tell them apart without
+                     opening a profile. They describe the look only; no theme is named after, or
+                     claims a link to, a real service. Jellyfin Dark and Light name the server's
+                     own web client, which Bonfire runs inside. -->
                 <div class="selectContainer jpf-form-narrow">
                     <label class="selectLabel" for="defaultTheme" data-i18n="admin.theme.default">Default theme</label>
                     <select is="emby-select" id="defaultTheme">
@@ -1333,8 +1296,8 @@
                 </div>
 
                 <!-- The server's logo: an image, or a line of text, at the top right of the
-                     switcher screens. Image changes save at once through admin/themes/logo/image;
-                     the text and alt text save with their own button (admin/themes/logo). -->
+                     switcher screens. Image changes save at once (admin/themes/logo/image); the
+                     text and alt text save with their own button (admin/themes/logo). -->
                 <div class="sectionTitleContainer jpf-section" id="jpfLogo">
                     <h2 class="sectionTitle" data-i18n="admin.logo.title">Server logo</h2>
                 </div>
@@ -1368,9 +1331,9 @@
                 <button is="emby-button" type="button" class="raised button-submit jpf-narrow" id="logoSave" data-i18n="admin.logo.save">Save text</button>
                 <div class="jpf-hidden jpf-status" id="logoResult"></div>
 
-                <!-- The administrator's own themes, hidden built-ins and uploaded fonts
-                     (1.7.2). Everything here saves at once through admin/themes/*; only
-                     the default above waits for Save. -->
+                <!-- The administrator's own themes, hidden built-ins and uploaded fonts (1.7.2).
+                     All save at once through admin/themes/*; only the default above waits for
+                     Save. -->
                 <div class="sectionTitleContainer jpf-section" id="jpfThemes">
                     <h2 class="sectionTitle" data-i18n="admin.themes.title">Themes</h2>
                 </div>
@@ -1389,14 +1352,15 @@
                 </div>
                 <div class="jpf-hidden jpf-status" id="themesResult"></div>
 
-                <!-- The editor. Simple sets about eight values and the ones that must follow
-                     them; Advanced shows every field of the file. Both edit the same draft,
-                     which the preview wears and the server checks as it changes. -->
+                <!-- The editor. Simple sets about eight values and the ones that must follow;
+                     Advanced shows every field of the file. Both edit one draft, which the
+                     preview wears and the server checks as it changes. -->
                 <div class="jpf-te jpf-hidden" id="themeEditor">
-                    <!-- Stays at the top of the window while the fields scroll (bindThemePreviewStick
-                         sets its top), so Save, Cancel and the problem count are never a page away.
-                         #teFileSlot holds the File menu. At phone width Cancel moves into
-                         #teMenu, which Bonfire draws. The preview's own Expand is the only one. -->
+                    <!-- Stays at the top of the window while the fields scroll
+                         (bindThemePreviewStick sets its top), so Save, Cancel and the problem
+                         count are never a page away. #teFileSlot holds the File menu. At phone
+                         width Cancel moves into #teMenu, which Bonfire draws. The preview's own
+                         Expand is the only one. -->
                     <div class="jpf-te-bar" id="teBar">
                         <span class="jpf-te-bar-name" id="teBarName"></span>
                         <button type="button" class="jpf-te-lbtn jpf-te-hist" id="teUndo" disabled><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
@@ -1430,12 +1394,12 @@
                     </div>
                     <div class="fieldDescription jpf-te-narrow" id="teNarrow" data-i18n="admin.themes.advancedNarrow">Advanced needs a wider window.</div>
                     <!-- The preview comes first and the row runs right to left: beside the
-                         fields on a wide page, above them when it wraps, and sticky either way,
-                         so a change can be seen without scrolling to it. It sat under every
-                         control, about 1,000 px down in Advanced. -->
+                         fields on a wide page, above them when it wraps, sticky either way. It
+                         sat under every control, about 1,000 px down in Advanced. -->
                     <div class="jpf-te-body">
-                        <!-- The group list, drawn only at 1280 px and wider in Advanced (jpf-te-3col):
-                             buildThemeAdvanced fills it. Below that the groups fold open in place. -->
+                        <!-- The group list, drawn only at 1280 px and wider in Advanced
+                             (jpf-te-3col); buildThemeAdvanced fills it. Below that the groups fold
+                             open in place. -->
                         <div class="jpf-te-outline" id="teOutline" role="group" aria-label="Sections" data-i18n-aria-label="admin.themes.sections"></div>
                         <div class="jpf-te-side">
                             <div id="tePreview"></div>
@@ -1451,8 +1415,8 @@
                                 <input is="emby-input" type="text" id="teName" maxlength="40" autocomplete="off" />
                             </div>
                             <!-- No Id box: a new theme's id is made from its name (themeSlug,
-                                 uniqueThemeId) and is fixed once saved. Advanced showed one to type
-                                 over; the owner removed it in 1.9.0.4-beta. -->
+                                 uniqueThemeId) and is fixed once saved. Advanced used to show one;
+                                 removed in 1.9.0.4-beta. -->
                             <div class="jpf-te-simple" id="teSimple">
                                 <div class="jpf-te-colors">
                                     <label class="jpf-te-color jpf-te-field" data-paths="colors.accent colors.accentFocus colors.onAccent colors.ring parts.button2.focus">
@@ -1664,7 +1628,7 @@
                 <details class="jpf-advanced jpf-section">
                     <summary data-i18n="admin.advanced.title">Advanced</summary>
                 <!-- Avatar library options: the starter set, picture quality and copying a
-                     folder from the server. Rarely changed, so they sit here, not above. -->
+                     folder from the server. Rarely changed, so they sit here. -->
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label>
                         <input is="emby-checkbox" type="checkbox" id="enableStarterAvatars" />
@@ -1675,8 +1639,8 @@
                 <div class="selectContainer jpf-form-narrow">
                     <label class="selectLabel" for="profileImageQuality" data-i18n="admin.avatars.quality">Avatar quality</label>
                     <select is="emby-select" id="profileImageQuality">
-                        <!-- The values are stored ids and are not the words: "high" is 1024 px and
-                             "maximum" 2048 px, as in every saved config. See ImageQualities. -->
+                        <!-- The values are stored ids, not the words: "high" is 1024 px and
+                             "maximum" 2048 px, as in every saved config (ImageQualities). -->
                         <option value="standard" data-i18n="admin.avatars.qualityStandard">Low — 512 px, up to 2 MB</option>
                         <option value="high" data-i18n="admin.avatars.qualityHigh">Medium — 1024 px, up to 4 MB</option>
                         <option value="maximum" data-i18n="admin.avatars.qualityMaximum">High — 2048 px, up to 8 MB</option>
@@ -1914,8 +1878,8 @@
 
             <!-- ── Troubleshoot ───────────────────────────────────────────────────── -->
             <div class="jpf-tab-panel" id="jpfPanelTroubleshoot" data-panel="troubleshoot" role="tabpanel" aria-labelledby="jpfTabTroubleshoot" hidden>
-                <!-- Was at the foot of Status; moved here by the owner (1.9.0.4 eye test).
-                     The keys keep their admin.status. names so no translation is lost. -->
+                <!-- Moved here from the foot of Status (1.9.0.4 eye test). The keys keep their
+                     admin.status. names so no translation is lost. -->
                 <div class="jpf-note">
                     <strong class="jpf-label-block" data-i18n="admin.status.whereTitle">Where profiles are managed</strong>
                     <span data-i18n="admin.status.whereBody">Households manage their own profiles from the Jellyfin home screen.</span>
@@ -1995,12 +1959,11 @@
         (function () {
             const pluginId = "b1462fca-774b-4b13-8d02-e2d4f2bc18b9";
 
-            // While Bonfire is off the server leaves its script out of every page, but the
-            // theme previews below run on window.BonfireThemePreview from that script. Load it
-            // here when no tag brought it. Off, it only defines the preview and stands down.
+            // While Bonfire is off the server leaves its script out of every page, but the theme
+            // previews below run on window.BonfireThemePreview from that script. Load it here when
+            // no tag did. Off, it only defines the preview and stands down.
             try {
-                // The id: coming back to this page before the first copy has loaded must not
-                // add a second one.
+                // The id stops a second copy if the page is revisited before the first has loaded.
                 if (!window.__jpLoaded && !window.BonfireThemePreview && typeof ApiClient !== 'undefined'
                     && !document.getElementById('jpf-dashboard-script')) {
                     const tag = document.createElement('script');
@@ -2011,11 +1974,10 @@
                 }
             } catch (e) { /* the previews say they are unavailable */ }
 
-            // Every value this page renders came from the server, and a lot of it came to the
-            // server from a request header somebody else wrote: a device name, a client
-            // name, a profile name typed by any account holder. This page runs with the
-            // administrator's token, so an unescaped one of those is script running as the
-            // administrator. Escape anything that is not a literal written in this file.
+            // Everything this page renders came from the server, and much of it from a request
+            // header someone else wrote: a device name, a client name, a profile name typed by any
+            // account holder. This page runs with the administrator's token, so an unescaped one is
+            // script running as the administrator. Escape anything that is not a literal here.
             function escapeHtml(str) {
                 if (str === null || str === undefined) return '';
                 return String(str)
@@ -2028,21 +1990,18 @@
 
             // ── Translation ───────────────────────────────────────────────────────
             //
-            // The page is in the language Jellyfin shows its administrator, like the
-            // household's screens. Two sources of English, one per kind of text:
+            // The page is in the language Jellyfin shows its administrator. Two sources of English:
             //
-            //   - the markup's own words, marked data-i18n="admin.…" and read off the page
-            //     the first time it is translated, so the page reads correctly before any
-            //     of this runs;
+            //   - the markup's own words, marked data-i18n="admin.…" and read off the page the first
+            //     time it is translated, so it reads correctly before any of this runs;
             //   - ADMIN_EN below, for everything this script writes.
             //
-            // A key lives in exactly one of the two, and every other language is the
-            // admin.* keys in the same Web/i18n/{locale}.json file the household's strings
-            // are in. The server hands this page only that half (?part=admin), so no
-            // television downloads it. Web/i18n/validate.js reads both sources.
+            // A key lives in exactly one of the two. Every other language is the admin.* keys in
+            // the same Web/i18n/{locale}.json file as the household's strings. The server hands this
+            // page only that half (?part=admin), so no television downloads it. Web/i18n/validate.js
+            // reads both sources.
             //
-            // The bug report stays in English on purpose: it is read by whoever maintains
-            // Bonfire, not by the administrator.
+            // The bug report stays English: whoever maintains Bonfire reads it.
             const ADMIN_EN = {
                 'admin.cancel': 'Cancel',
                 'admin.error': 'Error',
@@ -2651,20 +2610,19 @@
                 return str;
             }
 
-            /// The name a screen reader gives a button or field whose visible text is the same on
-            /// every row ("Reset PIN", "Remove"): the action, then whose it is (R-1254, R-1260).
+            /// The name a screen reader gives a button or field whose visible text repeats on every
+            /// row ("Reset PIN", "Remove"): the action, then whose it is (R-1254, R-1260).
             function namedAria(action, name) {
                 return t('admin.aria.named', { action: action, name: name || '' });
             }
 
-            /// Asks, and resolves only on OK; Cancel leaves it pending, so what hangs off it
-            /// just never runs.
+            /// Asks, and resolves only on OK; Cancel leaves it pending, so what hangs off it never runs.
             ///
             /// Dashboard.confirm is confirm(message, title, callback) and returns nothing
-            /// (jellyfin-web, src/utils/dashboard.js, 10.11 and master alike). Every button here
-            /// used to chain .then on it: the dialog appeared, the chain threw behind it, and OK
-            /// did nothing. Reset PIN, closing for maintenance, signing a device out and
-            /// importing a backup all looked like they worked and didn't (#44).
+            /// (jellyfin-web, src/utils/dashboard.js, 10.11 and master). Buttons here used to chain
+            /// .then on it: the dialog appeared, the chain threw, and OK did nothing. Reset PIN,
+            /// closing for maintenance, signing a device out and importing a backup all looked like
+            /// they worked and didn't (#44).
             function askFirst(message, title) {
                 return new Promise(function (resolve) {
                     Dashboard.confirm(message, title, function (confirmed) {
@@ -2673,9 +2631,8 @@
                 });
             }
 
-            /// The language Jellyfin is showing this administrator, read the way
-            /// jellyfinLanguage() in profiles.js reads it (see the comment there): the
-            /// per-device setting, then <html lang>, then the device's own language.
+            /// The language Jellyfin shows this administrator, read as jellyfinLanguage() in
+            /// profiles.js reads it: the per-device setting, then <html lang>, then the device's.
             function adminLanguage() {
                 const root = document.documentElement;
                 const attr = function (n) { return (root && root.getAttribute(n)) || ''; };
@@ -2691,12 +2648,12 @@
                 return String(lang).replace('_', '-').toLowerCase();
             }
 
-            /// Fetches this page's strings for that language. Always resolves; anything
-            /// that goes wrong leaves the page in English.
+            /// Fetches this page's strings for that language. Always resolves; any failure leaves
+            /// the page in English.
             ///
-            /// This page has no list of the languages the server carries, so it asks for
-            /// the full tag and then shorter ones (pt-br, then pt) and takes the first
-            /// that exists. English asks for nothing.
+            /// The page has no list of the server's languages, so it asks for the full tag, then
+            /// shorter ones (pt-br, then pt), and takes the first that exists. English asks for
+            /// nothing.
             function loadAdminStrings() {
                 const parts = adminLanguage().split('-');
                 const candidates = [];
@@ -2723,10 +2680,10 @@
                 return attempt(0).catch(function () { adminStrings = null; });
             }
 
-            /// Puts the loaded language into the markup. Each element's English is kept on
-            /// the element the first time, so going back to English needs no reload.
-            /// Text goes in as text; only a string whose English holds tags goes in as
-            /// HTML, and validate.js fails a translation whose tags differ from it.
+            /// Puts the loaded language into the markup. Each element's English is kept on it the
+            /// first time, so going back to English needs no reload. Text goes in as text; only a
+            /// string whose English holds tags goes in as HTML (validate.js fails a translation
+            /// whose tags differ).
             function applyMarkupStrings(page) {
                 page.querySelectorAll('[data-i18n]').forEach(function (el) {
                     if (el._jpfEn === undefined) {
@@ -2735,8 +2692,8 @@
                     }
                     const key = el.getAttribute('data-i18n');
                     const value = (adminStrings && adminStrings[key]) || el._jpfEn.value;
-                    // Rewriting an unchanged HTML string would empty anything a loader has
-                    // since filled into it, such as the account name in the fix commands.
+                    // Rewriting an unchanged HTML string would empty anything a loader has since filled
+                    // into it, such as the account name in the fix commands.
                     if (el._jpfShown === value) return;
                     el._jpfShown = value;
                     if (el._jpfEn.html) el.innerHTML = value; else el.textContent = value;
@@ -2751,9 +2708,8 @@
                 });
             }
 
-            // Which tab was open is remembered per browser, because an administrator who
-            // is working through the account list does not want to land on Settings every
-            // time they come back to the page.
+            // The open tab is remembered per browser, so an administrator working through the
+            // account list does not land on Settings each time.
             function initTabs(page) {
                 const tabs = Array.prototype.slice.call(page.querySelectorAll('.jpf-tab'));
                 const panels = Array.prototype.slice.call(page.querySelectorAll('.jpf-tab-panel'));
@@ -2766,8 +2722,8 @@
                         const on = t.getAttribute('data-tab') === name;
                         t.classList.toggle('is-active', on);
                         t.setAttribute('aria-selected', on ? 'true' : 'false');
-                        // Roving tabindex: Tab reaches the strip once, then arrow keys move
-                        // within it. Five stops before the first field is a lot of tabbing.
+                        // Roving tabindex: Tab reaches the strip once, then arrow keys move within it. Five
+                        // stops before the first field is a lot of tabbing.
                         t.setAttribute('tabindex', on ? '0' : '-1');
                     });
                     panels.forEach(function (p) {
@@ -2798,24 +2754,24 @@
                     });
                 }
 
-                // Checked against the strip rather than turned into a selector, so a
-                // hand-edited localStorage value cannot become one.
+                // Checked against the strip, not turned into a selector, so a hand-edited
+                // localStorage value cannot become one.
                 let start = '';
                 try { start = localStorage.getItem('bonfire-admin-tab') || ''; } catch (e) { /* private mode */ }
-                // Experience was split into Look and Setup in 2.0; a browser that last had
-                // it open still holds its name.
+                // Experience was split into Look and Setup in 2.0; a browser that last had it open
+                // still holds its name.
                 if (start === 'experience') start = 'look';
                 // The Apps tab became Clients in 2.0, the same way.
                 if (start === 'apps') start = 'clients';
                 if (names.indexOf(start) < 0) start = names[0];
 
                 // A link into the page: #/configurationpage?name=Bonfire&tab=clients&setting=...
-                // Another plugin builds it, so tab and setting are 2.0 API. Both are looked up
-                // in a known list and never become a selector.
+                // Another plugin builds it, so tab and setting are 2.0 API. Both are looked up in a
+                // known list and never become a selector.
                 // The setting names a link may point at, and the control each one is.
                 const LINKED_SETTINGS = { pinLoginFromAnywhere: 'clientPinLoginFromAnywhere' };
-                // One value from the query part of the address hash, or ''. A malformed
-                // escape is an empty value, not an error.
+                // One value from the query part of the address hash, or ''. A malformed escape gives
+                // '', not an error.
                 function hashParam(name) {
                     const hash = typeof location === 'undefined' ? '' : String(location.hash || '');
                     const q = hash.indexOf('?');
@@ -2837,8 +2793,8 @@
                 const target = Object.prototype.hasOwnProperty.call(LINKED_SETTINGS, setting)
                     ? page.querySelector('#' + LINKED_SETTINGS[setting]) : null;
                 if (target) {
-                    // The control may sit in a closed Advanced fold, and nothing inside a
-                    // hidden panel or a closed fold can take focus.
+                    // The control may sit in a closed Advanced fold; nothing inside a hidden panel or a
+                    // closed fold can take focus.
                     const panel = target.closest ? target.closest('.jpf-tab-panel') : null;
                     if (panel && panel.hidden) show(panel.getAttribute('data-panel'));
                     openAdvancedFor(target);
@@ -2847,9 +2803,9 @@
                 }
             }
 
-            // The form is only a copy of the settings once a read has worked. Until then it
-            // shows defaults, and Save posts every setting on the page, so a save from that
-            // state would overwrite the real ones. saveConfiguration checks the flag.
+            // The form is a copy of the settings only once a read has worked. Until then it shows
+            // defaults, and Save posts every setting on the page, so a save then would overwrite
+            // the real ones. saveConfiguration checks the flag.
             function showConfigLoadError(page, on) {
                 const box = page.querySelector('#configLoadError');
                 if (box) box.classList.toggle('jpf-hidden', !on);
@@ -2867,8 +2823,8 @@
                     renderTrusted(page);
                     page.querySelector('#requireMainPin').checked = !!config.RequireMainPin;
                     page.dataset.requireMainPin = config.RequireMainPin ? '1' : '';
-                    // Also set by renderEmail; set here too, or a page whose email read
-                    // failed would save it off without anyone touching it.
+                    // Also set by renderEmail; set here too, or a page whose email read failed would save
+                    // it off untouched.
                     page.querySelector('#enablePinResetByEmail').checked = !!config.EnablePinResetByEmail;
                     page._config = config;
                     renderBonfireOn(page);
@@ -2880,8 +2836,8 @@
                     page.querySelector('#defaultAskOnStartup').checked = config.DefaultAskOnStartup !== false;
                     page.querySelector('#defaultSwitcherLocation').value =
                         config.DefaultSwitcherLocation === 'menu' ? 'menu' : 'button';
-                    // Kept as well as shown: a custom default has no option until the Themes
-                    // section has drawn the list, and Save must not read that gap as Bonfire.
+                    // Kept as well as shown: a custom default has no option until the Themes section has
+                    // drawn the list, and Save must not read that gap as Bonfire.
                     page._wantedDefaultTheme = normalizeTheme(config.DefaultTheme, page._themeOffered);
                     page.querySelector('#defaultTheme').value = page._wantedDefaultTheme;
                     if (page._themes) renderDefaultThemePreview(page);
@@ -2889,8 +2845,8 @@
                     page.querySelector('#richThemeMotion').checked = !!config.RichThemeMotion;
                     loadTimeZones(page, config.DefaultTimeZone || '');
                     loadOnboarding(page, config.Onboarding || {});
-                    // Absent before 1.6.1.2, and both default to off: neither may switch
-                    // itself on because a configuration predates it.
+                    // Absent before 1.6.1.2; both default to off, so neither switches itself on for an
+                    // older configuration.
                     page.querySelector('#enableClientPinLogin').checked = !!config.EnableClientPinLogin;
                     page.querySelector('#enableClientProfileList').checked = !!config.EnableClientProfileList;
                     page.querySelector('#clientPinLoginFromAnywhere').checked = !!config.ClientPinLoginFromAnywhere;
@@ -2901,8 +2857,8 @@
                     page.querySelectorAll('.jpfProxyClient').forEach(function (box) {
                         box.checked = proxied.indexOf(box.getAttribute('data-proxy-client')) !== -1;
                     });
-                    // Every settings field is filled in. Set here, not at the end: a loader
-                    // below failing must not lock Save, and one above must.
+                    // Every settings field is filled in. Set here, not at the end: a loader below failing
+                    // must not lock Save, and one above must.
                     page._configLoaded = true;
                     setUnsaved(page, false);
                     showConfigLoadError(page, false);
@@ -2932,24 +2888,22 @@
             }
 
             // One of the plugin's own addresses ('/plugins/profiles/image/...', as the server
-            // stores and returns them) made loadable under a Base URL. A root-relative path
-            // resolves against the origin, outside Jellyfin, so every picture came up missing.
-            // ApiClient.getUrl knows the Base URL. Anything else (a remote picture) is left alone.
+            // stores them) made loadable under a Base URL. A root-relative path resolves against
+            // the origin, outside Jellyfin, so every picture came up missing. ApiClient.getUrl
+            // knows the Base URL. Anything else (a remote picture) is left alone.
             function pluginAsset(value) {
                 const v = String(value || '');
                 return v.indexOf('/plugins/profiles/') === 0 ? ApiClient.getUrl(v.slice(1)) : v;
             }
 
-            // The one authorization header this page builds for itself. Every other call
-            // here goes through ApiClient.ajax, which builds its own; this exists for the
-            // two requests it can't make: one that wants a Blob back, and the font upload,
-            // whose body is the file itself.
+            // The one authorization header this page builds itself. Everything else goes through
+            // ApiClient.ajax; this is for the two requests it can't make: one that wants a Blob
+            // back, and the font upload, whose body is the file.
             //
-            // `MediaBrowser` scheme, and nothing else. Jellyfin 12.0 disables legacy
-            // authorization by default and migrates existing installs to off; with it off
-            // the server reads only this header with this scheme. Each field is read the
-            // way profiles.js reads it, because ApiClient exposes some of these as
-            // functions and some as properties depending on the build.
+            // `MediaBrowser` scheme only. Jellyfin 12.0 disables legacy authorization by default
+            // and migrates existing installs to off; then the server reads only this header with
+            // this scheme. Each field is read as profiles.js reads it, because ApiClient exposes
+            // some as functions and some as properties depending on the build.
             function authorizationHeader() {
                 const get = (fn, prop, fallback) => {
                     if (typeof ApiClient[fn] === 'function') return ApiClient[fn]() || fallback;
@@ -2965,17 +2919,16 @@
                     + '", Token="' + token + '"';
             }
 
-            // Canonical form of a GUID for use as a lookup key — GUIDs come back in mixed case
-            // and sometimes with or without hyphens depending on the serializer, so comparing
-            // the raw strings would fail to match a sub-profile to its master.
+            // Canonical form of a GUID for a lookup key. GUIDs come back in mixed case, with or
+            // without hyphens, so comparing raw strings would fail to match a sub-profile to its
+            // master.
             function normId(guid) {
                 if (!guid) return '';
                 return String(guid).toLowerCase().replace(/[^a-z0-9]/g, '');
             }
 
-            // Says whether the pipeline hook is actually there. Worth showing plainly: it is new
-            // in 1.4.1, and "it did not attach" and "it attached and had nothing to do" look
-            // identical from the outside.
+            // Says whether the pipeline hook is there (new in 1.4.1). "It did not attach" and "it
+            // attached and had nothing to do" look the same from outside.
             function renderMechanism(page, result) {
                 const line = page.querySelector('#middlewareStatusLine');
                 if (!line) return;
@@ -3008,8 +2961,8 @@
                 line.style.color = colour;
             }
 
-            // Single place that decides which status banner is visible, so the
-            // page load and the Re-check button can never disagree about the current state.
+            // The one place that decides which status banner shows, so page load and the Re-check
+            // button cannot disagree.
             function renderInjectionStatus(page, result) {
                 const warningContainer = page.querySelector('#injectionWarningContainer');
 
@@ -3019,13 +2972,11 @@
                 const reason = field(result, 'failureReason');
 
                 const mech = field(result, 'mechanism');
-                // Installed or updated on a running server. Not a failure and not something
-                // a command can fix, so it gets its own banner and suppresses the other two
-                // (issue #25).
+                // Installed or updated on a running server. Not a failure and not fixable by a
+                // command, so it gets its own banner and suppresses the other two (#25).
                 const restartRequired = mech ? field(mech, 'restartRequired') === true : false;
 
-                // Only treat an explicit false as failure — a missing field must never
-                // produce a false-positive warning.
+                // Only an explicit false is a failure; a missing field must never warn.
                 const failed = !restartRequired && (succeeded === false);
                 const ver = field(result, 'pluginVersion');
                 page.dataset.pluginVersion = ver || '';
@@ -3033,8 +2984,8 @@
                     const badge = page.querySelector('#pluginVersionBadge');
                     if (badge) {
                         badge.textContent = 'v' + ver;
-                        // A pre-release label in the version string is the signal — no separate
-                        // flag to forget to flip when promoting a build to stable.
+                        // A pre-release label in the version string is the signal, so no flag needs flipping
+                        // when a build goes stable.
                         const isPrerelease = /-(beta|alpha|rc)/i.test(ver);
                         badge.style.background = isPrerelease ? 'rgba(245,159,0,0.18)' : 'var(--jpf-w08)';
                         badge.style.borderColor = isPrerelease ? 'rgba(245,159,0,0.5)' : 'var(--jpf-w12)';
@@ -3046,10 +2997,9 @@
                 const restartContainer = page.querySelector('#restartRequiredContainer');
                 if (restartContainer) restartContainer.style.display = restartRequired ? 'block' : 'none';
 
-                // Name both versions, so "restart required" is checkable rather than a claim.
-                // Hidden when the two cannot be compared — running from somewhere that is not
-                // a plugin folder — because inventing a comparison would be worse than saying
-                // nothing (issue #25).
+                // Name both versions, so "restart required" is checkable. Hidden when they cannot be
+                // compared (running from outside a plugin folder): an invented comparison is worse
+                // than none (#25).
                 const restartVersions = page.querySelector('#restartVersions');
                 if (restartVersions) {
                     const runningVer = mech ? field(mech, 'runningVersion') : null;
@@ -3064,8 +3014,8 @@
                 }
 
                 if (warningContainer) warningContainer.style.display = failed ? 'block' : 'none';
-                // A banner above the tabs says a failure or a pending restart in full; Status
-                // lists every state with the rest, and is the only place "all is well" shows.
+                // A banner above the tabs gives a failure or pending restart in full; Status lists
+                // every state and is the only place "all is well" shows.
                 setStatus(page, 'script',
                     restartRequired ? [{ level: 'warn', text: t('admin.status.restart') }]
                     : failed ? [{ level: 'bad', text: t('admin.status.scriptFailed'), tab: 'troubleshoot', anchor: 'jpfClientScript', fix: t('admin.status.checkIt') }]
@@ -3085,9 +3035,9 @@
                 }
             }
 
-            // Re-runs injection server-side. Lets an admin apply a permission fix and confirm
-            // it worked without restarting Jellyfin — the old banner was a boot-time snapshot,
-            // so it stayed on screen no matter which fix command had just been run.
+            // Re-runs injection server-side, so an admin can apply a permission fix and confirm it
+            // without restarting Jellyfin. The old banner was a boot-time snapshot and stayed up
+            // whatever fix had just been run.
             function retryInjection(page) {
                 const buttons = page.querySelectorAll('.retryInjectionBtn');
                 const statuses = page.querySelectorAll('.retryInjectionStatus');
@@ -3101,9 +3051,9 @@
                     })
                     .then(function (result) {
                         renderInjectionStatus(page, result);
-                        // A pending restart has its own banner (renderInjectionStatus shows it and
-                        // hides the failure reason), so neither "still not fixed, see the reason
-                        // above" nor "installed and up to date" is true of it (R-1252).
+                        // A pending restart has its own banner (renderInjectionStatus shows it and hides the
+                        // failure reason), so neither "still not fixed, see the reason above" nor "installed
+                        // and up to date" is true of it (R-1252).
                         const mech = field(result, 'mechanism');
                         const restart = mech ? field(mech, 'restartRequired') === true : false;
                         const ok = field(result, 'injectionSucceeded') !== false;
@@ -3124,11 +3074,11 @@
 
 
             // ── Orphaned profiles ───────────────────────────────────────────────
-            // Two calls on purpose. The first is a dry run that only reports; the second
-            // deletes. This removes configuration and there is no undo, so the
-            // administrator sees the list and confirms it before anything goes.
-            /// The server's reasonCode in the page's language. A code this page does not know
-            /// (a newer server) shows the server's own English line, which is better than blank.
+            // Two calls on purpose. The first is a dry run that only reports; the second deletes.
+            // This removes configuration with no undo, so the administrator sees the list and
+            // confirms first.
+            /// The server's reasonCode in the page's language. A code this page does not know (a
+            /// newer server) shows the server's own English line, not a blank.
             function orphanReasonText(o) {
                 const keys = { profile_deleted: 'admin.orphans.reasonProfile', master_deleted: 'admin.orphans.reasonMaster' };
                 return Object.prototype.hasOwnProperty.call(keys, o.reasonCode) ? t(keys[o.reasonCode]) : String(o.reason || '');
@@ -3188,9 +3138,8 @@
 
             function bindOrphanScan(page) {
                 const btn = page.querySelector('#scanOrphansBtn');
-                // pageshow fires more than once for the same element; without this guard a
-                // second visit would run the scan twice per click, like every other handler
-                // on this page learned the hard way.
+                // pageshow fires more than once for the same element; without this guard a second
+                // visit would run the scan twice per click.
                 if (!btn || btn.dataset.bound) return;
                 btn.dataset.bound = '1';
                 btn.addEventListener('click', function () {
@@ -3211,8 +3160,8 @@
             }
 
             // Trusted addresses: one row each, an address and the main accounts it is for.
-            // page._trusted is the saved list; once the rows are drawn the form is the truth.
-            // They are drawn only when the accounts are known, or the ticks would be lost.
+            // page._trusted is the saved list; once the rows are drawn the form is the truth. They
+            // are drawn only when the accounts are known, or the ticks would be lost.
             function collectTrusted(page) {
                 if (!page._trustedDrawn) return page._trusted || [];
                 return Array.prototype.map.call(page.querySelectorAll('#trustedList .jpf-trust-row'), function (row) {
@@ -3301,17 +3250,17 @@
                 const url = ApiClient.getUrl('plugins/profiles/admin/mappings');
                 ApiClient.getJSON(url).then(function (result) {
                     page._mappings = result;
-                    // Rows already drawn hold edits that are not saved yet; take them
-                    // before the redraw, or a PIN reset on Households wipes them (r2-35-01).
+                    // Rows already drawn hold unsaved edits; take them before the redraw, or a PIN reset
+                    // on Households wipes them (r2-35-01).
                     page._trusted = collectTrusted(page);
                     renderTrusted(page);
                     renderInjectionStatus(page, result);
 
                     const masterContainer = page.querySelector('#masterUsersList');
 
-                    // The list is drawn again after every action (reset a PIN, set a limit),
-                    // so note which sub-profile panels are open now and open them again
-                    // below (R-1255). Otherwise each action folds the household away.
+                    // The list is redrawn after every action (reset a PIN, set a limit), so note which
+                    // sub-profile panels are open and reopen them below (R-1255). Otherwise each action
+                    // folds the household away.
                     const wasOpen = [];
                     page.querySelectorAll('.sub-profile-toggle').forEach(function (b) {
                         if (b.getAttribute('aria-expanded') === 'true') wasOpen.push(b.getAttribute('data-master'));
@@ -3320,10 +3269,9 @@
                     const masterUsers = result.MasterUsers || result.masterUsers || [];
                     const subProfiles = result.SubProfiles || result.subProfiles || [];
 
-                    // Group sub-profiles under the master account they belong to. Keyed by
-                    // MasterUserId rather than the display name: names change on rename and are
-                    // not guaranteed unique, which would silently file profiles under the wrong
-                    // account or drop them entirely.
+                    // Group sub-profiles under their master account, keyed by MasterUserId, not display
+                    // name: names change on rename and are not unique, which would file profiles under
+                    // the wrong account or drop them.
                     const subsByMaster = {};
                     subProfiles.forEach(function (s) {
                         const key = normId(field(s, 'masterUserId'));
@@ -3331,8 +3279,8 @@
                         subsByMaster[key].push(s);
                     });
 
-                    // An account with profiles and no PIN: any of those profiles can switch
-                    // into it, past every restriction it was given.
+                    // An account with profiles and no PIN: any of those profiles can switch into it, past
+                    // every restriction it was given.
                     const open = masterUsers.filter(function (m) {
                         return field(m, 'requiresPin') !== true && (subsByMaster[normId(field(m, 'profileUserId'))] || []).length > 0;
                     }).length;
@@ -3341,8 +3289,8 @@
                     page._openPins = open;
                     renderGettingStarted(page);
 
-                    // Neither state is an error, so neither gets an error colour. This was
-                    // red for protected and green for unprotected, i.e. exactly backwards.
+                    // Neither state is an error, so neither gets an error color. It used to be red for
+                    // protected and green for unprotected, exactly backwards.
                     function pinStatusHtml(reqPin) {
                         return reqPin
                             ? '<span style="font-weight:600;opacity:0.9;">' + escapeHtml(t('admin.households.pinSet')) + '</span>'
@@ -3357,10 +3305,10 @@
                                escapeHtml(t('admin.households.resetPin')) + '</button>';
                     }
 
-                    // Profiles are not listed on Jellyfin's Dashboard -> Users page, so this is the
-                    // way to a profile's own user page (to disable it, or fix its libraries).
-                    // jellyfin-web moved that page's address in 12.0: 10.11 is
-                    // users/profile?userId=ID, 12.0 is users/ID/profile (routes/_asyncRoutes.ts).
+                    // Profiles are not listed on Jellyfin's Dashboard -> Users page, so this is the way to
+                    // a profile's own user page (to disable it or fix its libraries). jellyfin-web moved
+                    // that address in 12.0: 10.11 is users/profile?userId=ID, 12.0 is users/ID/profile
+                    // (routes/_asyncRoutes.ts).
                     function jellyfinUserPageUrl(id) {
                         let major = 10;
                         try { major = parseInt(String(ApiClient.serverVersion()).split('.')[0], 10) || 10; } catch (e) { /* older address */ }
@@ -3389,8 +3337,8 @@
                                standaloneFormHtml(pId);
                     }
 
-                    // Hidden until "Make own account" is pressed. A form rather than a
-                    // prompt: it needs a password, which a prompt would show in clear.
+                    // Hidden until "Make own account" is pressed. A form, not a prompt: it needs a
+                    // password, which a prompt would show in clear.
                     function standaloneFormHtml(pId) {
                         const id = escapeHtml(pId);
                         return '<div class="standalone-form jpf-hidden" data-id="' + id + '" style="padding:10px 15px 14px 56px; border-top:1px solid var(--jpf-w05);">' +
@@ -3407,10 +3355,10 @@
                                '</div>';
                     }
 
-                    // An administrator sets a household's PIN prompts for it: "Ask PIN to open" on
-                    // the main account, "No PIN on the server's network" on each profile. Those
-                    // two and nothing else. Not offered on an administrator's own household,
-                    // which the server refuses. Hidden until asked for.
+                    // An administrator sets a household's PIN prompts for it: "Ask PIN to open" on the main
+                    // account, "No PIN on the server's network" on each profile, and nothing else. Not
+                    // offered on an administrator's own household, which the server refuses. Hidden until
+                    // asked for.
                     function pinPromptsFormHtml(m) {
                         if (field(m, 'isAdministrator') === true) return '';
                         const key = normId(field(m, 'profileUserId'));
@@ -3430,9 +3378,9 @@
                                '</div>';
                     }
 
-                    // Under each main account: the other accounts on its screen (issue #39),
-                    // with "Add an account", and "Make it a profile" for an account that can
-                    // be one. Both forms stay hidden until asked for.
+                    // Under each main account: the other accounts on its screen (#39), with "Add an
+                    // account", and "Make it a profile" for one that can be. Both forms stay hidden until
+                    // asked for.
                     function accountExtrasHtml(m, subCount) {
                         const id = escapeHtml(field(m, 'profileUserId') || '');
                         const key = normId(field(m, 'profileUserId'));
@@ -3466,9 +3414,9 @@
                                '<div class="link-form jpf-extras-form jpf-hidden">' +
                                '<div class="fieldDescription">' + escapeHtml(t('admin.links.note')) + '</div>' +
                                (others.length
-                                   // Built the way the page's other selects are, inside a selectContainer:
-                                   // emby-select draws its arrow into the select's parent, and inside a
-                                   // plain <label> it had nowhere to sit, so this read as a text box.
+                                   // Built like the page's other selects, inside a selectContainer: emby-select draws
+                                   // its arrow into the select's parent, and inside a plain <label> it had nowhere to
+                                   // sit, so this read as a text box.
                                    ? '<div class="selectContainer jpf-link-select"><label class="selectLabel" for="link-user-' + id + '">' + escapeHtml(t('admin.links.account')) + '</label>' +
                                      '<select is="emby-select" class="link-user" id="link-user-' + id + '">' + others.map(option).join('') + '</select></div>' +
                                      '<button type="button" class="raised button-submit button-mini link-go jpf-sa-btn">' + escapeHtml(t('admin.links.go')) + '</button>'
@@ -3510,9 +3458,9 @@
                                     : '') +
                                 '</div>';
 
-                            // The toggle is a real <button> so it is keyboard reachable and
-                            // announces its expanded state; accounts with no sub-profiles get
-                            // static text instead of a control that would do nothing.
+                            // The toggle is a real <button>, so it is keyboard reachable and announces its
+                            // expanded state; an account with no sub-profiles gets static text instead of a
+                            // control that does nothing.
                             const countLabel = escapeHtml(subs.length === 1 ? t('admin.households.subOne') : t('admin.households.subMany', { count: subs.length }));
                             const toggle = subs.length > 0
                                 ? '<button type="button" class="sub-profile-toggle" data-master="' + normId(pId) + '" aria-expanded="false" ' +
@@ -3529,9 +3477,8 @@
                                   '</div>'
                                 : '';
 
-                            // One line per account. This used to be a stacked block roughly
-                            // 125px tall carrying two values, so a dozen accounts meant a very
-                            // long scroll for what is a table's worth of data.
+                            // One line per account. It used to be a stacked block about 125px tall carrying two
+                            // values, so a dozen accounts meant a very long scroll.
                             return '<div class="listItem-group jpf-divider">' +
                                    '<div class="listItem" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 15px;">' +
                                    '<div style="flex:1 1 220px; min-width:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
@@ -3548,11 +3495,10 @@
                         }).join('');
                     }
 
-                    // Any sub-profile whose master is not in the list above would otherwise
-                    // vanish from the dashboard entirely — the old flat list showed every
-                    // profile unconditionally, and losing that would hide exactly the broken
-                    // records an administrator most needs to find (and still needs to be able
-                    // to reset a PIN on).
+                    // A sub-profile whose master is not in the list above would otherwise vanish from the
+                    // dashboard. The old flat list showed every profile, and losing that would hide the
+                    // broken records an administrator most needs to find (and still needs to reset a PIN
+                    // on).
                     const knownMasterKeys = masterUsers.map(function (m) { return normId(field(m, 'profileUserId')); });
                     const orphans = subProfiles.filter(function (s) {
                         return knownMasterKeys.indexOf(normId(field(s, 'masterUserId'))) === -1;
@@ -3624,14 +3570,14 @@
 
             // -- Audit log -------------------------------------------------------
             //
-            // A thousand rows went into a 300-pixel scrolling div with no search at all, so
-            // the only way to answer "when did Sam last switch" was to scroll. The whole log
-            // is already in the response, so filtering, the date range and the export all
-            // happen here - no new endpoint, and no re-read per keystroke.
+            // A thousand rows went into a 300-pixel scrolling div with no search, so answering
+            // "when did Sam last switch" meant scrolling. The whole log is already in the response,
+            // so filtering, the date range and the export all happen here: no new endpoint, no
+            // re-read per keystroke.
             let auditEntries = [];
 
-            // Both spellings: the list can arrive as the plugin's camelCase JSON or straight
-            // off a PascalCase DTO, and this page has been bitten by assuming one of them.
+            // Both spellings: the list can arrive as the plugin's camelCase JSON or off a
+            // PascalCase DTO, and this page has been bitten by assuming one.
             function auditField(log, name) {
                 const lower = name.charAt(0).toLowerCase() + name.slice(1);
                 return log[name] || log[lower] || '';
@@ -3639,8 +3585,8 @@
 
             function auditMatches(log, term, from, to) {
                 if (term) {
-                    // Both username fields, which is what an administrator is looking for:
-                    // "who switched" and "into what".
+                    // Both username fields, which is what an administrator looks for: "who switched" and
+                    // "into what".
                     const hay = (auditField(log, 'MasterUsername') + ' ' +
                                  auditField(log, 'TargetUsername')).toLowerCase();
                     if (hay.indexOf(term) === -1) return false;
@@ -3648,9 +3594,8 @@
                 if (from || to) {
                     const when = new Date(auditField(log, 'Timestamp'));
                     if (isNaN(when.getTime())) return false;
-                    // The To box means "including that day", so it is compared against the
-                    // end of it. Comparing against midnight silently excluded today, which
-                    // is the range people pick most often.
+                    // The To box means "including that day", so it is compared against the end of it.
+                    // Midnight silently excluded today, the range people pick most.
                     if (from && when < from) return false;
                     if (to && when > to) return false;
                 }
@@ -3693,10 +3638,9 @@
                     return;
                 }
 
-                // Device and client are copied out of the Authorization header of whoever
-                // switched, and any account on the server can switch into itself. Before these
-                // were escaped, a device named <img onerror=…> ran as the administrator the
-                // moment this page loaded.
+                // Device and client are copied from the Authorization header of whoever switched, and
+                // any account can switch into itself. Before these were escaped, a device named
+                // <img onerror=…> ran as the administrator when this page loaded.
                 container.innerHTML = view.rows.map(function (log) {
                     const stamp = new Date(auditField(log, 'Timestamp'));
                     // An entry with no readable time says so instead of "Invalid Date" (R-1255).
@@ -3724,8 +3668,8 @@
             }
 
             function downloadAuditLogs(page) {
-                // What is on screen, not the whole log. An administrator who has narrowed to
-                // one account and then exports everything has been handed the wrong file.
+                // What is on screen, not the whole log: an administrator who narrowed to one account
+                // and exported everything got the wrong file.
                 const rows = auditVisible(page).rows;
                 const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
@@ -3735,15 +3679,14 @@
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                // Revoked ten seconds on, in all three exports: a timeout of 0 still runs
-                // before some browsers have read the blob, and the download is then cancelled.
+                // Revoked ten seconds on, in all three exports: a timeout of 0 can run before some
+                // browsers have read the blob, which cancels the download.
                 setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
             }
 
             function bindAuditControls(page) {
                 const filter = page.querySelector('#auditFilter');
-                // pageshow fires more than once for the same element; every handler on this
-                // page is guarded for that reason and these are no different.
+                // pageshow fires more than once for the same element; every handler here is guarded.
                 if (!filter || filter.dataset.bound) return;
                 filter.dataset.bound = '1';
 
@@ -3776,11 +3719,10 @@
             }
 
             // -- Signed-in devices -----------------------------------------------
-            // Every field here except the ids is client-supplied: device name, client name
-            // and even the device id come straight from the Authorization header of a
-            // session this page did not create, and the title playing comes from library
-            // metadata. Separate from loadProfileSessions so tests/js/dashboardxss.js can
-            // run it.
+            // Every field here except the ids is client-supplied: device name, client name and even
+            // the device id come from the Authorization header of a session this page did not
+            // create, and the title playing comes from library metadata. Separate from
+            // loadProfileSessions so tests/js/dashboardxss.js can run it.
             function sessionRowsHtml(sessions) {
                 return sessions.map(function (s) {
                     // Values escaped first, then placed: the strings around them are ours.
@@ -3804,10 +3746,10 @@
                 }).join('');
             }
 
-            // Plain text. The skipped names are profile names out of the imported file, which
-            // is exactly as trustworthy as wherever that file has been.
-            /// The import result as the markup shown under the button. A function, so the
-            /// escaping is something a test can run rather than a line it has to find.
+            // Plain text. The skipped names are profile names from the imported file, as
+            // trustworthy as wherever that file has been.
+            /// The import result as the markup shown under the button. A function, so a test can run
+            /// the escaping instead of finding a line.
             function importResultHtml(res) {
                 return '<span class="jpf-dim">' + escapeHtml(importSummary(res)) + '</span>';
             }
@@ -3842,8 +3784,8 @@
 
                         container.querySelectorAll('.jpf-signout-btn').forEach(function (btn) {
                             btn.addEventListener('click', function () {
-                                // Signing somebody out interrupts whatever they are watching,
-                                // and the administrator is often not in the same room.
+                                // Signing somebody out interrupts what they are watching, and the administrator is
+                                // often not in the same room.
                                 askFirst(
                                     t('admin.devices.signOutConfirm', { name: btn.getAttribute('data-name') }),
                                     t('admin.devices.signOut')
@@ -3927,10 +3869,9 @@
                             box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.notJson')) + '</span>';
                             return;
                         }
-                        // Accepts the export wrapper or a bare configuration, because the
-                        // obvious thing to do with an export is edit it and paste back the
-                        // inner object.
-                        // A file holding `null` parses fine and has no properties (R-1253).
+                        // Accepts the export wrapper or a bare configuration, because the obvious thing to do
+                        // with an export is edit it and paste back the inner object. A file holding `null`
+                        // parses and has no properties (R-1253).
                         const config = parsed && (parsed.configuration || parsed);
                         if (!config || typeof config !== 'object' || !('Mappings' in config || 'mappings' in config)) {
                             box.innerHTML = '<span class="jpf-error">' + escapeHtml(t('admin.backup.notExport')) + '</span>';
@@ -3984,9 +3925,9 @@
                 });
             }
 
-            // An empty or odd box used to parse to NaN, which JSON writes as null, and the
-            // server reads null as "remove the override". Set must never mean Reset, so
-            // anything but a whole number from 1 to 20 stops here with the range.
+            // An empty or odd box used to parse to NaN, which JSON writes as null, and the server
+            // reads null as "remove the override". Set must never mean Reset, so anything but a
+            // whole number from 1 to 20 stops here with the range.
             function saveLimitFromBox(page, userId) {
                 const input = page.querySelector('.user-limit-input[data-id="' + userId + '"]');
                 const raw = String(input.value).trim();
@@ -4033,12 +3974,12 @@
             }
 
             // ── Avatar library ────────────────────────────────────────────────────
-            // Images are squared and resized here, in the browser, before upload — the
-            // plugin has no server-side image library, and doing it this way keeps it that
-            // way. Two renderings are sent: a master, and a thumbnail for the pickers.
-
-            // Mirrors ImageQualities on the server. The upload is resized here to whatever
-            // the picture quality select says, which is also what the server will accept.
+            // Images are squared and resized here in the browser before upload, because the plugin
+            // has no server-side image library. Two renderings are sent: a master, and a thumbnail
+            // for the pickers.
+            //
+            // Mirrors ImageQualities on the server: the upload is resized to what the picture
+            // quality select says, which is also what the server accepts.
             const IMAGE_QUALITY_SPECS = {
                 standard: { master: 512, thumb: 128, jpeg: 0.85, mb: 2 },
                 high: { master: 1024, thumb: 256, jpeg: 0.9, mb: 4 },
@@ -4051,13 +3992,13 @@
                 return v === 'high' || v === 'maximum' || v === 'ultra' ? v : 'standard';
             }
 
-            // A theme the server will take as the default, or Bonfire. The server refuses
-            // anything else, so this keeps a stale or hand-edited value from turning Save into
-            // an error. `offered` is what the Themes section found the server offers (1.7.2:
-            // the built-ins less the hidden ones, then the administrator's own). Before that
-            // answer arrives, any well-formed id is let through: the default may be a custom
-            // theme, and quietly saving Bonfire over it would be worse than a refusal.
-            // The list lives inside the function so it can be lifted out whole for a test.
+            // A theme the server will take as the default, or Bonfire. The server refuses anything
+            // else, so this keeps a stale or hand-edited value from turning Save into an error.
+            // `offered` is what the Themes section found the server offers (1.7.2: the built-ins
+            // less the hidden ones, then the administrator's own). Before that answer arrives any
+            // well-formed id passes: the default may be a custom theme, and quietly saving Bonfire
+            // over it would be worse than a refusal. The list lives inside the function so a test
+            // can lift it out whole.
             function normalizeTheme(value, offered) {
                 const ids = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
                     'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
@@ -4071,12 +4012,11 @@
                 return IMAGE_QUALITY_SPECS[normalizeImageQuality(select ? select.value : 'standard')];
             }
 
-            // Centre-cropped square. The admin is uploading a set of avatars rather than
-            // positioning one picture, so this stays automatic — end users get the crop
-            // editor when they choose one.
+            // Center-cropped square. The admin is uploading a set of avatars, not positioning one
+            // picture, so it stays automatic; end users get the crop editor.
             function squareToDataUrl(img, size, preferPng, jpegQuality) {
-                // An image that decodes as 0x0 would give a zero-size source rectangle, and
-                // drawImage throws on that with a message nobody can act on.
+                // An image that decodes as 0x0 gives a zero-size source rectangle, and drawImage
+                // throws on that with a message nobody can act on.
                 if (!(img.width > 0 && img.height > 0)) throw new Error(t('admin.avatars.zeroSize'));
                 const canvas = document.createElement('canvas');
                 canvas.width = size;
@@ -4105,8 +4045,8 @@
             function rejectAvatarFile(file) {
                 const name = (file.name || '').toLowerCase();
                 const type = (file.type || '').toLowerCase();
-                // iPhones shoot HEIC by default and only Safari decodes it, so without this
-                // the upload just fails silently on most machines.
+                // iPhones shoot HEIC and only Safari decodes it, so without this the upload fails
+                // silently on most machines.
                 if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
                     return t('admin.avatars.heic');
                 }
@@ -4140,8 +4080,7 @@
                         const builtIn = field(a, 'isStarter') === true;
                         return '<div style="text-align:center;">' +
                             '<div style="position:relative; width:100%; aspect-ratio:1/1; border-radius:50%; overflow:hidden; background:var(--jpf-w06);">' +
-                            // If the file has gone missing the tile shows a marker rather
-                            // than a broken-image icon, and the count above says why.
+                            // A missing file shows a marker, not a broken-image icon, and the count above says why.
                             '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0.35;font-size:0.75rem;">' + escapeHtml(t('admin.avatars.missing')) + '</span>' +
                             '<img src="' + escapeHtml(pluginAsset(thumb)) + '" alt="" onerror="this.remove()" ' +
                             'style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;" />' +
@@ -4165,9 +4104,8 @@
             }
 
             function deleteAvatar(page, id) {
-                // Profiles created from this avatar keep their own copy, so nothing anyone
-                // is using breaks — only the picker loses the option. It still asks first, as
-                // every other removal on this page does (R-1257).
+                // Profiles created from this avatar keep their own copy; only the picker loses the
+                // option. It still asks first, like every removal here (R-1257).
                 askFirst(t('admin.avatars.removeConfirm'), t('admin.avatars.removeTitle')).then(function () {
                     ApiClient.ajax({
                         type: 'DELETE',
@@ -4181,9 +4119,8 @@
                 });
             }
 
-            // Resolves when the file has been stored, rejects with a message fit to show.
-            // Separated from the batching below so one bad file in a selection of twenty
-            // reports itself and the rest still upload.
+            // Resolves when the file is stored, rejects with a message fit to show. Separate from
+            // the batching below so one bad file in twenty reports itself and the rest upload.
             function uploadOneAvatar(file) {
                 const reason = rejectAvatarFile(file);
                 if (reason) return Promise.reject(new Error(reason));
@@ -4198,17 +4135,17 @@
                             reject(new Error(t('admin.avatars.badFormat')));
                         };
                         img.onload = function () {
-                            // Canvas work can throw — a zero-dimension decode, or no 2d
-                            // context under memory pressure. An escaping exception here
-                            // would leave this promise unsettled and stall the whole batch.
+                            // Canvas work can throw (a zero-dimension decode, or no 2d context under memory
+                            // pressure). An escaping exception would leave this promise unsettled and stall the
+                            // batch.
                             let payload;
                             try {
                                 const preferPng = hasTransparency(img);
                                 payload = JSON.stringify({
                                     image: squareToDataUrl(img, spec.master, preferPng, spec.jpeg),
                                     thumb: squareToDataUrl(img, spec.thumb, preferPng, spec.jpeg),
-                                    // Filename without its extension is a reasonable default
-                                    // label, and the admin can rename the file to change it.
+                                    // The filename without its extension is a reasonable default label; rename the file
+                                    // to change it.
                                     displayName: (file.name || '').replace(/\.[^.]+$/, '').trim() || t('admin.avatars.defaultName')
                                 });
                             } catch (e) {
@@ -4224,8 +4161,8 @@
                                 data: payload
                             }).then(resolve).catch(function (err) {
                                 console.error('Avatar upload failed:', err);
-                                // The server's own reason when it gave one; "too big" was only ever
-                                // one of the things it refuses for (R-1259).
+                                // The server's own reason when it gave one: "too big" was only one of the things it
+                                // refuses for (R-1259).
                                 reject(new Error(refusalMessage(err) || t('admin.avatars.rejected', { mb: spec.mb })));
                             });
                         };
@@ -4235,9 +4172,8 @@
                 });
             }
 
-            // One at a time, not Promise.all: each upload carries two base64 images, and
-            // firing twenty at once is how you get a queue of rejected requests instead of
-            // twenty avatars.
+            // One at a time, not Promise.all: each upload carries two base64 images, and twenty at
+            // once gives a queue of rejected requests instead of twenty avatars.
             function uploadAvatars(page, files) {
                 const list = Array.prototype.slice.call(files || []);
                 if (!list.length) return;
@@ -4288,10 +4224,9 @@
 
             // Imports a folder of pictures that already live on the server.
             //
-            // The server lists the folder and hands over one file at a time; the resizing
-            // happens here, on a canvas, exactly as it does for an upload. That is what
-            // keeps the plugin free of a server-side image library, and it means every
-            // stored avatar comes out of one code path rather than two.
+            // The server lists the folder and hands over one file at a time; the resizing happens
+            // here on a canvas, as for an upload. That keeps the plugin free of a server-side image
+            // library, and every stored avatar comes out of one code path.
             function importAvatarFolder(page) {
                 const pathInput = page.querySelector('#avatarScanPath');
                 const statusEl = page.querySelector('#avatarUploadStatus');
@@ -4343,20 +4278,15 @@
                         const name = field(files[i], 'name');
                         setStatus(t('admin.avatars.importing', { n: i + 1, total: files.length }));
 
-                        // One of two hand-rolled requests on this page (the font upload is
-                        // the other) — everything else goes through ApiClient.ajax, which
-                        // builds this header itself. It is hand-rolled because the response
-                        // is wanted as a Blob.
+                        // One of two hand-rolled requests on this page (the font upload is the other);
+                        // everything else goes through ApiClient.ajax. Hand-rolled because the response is
+                        // wanted as a Blob.
                         //
-                        // It used to send X-Emby-Token. Jellyfin 12.0 turns legacy
-                        // authorization off by default and migrates existing installs to
-                        // off, and with it off the server reads none of X-Emby-Token,
-                        // X-MediaBrowser-Token, the api_key query parameter, the
-                        // X-Emby-Authorization header, or the `Emby` scheme — see
-                        // AuthorizationContext.GetAuthorizationDictionary. This request
-                        // would have come back 401 and the avatar folder import would have
-                        // stopped working, on 12.0 and on any 10.11 install whose
-                        // administrator had already turned legacy authorization off.
+                        // It used to send X-Emby-Token. Jellyfin 12.0 turns legacy authorization off by default
+                        // and migrates existing installs to off, and then the server reads none of
+                        // X-Emby-Token, X-MediaBrowser-Token, api_key, X-Emby-Authorization or the `Emby` scheme
+                        // (AuthorizationContext.GetAuthorizationDictionary). The folder import would have come
+                        // back 401 on 12.0 and on any 10.11 install that had turned legacy authorization off.
                         fetch(ApiClient.getUrl('plugins/profiles/admin/avatars/scan/file', { path: folder, name: name }), {
                             headers: { 'Authorization': authorizationHeader() }
                         })
@@ -4364,8 +4294,8 @@
                             if (!res.ok) throw new Error(refusalMessage(res) || t('admin.avatars.unreadable'));
                             return res.blob();
                         })
-                        // A Blob is what the upload path already expects, so the file goes
-                        // through the same checks, resize and encode as a picked one.
+                        // A Blob is what the upload path expects, so the file gets the same checks, resize
+                        // and encode as a picked one.
                         .then(function (blob) { return uploadOneAvatar(new File([blob], name, { type: blob.type })); })
                         .catch(function (err) { failures.push({ name: name, reason: err.message }); })
                         .then(function () { step(i + 1); });
@@ -4379,9 +4309,9 @@
                 });
             }
 
-            // Counts profiles whose stored picture no longer resolves. The images are
-            // fetched by the browser anyway when the picker renders, so this is a cheap
-            // HEAD-style check rather than new server work.
+            // Counts profiles whose stored picture no longer resolves. The browser fetches the
+            // images anyway when the picker renders, so this is a cheap HEAD-style check, not new
+            // server work.
             function loadAvatarHealth(page) {
                 ApiClient.ajax({
                     type: 'GET',
@@ -4392,8 +4322,8 @@
                     const subs = field(data, 'subProfiles') || [];
                     const all = masters.concat(subs).filter(function (p) {
                         const img = field(p, 'profileImage');
-                        // Only our own stored images can go missing; a remote URL failing is
-                        // the remote host's problem and not something to report here.
+                        // Only our own stored images can go missing; a remote URL failing is the remote
+                        // host's problem.
                         return img && String(img).indexOf('/plugins/profiles/image/') === 0;
                     });
 
@@ -4431,8 +4361,8 @@
 
             // ── Announcements ─────────────────────────────────────────────────────
 
-            // datetime-local has no zone: it is the admin's own clock. Sent as an ISO
-            // instant so the server never has to guess, and shown back the same way.
+            // datetime-local has no zone: it is the admin's own clock. Sent as an ISO instant so
+            // the server never guesses, and shown back the same way.
             function localInputToIso(value) {
                 if (!value) return null;
                 const d = new Date(value);
@@ -4476,16 +4406,14 @@
             /// The sentence for a refused response, or '' when its code has none.
             ///
             /// The map has a sentence for each code a Bonfire route sends in X-Bonfire-Error
-            /// (Controllers/ErrorCodes.cs), in the page's language. A code not here, or a server
-            /// too old to send one, shows the fallback of whatever was being done: the response
-            /// body is English and is never shown. The codes the household screens meet
-            /// are in profiles.js's ERROR_KEYS.
+            /// (Controllers/ErrorCodes.cs), in the page's language. A code not here, or a server too
+            /// old to send one, shows the fallback for whatever was being done; the response body is
+            /// English and never shown. The household screens' codes are in profiles.js's
+            /// ERROR_KEYS. The theme, font and logo codes are here too; image_invalid is the
+            /// avatar's, and the logo's own is passed by readThemeError.
             ///
-            /// The theme, font and logo codes are here too. image_invalid is the avatar's; the
-            /// logo's own is passed by readThemeError.
-            ///
-            /// The map is inside this function, not beside it: the harnesses lift these
-            /// functions by name, and a const would be left behind.
+            /// The map is inside this function, not beside it: the harnesses lift these functions by
+            /// name, and a const would be left behind.
             function refusalMessage(err, vars, overrides) {
                 const ERROR_KEYS = {
                 admin_only: 'admin.err.adminOnly', forbidden: 'admin.err.forbidden',
@@ -4533,15 +4461,14 @@
                 delete page.dataset.annEditing;
             }
 
-            // An Advanced fold is closed until somebody opens it, so an error that lands inside
-            // one is an error nobody sees. Every message goes through here: a failure opens the
-            // fold it sits in.
+            // An Advanced fold stays closed until opened, so an error inside one goes unseen.
+            // Every message goes through here: a failure opens the fold it sits in.
             function openAdvancedFor(el) {
                 const fold = el && el.closest ? el.closest('details.jpf-advanced') : null;
                 if (fold) fold.open = true;
             }
 
-            // Good or bad, by class: the colours are the page's tokens, not literals here.
+            // Good or bad, by class: the colors are the page's tokens, not literals here.
             function paintOutcome(el, good) {
                 el.classList.add(good ? 'jpf-text-good' : 'jpf-text-bad');
                 el.classList.remove(good ? 'jpf-text-bad' : 'jpf-text-good');
@@ -4608,7 +4535,7 @@
                         page.querySelector('#annSeverity').value = severity;
                         page.querySelector('#annStarts').value = isoToLocalInput(field(a, 'startsUtc'));
                         page.querySelector('#annEnds').value = isoToLocalInput(field(a, 'endsUtc'));
-                        // Dates this announcement already has are not to be hidden in a closed fold.
+                        // Dates this announcement already has must not hide in a closed fold.
                         if (page.querySelector('#annStarts').value || page.querySelector('#annEnds').value) {
                             openAdvancedFor(page.querySelector('#annStarts'));
                         }
@@ -4702,26 +4629,25 @@
 
             // ── Themes (1.7.2) ────────────────────────────────────────────────────
             //
-            // The administrator's own themes, the built-ins they hide, and the fonts they
-            // upload, through admin/themes/* (docs/developer-api.md, "Custom themes"). Each
-            // change saves at once; only the default theme waits for Save, being one of the
-            // settings that sends.
+            // The administrator's own themes, the built-ins they hide, and their uploaded fonts,
+            // through admin/themes/* (docs/developer-api.md, "Custom themes"). Each change saves at
+            // once; only the default theme waits for Save, being one of the settings it sends.
             //
             // A theme's name, a font's name and any key in an imported file are whatever an
-            // administrator typed, so each is set as text or escaped before it becomes
-            // markup. tests/js/adminthemes.js runs these functions with hostile values.
+            // administrator typed, so each is set as text or escaped before it becomes markup.
+            // tests/js/adminthemes.js runs these functions with hostile values.
 
-            /// The id the editor's preview wears. themeCss keys a theme's tokens on its id,
-            /// and the theme being edited may be the one this page itself wears, which a
-            /// preview under the real id would repaint as the administrator typed.
+            /// The id the editor's preview wears. themeCss keys a theme's tokens on its id, and the
+            /// theme being edited may be the one this page itself wears, which a preview under the
+            /// real id would repaint as the administrator typed.
             const THEME_PREVIEW_ID = 'jpf--editor-preview';
 
             /// Every field of a theme file that Advanced shows, in the order of docs/themes.md:
             /// [group's string key, [[path, kind, options]]]. A bounded number is a slider and a
             /// shadow is small boxes with a None tick (ThemeValidator.Shadow's ranges). Only the
             /// lists stay JSON, because their shape varies (a layer may be linear or radial; each
-            /// decoration has its own values). Every one was a JSON or number box until 1.9.0.4-beta,
-            /// and themeeditor.js checks each control writes what the box wrote.
+            /// decoration has its own values). Every one was a JSON or number box until 1.9.0.4-beta;
+            /// themeeditor.js checks each control writes what the box wrote.
             function themeFieldList() {
                 const colour = function (path) { return [path, 'color']; };
                 const shadow = function (path) { return [path, 'shadow']; };
