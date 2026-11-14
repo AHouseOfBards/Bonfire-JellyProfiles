@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire/main/images/icon.jpg",
     "versions": [
       {
+        "version": "1.9.0.6",
+        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Pressing Generate on a second screen no longer replaces a Bonfire code you already shared.\n- A second TV of the same model gets its new-device email once it plays something.\n- Bonfire still starts on a TV or server page that takes more than a minute to load.\n- Library artwork no longer waits forever when the server doesn't answer.\n- Device names in an imported backup show correctly.\n- A profile save that fails no longer leaves its new image behind.\n- On the admin page, buttons line up with the fields beside them, and theme images no longer disappear when the server is busy.\n- Undo in the theme editor no longer joins later edits onto an interrupted drag.\n- Security fixes.\n\n**Changed**\n\n- Deleting an account in Dashboard → Users also removes its Bonfire records and profile image.\n- Administrator accounts sign in on TVs with their password, not the main PIN.\n- The admin page opens Setup right after Status.\n- French, Spanish, Catalan, Polish and Turkish are retranslated from the current English.\n",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire/releases/download/v1.9.0.6/Jellyfin.Profiles.zip",
+        "checksum": "55bfef10b420533804816f592edf79e7",
+        "timestamp": "2026-11-14T06:11:06Z"
+      },
+      {
         "version": "1.9.0.5",
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- On a TV, the line under a profile's name no longer breaks in two when two households are shown.\n- Back and Escape close a profile screen you opened, and focus goes back where it was.\n- Setup steps on a TV open on their own field or choice, not on Next.\n- The household's own theme shows from the start, not Bonfire's for a moment.\n- One TV is one device in the device list, without pressing Tidy up duplicates.\n- Hints that should be hidden on the profile form stay hidden.\n- The new-device email waits until the device is known to play media.\n- SSO households' TVs keep Quick Connect.\n- Security and privacy fixes.\n\n**Changed**\n\n- New Bonfire logo, in the app, the README and the plugin catalog.\n- With several households, Manage profiles stays at the bottom of the screen.\n- First-time setup has one layout for every step, progress dots, and Skip next to the main button. Picking a theme previews it.\n- On wide screens, the profile form puts Viewing limits side by side.\n- Choosing a theme fades instead of cutting.\n- The admin page is reorganized: Switcher, Avatar library and Email are under Setup, Viewing limits under Security, and the theme lists are a grid of cards.\n- The admin page shows a banner only when something is wrong.\n- In Households, \"Show another account\" is now \"Add an account to this household\", and the account list looks like a list.\n- Addresses that skip PINs show an example of how to write one. (#42)\n- Stable versions now install from Campground's repository.\n- The developer API changed for 2.0. See the API docs.\n\n**Added**\n\n- The theme editor has undo and redo, search in Advanced, a second pattern layer, image uploads and fourteen more fonts.\n- Theme files can be loaded from and saved for Moonfin.\n- A guide for households: Using Bonfire.\n",
         "targetAbi": "10.11.0.0",
@@ -23,14 +31,6 @@
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire/releases/download/v1.9.0.4/Jellyfin.Profiles.zip",
         "checksum": "2b776509783431797e2e071357b68064",
         "timestamp": "2026-11-12T02:41:57Z"
-      },
-      {
-        "version": "1.9.0.3",
-        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- On a phone, viewing-hours rows broke across lines and Delete Profile wrapped.\n- Buttons and form rows touched on older TVs.\n- Long names ran into the next profile on a crowded TV.\n- The library artwork picker was too small on a TV.\n- Escape now goes back on Settings and the profile forms.\n- Back did nothing on your own profile's screen, and some TV screens opened with nothing focused.\n- Opening Name and picture raised the phone keyboard.\n- Errors now say what to do, and an empty list says what to add.\n\n**Changed**\n\n- New installs require a main PIN. Existing servers keep their setting.\n- A profile can change its own name and picture from the switcher.\n- The picker has a bigger focus ring and a lock badge on TV, balanced rows, and no crown on the main account.\n- With richer animation on, Bloom and Harvest drift and Starlight twinkles.\n- Buttons in a theme all use the same letter case, and an empty PIN box shows four dots.\n- A custom logo is larger, and gets a backing on themes where it would disappear.\n- The admin theme list shows a preview of each theme.\n- On a phone, no text is smaller than 12px and every control is easy to tap.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire/releases/download/v1.9.0.3/Jellyfin.Profiles.zip",
-        "checksum": "b1f9e99d2371f39972b7b1998eb28f3c",
-        "timestamp": "2026-11-10T00:00:00Z"
       }
     ]
   }
