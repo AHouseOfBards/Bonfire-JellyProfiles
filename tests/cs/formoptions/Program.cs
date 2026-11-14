@@ -448,7 +448,7 @@ if (fails.Count > 0)
 Console.WriteLine(pass + " passed, 0 failed");
 return 0;
 
-// ── A modelled Jellyfin ──────────────────────────────────────────────────────
+// ── A modeled Jellyfin ──────────────────────────────────────────────────────
 
 public class World
 {

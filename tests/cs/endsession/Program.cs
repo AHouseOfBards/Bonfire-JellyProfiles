@@ -276,7 +276,7 @@ r = Call("SwitchProfile", HOME, B(("ProfileId", KID), ("EndPreviousSession", tru
 Ok("true with no token to end: the switch succeeds, nothing is logged out", r.status == 200 && SessionStub.LoggedOut.Count == 0, Text(r));
 return Finish();
 
-// ── A modelled Jellyfin ────────────────────────────────────────────────────
+// ── A modeled Jellyfin ────────────────────────────────────────────────────
 
 public sealed class CaptureLog : Microsoft.Extensions.Logging.ILogger
 {

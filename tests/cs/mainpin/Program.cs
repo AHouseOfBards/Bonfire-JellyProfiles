@@ -22,10 +22,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 // Runs the real routes. What it holds the plugin to:
 //
 //  - Every route that changes a household needs the main PIN when one is set: profiles,
-//    devices, sharing (Bonfire) and switcher settings. Until 1.7.2 only five did; sharing,
-//    devices and switcher settings took none, so a main account left open let anyone at
-//    the switcher join or leave a Bonfire, allow PIN-less household switching, or forget
-//    the device a child's profile was locked to.
+//    devices, sharing (Bonfire) and switcher settings. Until 1.7.2 only five did, so a main
+//    account left open let anyone at the switcher join or leave a Bonfire, allow PIN-less
+//    household switching, or forget the device a child's profile was locked to.
 //  - The PIN can come in a header, for routes with no body.
 //  - No PIN sent is not a wrong guess, so it can't lock the owner out.
 //  - "Require main PINs" refuses all of it until a PIN is set, except setting one.
@@ -73,8 +72,7 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-mainpin-" + Guid.NewGuid
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down; this harness needs it on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 // A server that already has Bonfire; a new install is tested in configbackup.
 config.GetType().GetProperty("RequireMainPin")?.SetValue(config, false);
@@ -538,7 +536,7 @@ if (fails.Count > 0)
 Console.WriteLine(pass + " passed, 0 failed");
 return 0;
 
-// ── A modelled Jellyfin ──────────────────────────────────────────────────────
+// ── A modeled Jellyfin ──────────────────────────────────────────────────────
 
 public class World
 {

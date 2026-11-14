@@ -54,7 +54,7 @@ Console.WriteLine();
 Console.WriteLine("── Nothing loads an image into memory to send it ───────────────");
 
 // The source check first, because it is the one that covers all four endpoints at once
-// and names any that regresses. The behavioural checks below cover the helper they share.
+// and names any that regresses. The behavioral checks below cover the helper they share.
 var controllerSrc = File.ReadAllText(Path.Combine(RepoRoot(), "Controllers", "ProfilesController.cs"));
 var offenders = controllerSrc
     .Split('\n')

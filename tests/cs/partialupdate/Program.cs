@@ -34,10 +34,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 // allLibraries true. This harness checks the partial requests keep, and that each explicit
 // value still does what it says.
 //
-// Bodies are JSON, read with the options Jellyfin's MVC uses, then passed to the real
-// route. Setting properties by reflection would skip the setter for a left-out field the
-// same way, but it would not show what a real body binds to — and weekendMinutes tells
-// "left out" from "null" by whether its setter ran.
+// Bodies are JSON, read with the options Jellyfin's MVC uses, then passed to the real route.
+// Setting properties by reflection would skip the setter for a left-out field too, but would
+// not show what a real body binds to, and weekendMinutes tells "left out" from "null" by
+// whether its setter ran.
 //
 // Against 83969c0 the keep assertions fail.
 //
@@ -78,8 +78,7 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-partialupdate-" + Guid.N
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down; this harness needs it on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 
@@ -204,9 +203,9 @@ Ok("a score sets it", r.status == 200 && Kid().MaxParentalRating == 14, r.status
 Ok("and is the profile's own", RatingOf("OwnRating") == 14 && RatingOf("LastAppliedRating") == 14);
 
 // R-1046: the editor and the policy sync both read a profile, then write its account and its
-// mapping. The sync serialises its own runs with a gate; the editor took none, so a save could
-// land between the sync's read and its write and be written over with what the sync had read.
-// The editor now waits for the gate. Held here, a save must not get through until it is let go.
+// mapping. The sync serializes its runs with a gate; the editor took none, so a save could
+// land between the sync's read and write and be overwritten. The editor now waits for the
+// gate. Held here, a save must not get through until it is let go.
 {
     var gateField = asm.GetType("Jellyfin.Profiles.Auth.ProfilePolicySync", true)
         .GetField("Gate", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
@@ -328,7 +327,7 @@ if (fails.Count > 0)
 Console.WriteLine(pass + " passed, 0 failed");
 return 0;
 
-// ── A modelled Jellyfin ──────────────────────────────────────────────────────
+// ── A modeled Jellyfin ──────────────────────────────────────────────────────
 
 public class World
 {

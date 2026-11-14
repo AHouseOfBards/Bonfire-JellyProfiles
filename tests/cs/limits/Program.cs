@@ -199,7 +199,7 @@ graceField.SetValue(entry, null);
 
 var panic = pluginType.GetField("_panicDisabled", Any);
 // Fresh() resets the day's usage too, so it is put back each time: without it KID was
-// allowed whether or not anything honoured the disable.
+// allowed whether or not anything honored the disable.
 panic.SetValue(null, true); Fresh();
 Static(tracker, "AddSeconds", KID, "2026-11-04", 3600.0);
 d1 = Ask(KID);

@@ -270,7 +270,7 @@ Ok("and says not for a household not seen", ar.status == 200 && P(ar.value, "See
 
 return Finish();
 
-// ── A modelled Jellyfin ────────────────────────────────────────────────────
+// ── A modeled Jellyfin ────────────────────────────────────────────────────
 
 public class World
 {

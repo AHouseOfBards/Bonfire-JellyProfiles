@@ -34,7 +34,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 //   - it is not on GET form-options libraries, and not copied on create, update or make-profile.
 //
 // Every case below asks one thing on its own, with the real ApplyAsync and the real
-// controller against a modelled Jellyfin. A library owned with AccessManagedByOwner false
+// controller against a modeled Jellyfin. A library owned with AccessManagedByOwner false
 // (GameTent's Shelf), and a server with nothing registered, are managed exactly as before.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
@@ -431,7 +431,7 @@ if (fails.Count > 0)
 Console.WriteLine(pass + " passed, 0 failed");
 return 0;
 
-// ── A modelled Jellyfin ──────────────────────────────────────────────────────
+// ── A modeled Jellyfin ──────────────────────────────────────────────────────
 
 public class World
 {

@@ -2,9 +2,8 @@ using System.Linq;
 using System;
 using System.Reflection;
 
-// Locate the repository root by walking up from this binary until the plugin's project
-// file appears. This was a hardcoded absolute path, so these harnesses could only run on
-// one machine — they failed on the first CI run.
+// Find the repository root by walking up from this binary to the plugin's project file.
+// A hardcoded path made these harnesses fail on the first CI run.
 static string RepoRoot()
 {
     var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
@@ -24,10 +23,9 @@ static string RepoPath(params string[] parts)
 //   - the cross-account (Bonfire) switch matrix         — issue #13
 //   - switcher-preference resolution and migration      — issues #8 / #14
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build to load. This harness's output sits in bin/Release/<tfm>/, so its folder name
+// is the framework the csproj resolved: no second place to keep in step. tests/run.sh cs10
+// runs the whole set against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 
@@ -158,7 +156,7 @@ Console.WriteLine();
 Console.WriteLine("Switcher preference resolution");
 Console.WriteLine("------------------------------");
 {
-    // A brand-new account: the historical behaviour, untouched.
+    // A brand-new account: the historical behavior, untouched.
     Check("no mapping -> ask", Resolve(null).ask, true);
     Check("no mapping -> location", Resolve(null).loc, "button");
 
@@ -229,7 +227,7 @@ Console.WriteLine("----------------------------------");
     Check("unset field takes the default", Resolve(half, false, "menu").ask, false);
     Check("set field is kept", Resolve(half, false, "menu").loc, "button");
 
-    // A nonsense default must normalise rather than propagate.
+    // A nonsense default must normalize rather than propagate.
     Check("junk admin default -> button", Resolve(fresh, true, "sideways").loc, "button");
     Check("null admin default -> button", Resolve(fresh, true, null).loc, "button");
 }
@@ -239,11 +237,11 @@ Console.WriteLine("Image format gate (DecodeImageDataUrl)");
 Console.WriteLine("--------------------------------------");
 {
     // Non-public instance method, and the controller cannot be constructed here, so it is
-    // invoked against an uninitialised instance — it touches only its arguments and _logger.
+    // invoked against an uninitialized instance — it touches only its arguments and _logger.
     var ctrlType = asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true);
     var instance = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(ctrlType);
 
-    // The reject paths log, and _logger is null on an uninitialised object — a readonly
+    // The reject paths log, and _logger is null on an uninitialized object — a readonly
     // field, so it has to be set through reflection.
     baseType.GetField("_logger", BindingFlags.Instance | BindingFlags.NonPublic)!
         .SetValue(instance, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
@@ -280,11 +278,11 @@ Console.WriteLine("--------------------------------------");
 
 // ── The rate limit says how long the wait actually is ───────────────────────
 //
-// Every 429 used to end "please try again in 15 minutes". Fifteen is the width of the
-// window, not the wait: the limiter slides, freeing a slot when its oldest counted
-// attempt ages out, so somebody who mistyped a PIN five times over a quarter of an hour
-// is usually about a minute from another go. The old number was not a safe over-estimate
-// either — it was a different quantity that happened to be printed where a wait belonged.
+// Every 429 used to end "please try again in 15 minutes". Fifteen is the window's width, not
+// the wait: the limiter slides, freeing a slot when its oldest counted attempt ages out, so
+// somebody who mistyped a PIN five times in a quarter hour is usually about a minute from
+// another go. The old number was not a safe over-estimate either; it was a different
+// quantity printed where a wait belonged.
 Console.WriteLine();
 Console.WriteLine("Rate limit: the wait quoted is the wait enforced");
 {
@@ -340,15 +338,14 @@ Console.WriteLine("Rate limit: the wait quoted is the wait enforced");
 
 // ── A configuration import must not be able to wipe the server ──────────────
 //
-// PluginConfiguration initialises every list it owns to an empty list. So a body that
-// fails to bind does not arrive as null and does not throw: it arrives as a pristine
-// default, and an import that writes it field by field would replace every profile,
-// device and Bonfire with nothing while reporting success. A camelCase file, a
-// truncated download, or an object from any other tool would all do it.
+// PluginConfiguration initializes every list it owns to an empty list, so a body that fails
+// to bind arrives as a pristine default, not null, and does not throw. An import that wrote
+// it field by field would replace every profile, device and Bonfire with nothing and report
+// success. A camelCase file, a truncated download or an object from another tool would do it.
 //
-// The endpoint therefore reads properties off the JSON explicitly and case-insensitively,
-// so "the file did not contain this" is distinguishable from "the file contained an
-// empty list". These assertions are on that distinction.
+// The endpoint therefore reads properties off the JSON explicitly and case-insensitively, so
+// "the file did not contain this" differs from "the file contained an empty list". These
+// assertions are on that difference.
 Console.WriteLine();
 Console.WriteLine("Configuration import: absence is not emptiness");
 {
