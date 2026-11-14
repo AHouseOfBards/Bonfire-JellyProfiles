@@ -7,27 +7,26 @@
 #   tests/run.sh cs           # just the C# ones, against the net9.0 build that ships
 #   tests/run.sh cs10         # the same set, against the net10.0 build
 #
-# The plugin multi-targets net9.0 and net10.0 — Jellyfin 10.11.x runs on .NET 9 and 12.0
-# on .NET 10. net9.0 is what ships, because it is the only one of the two that loads on
-# both servers, so `all` runs the C# set against that one. `cs10` is what proves the other
-# build is not merely compiling: a plugin nobody has ever loaded is not a working plugin,
-# which is the whole lesson of 1.5.2.
+# The plugin multi-targets net9.0 (Jellyfin 10.11.x) and net10.0 (12.0). net9.0 ships
+# because it is the one that loads on both servers, so `all` runs the C# set against it.
+# `cs10` proves the other build is more than compiling: a build nobody has loaded is not
+# a working build (the lesson of 1.5.2).
 #
 # The C# harnesses reference bin/Release/<tfm>/Jellyfin.Profiles.dll, so the plugin is
 # built first unless SKIP_BUILD is set.
 #
 # Environment:
 #   BONFIRE_JOBS       plain JavaScript harnesses run this many at a time (default 4).
-#                      1 runs every harness one after another in name order, as before.
+#                      1 runs them one after another in name order.
 #   BONFIRE_LOCK_WAIT  seconds to wait for another run on this machine to finish before
-#                      giving up (default 3600). One full run at a time: two of them fight
-#                      over the CPU and over Chrome, and a harness that times out under
-#                      that load is a failure nobody can reproduce.
-#   BONFIRE_CHROME_JOBS  harnesses that start Chrome run this many at a time (default 1:
-#                      one after another, as before). Each launch has its own profile
-#                      directory and port 0 (tests/screens/chrome.js), so a machine with
-#                      cores to spare can raise it; layout measurements depend on the CPU, so
-#                      the default stays 1 and CI does not change it.
+#                      giving up (default 3600). One full run at a time: two fight over
+#                      the CPU and Chrome, and a harness that times out under that load
+#                      is a failure nobody can reproduce.
+#   BONFIRE_CHROME_JOBS  harnesses that start Chrome run this many at a time (default 1).
+#                      Each launch has its own profile directory and port 0
+#                      (tests/screens/chrome.js), so a machine with cores to spare can
+#                      raise it. Layout measurements depend on the CPU, so the default
+#                      stays 1 and CI does not change it.
 #   SKIP_BUILD         skip building the plugin.
 #
 # Arguments, after the section name (all, js, cs, cs10):
@@ -59,8 +58,8 @@ cd "$ROOT"
 # Microseconds since some fixed point. EPOCHREALTIME is bash 5; whole seconds otherwise.
 now() { if [ -n "${EPOCHREALTIME:-}" ]; then echo "${EPOCHREALTIME/[.,]/}"; else echo "$(date +%s)000000"; fi; }
 
-# A parallel worker: run one JS harness, leave its output and exit code where the
-# collector looks. The script runs itself so no second file has to travel with it.
+# A parallel worker: run one JS harness and leave its output and exit code where the
+# collector looks. The script runs itself, so no second file has to travel with it.
 if [ "${1:-}" = "--worker" ]; then
     tmp="$2"; f="$3"; b="$(basename "$f" .js)"
     t0=$(now)
@@ -115,20 +114,19 @@ SECTION="js"
 MODE="parallel"
 
 # ── Discovery, and the shard a harness is in ──────────────────────────────────────────
-# Done before the lock: --list must be able to run beside a full run.
+# Done before the lock, so --list can run beside a full run.
 TIMINGS="${BONFIRE_TIMINGS_FILE:-tests/timings.txt}"
 DEFAULT_SECONDS=10            # for a harness the timings file has not heard of
 PARALLEL_WIDTH=4              # a parallel harness costs seconds/4 of a shard's time; fixed,
-                              # not BONFIRE_JOBS, so the shards do not depend on the machine
+                              # not BONFIRE_JOBS, so shards do not depend on the machine
 JS_DIR="${BONFIRE_JS_DIR:-tests/js}"   # the override is for tests/js/runner.js
 
 # Harnesses that must not share the machine with each other. Everything else is a plain
 # Node process over files and stubs and runs BONFIRE_JOBS at a time.
-#   Chrome and the fixture server are not listed: any harness whose source requires
-#   ../screens/ or names findChrome is held back by the test in needs_serial, so a new
-#   Chrome harness is serial from its first run rather than from whenever someone
-#   remembers to add it here. Those share one Chrome profile cache, one font download
-#   (ICONS) and the CPU that its layout measurements depend on.
+#   Chrome and the fixture server are not listed: needs_serial holds back any harness
+#   whose source requires ../screens/ or names findChrome, so a new Chrome harness is
+#   serial from its first run. Those share one Chrome profile cache, one font download
+#   (ICONS) and the CPU its layout measurements depend on.
 # Listed by name:
 #   runner      starts this script about a dozen times to test it, each a full process tree
 #   i18ntest    orders replies by real timers of different lengths
@@ -137,7 +135,7 @@ JS_DIR="${BONFIRE_JS_DIR:-tests/js}"   # the override is for tests/js/runner.js
 SERIAL_JS=" runner i18ntest adminconfirm adminsweep28 dashboardxss serverinfo "
 
 is_listed_serial() { case "$SERIAL_JS" in *" $1 "*) return 0 ;; esac; return 1; }
-# One grep over every file, not one per harness: forking is the slow part on Windows.
+# One grep over every file, not one per harness: forking is slow on Windows.
 CHROME_FILES="$(grep -lE 'screens/|findChrome|chrome\.launch' "$JS_DIR"/*.js 2>/dev/null)"
 is_chrome() { case "
 $CHROME_FILES
@@ -152,10 +150,10 @@ needs_serial() {          # needs_serial <name> <file>
 names=(); files=(); par=(); ser=()
 HAS_JS() { [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; }
 if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
-    # _lib.js and _stubdom.js are shared plumbing (any _*.js is). *.verify.js needs the network and refreshes what the
-    # offline checks compare against — it is a maintenance tool, not a gate.
-    # *.scan.js surveys the source and prints what it finds; it asserts nothing and
-    # always exits 0, so counting it would add a harness that can never go red.
+    # _lib.js and _stubdom.js are shared plumbing (any _*.js is). *.verify.js needs the
+    # network and refreshes what the offline checks compare against: a maintenance tool,
+    # not a gate. *.scan.js surveys the source and prints what it finds; it asserts
+    # nothing and always exits 0, so counting it would add a harness that can never go red.
     for f in "$JS_DIR"/*.js; do
         base="${f##*/}"
         [ "${base#_}" != "$base" ] && continue
@@ -174,9 +172,8 @@ seconds_of() {            # seconds_of <section/name> -> the file's number, or t
     echo "${s:-$DEFAULT_SECONDS}"
 }
 
-# shard_members <section> <name:mode>... -> " name name " for the chosen shard. The cost
-# the balance uses is the seconds for a serial harness and seconds/PARALLEL_WIDTH for one
-# that runs beside others.
+# shard_members <section> <name:mode>... -> " name name " for the chosen shard. A serial
+# harness costs its seconds, a parallel one seconds/PARALLEL_WIDTH.
 shard_members() {
     local sec="$1"; shift
     local item
@@ -194,7 +191,7 @@ if [ -n "$SHARD" ]; then
     for i in "${!names[@]}"; do
         if needs_serial "${names[$i]}" "${files[$i]}"; then items+=("${names[$i]}:serial"); else items+=("${names[$i]}:parallel"); fi
     done
-    # sharedcopy is a check like the rest and takes its place in a shard like the rest.
+    # sharedcopy is a check like the rest and sits in a shard like the rest.
     HAS_JS && items+=("sharedcopy:serial")
     if [ ${#items[@]} -gt 0 ]; then JS_MEMBERS="$(shard_members js "${items[@]}")"; fi
     items=()
@@ -207,7 +204,7 @@ in_filter() { [ -z "$FILTERED" ] || case "$FILTER" in *" $1 "*) return 0 ;; *) r
 if [ -n "$ONLY" ]; then FILTERED=1; FILTER=" ${ONLY//,/ } "; fi
 if [ -n "$CHANGED" ]; then
     # What changed: tracked files against the base, in the working tree too, and files git
-    # does not know yet. --no-renames, so the old name of a moved file is listed as well.
+    # does not know yet. --no-renames, so a moved file's old name is listed too.
     base="$CHANGED_BASE"
     if [ -z "$base" ]; then base="$(git merge-base HEAD origin/beta 2>/dev/null || git merge-base HEAD beta 2>/dev/null)"; fi
     if [ -z "$base" ] || ! git rev-parse --verify -q "$base^{commit}" >/dev/null; then
@@ -248,10 +245,10 @@ if [ -n "$LIST" ]; then
 fi
 
 # ── One full run at a time ─────────────────────────────────────────────────────────────
-# A lock directory under the system temp dir (mkdir is atomic), holding the owner's pid.
-# A lock whose process is gone is taken over, so a crash or a Ctrl-C cannot wedge the next
-# run. A nested run.sh (tests/js/runner.js starts several to test this one) inherits
-# BONFIRE_RUN_LOCKED and does not take it again.
+# A lock directory under the system temp dir (mkdir is atomic) holding the owner's pid. A
+# lock whose process is gone is taken over, so a crash or Ctrl-C cannot wedge the next
+# run. A nested run.sh (tests/js/runner.js starts several) inherits BONFIRE_RUN_LOCKED and
+# does not take it again.
 LOCKDIR="${TMPDIR:-${TEMP:-/tmp}}/bonfire-tests.lock"
 OWNS_LOCK=""
 
@@ -263,8 +260,8 @@ acquire_lock() {
     while ! mkdir "$LOCKDIR" 2>/dev/null; do
         pid="$(lock_holder)"
         if [ -z "$pid" ]; then
-            # The owner has made the directory and not yet written its pid. Give it a moment
-            # before calling the lock abandoned.
+            # The owner has made the directory and not yet written its pid. Give it a
+            # moment before calling the lock abandoned.
             sleep 1
             pid="$(lock_holder)"
         fi
@@ -302,7 +299,7 @@ trap 'exit 130' INT TERM
 acquire_lock
 
 # Recording: every Node process a harness starts loads tests/record-reads.js, which writes
-# what it read under $BONFIRE_RECORD_DIR; the record is rewritten at the end of the run.
+# what it read under $BONFIRE_RECORD_DIR. The record is rewritten at the end of the run.
 if [ -n "$RECORD" ]; then
     REC_DIR="$(mktemp -d "${TMPDIR:-${TEMP:-/tmp}}/bonfire-record.XXXXXX")"
     # Node on Windows cannot open Git Bash's /d/... paths, so hand it the real ones.
@@ -320,16 +317,16 @@ judge() {
     printf '  %-14s ' "$label"
     RAN=$((RAN + 1))
     if [ "$rc" -eq 0 ]; then
-        # A harness that exits 0 having said nothing, or having counted zero checks, proved
-        # nothing: an emptied test body looks exactly like that. Fail it.
+        # Exit 0 with no output, or zero checks counted, proved nothing: an emptied test
+        # body looks exactly like that. Fail it.
         if [ -z "$(printf %s "$out" | tr -d '[:space:]')" ] \
            || printf '%s\n' "$out" | grep -Eiq '(^|[^0-9.])0 (passed|checks|assertions)|pass 0([^0-9]|$)'; then
             FAILED+=("$label")
             echo "FAILED (asserted nothing)  (${took}s)"
             return
         fi
-        # And one that exits 0 without ending on a totals line stopped early: it printed
-        # some PASS lines and then fell off the end. A skip says so on its last line.
+        # Exit 0 without ending on a totals line means it stopped early (some PASS lines,
+        # then fell off the end). A skip says so on its last line.
         if ! printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | tail -1 \
              | grep -Eq '[0-9]+ passed|pass [0-9]+, fail [0-9]+|^[[:space:]]*SKIPPED'; then
             FAILED+=("$label")
@@ -354,7 +351,7 @@ run() {                       # run <label> <command...>
 }
 
 # Run the harnesses at these indexes, <jobs> at a time, and print their verdicts in the
-# order given however the workers happen to finish. run_pool <jobs> <mode> <index>...
+# order given however the workers finish. run_pool <jobs> <mode> <index>...
 run_pool() {
     local jobs="$1" i n; MODE="$2"; shift 2
     [ $# -eq 0 ] && return 0
@@ -419,8 +416,8 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
                 ser+=("$i")
             fi
         done
-        # Results are printed in name order as each one's turn comes up, so the output reads
-        # the same however the workers happen to finish.
+        # Results print in name order as each one's turn comes up, so the output reads the
+        # same however the workers finish.
         run_pool "$JOBS" parallel "${par[@]}"
         # Then the ones that need the machine to themselves, one at a time...
         MODE=serial
@@ -431,11 +428,11 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "js" ]; then
         run_pool "$CHROME_JOBS" serial "${chrome[@]}"
     fi
     MODE=serial
-    # The vendored Campground.Shared must be byte for byte what campground-shared.json
-    # records. Edited in place, it would ship a library no other Campground plugin has —
-    # and the newest copy on a server runs index.html for all of them. Change it in
-    # Campground-Coordination and re-vendor instead. Here rather than as its own CI step so
-    # the desk and the pipeline cannot disagree.
+    # The vendored Campground.Shared must match campground-shared.json byte for byte.
+    # Edited in place, it would ship a library no other Campground plugin has, and the
+    # newest copy on a server runs index.html for all of them. Change it in
+    # Campground-Coordination and re-vendor. Here, not its own CI step, so the desk and
+    # the pipeline cannot disagree.
     if js_in_shard sharedcopy; then
         run "sharedcopy" sh -c 'sh Campground.Shared/check-shared.sh && echo "1 passed, 0 failed"'
     fi
@@ -444,11 +441,10 @@ fi
 
 if [ "$WHICH" = "all" ] || [ "$WHICH" = "cs" ] || [ "$WHICH" = "cs10" ]; then
     echo "── C# (against the $TFM build) ────────────────────────────────"
-    # Every harness is built once, together, and then run from its output. `dotnet run`
-    # per harness restored and built each project on its own, one after another, and the
-    # net10.0 pass did it all again. The harnesses, their frameworks (BonfireTfm) and what
-    # they print are unchanged; only the building moved. A harness that did not build is
-    # reported FAILED below, by name, rather than failing the whole section.
+    # Every harness is built once, together, then run from its output. `dotnet run` per
+    # harness restored and built each project on its own, and the net10.0 pass did it all
+    # again. A harness that did not build is reported FAILED below, by name, rather than
+    # failing the whole section.
     BUILDLOG="$(mktemp "${TMPDIR:-${TEMP:-/tmp}}/bonfire-cs.XXXXXX")"
     for target in RestoreAll BuildAll; do
         if ! dotnet msbuild tests/cs/build-all.proj -nologo -v:q -m -t:$target \
@@ -463,8 +459,8 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "cs" ] || [ "$WHICH" = "cs10" ]; then
     for d in tests/cs/*/; do
         d="${d%/}"; n="$(basename "$d")"
         cs_in_shard "$n" || continue
-        # The output is named for the project's AssemblyName, which is the directory's name
-        # in most of them and "<name>harness" or the .csproj's own name in the rest.
+        # The output is named for the project's AssemblyName: the directory's name in most,
+        # "<name>harness" or the .csproj's own name in the rest.
         proj="$(ls "$d"/*.csproj | head -1)"
         asm="$(sed -n 's/.*<AssemblyName>\(.*\)<\/AssemblyName>.*/\1/p' "$proj" | head -1)"
         [ -z "$asm" ] && asm="$(basename "$proj" .csproj)"
@@ -480,7 +476,7 @@ fi
 
 if [ -n "$RECORD" ]; then
     # C# harnesses are recorded by what they are built from (tests/depends.js csDeps) plus
-    # whatever Node they started; the ones that ran are listed so they get that entry.
+    # whatever Node they started. The ones that ran are listed so they get that entry.
     cs_ran=""
     for t in "${TIMES[@]}"; do case "$t" in cs/*) l="${t%% *}"; cs_ran="$cs_ran,${l#cs/}" ;; esac; done
     node tests/depends.js merge "$REC_DIR" tests/depends.txt --cs "${cs_ran#,}"
