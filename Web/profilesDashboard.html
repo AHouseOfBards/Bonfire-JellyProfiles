@@ -4941,7 +4941,7 @@
                 return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
             }
 
-            /// What the Simple controls show for a draft. Colours are #rrggbb: a colour
+            /// What the Simple controls show for a draft. Colors are #rrggbb: a color
             /// picker has no alpha.
             function simpleThemeValues(draft) {
                 const six = function (v) {
@@ -5214,8 +5214,8 @@
                            escapeHtml(id) + '" aria-label="' + escapeHtml(namedAria(t(key), who)) + '"><span>' + escapeHtml(t(key)) + '</span></button>';
                 };
                 return list.map(function (c) {
-                    // A colour from the file goes into a style attribute only in the one shape
-                    // a colour can have.
+                    // A color from the file goes into a style attribute only in the one shape
+                    // a color can have.
                     const fill = String(getThemePath(c.theme, 'background.fill') || '');
                     const swatch = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(fill) ? ' style="background: ' + fill + '"' : '';
                     const bad = c.problems && c.problems.length;
@@ -5377,7 +5377,7 @@
             function loadThemes(page) {
                 const box = page.querySelector('#themesCustom');
                 if (!box) return;
-                // The catalogue is the public list: the built-ins' files to start from, the
+                // The catalog is the public list: the built-ins' files to start from, the
                 // fonts with their fallbacks, and the pattern names. It can fail on its own.
                 const catalog = ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/themes')).then(null, function () { return null; });
                 // Saves and deletes call this again while an earlier load may still be out;
@@ -5443,8 +5443,8 @@
                 page._themeSelectDrawn = true;
             }
 
-            /// Built-ins to start from: the catalogue's, and from the client script the ones
-            /// the catalogue leaves out because they are hidden. Then the custom themes.
+            /// Built-ins to start from: the catalog's, and from the client script the ones
+            /// the catalog leaves out because they are hidden. Then the custom themes.
             function themeBases(page) {
                 const data = page._themes.data;
                 const catalog = page._themes.catalog;
@@ -5464,7 +5464,7 @@
                 return out;
             }
 
-            /// Every font a theme may use, with its fallback: the built-ins from the catalogue
+            /// Every font a theme may use, with its fallback: the built-ins from the catalog
             /// (its names alone if that failed) and the uploaded ones.
             function themeFonts(page) {
                 const data = page._themes.data;
@@ -5699,7 +5699,7 @@
             // browser. Every color control is a swatch button (.jpf-te-sw) that opens one
             // popup.
 
-            /// The preset colours, the one place they are written. Each set is 24: three rows
+            /// The preset colors, the one place they are written. Each set is 24: three rows
             /// of eight. Which set a control gets is COLOR_KIND_OF, just below.
             const COLOR_PRESETS = {
                 // What is drawn on the background and must stand out from it: the accent and
@@ -5725,7 +5725,7 @@
                     'fecaca', 'fbcfe8', 'e9d5ff', 'c7d2fe', 'bfdbfe', 'a5f3fc', 'bbf7d0', 'd9f99d',
                     'fff7ed', 'fdf2f8', 'f0fdf4', 'ecfeff', 'eff6ff', 'faf5ff', 'fafaf9', 'e2e8f0'
                 ],
-                // Text on a light theme: black and the dark greys and deep tints that read on
+                // Text on a light theme: black and the dark grays and deep tints that read on
                 // a light ground.
                 textOnLight: [
                     '000000', '0a0a0a', '111827', '1f2937', '262626', '374151', '3f3f46', '4b5563',
@@ -5752,11 +5752,11 @@
                     const ed = page._themeEditor;
                     kind = ed && ed.draft.scheme === 'light' ? 'textOnLight' : 'textOnDark';
                 }
-                // Written without the #, so they are data and not colours the page is drawn in.
+                // Written without the #, so they are data and not colors the page is drawn in.
                 return COLOR_PRESETS[kind].map(function (h) { return '#' + h; });
             }
 
-            /// A swatch shows its colour and keeps it as its value, the way the input did.
+            /// A swatch shows its color and keeps it as its value, the way the input did.
             function setSwatch(btn, hex) {
                 btn.value = hex;
                 btn.style.background = hex;
@@ -5857,14 +5857,14 @@
                 const sv = pop.querySelector('.jpf-te-sv'), hue = pop.querySelector('.jpf-te-hue'), box = pop.querySelector('.jpf-te-hex');
                 const swatches = Array.prototype.slice.call(pop.querySelectorAll('.jpf-te-pre'));
 
-                // The two gradients are the colour model itself, not the page's theme, so
-                // they are computed here and not written as colours in the stylesheet.
+                // The two gradients are the color model itself, not the page's theme, so
+                // they are computed here and not written as colors in the stylesheet.
                 sv.style.setProperty('--jpf-sv-light', hsvToHex(0, 0, 1));
                 sv.style.setProperty('--jpf-sv-dark', hsvToHex(0, 0, 0));
                 hue.style.setProperty('--jpf-hue-stops', [0, 60, 120, 180, 240, 300, 360].map(function (h) { return hsvToHex(h % 360, 1, 1); }).join(', '));
-                // Everything on show from h, s and v: the knobs, the strip's colour, the
+                // Everything on show from h, s and v: the knobs, the strip's color, the
                 // preset that is the current one, the hex box (unless it is being typed in).
-                // `exact` is a colour that was picked or typed as itself (a preset, the box),
+                // `exact` is a color that was picked or typed as itself (a preset, the box),
                 // so it is written as given and not as what h, s and v round back to.
                 const paint = function (skipBox, exact) {
                     const hex = exact || hsvToHex(st.h, st.s, st.v);
@@ -6011,7 +6011,7 @@
             // overlay's id swapped for ours, so a layout or background the generator draws
             // shows here with no code of its own.
 
-            /// The sample profiles: name key, avatar colour, initial.
+            /// The sample profiles: name key, avatar color, initial.
             const EXPAND_SAMPLES = [['admin.themes.sample1', '#d9534f', 'A'], ['admin.themes.sample2', '#3fb37f', 'S'], ['admin.themes.sample3', '#5b8def', 'K']];
 
             function themeExpandedHtml() {
@@ -6902,7 +6902,7 @@
                 ed.jsonErrors = {};
             }
 
-            /// A shadow's boxes are greyed out while None is ticked.
+            /// A shadow's boxes are grayed out while None is ticked.
             function shadowBoxesEnabled(none) {
                 const wrap = none.closest('.jpf-te-shadow');
                 if (!wrap) return;
@@ -7005,7 +7005,7 @@
                 } else if (el.getAttribute('data-simple')) {
                     simpleThemeEdit(draft, el.getAttribute('data-simple'), el.value, themeFonts(page));
                 } else if (el.getAttribute('data-pick')) {
-                    // The picker sets the colour and keeps the alpha the text box has.
+                    // The picker sets the color and keeps the alpha the text box has.
                     const path = el.getAttribute('data-pick');
                     const text = el.parentNode.querySelector('.jpf-te-input');
                     const cur = String(getThemePath(draft, path) || '');
@@ -7199,7 +7199,7 @@
                 if (discrete) themeHistoryClose(page);
                 else {
                     ed.stepTimer = setTimeout(function () {
-                        // A drag or a colour popup is still going: it closes the step itself.
+                        // A drag or a color popup is still going: it closes the step itself.
                         if (page._themeEditor !== ed) return;
                         if (page._picker || ed.pointer) return;
                         themeHistoryClose(page);
@@ -7552,7 +7552,7 @@
                 return ('#' + (a >= 255 ? '' : mfHex2(a)) + mfHex2(c.r) + mfHex2(c.g) + mfHex2(c.b)).toUpperCase();
             }
 
-            /// Colour `top` laid over colour `bottom`.
+            /// Color `top` laid over color `bottom`.
             function mfOver(top, bottom) {
                 const a = top.a + bottom.a * (1 - top.a);
                 if (a <= 0) return { r: 0, g: 0, b: 0, a: 0 };
@@ -7588,7 +7588,7 @@
             }
 
             /// A Bonfire theme as a Moonfin theme file's object. What has no counterpart is
-            /// worked out from the theme's own colours; the book, the badges, recordings and
+            /// worked out from the theme's own colors; the book, the badges, recordings and
             /// the request statuses are fixed neutral values, as Bonfire draws none of them.
             function moonfinExport(theme, name) {
                 const col = function (path, fallback) { return mfParseColor(mfGet(theme, path)) || mfParseColor(fallback); };
@@ -7713,7 +7713,7 @@
                 return file;
             }
 
-            /// Moonfin's colour, #RRGGBB or #AARRGGBB, as {r,g,b,a}; null for anything else.
+            /// Moonfin's color, #RRGGBB or #AARRGGBB, as {r,g,b,a}; null for anything else.
             function mfFromMoonfin(c) {
                 const m = /^#(?:([0-9a-fA-F]{2}))?([0-9a-fA-F]{6})$/.exec(String(c));
                 if (!m) return null;
@@ -7740,7 +7740,7 @@
                 return bg && mfLightness(bg) >= 0.5 ? 'jellyfin-light' : 'bonfire';
             }
 
-            /// Every colour a file carries, or null for one that is not a colour.
+            /// Every color a file carries, or null for one that is not a color.
             function mfAllColorsValid(file) {
                 const list = [];
                 ['colors', 'semantic', 'book'].forEach(function (g) {
@@ -7771,7 +7771,7 @@
             /// A Moonfin theme file as a Bonfire theme, laid over `base` (a built-in's object).
             /// `fonts` is [{family, fallback}], what this server can draw. Gives
             /// { draft, font } where `font` names a font the file asked for that is not there,
-            /// or null when the file is not a Moonfin theme or one of its colours is bad:
+            /// or null when the file is not a Moonfin theme or one of its colors is bad:
             /// nothing is loaded half-way.
             function moonfinImport(file, base, fonts) {
                 if (!mfIsMoonfin(file)) return null;
@@ -8167,7 +8167,7 @@
                 const button = page.querySelector('#fontUpload');
                 button.disabled = true;
                 // Hand-rolled, like the avatar folder import: the body is the file itself,
-                // which ApiClient.ajax would try to serialise.
+                // which ApiClient.ajax would try to serialize.
                 fetch(ApiClient.getUrl('plugins/profiles/admin/themes/fonts', query), {
                     method: 'POST',
                     headers: { 'Authorization': authorizationHeader(), 'Content-Type': 'font/woff2' },
