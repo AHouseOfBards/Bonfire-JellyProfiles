@@ -4660,9 +4660,9 @@
                     return keys.map(function (k) { return colour('colors.' + k); });
                 };
                 // Eight sections, named for what they style on the profile screen (owner,
-                // 2026-11-12); the fields are the same as when there were fifteen, and
-                // adminthemes.js checks that none was added or lost. Each is under the heading
-                // that says what it is for; none is a catch-all, and none holds one field.
+                // 2026-11-12). The fields are the same as when there were fifteen;
+                // adminthemes.js checks none was added or lost. No section is a catch-all or
+                // holds one field.
                 return [
                     ['admin.themes.group.colours', [pick('scheme', ['dark', 'light'])]
                         .concat(colours(['accent', 'accentFocus', 'onAccent', 'text1', 'text2', 'text3',
@@ -4867,7 +4867,7 @@
                 return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
             }
 
-            /// What the Simple controls show for a draft. Colours are #rrggbb: a colour
+            /// What the Simple controls show for a draft. Colors are #rrggbb: a color
             /// picker has no alpha.
             function simpleThemeValues(draft) {
                 const six = function (v) {
@@ -4905,10 +4905,10 @@
                 const setIf = function (path, v) { if (getThemePath(draft, path) !== undefined) setThemePath(draft, path, v); };
                 if (control === 'accent') {
                     if (!themeRgb(hex)) return;
-                    // Black text on a light accent, white on a dark one; the focus shade moves
-                    // away from the text, so both states keep their contrast. Pure black,
-                    // not a near-black: at the crossover, around #757575, the better of
-                    // black and white is 4.58:1, and #111111 would leave it at 4.35.
+                    // Black text on a light accent, white on a dark one. The focus shade moves
+                    // away from the text so both states keep their contrast. Pure black, not
+                    // near-black: at the crossover (about #757575) the better of black and
+                    // white is 4.58:1, and #111111 would give 4.35.
                     const dark = themeContrast(hex, '#000000') >= themeContrast(hex, '#ffffff');
                     const on = dark ? '#000000' : '#ffffff';
                     setThemePath(draft, 'colors.accent', hex);
@@ -4917,10 +4917,10 @@
                     setIf('parts.button2.focus.fill', hex);
                     setIf('parts.button2.focus.text', on);
                     setIf('parts.button2.focus.border.color', hex);
-                    // The ring round a focused tile is a tint of the accent, drawn on the
-                    // background: lighter on a dark one, darker on a light one, pushed further
-                    // until it stands off the background at 3:1. It used to keep the starting
-                    // theme's colour, a peach ring on a teal theme.
+                    // The focus ring is a tint of the accent drawn against the background:
+                    // lighter on a dark one, darker on a light one, pushed until it stands off
+                    // the background at 3:1. It used to keep the starting theme's color, a
+                    // peach ring on a teal theme.
                     const ground = themeRgb(getThemePath(draft, 'background.fill')) ? getThemePath(draft, 'background.fill').slice(0, 7)
                         : (themeRgb(getThemePath(draft, 'colors.panel')) ? getThemePath(draft, 'colors.panel').slice(0, 7) : '#000000');
                     const away = themeContrast(ground, '#ffffff') >= themeContrast(ground, '#000000') ? '#ffffff' : '#000000';
@@ -4932,10 +4932,9 @@
                     const now = simpleThemeValues(draft);
                     const top = control === 'bg1' ? hex : now.bg1;
                     const bottom = control === 'bg2' ? hex : now.bg2;
-                    // Two colours top to bottom, or one. Whatever layers the starting theme
-                    // had go: Simple cannot show them, so it should not keep them unseen.
-                    // The background image stays: Simple shows it, and dropping it here
-                    // made the save delete the file as unused.
+                    // Two colors top to bottom, or one. Any layers the starting theme had are
+                    // dropped, since Simple cannot show them. The background image stays:
+                    // dropping it made the save delete the file as unused.
                     const image = draft.background && typeof draft.background === 'object' ? draft.background.image : undefined;
                     draft.background = top === bottom ? { fill: top, layers: [] } : {
                         fill: top,
@@ -5034,13 +5033,13 @@
                 return String(name || '').replace(/\s*\(.*$/, '');
             }
 
-            /// The preview card as markup, the editor's card: one source, so the editor, the
-            /// built-in list and the default select cannot show three different cards. It
-            /// wears `previewId` (a data-jpf-theme the page has written a sheet for) and
-            /// says only words the page already has keys for.
+            /// The preview card as markup, the editor's card. One source, so the editor, the
+            /// built-in list and the default select cannot show three different cards. It wears
+            /// `previewId` (a data-jpf-theme the page has written a sheet for) and uses only
+            /// words the page already has keys for.
             ///
-            /// `parts` is the editor's: each part of the card then names the group of fields
-            /// that styles it (data-te-group, the group's own key) so a click on the card can open
+            /// `parts` is the editor's: each part of the card names the group of fields that
+            /// styles it (data-te-group, the group's own key) so a click on the card opens
             /// them, and an add tile, a card, a sheet and a text box are drawn that the lists'
             /// cards do not need. Only the editor's Advanced view uses them.
             function themePreviewCardHtml(previewId, name, parts) {
@@ -5066,9 +5065,9 @@
             }
 
             /// A sheet for every theme the lists show, each written by the client's own
-            /// generator under an id of its own (a card must not depend on the theme being
-            /// the one the page wears, and a hidden built-in's sheet is not served at all).
-            /// Returns { themeId: the id its card wears } for the ones that could be drawn.
+            /// generator under its own id (a card must not depend on being the page's theme,
+            /// and a hidden built-in's sheet is not served at all). Returns { themeId: the id
+            /// its card wears } for the ones that could be drawn.
             function writeThemeListCss(page) {
                 const api = window.BonfireThemePreview;
                 const ids = {};
@@ -5141,8 +5140,8 @@
                            escapeHtml(id) + '" aria-label="' + escapeHtml(namedAria(t(key), who)) + '"><span>' + escapeHtml(t(key)) + '</span></button>';
                 };
                 return list.map(function (c) {
-                    // A colour from the file goes into a style attribute only in the one shape
-                    // a colour can have.
+                    // A color from the file goes into a style attribute only in the one shape
+                    // a color can have.
                     const fill = String(getThemePath(c.theme, 'background.fill') || '');
                     const swatch = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(fill) ? ' style="background: ' + fill + '"' : '';
                     const bad = c.problems && c.problems.length;
@@ -5218,16 +5217,16 @@
             }
 
             /// One problem in the administrator's language. The server's `code` says what kind;
-            /// its `detail` is English, so the numbers in it are read out and put in a
-            /// translated sentence, and anything this page does not know shows as it came.
+            /// its `detail` is English, so the numbers in it are put into a translated
+            /// sentence, and anything this page does not know shows as it came.
             function themeProblemText(p) {
                 const code = String((p && p.code) || '');
                 const detail = String((p && p.detail) || '');
                 const path = String((p && p.path) || '');
                 let m;
-                // No 'contrast': a custom theme has no contrast rules (the owner, 2026-11-12:
+                // No 'contrast': a custom theme has no contrast rules (owner, 2026-11-12:
                 // "There should be no restrictions on custom made themes"), so the server never
-                // sends one for it.
+                // sends one.
                 switch (code) {
                     case 'range':
                         if ((m = /^Must be from (-?[0-9.]+) to (-?[0-9.]+)\.$/.exec(detail))) return t('admin.themes.p.between', { min: m[1], max: m[2] });
@@ -5264,9 +5263,9 @@
             }
 
             /// The message for a refused request, and the problems when it carried them. The
-            /// message is said by X-Bonfire-Error, in the page's language, in English too: the
-            /// server's sentence is never shown. The body is read for the list of problems only,
-            /// and each of those is worded here from its own code (themeProblemText).
+            /// message comes from X-Bonfire-Error, in the page's language; the server's
+            /// sentence is never shown. The body is read only for the list of problems, each
+            /// worded here from its own code (themeProblemText).
             function readThemeError(err, fallbackKey, data) {
                 const code = refusalCode(err);
                 const vars = { max: code === 'font_limit' ? (data && data.maxCustomFonts) || 20 : (data && data.maxCustomThemes) || 40 };
@@ -5304,7 +5303,7 @@
             function loadThemes(page) {
                 const box = page.querySelector('#themesCustom');
                 if (!box) return;
-                // The catalogue is the public list: the built-ins' files to start from, the
+                // The catalog is the public list: the built-ins' files to start from, the
                 // fonts with their fallbacks, and the pattern names. It can fail on its own.
                 const catalog = ApiClient.getJSON(ApiClient.getUrl('plugins/profiles/themes')).then(null, function () { return null; });
                 // Saves and deletes call this again while an earlier load may still be out;
@@ -5363,15 +5362,15 @@
                     select.appendChild(option);
                 });
                 select.value = normalizeTheme(current, offered);
-                // A theme chosen here and then deleted drops back to Bonfire. Say so by
-                // marking the page unsaved, so Save is lit and the change is not a surprise
-                // (R-1262). Not on the first draw: the saved value is what it is.
+                // A theme chosen here and then deleted drops back to Bonfire. Mark the page
+                // unsaved so Save is lit and the change is not a surprise (R-1262). Not on the
+                // first draw: the saved value is what it is.
                 if (page._themeSelectDrawn && select.value !== current) setUnsaved(page, true);
                 page._themeSelectDrawn = true;
             }
 
-            /// Built-ins to start from: the catalogue's, and from the client script the ones
-            /// the catalogue leaves out because they are hidden. Then the custom themes.
+            /// Built-ins to start from: the catalog's, and from the client script the ones
+            /// the catalog leaves out because they are hidden. Then the custom themes.
             function themeBases(page) {
                 const data = page._themes.data;
                 const catalog = page._themes.catalog;
@@ -5391,7 +5390,7 @@
                 return out;
             }
 
-            /// Every font a theme may use, with its fallback: the built-ins from the catalogue
+            /// Every font a theme may use, with its fallback: the built-ins from the catalog
             /// (its names alone if that failed) and the uploaded ones.
             function themeFonts(page) {
                 const data = page._themes.data;
@@ -5495,7 +5494,7 @@
             }
 
             /// Keeps the preview below Jellyfin's fixed header while the fields scroll. Where
-            /// position: sticky works this only sets its top to the header's foot; on Chromium
+            /// position: sticky works, this only sets its top to the header's foot. On Chromium
             /// 53, which has none, it moves the preview down with a transform, never past the
             /// foot of the editor's body. Bound while the editor is open.
             function bindThemePreviewStick(page) {
@@ -5620,25 +5619,26 @@
                 if (style) style.textContent = '';
             }
 
-            // ── The colour picker ─────────────────────────────────────────────────
-            // Bonfire draws its own: input type=color opens a different native dialog in
-            // every browser, and nothing here may behave differently by platform. Every
-            // colour control is a swatch button (.jpf-te-sw) that opens one popup.
+            // ── The color picker ─────────────────────────────────────────────────
+            //
+            // Bonfire draws its own: input type=color opens a different native dialog in every
+            // browser. Every color control is a swatch button (.jpf-te-sw) that opens one
+            // popup.
 
-            /// The preset colours, the one place they are written. Each set is 24: three rows
+            /// The preset colors, the one place they are written. Each set is 24: three rows
             /// of eight. Which set a control gets is COLOR_KIND_OF, just below.
             const COLOR_PRESETS = {
-                // What is drawn on the background and has to stand out from it: the accent and
-                // the colours built from it, the focus ring, and the two status colours.
-                // Saturated, and spread round the wheel so a household finds its own.
+                // What is drawn on the background and must stand out from it: the accent and
+                // colors built from it, the focus ring, and the two status colors. Saturated
+                // and spread round the wheel so a household finds its own.
                 accent: [
                     'e5484d', 'ff6b35', 'f59e0b', 'facc15', 'a3d94a', '3fb37f', '14b8a6', '22c3ee',
                     '3b82f6', '5b8def', '6366f1', '8b5cf6', 'a855f7', 'd946ef', 'ec4899', 'f43f5e',
                     'd9534f', 'e8590c', 'c2410c', 'b45309', '0f766e', '1d4ed8', '7e22ce', 'be185d'
                 ],
                 // Backgrounds, panels, surfaces, borders and fills: dark grounds, near black
-                // through deep blue, green, plum and warm brown, because a profile picker is a
-                // dark room far more often than not.
+                // through deep blue, green, plum and warm brown, since a profile picker is
+                // usually used in a dark room.
                 ground: [
                     '000000', '0a0a0a', '111111', '1a1a1a', '222831', '2b2d42', '1e293b', '0f172a',
                     '0b132b', '12263a', '102a43', '0b3d3a', '123524', '1b2e1f', '2d1b2e', '2a1233',
@@ -5651,7 +5651,7 @@
                     'fecaca', 'fbcfe8', 'e9d5ff', 'c7d2fe', 'bfdbfe', 'a5f3fc', 'bbf7d0', 'd9f99d',
                     'fff7ed', 'fdf2f8', 'f0fdf4', 'ecfeff', 'eff6ff', 'faf5ff', 'fafaf9', 'e2e8f0'
                 ],
-                // Text on a light theme: black and the dark greys and deep tints that read on
+                // Text on a light theme: black and the dark grays and deep tints that read on
                 // a light ground.
                 textOnLight: [
                     '000000', '0a0a0a', '111827', '1f2937', '262626', '374151', '3f3f46', '4b5563',
@@ -5678,11 +5678,11 @@
                     const ed = page._themeEditor;
                     kind = ed && ed.draft.scheme === 'light' ? 'textOnLight' : 'textOnDark';
                 }
-                // Written without the #, so they are data and not colours the page is drawn in.
+                // Written without the #, so they are data and not colors the page is drawn in.
                 return COLOR_PRESETS[kind].map(function (h) { return '#' + h; });
             }
 
-            /// A swatch shows its colour and keeps it as its value, the way the input did.
+            /// A swatch shows its color and keeps it as its value, the way the input did.
             function setSwatch(btn, hex) {
                 btn.value = hex;
                 btn.style.background = hex;
@@ -5783,14 +5783,14 @@
                 const sv = pop.querySelector('.jpf-te-sv'), hue = pop.querySelector('.jpf-te-hue'), box = pop.querySelector('.jpf-te-hex');
                 const swatches = Array.prototype.slice.call(pop.querySelectorAll('.jpf-te-pre'));
 
-                // The two gradients are the colour model itself, not the page's theme, so
-                // they are computed here and not written as colours in the stylesheet.
+                // The two gradients are the color model itself, not the page's theme, so
+                // they are computed here and not written as colors in the stylesheet.
                 sv.style.setProperty('--jpf-sv-light', hsvToHex(0, 0, 1));
                 sv.style.setProperty('--jpf-sv-dark', hsvToHex(0, 0, 0));
                 hue.style.setProperty('--jpf-hue-stops', [0, 60, 120, 180, 240, 300, 360].map(function (h) { return hsvToHex(h % 360, 1, 1); }).join(', '));
-                // Everything on show from h, s and v: the knobs, the strip's colour, the
+                // Everything on show from h, s and v: the knobs, the strip's color, the
                 // preset that is the current one, the hex box (unless it is being typed in).
-                // `exact` is a colour that was picked or typed as itself (a preset, the box),
+                // `exact` is a color that was picked or typed as itself (a preset, the box),
                 // so it is written as given and not as what h, s and v round back to.
                 const paint = function (skipBox, exact) {
                     const hex = exact || hsvToHex(st.h, st.s, st.v);
@@ -5929,14 +5929,15 @@
                 rove(Math.max(0, current));
             }
 
-            // ── The expanded preview ──────────────────────────────────────────────
-            // The profile picker itself, full size, in the theme being edited. It is the
-            // client's own markup and classes under a wrapper that wears the preview theme,
-            // so Bonfire's stylesheet draws it; the sheet the editor already writes for the
-            // card is written again for it with the real overlay's id swapped for ours, so a
-            // layout or background the generator draws shows here with no code of its own.
+            // ── The expanded preview ──────────────────────────────────────────
+            //
+            // The profile picker itself, full size, in the theme being edited. It uses the
+            // client's own markup and classes under a wrapper that wears the preview theme. The
+            // sheet the editor writes for the card is written again for it with the real
+            // overlay's id swapped for ours, so a layout or background the generator draws
+            // shows here with no code of its own.
 
-            /// The sample profiles: name key, avatar colour, initial.
+            /// The sample profiles: name key, avatar color, initial.
             const EXPAND_SAMPLES = [['admin.themes.sample1', '#d9534f', 'A'], ['admin.themes.sample2', '#3fb37f', 'S'], ['admin.themes.sample3', '#5b8def', 'K']];
 
             function themeExpandedHtml() {
@@ -5997,11 +5998,11 @@
                 fitThemeExpanded(page);
             }
 
-            /// Bonfire's own stylesheet rules for the real picker, written for the view. Most of
-            /// how the picker lays out (two tiles a row on a phone, the grid's width and gaps,
-            /// the fitted sizes) is keyed to #profiles-gate-overlay in styles.css, so with only the
-            /// generator's sheet copied the view showed one huge tile a row on a phone. Read
-            /// from the client's own sheet (#jpf-styles), so the view follows any change to it.
+            /// Bonfire's own stylesheet rules for the real picker, written for the view. Most
+            /// of the picker's layout (two tiles a row on a phone, the grid's width and gaps,
+            /// the fitted sizes) is keyed to #profiles-gate-overlay in styles.css, so copying
+            /// only the generator's sheet showed one huge tile a row on a phone. Read from the
+            /// client's own sheet (#jpf-styles) so the view follows any change to it.
             function gateRulesForExpanded() {
                 const el = document.getElementById('jpf-styles');
                 let rules;
@@ -6024,11 +6025,12 @@
             }
 
             /// The real picker sizes its tiles to the screen and balances its rows by script
-            /// (fitGateToScreen); the view runs the same function, through the preview API.
-            /// `onlyIfResized`: from the scroll and resize handler, which fires in bursts while
-            /// the person scrolls. A scroll moves the view but does not change the size it
-            /// is fitted to, so the fit is skipped unless the window or the view's box is a
-            /// different size from the last fit. The size is read before the fit changes it.
+            /// (fitGateToScreen); the view runs the same function through the preview API.
+            ///
+            /// `onlyIfResized`: set from the scroll and resize handler, which fires in bursts.
+            /// A scroll does not change the size the view is fitted to, so the fit is skipped
+            /// unless the window or the view's box differs from the last fit. The size is read
+            /// before the fit changes it.
             function fitThemeExpanded(page, onlyIfResized) {
                 const x = page._themeExpand;
                 const api = window.BonfireThemePreview;
@@ -6100,13 +6102,14 @@
                 wrap.querySelector('.jpf-te-xclose').focus();
             }
 
-            // ── Decorations and background layers as controls (2.0) ─────────────────────
+            // ── Decorations and background layers as controls (2.0) ─────────────
+            //
             // Both were JSON boxes. Each is now cards of the same controls the rest of Advanced
-            // uses (sliders, selects, Bonfire's own colour picker), written to the draft by
-            // path, so the generic fill and edit code above and below handle them: a path may
-            // run through a list ("decorations.1.size"). Adding, removing and moving rebuild the
-            // cards, since the controls themselves change. "Edit as JSON" swaps in the old box,
-            // for pasting a theme; it is checked as it always was.
+            // uses (sliders, selects, the color picker), written to the draft by path, so the
+            // generic fill and edit code handles them: a path may run through a list
+            // ("decorations.1.size"). Adding, removing and moving rebuild the cards, since the
+            // controls themselves change. "Edit as JSON" swaps in the old box, for pasting a
+            // theme; it is checked as before.
             const THEME_DECO_ORDER = ['pattern', 'pattern2', 'rings', 'frost', 'twinkle'];
             // Written out, so each key is one the checks can see is used.
             const THEME_DECO_LABEL = {
@@ -6188,8 +6191,9 @@
                         ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" /><output class="jpf-te-val" for="' + id + '"></output></span>';
                 }
                 // is="emby-select" inside a selectContainer, and without the class emby-select:
-                // jellyfin-web draws the arrow only for an upgraded select that does not carry it
-                // already. These were plain selects with the classes written in, so no arrow.
+                // jellyfin-web draws the arrow only for an upgraded select that does not carry
+                // it already. These were plain selects with the classes written in, so they had
+                // no arrow.
                 return '<div class="selectContainer jpf-te-selbox"><select is="emby-select" class="jpf-te-input"' + attrs + '>' +
                     // An entry is a value, or [value, label] where the value is no name for a person.
                     opt.map(function (v) {
@@ -6531,9 +6535,8 @@
                 }).join('');
                 // Which groups are open is remembered per viewer. A toggle does not bubble, so
                 // it is caught on the way down. While a search is typed the groups are opened
-                // and shut for it, which is not the viewer's choice and is not saved.
-                // In three columns the selected group is held open and the rest are not shown, which
-                // is not the viewer's choice either.
+                // and shut for it, and in three columns the selected group is held open and the
+                // rest hidden. Neither is the viewer's choice, so neither is saved.
                 box.addEventListener('toggle', function () {
                     if (box.dataset.searching || box.closest('.jpf-te-3col')) return;
                     themeSaveOpenGroups(box);
@@ -6583,9 +6586,9 @@
             }
 
             /// Search over Advanced: a row stays if every word typed is in its translated name
-            /// or its path. Groups with a match are opened and the rest hidden; "No match"
-            /// shows when nothing is left. Clearing puts back the groups the viewer had open,
-            /// which are in storage (themeOpenGroups) because searching never saves.
+            /// or its path. Groups with a match open and the rest are hidden; "No match" shows
+            /// when nothing is left. Clearing restores the groups the viewer had open, which
+            /// are in storage (themeOpenGroups) because searching never saves.
             function themeFilterAdvanced(page) {
                 const box = page.querySelector('#teAdvancedFields');
                 const words = page.querySelector('#teSearch').value.toLowerCase().split(/\s+/).filter(Boolean);
@@ -6825,7 +6828,7 @@
                 ed.jsonErrors = {};
             }
 
-            /// A shadow's boxes are greyed out while None is ticked.
+            /// A shadow's boxes are grayed out while None is ticked.
             function shadowBoxesEnabled(none) {
                 const wrap = none.closest('.jpf-te-shadow');
                 if (!wrap) return;
@@ -6928,7 +6931,7 @@
                 } else if (el.getAttribute('data-simple')) {
                     simpleThemeEdit(draft, el.getAttribute('data-simple'), el.value, themeFonts(page));
                 } else if (el.getAttribute('data-pick')) {
-                    // The picker sets the colour and keeps the alpha the text box has.
+                    // The picker sets the color and keeps the alpha the text box has.
                     const path = el.getAttribute('data-pick');
                     const text = el.parentNode.querySelector('.jpf-te-input');
                     const cur = String(getThemePath(draft, path) || '');
@@ -6997,7 +7000,7 @@
                     else if ((page._themes.data.custom || []).some(function (c) { return c.id === id; })) out.push({ path: 'id', code: 'inUse', detail: '' });
                 }
                 Object.keys(ed.jsonErrors).forEach(function (path) { out.push({ path: path, code: 'json', detail: '' }); });
-                // A pattern picture a loaded file named that this server does not have: the
+                // A pattern picture a loaded file named that this server does not have. The
                 // server's check cannot see it before Save, so it is held here until the card
                 // is given another picture.
                 (Array.isArray(ed.draft.decorations) ? ed.draft.decorations : []).forEach(function (d, i) {
@@ -7071,15 +7074,16 @@
                 try { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { first.scrollIntoView(); }
             }
 
-            // ── Undo and redo ─────────────────────────────────────────────────────
-            // A stack of whole-draft snapshots (JSON strings), at most 50. ed.base is the
-            // draft as of the last settled step; the first change after it pushes that onto
-            // the undo stack and opens a step, and every change until the step closes belongs
-            // to it. A step closes on a `change` event (a slider let go, a box left), when a
-            // colour popup closes, when the pointer is released, or after 700 ms with no
-            // change; so a drag, a colour-picker session and a typing burst each count once.
-            // A picture that was uploaded is undone as a reference only: the file stays on
-            // the server, and the draft stops naming it.
+            // ── Undo and redo ─────────────────────────────────────────────────
+            //
+            // A stack of whole-draft snapshots (JSON strings), at most 50. ed.base is the draft
+            // as of the last settled step. The first change after it pushes that onto the undo
+            // stack and opens a step; every change until the step closes belongs to it. A step
+            // closes on a `change` event (slider let go, box left), when a color popup closes,
+            // when the pointer is released, or after 700 ms with no change. So a drag, a
+            // color-picker session and a typing burst each count once. An uploaded picture is
+            // undone as a reference only: the file stays on the server and the draft stops
+            // naming it.
             const THEME_UNDO_MAX = 50;
 
             function themeHistoryInit(ed) {
@@ -7121,7 +7125,7 @@
                 if (discrete) themeHistoryClose(page);
                 else {
                     ed.stepTimer = setTimeout(function () {
-                        // A drag or a colour popup is still going: it closes the step itself.
+                        // A drag or a color popup is still going: it closes the step itself.
                         if (page._themeEditor !== ed) return;
                         if (page._picker || ed.pointer) return;
                         themeHistoryClose(page);
@@ -7287,9 +7291,9 @@
                     '<div class="fieldDescription jpf-te-photo-note"></div>';
             }
 
-            /// Shows the draft's picture in every copy of the control: Remove and the slider only
-            /// when there is one, and the dim it has. It used to warn when the text was hard to
-            /// read on the picture; custom themes have no contrast rules, so no warning either.
+            /// Shows the draft's picture in every copy of the control: Remove and the slider
+            /// only when there is one, and the dim it has. It used to warn when text was hard
+            /// to read on the picture; custom themes have no contrast rules, so no warning now.
             function syncThemePhoto(page) {
                 const ed = page._themeEditor;
                 if (!ed) return;
@@ -7312,10 +7316,10 @@
             }
 
             /// The dim a new picture starts at: the least, from 0.75 in steps of 0.05, at which
-            /// the theme's text colours still read on a white picture and on a black one under
-            /// the theme's fill. Only a start, so the picture looks good, like the text colour
-            /// picked for a new accent: nothing checks it, and the administrator may set any dim
-            /// in range (custom themes have no contrast rules since 2026-11-12).
+            /// the theme's text colors still read on a white picture and on a black one under
+            /// the theme's fill. Only a start, like the text color picked for a new accent:
+            /// nothing checks it, and the administrator may set any dim in range (no contrast
+            /// rules for custom themes since 2026-11-12).
             function themePhotoDim(draft) {
                 const fill = themeRgb(String(getThemePath(draft, 'background.fill') || '').slice(0, 7)) || [16, 16, 16];
                 const toHex = function (k) { return '#' + k.map(function (x) { return ('0' + Math.round(x).toString(16)).slice(-2); }).join(''); };
@@ -7417,11 +7421,11 @@
 
             function exportTheme(theme) {
                 const id = theme && /^[a-z0-9-]{1,40}$/.test(String(theme.id)) ? theme.id : 'theme';
-                // The background image is a file on this server, not part of the theme's
-                // text, so the file leaves it out rather than name a picture another
-                // server does not have (docs/themes.md, "Background image"). Its dim stays,
-                // as the sign there was one: without it the import cannot say to upload it,
-                // and the usual case (export here, import there) said nothing.
+                // The background image is a file on this server, not part of the theme's text,
+                // so the export leaves it out rather than name a picture another server does
+                // not have (docs/themes.md, "Background image"). Its dim stays as the sign
+                // there was one: without it the import cannot say to upload it, and the usual
+                // case (export here, import there) said nothing.
                 const copy = JSON.parse(JSON.stringify(theme || {}));
                 const bg = copy.background && typeof copy.background === 'object' ? copy.background : null;
                 if (bg && bg.image && typeof bg.image === 'object') bg.image = { dim: bg.image.dim };
@@ -7442,7 +7446,7 @@
             }
 
             // moonfin:begin
-            // Moonfin's theme files (<id>.theme.json). Its colours put alpha first, #AARRGGBB;
+            // Moonfin's theme files (<id>.theme.json). Its colors put alpha first, #AARRGGBB;
             // Bonfire's put it last, #RRGGBBAA. Everything here is plain data in, data out, so
             // tests/js/moonfinthemes.js runs this block on its own: keep it free of the page.
 
@@ -7474,7 +7478,7 @@
                 return ('#' + (a >= 255 ? '' : mfHex2(a)) + mfHex2(c.r) + mfHex2(c.g) + mfHex2(c.b)).toUpperCase();
             }
 
-            /// Colour `top` laid over colour `bottom`.
+            /// Color `top` laid over color `bottom`.
             function mfOver(top, bottom) {
                 const a = top.a + bottom.a * (1 - top.a);
                 if (a <= 0) return { r: 0, g: 0, b: 0, a: 0 };
@@ -7510,7 +7514,7 @@
             }
 
             /// A Bonfire theme as a Moonfin theme file's object. What has no counterpart is
-            /// worked out from the theme's own colours; the book, the badges, recordings and
+            /// worked out from the theme's own colors; the book, the badges, recordings and
             /// the request statuses are fixed neutral values, as Bonfire draws none of them.
             function moonfinExport(theme, name) {
                 const col = function (path, fallback) { return mfParseColor(mfGet(theme, path)) || mfParseColor(fallback); };
@@ -7635,7 +7639,7 @@
                 return file;
             }
 
-            /// Moonfin's colour, #RRGGBB or #AARRGGBB, as {r,g,b,a}; null for anything else.
+            /// Moonfin's color, #RRGGBB or #AARRGGBB, as {r,g,b,a}; null for anything else.
             function mfFromMoonfin(c) {
                 const m = /^#(?:([0-9a-fA-F]{2}))?([0-9a-fA-F]{6})$/.exec(String(c));
                 if (!m) return null;
@@ -7662,7 +7666,7 @@
                 return bg && mfLightness(bg) >= 0.5 ? 'jellyfin-light' : 'bonfire';
             }
 
-            /// Every colour a file carries, or null for one that is not a colour.
+            /// Every color a file carries, or null for one that is not a color.
             function mfAllColorsValid(file) {
                 const list = [];
                 ['colors', 'semantic', 'book'].forEach(function (g) {
@@ -7693,7 +7697,7 @@
             /// A Moonfin theme file as a Bonfire theme, laid over `base` (a built-in's object).
             /// `fonts` is [{family, fallback}], what this server can draw. Gives
             /// { draft, font } where `font` names a font the file asked for that is not there,
-            /// or null when the file is not a Moonfin theme or one of its colours is bad:
+            /// or null when the file is not a Moonfin theme or one of its colors is bad:
             /// nothing is loaded half-way.
             function moonfinImport(file, base, fonts) {
                 if (!mfIsMoonfin(file)) return null;
@@ -7864,12 +7868,12 @@
                     const data = page._themes.data;
                     const id = typeof parsed.id === 'string' ? parsed.id : '';
                     const existing = (data.custom || []).filter(function (c) { return c.id === id; })[0];
-                    // A file never brings a picture (exportTheme leaves only its dim). One written
-                    // by hand would name a file this server may not have, so it is dropped; a
-                    // theme being replaced keeps the picture it has, even from a file with no
-                    // background at all (which the server then asks to have one, in the editor,
-                    // with the picture still there). A file that had a picture and lands
-                    // without one says to upload it.
+                    // A file never brings a picture (exportTheme leaves only its dim). One
+                    // written by hand would name a file this server may not have, so it is
+                    // dropped. A theme being replaced keeps the picture it has, even from a
+                    // file with no background at all (the server then asks for one, in the
+                    // editor, with the picture still there). A file that had a picture and
+                    // lands without one says to upload it.
                     let bg = parsed.background && typeof parsed.background === 'object' ? parsed.background : null;
                     const hadPhoto = !!(bg && bg.image);
                     if (bg) delete bg.image;
@@ -7916,7 +7920,8 @@
                 reader.readAsText(file);
             }
 
-            // ── The editor's File menu ────────────────────────────────────────────
+            // ── The editor's File menu ────────────────────────────────────────
+            //
             // Download saves the draft as it stands, unsaved edits included, by the rules the
             // list's Export follows. Load replaces the draft and saves nothing: it is one undo
             // step, so a wrong file is one Undo away. The open theme keeps its id.
@@ -8088,7 +8093,7 @@
                 const button = page.querySelector('#fontUpload');
                 button.disabled = true;
                 // Hand-rolled, like the avatar folder import: the body is the file itself,
-                // which ApiClient.ajax would try to serialise.
+                // which ApiClient.ajax would try to serialize.
                 fetch(ApiClient.getUrl('plugins/profiles/admin/themes/fonts', query), {
                     method: 'POST',
                     headers: { 'Authorization': authorizationHeader(), 'Content-Type': 'font/woff2' },
@@ -8923,11 +8928,11 @@
                 });
             }
 
-            // ── Status ────────────────────────────────────────────────────────────
+            // ── Status ──────────────────────────────────────────────────────
             //
-            // Each loader reports its own part as it arrives, so Status costs no requests of
-            // its own beyond the orphan scan, and never shows something the tab it links to
-            // would disagree with: both are drawn from the same answer.
+            // Each loader reports its own part as it arrives, so Status costs no requests
+            // beyond the orphan scan, and never disagrees with the tab it links to: both are
+            // drawn from the same answer.
             const STATUS_ORDER = ['off', 'script', 'panic', 'maintenance', 'email', 'pins', 'orphans', 'avatars', 'beta'];
             const LEVEL_RANK = { bad: 0, warn: 1, info: 2, ok: 3 };
 
@@ -8992,21 +8997,21 @@
                 });
             }
 
-            // ── Getting started ───────────────────────────────────────────────────
+            // ── Getting started ───────────────────────────────────────────────
             //
-            // Only what a new install needs, each ticked from the settings as they stand
-            // rather than from anything the administrator clicked, so it can't claim something
-            // is done that isn't. Suggestions, not warnings: nothing here is wrong, so nothing
-            // is coloured as if it were.
+            // Only what a new install needs, each ticked from the settings as they stand rather
+            // than from anything the administrator clicked, so it cannot claim something is
+            // done that is not. Suggestions, not warnings, so nothing is colored as if it were
+            // wrong.
             //
             // Short on purpose (P2-301, P2-302). It once also asked for avatars, first-time
-            // setup, the apps and an emergency code. The avatars item was done on every install,
-            // since the starter set is on by default; the emergency code bypasses the picker, so
-            // Security warns against it in the same breath; and the rest are choices, not
-            // chores. First-time setup is asked once instead, below.
-            // The Status row for main accounts that have profiles and no main PIN. A warning,
-            // so the headline counts it: it once read "Nothing needs your attention" over
-            // this very row, and over a Getting started item asking for the same PIN.
+            // setup, the apps and an emergency code. Avatars were done on every install (the
+            // starter set is on by default); the emergency code bypasses the picker, so
+            // Security warns against it; the rest are choices, not chores. First-time setup is
+            // asked once instead, below.
+            // The Status row for main accounts that have profiles and no main PIN. It is a
+            // warning so the headline counts it: it once read "Nothing needs your attention"
+            // over this very row, and over a Getting started item asking for the same PIN.
             function pinStatusRows(open, required) {
                 if (!open) return [];
                 return [{ level: 'warn',
@@ -9033,9 +9038,9 @@
                     items.push({ key: 'zone', text: t('admin.gs.zone'), done: !!c.DefaultTimeZone, tab: 'security', anchor: 'jpfViewing' });
                 }
                 // No "Turn on Bonfire" item: the switch is at the top of this tab, and Status
-                // says "Bonfire is off." first. A saved dismissed list that names it is ignored.
-                // Dismissed is for good, for every administrator: it is kept on the server
-                // (Onboarding.Dismissed). Status still flags anything that is actually wrong.
+                // says "Bonfire is off." first. A saved dismissed list that names it is
+                // ignored. Dismissed is for good, for every administrator, and kept on the
+                // server (Onboarding.Dismissed). Status still flags anything actually wrong.
                 const dismissed = field(c.Onboarding || {}, 'dismissed') || [];
                 return items.filter(function (it) { return dismissed.indexOf(it.key) === -1; });
             }
@@ -9228,11 +9233,11 @@
                 }, function () { /* the scan button reports its own failure */ });
             }
 
-            // ── Report ────────────────────────────────────────────────────────────
+            // ── Report ───────────────────────────────────────────────────────
             //
-            // What a bug report needs, and nothing that identifies anyone: versions, which
-            // settings are on, how many of each thing there are, and what the script is
-            // doing. No names, ids, addresses, device names or hashes.
+            // What a bug report needs and nothing that identifies anyone: versions, which
+            // settings are on, how many of each thing there are, and what the script is doing.
+            // No names, ids, addresses, device names or hashes.
             function buildReport(page) {
                 const c = page._config || {};
                 const r = page._mappings || {};
@@ -9295,11 +9300,11 @@
                 });
             }
 
-            // ── First-time setup ──────────────────────────────────────────────────
+            // ── First-time setup ──────────────────────────────────────────────
             //
             // Only the switch. Every step is always offered and each can be skipped; the
-            // welcome is Bonfire's own. A configuration that still carries a step choice or a
-            // welcome text from an older version is read past, and the next save drops them.
+            // welcome is Bonfire's own. A step choice or welcome text left by an older version
+            // is read past, and the next save drops it.
             function loadOnboarding(page, ob) {
                 page.querySelector('#onboardingEnabled').checked = !!field(ob, 'enabled');
             }
@@ -9373,12 +9378,12 @@
                 });
             }
 
-            // ── Unsaved changes (P2-305) ──────────────────────────────────────────
+            // ── Unsaved changes (P2-305) ──────────────────────────────────────
             //
-            // Every Save on this page sends every setting, from whichever tab it is pressed
-            // on, and nothing said which fields had been touched or that anything was waiting.
-            // The things that save at once (themes, email, announcements, maintenance) have
-            // buttons of their own and are not counted: only what Save sends is.
+            // Every Save on this page sends every setting, from whichever tab it is pressed on,
+            // and nothing said which fields had been touched. Things that save at once (themes,
+            // email, announcements, maintenance) have their own buttons and are not counted:
+            // only what Save sends is.
             const SAVED_FIELD_IDS = ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail',
                 'disallowCustomAvatars', 'enableStarterAvatars', 'defaultAskOnStartup', 'defaultSwitcherLocation',
                 'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone', 'enableClientPinLogin',
@@ -9418,14 +9423,14 @@
             // Sends only the six settings this page owns.
             //
             // This used to GET the whole PluginConfiguration, change six fields on the copy,
-            // and PUT all of it back — carrying every profile mapping, known device, Bonfire
-            // group, avatar library entry and the emergency-disable hash along with it.
-            // Anything that changed while the page was open was overwritten with the state
-            // from before it changed: a profile someone created five minutes ago vanished the
-            // moment an administrator pressed Save, silently, with nothing in the log tying
-            // the two together. The window is as wide as the page has been open.
+            // and PUT all of it back, carrying every profile mapping, known device, Bonfire
+            // group, avatar library entry and the emergency-disable hash. Anything that changed
+            // while the page was open was overwritten with the old state: a profile someone
+            // created five minutes ago vanished when an administrator pressed Save, with
+            // nothing in the log tying the two together. The window was as wide as the page had
+            // been open.
             //
-            // POST admin/settings takes the six fields and mutates them in place, so there is
+            // POST admin/settings takes the six fields and changes them in place, so there is
             // nothing else in the request to lose.
             function saveConfiguration(page) {
                 // The form is showing defaults, not the settings, until a read has worked.
@@ -9434,9 +9439,9 @@
                     Dashboard.alert({ message: t('admin.saveBlocked'), title: t('admin.error') });
                     return;
                 }
-                // parseInt('-4', 10) is -4, which is truthy, so `|| 5` never caught a negative
-                // — it only caught the empty box. The server rejects out-of-range values too;
-                // clamping here means the common case gets a saved setting rather than an error.
+                // parseInt('-4', 10) is -4, which is truthy, so `|| 5` never caught a negative,
+                // only the empty box. The server rejects out-of-range values too; clamping here
+                // saves the common case instead of showing an error.
                 const typed = parseInt(page.querySelector('#maxProfiles').value, 10);
                 const maxProfiles = Number.isFinite(typed) ? Math.min(20, Math.max(1, typed)) : 5;
                 page.querySelector('#maxProfiles').value = maxProfiles;
@@ -9531,11 +9536,11 @@
                 loadAdminStrings().then(start, start);
             });
 
-            // Leaving the page. The expanded preview and the colour popup listen on the
-            // document, and the expanded view's style sits in <head>; left open, its Tab trap
-            // kept Tab from working anywhere else in jellyfin-web. viewManager fires
-            // viewbeforehide on the page element on every navigation away (the page* twin
-            // only when it dispatches page events), so this is the one to listen for.
+            // Leaving the page. The expanded preview and the color popup listen on the document
+            // and the expanded view's style sits in <head>; left open, its Tab trap kept Tab
+            // from working anywhere else in jellyfin-web. viewManager fires viewbeforehide on
+            // the page element on every navigation away (the page* twin only when it dispatches
+            // page events), so listen for that.
             document.getElementById('profilesConfigurationPage').addEventListener('viewbeforehide', function () {
                 closeThemeExpanded(this, false);
                 closeColorPopup(this, false);
@@ -9547,18 +9552,22 @@
             });
 
             /// The arrow on every select points up while its list is open and down while it is
-            /// closed: one set of listeners on the page, so no select needs code of its own.
-            /// A native select raises no event when its list opens or closes, so this goes by
-            /// what opens and closes it. Opens: a primary-button mousedown on the select (the
-            /// popup is then up; a click that dismisses it is swallowed by the popup and never
-            /// reaches the page), Alt+Up/Down, F4 or Space. Closes: change, blur, Escape, Tab,
-            /// Enter, a second Space, and a mousedown anywhere else on the page. Its limits:
-            /// picking the option already selected fires no change, so the arrow stays up until
-            /// the select blurs or the page is clicked; a click outside the page that dismisses
-            /// the list does the same; and where jellyfin-web shows its own action sheet instead
-            /// of the native list (TV layouts) emby-select cancels the mousedown, which is left
-            /// alone here, so the arrow does not move at all. `change` and `blur` are taken in
-            /// the capture phase because emby-select's own `change` does not bubble.
+            /// closed. One set of listeners on the page, so no select needs code of its own. A
+            /// native select raises no event when its list opens or closes, so this goes by
+            /// what opens and closes it.
+            ///
+            /// Opens: a primary-button mousedown on the select (a click that dismisses the
+            /// popup is swallowed by it and never reaches the page), Alt+Up/Down, F4 or Space.
+            /// Closes: change, blur, Escape, Tab, Enter, a second Space, and a mousedown
+            /// elsewhere on the page.
+            ///
+            /// Limits: picking the option already selected fires no change, so the arrow stays
+            /// up until blur or a page click, and a click outside the page that dismisses the
+            /// list does the same. Where jellyfin-web shows its own action sheet (TV layouts),
+            /// emby-select cancels the mousedown and the arrow does not move.
+            ///
+            /// `change` and `blur` use the capture phase because emby-select's own `change`
+            /// does not bubble.
             function bindSelectArrows(page) {
                 if (page._selectArrows) return;
                 page._selectArrows = true;
@@ -9593,14 +9602,15 @@
                 page.addEventListener('blur', closeThis, true);
             }
 
-            /// A button on the same row as a select or a text box is as tall as it. The two come
+            /// A button on the same row as a select or a text box is as tall as it. They come
             /// from different places (jellyfin-web sizes an upgraded control in em of its own
             /// font, the button is ours), so no pair of fixed paddings keeps them level, and a
             /// stylesheet cannot read one element's height for another. This reads the control
-            /// and sets the button. A control is beside a button when it is within 48 px of it,
-            /// on the same line, in the same row (the button's parent, or up to two levels
-            /// above it). The colour swatch in the theme editor is square, so it takes the
-            /// width too.
+            /// and sets the button.
+            ///
+            /// A control is beside a button when it is within 48 px of it, on the same line, in
+            /// the same row (the button's parent, or up to two levels above). The color swatch
+            /// in the theme editor is square, so it takes the width too.
             const ROW_CONTROLS = 'select, input[type=text], input[type=number], input[type=email], input[type=password], input[type=url], input[type=search], input:not([type])';
             function matchControlHeights(page) {
                 const writes = [];
