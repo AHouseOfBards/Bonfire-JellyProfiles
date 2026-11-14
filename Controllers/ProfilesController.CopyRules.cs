@@ -20,14 +20,13 @@ namespace Jellyfin.Profiles.Controllers
         /// Gives the target profile the source's rating limit, tags, libraries and viewing limits.
         /// Its devices, name, picture and PIN are not touched.
         /// <para>
-        /// A route that changes what a profile can watch, so it is held to what <c>/update</c> is
-        /// held to: the main account only, with the main PIN, and both profiles must be this
-        /// household's. A profile that is not (another household's, the main account's own, a
-        /// standalone user's, one that does not exist) is refused with one answer, so the route
-        /// cannot be used to find out which. The values go through the same helpers as an edit,
-        /// so the target ends as if its owner had set them on the form: never above the main
-        /// account's rating, never a library the main account cannot reach, and a library
-        /// another plugin manages is neither copied nor changed.</para>
+        /// It changes what a profile can watch, so it is held to what <c>/update</c> is: main account
+        /// only, with the main PIN, both profiles in this household. Any other profile (another
+        /// household's, the main account's own, a standalone user's, a missing one) gets one answer, so
+        /// the route cannot be used to find out which. Values go through the same helpers as an edit,
+        /// so the target ends as if its owner set them on the form: never above the main account's
+        /// rating, never a library the main account cannot reach, and a library another plugin manages
+        /// is neither copied nor changed.</para>
         /// </summary>
         [HttpPost("copy-rules")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -54,9 +53,8 @@ namespace Jellyfin.Profiles.Controllers
 
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
-            // Whose profiles these are is read once, here, and read again under the lock before
-            // anything is stored. A row that is not a sub-profile of this caller, for whatever
-            // reason, is the same answer.
+            // Whose profiles these are is read here, then again under the lock before anything is
+            // stored. A row that is not a sub-profile of this caller gets the same answer.
             if (request.SourceProfileId == request.TargetProfileId) return BadRequest("Pick two different profiles.");
             ProfileMapping? source;
             ProfileMapping? target;
@@ -93,11 +91,10 @@ namespace Jellyfin.Profiles.Controllers
             // Limits with no main PIN to switch them off again are refused, as /limits/{id} refuses them.
             if (viewing != null && viewing.IsLimited && !MainHasPin(masterUserId, config)) return BadRequest(MainPinRequiredMessage);
 
-            // The rating as the source holds it. A source that follows the main account has no
-            // rating of its own, and the target follows too: copying what the source's account
-            // happens to carry would pin the target to today's value (r2-11-03). A source with
-            // no record at all (its rating was set in Dashboard -> Users) has only the account
-            // to copy from.
+            // The rating as the source holds it. A source that follows the main account has none of its
+            // own, and the target follows too: copying what the source's account happens to carry would
+            // pin the target to today's value (r2-11-03). A source with no record (rating set in
+            // Dashboard -> Users) has only the account to copy from.
             var sourceOwn = source.OwnRating;
             bool followsMain = sourceOwn == null && source.LastAppliedRating != null;
             int? requestedRating;
@@ -152,9 +149,9 @@ namespace Jellyfin.Profiles.Controllers
                 ? ApplyInheritedFolders(_libraryManager, masterPolicy, targetPolicy, keepOwned: true)
                 : ApplyListedFolders(_libraryManager, masterPolicy, listedFolders, targetPolicy, keepOwned: true);
 
-            // Checked again, with the gate held and just before the account is written: a
-            // profile deleted or moved since the first look must not be changed (r2-11-04).
-            // The check under the lock below stays, for what happens during the write.
+            // Checked again with the gate held, just before the account is written: a profile deleted or
+            // moved since the first look must not be changed (r2-11-04). The check under the lock below
+            // covers what happens during the write.
             lock (ConfigLock)
             {
                 var again = config.Mappings.FirstOrDefault(m => m.ProfileUserId == request.TargetProfileId);

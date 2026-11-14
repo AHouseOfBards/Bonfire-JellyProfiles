@@ -7,21 +7,16 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace Jellyfin.Profiles.Controllers
 {
     /// <summary>
-    /// A stable code for every error a Bonfire route returns, sent as the
-    /// <c>X-Bonfire-Error</c> header. The body stays the human message it always was.
-    ///
-    /// <para><b>Why a header and not a JSON body.</b> The client script and the dashboard
-    /// show the body as text, in about twenty places, and so would any app written against
-    /// the routes so far. A header adds what a program needs without changing what a
-    /// person sees, and nothing that reads the body today breaks.</para>
-    ///
-    /// <para><b>Why matched on the message here, rather than passed at each call site.</b>
-    /// There are about two hundred error returns. Matching here gives every one of them a
-    /// code today, and the rules sit in one table a harness can read. A message that
-    /// matches no rule still gets the general code for its status, never none.</para>
-    ///
-    /// <para><b>Codes never change once released.</b> Messages can. A new case gets a new
-    /// code; an old code is never reused for something else.</para>
+    /// A stable code for every error a Bonfire route returns, sent in the <c>X-Bonfire-Error</c>
+    /// header. The body stays the human message.
+    /// <para><b>Header, not JSON body.</b> The client script and dashboard show the body as text in
+    /// about twenty places. A header adds what a program needs and breaks nothing that reads the
+    /// body.</para>
+    /// <para><b>Matched on the message here.</b> There are about two hundred error returns; matching
+    /// here codes every one and keeps the rules in one table a harness can read. A message with no
+    /// rule still gets the general code for its status.</para>
+    /// <para><b>Codes never change once released.</b> A new case gets a new code; an old code is
+    /// never reused.</para>
     /// </summary>
     public static class ErrorCodes
     {
@@ -31,11 +26,10 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>A rule: when the message contains this text, this is its code. First match wins.</summary>
         internal static readonly IReadOnlyList<(string Contains, string Code)> Rules = new[]
         {
-            // Messages that echo a name somebody chose come first. First match wins, and a
-            // profile called "Invalid PIN", or a font whose family is, would otherwise be
-            // coded by its own name instead of by the sentence around it. r2-07-05.
-            // device_in_use is forgetting a device that is the only one a profile may be opened
-            // on; the sentence names the profiles, so a client says it in general.
+            // Messages that echo a chosen name come first (first match wins): a profile called
+            // "Invalid PIN", or a font with that family, would otherwise be coded by its own name.
+            // r2-07-05. device_in_use is forgetting the only device a profile may be opened on; the
+            // sentence names the profiles, so the client says it generically.
             ("This is the only device allowed for", "device_in_use"),
             ("Bonfire already has a font called", "font_taken"),
 
@@ -92,8 +86,8 @@ namespace Jellyfin.Profiles.Controllers
             ("A main account is already its own", "main_account_protected"),
             ("Set a password for the new account", "password_required"),
 
-            // Maintenance. The refusal itself carries its code from the route: its text is
-            // the administrator's own.
+            // Maintenance. The refusal carries its code from the route: its text is the administrator's
+            // own.
             ("maintenance message can be at most", "maintenance_invalid"),
             ("time maintenance ends must be", "maintenance_invalid"),
 
@@ -139,8 +133,8 @@ namespace Jellyfin.Profiles.Controllers
             ("The From address isn't valid", "email_settings_invalid"),
             ("Fill in the server and the From address", "email_settings_invalid"),
 
-            // Viewing hours and limits (1.7.2). The refusals of playback itself are written
-            // by Auth.ViewingGate: outside_viewing_hours and daily_limit_reached.
+            // Viewing hours and limits (1.7.2). Playback refusals are written by Auth.ViewingGate:
+            // outside_viewing_hours and daily_limit_reached.
             ("This profile has no viewing limits", "not_limited"),
             ("Limits are for profiles, not main accounts", "limits_for_profiles"),
             ("Too many viewing windows", "limits_invalid"),
@@ -152,8 +146,8 @@ namespace Jellyfin.Profiles.Controllers
 
             // Other accounts in a switcher, and an account made a profile (1.7.2).
             ("That username or password isn't right", "credentials_wrong"),
-            // admin_must_add is retired, not reused: an account that signs in elsewhere now gets
-            // the wrong-password refusal, so a household cannot learn which usernames exist.
+            // admin_must_add is retired, not reused: an account that signs in elsewhere now gets the
+            // wrong-password refusal, so a household cannot learn which usernames exist.
             ("That account is turned off in Jellyfin", "not_linkable"),
             ("That's your own account", "not_linkable"),
             ("That's a profile. Add its main account", "not_linkable"),
@@ -169,8 +163,8 @@ namespace Jellyfin.Profiles.Controllers
             ("It has profiles of its own", "not_convertible"),
             ("It's in a Bonfire. Leave it first", "not_convertible"),
 
-            // Custom themes and fonts (1.7.2). "That theme isn't valid" and an unreadable font
-            // file carry their codes from the route: theme_invalid and font_invalid.
+            // Custom themes and fonts (1.7.2). "That theme isn't valid" and an unreadable font file carry
+            // their codes from the route: theme_invalid and font_invalid.
             ("Delete a custom theme first", "theme_limit"),
             ("No such theme", "theme_not_found"),
             ("That's the default theme. Choose another default first", "theme_in_use"),
@@ -212,8 +206,8 @@ namespace Jellyfin.Profiles.Controllers
 
             return status switch
             {
-                // A 401 with a message never reaches here through the filter, which has already
-                // made it a 403; the "forbidden" arm is for a caller of this method directly.
+                // A 401 with a message never gets here through the filter, which makes it a 403; the
+                // "forbidden" arm is for direct callers.
                 StatusCodes.Status401Unauthorized => string.IsNullOrEmpty(message) ? "unauthenticated" : "forbidden",
                 StatusCodes.Status403Forbidden => "forbidden",
                 StatusCodes.Status404NotFound => "not_found",
@@ -227,18 +221,16 @@ namespace Jellyfin.Profiles.Controllers
     /// <summary>
     /// Adds <see cref="ErrorCodes.Header"/> to every error from a Bonfire route, and sends a
     /// refusal to a signed-in caller as <c>403</c>.
-    ///
-    /// <para><b>The 403.</b> A 401 used to mean two things: the caller's token was rejected
-    /// (empty body), or the caller is signed in and not allowed (a message). A client that
-    /// signs out on any 401 signed a household out for asking to edit a profile as a
-    /// profile. The client script tells them apart by the body (issue #15); everyone else
-    /// should not have to. An empty 401 is still a 401.</para>
+    /// <para><b>The 403.</b> A 401 used to mean either a rejected token (empty body) or a signed-in
+    /// caller who is not allowed (a message). A client that signs out on any 401 signed a household
+    /// out for asking to edit a profile as a profile. The client script tells them apart by the
+    /// body (issue #15); everyone else should not have to. An empty 401 is still a 401.</para>
     /// </summary>
     [AttributeUsage(AttributeTargets.Class, Inherited = true)]
     public sealed class BonfireErrorsAttribute : ResultFilterAttribute
     {
-        // The same test as ProfilesBaseController.CallerIsApiKey: both claims, because a key
-        // always carries the administrator role and nothing else carries the marker.
+        // The same test as ProfilesBaseController.CallerIsApiKey: both claims, since a key always
+        // has the administrator role and nothing else carries the marker.
         private static bool IsApiKey(System.Security.Claims.ClaimsPrincipal? user)
             => user != null
                && string.Equals(user.FindFirst("Jellyfin-IsApiKey")?.Value, "True", StringComparison.OrdinalIgnoreCase)
@@ -264,9 +256,9 @@ namespace Jellyfin.Profiles.Controllers
 
                 case StatusCodeResult plain when plain.StatusCode >= 400:
                     status = plain.StatusCode;
-                    // An API key is signed in but has no user id, so a route that needs a
-                    // person answers it with an empty 401. That is "not allowed", not "your
-                    // token is dead": a 401 would have a client sign the key's holder out.
+                    // An API key is signed in but has no user id, so a route that needs a person answers it with
+                    // an empty 401. That means "not allowed", not "token dead": a 401 would sign the key's holder
+                    // out.
                     if (status == StatusCodes.Status401Unauthorized && IsApiKey(context.HttpContext.User))
                     {
                         context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
