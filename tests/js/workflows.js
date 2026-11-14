@@ -65,23 +65,63 @@ console.log('\n── release.yml: any pre-release label routes to beta ──�
 
 console.log('\n── release.yml: the release is published before the manifest ───');
 {
-    const stamp = idx(/map\(if \.version == \$v then \.checksum = \$c/);
+    // The step that writes the finished entry: the only place a checksum goes into the
+    // manifest. Nothing writes a placeholder any more, so a release is offered to servers
+    // only once the zip it names can be downloaded.
+    const add = idx(/checksum: \$c/);
     const push = idx(/git push origin/);
     const release = idx(/action-gh-release/);
     const verify = idx(/name: Verify published asset/);
     const check = idx(/same checksum as/);
     ok('a step publishes the release', release !== -1);
-    ok('the release comes before the manifest is stamped', release !== -1 && stamp !== -1 && release < stamp,
-       'release ' + release + ', stamp ' + stamp);
+    ok('a step adds the manifest entry', add !== -1);
+    ok('the release comes before the manifest entry is added', release !== -1 && add !== -1 && release < add,
+       'release ' + release + ', add ' + add);
     ok('the release comes before the manifest is pushed', release !== -1 && push !== -1 && release < push,
        'release ' + release + ', push ' + push);
+    ok('the entry is pushed by the step that adds it', add !== -1 && add === push, 'add ' + add + ', push ' + push);
     ok('the verify step comes after the push', push !== -1 && verify > push);
     ok('the checks that can refuse a release come before it', check !== -1 && check < release,
        'check ' + check + ', release ' + release);
-    ok('the release step does not push or stamp anything itself',
-       release !== -1 && !/git push|checksum = \$c/.test(steps[release]));
+    ok('the release step does not push or write the manifest itself',
+       release !== -1 && !/git push|checksum: \$c/.test(steps[release]));
     ok('the manifest push is not in the same step as the checks (a failed release pushes nothing)',
        check !== -1 && push !== -1 && check !== push);
+    // Pairwise, one step at a time: nothing ahead of the release may touch the manifest
+    // or the repository. This is what made a version installable-in-name-only for the
+    // whole of a run, when the entry was committed to the channel branch before the tag.
+    steps.slice(0, release === -1 ? 0 : release + 1).forEach((s, i) => {
+        const nm = (/name:\s*([^\n]*)/.exec(s) || [])[1] || ('step ' + i);
+        ok('step "' + nm + '" (before the release) writes nothing to the manifest or the branch',
+           !/git push|git commit|mv manifest\.tmp\.json|> manifest\.json/m.test(s));
+    });
+}
+
+console.log('\n── release.yml: the entry is complete and the refusals survive ─');
+{
+    const add = steps[idx(/checksum: \$c/)] || '';
+    const chk = steps[idx(/same checksum as/)] || '';
+    ['version: \\$v', 'changelog: \\$notes', 'targetAbi: \\$abi', 'sourceUrl: \\$url', 'checksum: \\$c', 'timestamp: \\$ts']
+        .forEach(f => ok('the entry carries ' + f.replace('\\', '').split(':')[0],
+            new RegExp('\\{[^}]*' + f + '[^}]*\\}').test(add)));
+    ok('the changelog is read from the notes file, not typed into the workflow',
+       /--rawfile notes "\$RUNNER_TEMP\/release-notes\.md"/.test(add));
+    ok('targetAbi is the newest existing entry\'s', /\.targetAbi/.test(add) && /sort_by\(\.version/.test(add));
+    ok('the checksum is refused if it is all zeros', /\*\) echo "::error::Checksum is all zeros/.test(add));
+    ok('a refusal when the notes file is missing or empty, before the release',
+       /release-notes\/\$\{V\}\.md/.test(chk) && /-s "\$NOTES"/.test(chk) && /::error::\$\{NOTES\} is missing/.test(chk));
+    ok('a refusal when the version is already in either manifest',
+       /for B in main beta/.test(chk) && /already in the manifest on/.test(chk) && /select\(\.version == \$v\)/.test(chk));
+    ok('a refusal when the checksum belongs to another version in the channel',
+       /select\(\.checksum == \$c and \.version != \$v\)/.test(chk));
+    ok('the tag is still checked against <Version>', /Tag v\$\{TAG\} does not match/.test(steps[idx(/does not match <Version>/)] || ''));
+    ok('a retry rebuilds the entry on the new branch head instead of rebasing a manifest edit',
+       /add_entry/.test(add) && !/git rebase/.test(add));
+    ok('the beta feed is trimmed in the same step, on beta only',
+       /if \[ "\$BRANCH" = "beta" \]/.test(add) && /\.\[:3\]/.test(add));
+    ok('and stable is never trimmed (the only \.[:N] in the step sits inside the beta block)',
+       (add.match(/\.\[:\d+\]/g) || []).length === 1 &&
+       add.indexOf('.[:3]') > add.indexOf('if [ "$BRANCH" = "beta" ]'));
 }
 
 console.log('\n── release.yml: release notes travel in a file ─────────────────');
