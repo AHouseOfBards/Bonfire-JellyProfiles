@@ -12,13 +12,13 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Profiles.Auth
 {
     /// <summary>
-    /// Makes a Roku ask for a profile's PIN every time somebody picks it, the way the web
-    /// switcher does, rather than once per television.
+    /// Makes a Roku ask for a profile's PIN every time somebody picks it, as the web
+    /// switcher does, not once per television.
     ///
-    /// <para><b>The defect (issue #40).</b> Bonfire checks the PIN correctly; the Roku app
-    /// never asks it again. Its sign-in form has a "Save Credentials?" box, ticked by
-    /// default, that stores the profile's access token on the set. Picking that profile on
-    /// the user list then tries the stored token first and goes straight in:</para>
+    /// <para><b>The defect (issue #40).</b> Bonfire checks the PIN, but the Roku app never
+    /// asks again. Its sign-in form has a "Save Credentials?" box, ticked by default, that
+    /// stores the profile's access token on the set. Picking that profile tries the stored
+    /// token first and goes straight in:</para>
     ///
     /// <code>
     /// ' jellyfin-roku, source/ShowScenes.bs, LoginFlow
@@ -28,49 +28,43 @@ namespace Jellyfin.Profiles.Auth
     ///     currentUserResponse = AboutMe()
     /// </code>
     ///
-    /// <para>and "Change user" in its menu calls <c>SignOut(false)</c>, which keeps the
-    /// stored token. So a PIN typed once on a television opened that profile for anybody
-    /// holding the remote, for good.</para>
+    /// <para>"Change user" in its menu calls <c>SignOut(false)</c>, which keeps the stored
+    /// token. So a PIN typed once opened that profile for anybody holding the remote.</para>
     ///
-    /// <para><b>The fix.</b> The one request a Roku is certain to make between one person
-    /// leaving and the next choosing is <c>GET /Users/Public</c>, the list its picker is
-    /// drawn from. When that arrives from a television a household uses, the saved
-    /// sign-ins of that household's PIN-protected accounts <i>on that television</i> are
-    /// revoked. The app's own recovery then does the rest, verified in the same file:
-    /// <c>AboutMe()</c> answers 401, it deletes the token, tries an empty password (which
-    /// the provider refuses for a profile with a PIN), and opens its password form.</para>
+    /// <para><b>The fix.</b> Between one person leaving and the next choosing, a Roku always
+    /// requests <c>GET /Users/Public</c>, the list its picker is drawn from. When that comes
+    /// from a television a household uses, the saved sign-ins of that household's
+    /// PIN-protected accounts <i>on that television</i> are revoked. The app's own recovery
+    /// does the rest (same file): <c>AboutMe()</c> answers 401, it deletes the token, tries
+    /// an empty password (refused for a profile with a PIN), and opens its password form.</para>
     ///
-    /// <para><b>Roku only, by the shape of the id, not by the client name.</b> Roku builds
-    /// its signed-in device id as its bare id with the account name appended
-    /// (<see cref="DeviceRegistry.BareDeviceIdFor"/>), so only a row whose id is exactly
-    /// <c>bare + name</c> for that account is touched. Jellyfin Android TV must NOT be
-    /// handled this way: a revoked stored token there ends in
-    /// <c>ApiClientErrorLoginState</c>, which its picker shows as "server connection
-    /// failed", with the dead token still stored — the profile would become unreachable
-    /// from that card. Android TV has its own setting for this ("Always ask for
-    /// credentials"), and the docs point to it.</para>
+    /// <para><b>Roku only, by the shape of the id, not the client name.</b> Roku's signed-in
+    /// device id is its bare id plus the account name (<see cref="DeviceRegistry.BareDeviceIdFor"/>),
+    /// so only a row whose id is exactly <c>bare + name</c> for that account is touched.
+    /// Jellyfin Android TV must NOT be handled this way: a revoked stored token there ends
+    /// in <c>ApiClientErrorLoginState</c>, which its picker shows as "server connection
+    /// failed" with the dead token still stored, so the profile becomes unreachable. Android
+    /// TV has its own "Always ask for credentials" setting, and the docs point to it.</para>
     ///
-    /// <para><b>What it leaves alone.</b> A request carrying a token (somebody is signed in,
-    /// so this is not a picker), accounts with no PIN, a profile whose owner allowed skipping
-    /// its PIN on the home network when the request is local, every other household, every
-    /// other device, and everything while PIN sign-in on apps is off — without it a revoked
-    /// profile would have no way back in on that television at all.</para>
+    /// <para><b>What it leaves alone.</b> A request carrying a token (not a picker), accounts
+    /// with no PIN, a profile whose owner allows skipping its PIN on the home network when
+    /// the request is local, other households, other devices, and everything while PIN
+    /// sign-in on apps is off (a revoked profile would have no way back in).</para>
     ///
-    /// <para><b>Not a boundary of its own.</b> The device id is client-supplied, so somebody
-    /// who knows a household's Roku id can make that Roku ask for its PINs again. That is
-    /// the whole of what it buys them.</para>
+    /// <para><b>Not a boundary.</b> The device id is client-supplied, so someone who knows a
+    /// household's Roku id can make it ask for its PINs again. That is all it buys them.</para>
     /// </summary>
     public static class SavedSignInLock
     {
         /// <summary>
-        /// The accounts to lock on this device, each with the exact device ids its Roku
-        /// sign-ins could have been stored under. Separated from the revoking so a harness
-        /// can check the decision without a server.
+        /// The accounts to lock on this device, each with the device ids its Roku sign-ins
+        /// could be stored under. Separate from the revoking so a harness can test the
+        /// decision without a server.
         /// </summary>
         /// <param name="usernameOf">
         /// The account's real username. Roku appends whichever name it was given: the
-        /// household's name for the profile when it came off our sign-in list, the real one
-        /// when it was typed in full or restored by <c>AboutMe()</c>.
+        /// profile's name when picked from our list, the real one when typed in full or
+        /// restored by <c>AboutMe()</c>.
         /// </param>
         public static IReadOnlyList<LockTarget> Targets(
             PluginConfiguration? config,
@@ -99,12 +93,11 @@ namespace Jellyfin.Profiles.Auth
             {
                 if (string.IsNullOrEmpty(m.PinHash)) continue;
 
-                // A master's own row only counts while it actually owns profiles - the same
-                // rule the provider uses before it will open a master by PIN.
+                // A master's own row counts only while it owns profiles, as in the provider.
                 if (m.ProfileUserId == master && !hasProfiles) continue;
 
-                // The web switcher skips this PIN on the home network, or from an address
-                // listed for this household (never an administrator's); so does this.
+                // The web switcher skips the PIN on the home network or from a listed address
+                // (never an administrator's), so this does too.
                 if (m.BypassPinOnLocalNetwork && isLocal) continue;
                 if (TrustedAddresses.Applies(config, address, m.MasterUserId, m.ProfileUserId, adminCheck)) continue;
 
@@ -127,9 +120,9 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Revokes the saved Roku sign-ins of this device's PIN-protected accounts. Returns
-        /// how many were revoked. Never throws: this runs in front of the request every
-        /// client signs in through.
+        /// Revokes the saved Roku sign-ins of this device's PIN-protected accounts and returns
+        /// how many. Never throws: it runs in front of the request every client signs in
+        /// through.
         /// </summary>
         public static async Task<int> LockAsync(
             string? deviceId,
@@ -153,8 +146,8 @@ namespace Jellyfin.Profiles.Auth
 
                 if (targets.Count == 0) return 0;
 
-                // One lookup for the whole request, not one per PIN-protected account. A
-                // request with nothing to lock never gets here (r2-06-05).
+                // One lookup per request, not per account. A request with nothing to lock
+                // never gets here (r2-06-05).
                 var rows = deviceManager.GetDevices(new DeviceQuery())?.Items;
                 if (rows == null) return 0;
 
