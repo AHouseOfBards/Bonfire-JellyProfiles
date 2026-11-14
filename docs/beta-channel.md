@@ -5,7 +5,7 @@ Beta builds let you try new work before it reaches everyone.
 | Channel | Repository URL |
 | --- | --- |
 | **Stable** | `https://ahouseofbards.github.io/Campground-Jellyfin/manifest.json` (Campground) |
-| **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire-JellyProfiles/beta/manifest.json` |
+| **Beta** | `https://raw.githubusercontent.com/AHouseOfBards/Bonfire/beta/manifest.json` |
 
 > [!WARNING]
 > **Beta builds are unfinished and features in them may be broken.** Settings added in a
@@ -14,7 +14,7 @@ Beta builds let you try new work before it reaches everyone.
 > can switch Bonfire off. Don't run a beta on a server your household needs that evening.
 
 Please report what you find on
-[GitHub Issues](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues).
+[GitHub Issues](https://github.com/AHouseOfBards/Bonfire/issues).
 
 ## Using it
 

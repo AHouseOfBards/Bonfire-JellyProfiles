@@ -338,6 +338,9 @@ judge() {
     else
         FAILED+=("$label")
         echo "FAILED  (${took}s)"
+        # The failing lines first: the tail alone hid both of themestep's failures behind
+        # 25 PASS lines on the first Linux run.
+        echo "$out" | grep -E '^[[:space:]]*FAIL[[:space:]:]' | head -20 | sed 's/^/        /'
         echo "$out" | sed 's/^/        /' | tail -25
     fi
 }
