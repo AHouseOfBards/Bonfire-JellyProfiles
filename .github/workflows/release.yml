@@ -8,11 +8,11 @@ on:
 jobs:
   # The whole suite, as ci.yml runs it for a push: every JavaScript shard, the C# harnesses
   # on net9.0 and net10.0, the check against newer Jellyfin and the syntax and translation
-  # checks, in parallel, and "CI passed" at the end of it. A tag can be cut from a commit
-  # CI never saw, or from one whose CI run was red and ignored; `release` needs this job,
-  # so nothing is built, packaged or published from a commit whose suite did not pass in
-  # this same run. tests/js/buildtargets.js and tests/js/workflows.js fail if this job goes
-  # missing, stops calling ci.yml, or `release` stops needing it.
+  # checks, in parallel, then "CI passed". A tag can be cut from a commit CI never saw, or
+  # one whose CI run was red and ignored. `release` needs this job, so nothing is built,
+  # packaged or published from a commit whose suite did not pass in this same run.
+  # tests/js/buildtargets.js and tests/js/workflows.js fail if this job goes missing, stops
+  # calling ci.yml, or `release` stops needing it.
   tests:
     name: Tests
     uses: ./.github/workflows/ci.yml
@@ -33,9 +33,8 @@ jobs:
           # the manifest commit. Not a request for a separate token.
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Both, because the plugin multi-targets net9.0 and net10.0. Only the net9.0
-      # output is packaged below; net10.0 is built so that it cannot rot unnoticed
-      # between the day it is needed and now.
+      # Both, because the plugin multi-targets net9.0 and net10.0. Only net9.0 is packaged
+      # below; net10.0 is built so it cannot rot unnoticed until the day it is needed.
       - name: Setup .NET 9 and 10
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
@@ -48,10 +47,10 @@ jobs:
         with:
           node-version: '22'
 
-      # The tests job above has run the suite. These two are named here as well, so that
-      # dropping either from ci.yml cannot quietly drop it from a release. binchk builds
-      # the plugin itself (this job has not yet) and resolves its Jellyfin members against
-      # 10.11 and 12.x; the shared-library copy check is also one of the JavaScript shards.
+      # The tests job above has run the suite. These two are named here as well so that
+      # dropping either from ci.yml cannot quietly drop it from a release. binchk builds the
+      # plugin itself (this job has not yet) and resolves its Jellyfin members against 10.11
+      # and 12.x; the shared-library copy check is also one of the JavaScript shards.
       - name: Check the plugin against newer Jellyfin
         run: bash tests/binchk.sh
 
@@ -61,17 +60,17 @@ jobs:
       - name: Build (Release)
         run: dotnet build -c Release
 
-      # net9.0 DELIBERATELY, and it is the one line that decides what every user installs.
+      # net9.0 DELIBERATELY. This is the one line that decides what every user installs.
       #
-      # The build produces net9.0 and net10.0. Only the net9.0 assembly loads on BOTH a
-      # 10.11.x server (.NET 9) and a 12.0 server (.NET 10 — the runtime accepts a net9
-      # assembly, confirmed on live hardware from 1.6.0.1 onward). A net10.0 assembly
-      # would install on 12.0 and fail to load on 10.11, and `targetAbi` cannot express
-      # the difference, because it filters on the Jellyfin version rather than the runtime.
-      # One artifact, one manifest entry, both servers.
+      # The build produces net9.0 and net10.0. Only the net9.0 assembly loads on both a
+      # 10.11.x server (.NET 9) and a 12.0 server (.NET 10, whose runtime accepts a net9
+      # assembly; confirmed on live hardware from 1.6.0.1). A net10.0 assembly would install
+      # on 12.0 and fail to load on 10.11, and `targetAbi` cannot express the difference,
+      # because it filters on the Jellyfin version, not the runtime. One artifact, one
+      # manifest entry, both servers.
       #
-      # Change this to net10.0 only when 10.11.x support is being dropped, and add the
-      # matching targetAbi bump in the same commit.
+      # Change this to net10.0 only when 10.11.x support is dropped, with the matching
+      # targetAbi bump in the same commit.
       - name: Package DLL into zip
         run: |
           mkdir -p dist
@@ -90,10 +89,9 @@ jobs:
           VERSION=$(grep '<Version>' Jellyfin.Profiles.csproj | sed 's/.*<Version>\(.*\)<\/Version>/\1/' | tr -d '[:space:]')
           INFO=$(grep '<InformationalVersion>' Jellyfin.Profiles.csproj | sed 's/.*<InformationalVersion>\(.*\)<\/InformationalVersion>/\1/' | tr -d '[:space:]')
           # Jellyfin's manifest wants a four-part version. A three-part csproj version is
-          # padded; a four-part one is already there. Padding unconditionally turned
-          # 1.6.0.1 into 1.6.0.1.0, which Version.TryParse rejects and which matches no
-          # entry, so the run failed at the manifest lookup with a confusing message
-          # about a missing entry that was in fact present.
+          # padded; a four-part one is left alone. Padding unconditionally turned 1.6.0.1 into
+          # 1.6.0.1.0, which Version.TryParse rejects, so the run failed at the manifest
+          # lookup with a misleading "missing entry" message.
           case "$VERSION" in
             *.*.*.*) FULL="${VERSION}" ;;
             *.*.*)   FULL="${VERSION}.0" ;;
@@ -104,8 +102,8 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
 
           # The tag drives the release URL; the csproj version drives the notes file and the
-          # manifest entry. If they drift, the workflow would publish a release whose
-          # manifest entry names a different version than the zip it points at.
+          # manifest entry. If they drift, the release would name a different version than
+          # the zip it points at.
           if [ "$TAG" != "$VERSION" ]; then
             echo "::error::Tag v${TAG} does not match <Version>${VERSION}</Version> in Jellyfin.Profiles.csproj."
             echo "::error::Bump the csproj version and re-tag so the manifest entry and release URL agree."
@@ -113,15 +111,14 @@ jobs:
           fi
 
           # InformationalVersion is the only place a pre-release label can live, because
-          # Jellyfin requires a purely numeric assembly version. It decides which manifest
-          # a build lands in: the stable manifest on main is a curated list of milestones
-          # that everybody's Jellyfin polls, so a beta pushed there would be offered to
-          # every install as an upgrade.
+          # Jellyfin requires a purely numeric assembly version. It decides which manifest a
+          # build lands in: the stable manifest on main is a curated milestone list that every
+          # Jellyfin polls, so a beta pushed there would be offered to every install.
           #
           # Any label after a '-' is a pre-release and routes to beta, not only the three
-          # spellings once listed: "1.9.1-preview" matched none of them and went to stable.
-          # Beta is the safe side of a mistake, since nobody is offered it unasked. A
-          # missing InformationalVersion fails instead of guessing stable.
+          # spellings once listed: "1.9.1-preview" matched none and went to stable. Beta is the
+          # safe side of a mistake, since nobody is offered it unasked. A missing
+          # InformationalVersion fails instead of guessing stable.
           if [ -z "$INFO" ]; then
             echo "::error::<InformationalVersion> is missing from Jellyfin.Profiles.csproj; it decides the channel."
             exit 1
@@ -142,11 +139,11 @@ jobs:
           echo "Channel: ${CHANNEL} — manifest lives on the '${BRANCH}' branch"
 
       # Everything that can refuse a release, before anything is published. Nothing is
-      # written to the repository here: the manifest entry is added by the step after the
+      # written to the repository here. The manifest entry is added by the step after the
       # release, because Jellyfin reads the manifest straight from the channel branch and
       # offers any entry in it the moment it is pushed. An entry committed ahead of the
       # release (the old way, with a placeholder checksum) was offered to every server on
-      # that channel for the whole of this run, and installing it failed.
+      # that channel for the whole run, and installing it failed.
       - name: Check the release notes and the channel manifest
         run: |
           set -euo pipefail
@@ -159,31 +156,31 @@ jobs:
             exit 1
           fi
 
-          # The notes live in the repository, in a file named for the four-part version,
-          # and are the one source for the release body, the manifest changelog and
-          # CHANGELOG.md. The tag's own commit carries them.
+          # The notes live in the repository in a file named for the four-part version, and
+          # are the one source for the release body, the manifest changelog and CHANGELOG.md.
+          # The tag's own commit carries them.
           NOTES="release-notes/${V}.md"
           if [ ! -s "$NOTES" ]; then
             echo "::error::${NOTES} is missing or empty."
             echo "::error::Write the release notes there and commit them before tagging. The workflow adds the manifest entry itself."
             exit 1
           fi
-          # One cleaned copy, used for both the release body and the manifest entry: no
-          # carriage returns, no trailing blank lines. It is a file because a changelog that
-          # contained a line saying EOF would end a GITHUB_OUTPUT heredoc early.
+          # One cleaned copy (no carriage returns, no trailing blank lines) for both the
+          # release body and the manifest entry. It is a file because a changelog line saying
+          # EOF would end a GITHUB_OUTPUT heredoc early.
           jq -Rrs 'gsub("\r"; "") | sub("\\s+$"; "")' "$NOTES" > "$RUNNER_TEMP/release-notes.md"
 
-          # Both manifests are read from their branches, not from the tag's checkout: the
-          # tag was cut from one branch, so the manifest it carries may be the wrong file.
-          # Explicit refspec: actions/checkout configures remote.origin.fetch for the ref it
-          # checked out, which on a tag push does not include branch heads.
+          # Both manifests are read from their branches, not the tag's checkout: the tag was
+          # cut from one branch, so its manifest may be the wrong file. Explicit refspec,
+          # because actions/checkout fetches only the ref it checked out, which on a tag push
+          # does not include branch heads.
           git fetch origin "+refs/heads/main:refs/remotes/origin/main" "+refs/heads/beta:refs/remotes/origin/beta"
 
-          # A version must live in exactly one manifest, and at this point in none. Both
-          # files declare the same plugin GUID, so Jellyfin merges them for anyone
-          # subscribed to both and shows a duplicated version twice. Releasing 1.4.0 to
-          # stable did exactly that on 2026-08-23, from an entry left in the beta manifest.
-          # An entry already here also means a hand-written one with a placeholder checksum.
+          # A version must live in exactly one manifest, and at this point in none. Both files
+          # declare the same plugin GUID, so Jellyfin merges them for anyone subscribed to both
+          # and shows a duplicated version twice. Releasing 1.4.0 to stable did exactly that on
+          # 2026-08-23, from an entry left in the beta manifest. An entry already here may also
+          # be a hand-written one with a placeholder checksum.
           for B in main beta; do
             N=$(git show "origin/${B}:manifest.json" \
               | jq --arg v "$V" '[.[0].versions[] | select(.version == $v)] | length')
@@ -195,15 +192,15 @@ jobs:
           done
 
           # A checksum that already belongs to another version means this release is
-          # byte-identical to one that already shipped — the artifact was rebuilt from an
-          # unchanged tree, or the wrong zip was uploaded. Either way the release notes
-          # describe changes that are not in the file.
+          # byte-identical to one that shipped: the artifact was rebuilt from an unchanged
+          # tree, or the wrong zip was uploaded. Either way the notes describe changes that
+          # are not in the file.
           #
-          # 1.1.2, 1.1.4 and 1.1.6 all carry 0b6481f7f56de24f3c9757d67a73f181. Three
-          # releases, three sets of notes, one binary. Nothing in the pipeline noticed.
+          # 1.1.2, 1.1.4 and 1.1.6 all carry 0b6481f7f56de24f3c9757d67a73f181: three releases,
+          # three sets of notes, one binary, and nothing in the pipeline noticed.
           #
           # Only the channel being released to is searched. The same artifact under a beta
-          # version and a stable one is the normal outcome of promoting a beta.
+          # version and a stable one is the normal result of promoting a beta.
           CLASH=$(git show "origin/${BRANCH}:manifest.json" | jq -r --arg c "$C" --arg v "$V" \
             '[.[0].versions[] | select(.checksum == $c and .version != $v) | .version] | join(", ")')
           if [ -n "$CLASH" ]; then
@@ -223,16 +220,16 @@ jobs:
           fi
 
       # The release, asset included, goes out BEFORE the manifest entry exists. The other
-      # order pointed every subscribed server at a download that did not exist yet, and
-      # left a manifest naming a checksum for a release that then failed to publish. Now a
-      # failure here pushes nothing, and nobody is offered a version that cannot be installed.
+      # order pointed every subscribed server at a download that did not exist yet, and left
+      # a manifest naming a checksum for a release that then failed to publish. Now a failure
+      # here pushes nothing, and nobody is offered a version that cannot be installed.
       - name: Create or update GitHub Release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           files: dist/Jellyfin.Profiles.zip
           body_path: ${{ runner.temp }}/release-notes.md
-          # A pre-release must not become the repo's "Latest" — that badge is what people
-          # land on from the releases page, and the stable manifest does not offer it.
+          # A pre-release must not become the repo's "Latest": that badge is where people land
+          # from the releases page, and the stable manifest does not offer it.
           prerelease: ${{ steps.version.outputs.prerelease }}
           make_latest: ${{ steps.version.outputs.make_latest }}
 
@@ -251,9 +248,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Built from the channel branch's own manifest, from scratch each time. The
-          # branch may have advanced since the tag was cut, and a retry that rebased a
-          # manifest edit onto it would conflict; starting again from origin cannot.
+          # Built from the channel branch's own manifest, from scratch each time. The branch
+          # may have advanced since the tag was cut, and a retry that rebased a manifest edit
+          # onto it would conflict; starting again from origin cannot.
           add_entry() {
             git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
             git checkout -B ci-manifest "origin/${BRANCH}"
@@ -273,13 +270,13 @@ jobs:
                manifest.json > manifest.tmp.json
             mv manifest.tmp.json manifest.json
 
-            # The beta feed is the newest three entries; every older build stays
-            # downloadable from its GitHub release. Everyone on the beta repository fetches
-            # this file, and the plugin page lists every entry in it. Sorted by version
-            # first so it keeps the newest three whatever order the file is in. Beta only:
-            # main's manifest is the curated stable milestone list, and trimming it would
-            # withdraw releases people are on.
-            # tests/js/betafeed.js fails if this block stops pruning or runs on the wrong channel.
+            # The beta feed is the newest three entries; every older build stays downloadable
+            # from its GitHub release. Everyone on the beta repository fetches this file and
+            # the plugin page lists every entry in it. Sorted by version first, so it keeps the
+            # newest three whatever order the file is in. Beta only: main's manifest is the
+            # curated stable milestone list, and trimming it would withdraw releases people are
+            # on. tests/js/betafeed.js fails if this block stops pruning or runs on the wrong
+            # channel.
             if [ "$BRANCH" = "beta" ]; then
               jq '.[0].versions |= (sort_by(.version | split(".") | map(tonumber)) | reverse | .[:3])' \
                  manifest.json > manifest.tmp.json
@@ -308,18 +305,18 @@ jobs:
           echo "::error::Could not push the manifest update to ${BRANCH}."
           exit 1
 
-      # End-to-end check against what users actually install: re-download the published
-      # asset from the release URL in the manifest and confirm its MD5 matches the
-      # published checksum. Catches a stale/failed manifest push or a re-zipped asset.
+      # End-to-end check against what users install: re-download the published asset from the
+      # release URL in the manifest and confirm its MD5 matches the published checksum.
+      # Catches a stale or failed manifest push or a re-zipped asset.
       - name: Verify published asset matches manifest checksum
         run: |
           set -euo pipefail
           V="${{ steps.version.outputs.version }}"
           BRANCH="${{ steps.version.outputs.branch }}"
 
-          # Read the manifest from the pushed git ref, not from raw.githubusercontent.com:
-          # that is a CDN, and it can serve the previous file for minutes after a push.
-          # git fetch asks the repository itself.
+          # Read the manifest from the pushed git ref, not raw.githubusercontent.com, a CDN
+          # that can serve the previous file for minutes after a push. git fetch asks the
+          # repository itself.
           git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
           git show "origin/${BRANCH}:manifest.json" > published-manifest.json
 
@@ -352,9 +349,9 @@ jobs:
       # Campground-Jellyfin is the one link for all the plugins. It copies the newest stable
       # entry from main's manifest, so it hears only once that entry and its download are
       # proven above, and never about a beta: it offers what it lists to everyone. The token
-      # is a fine-grained one limited to that repository. The release is already public at
-      # this point, so a dead token warns instead of failing it; the Run workflow button in
-      # Campground does the same job by hand.
+      # is a fine-grained one limited to that repository. The release is already public here,
+      # so a dead token warns instead of failing it; the Run workflow button in Campground
+      # does the same job by hand.
       - name: Tell Campground a stable version is out
         if: steps.version.outputs.channel == 'stable'
         continue-on-error: true
