@@ -13,8 +13,8 @@ namespace Jellyfin.Profiles.Auth
     /// two responses that tell a client who it is.
     ///
     /// <para><b>Why <c>/Users/Public</c> was not enough.</b> Renaming only the sign-in list
-    /// worked until somebody used the profile, and then reverted. Android TV keeps its own
-    /// copy of every account it has signed into, and the stored copy wins:</para>
+    /// worked until the profile was used, then reverted. Android TV keeps its own copy of every
+    /// account it has signed into, and the stored copy wins:</para>
     ///
     /// <code>
     /// val storedUserIds = storedUsers.map { it.id }
@@ -22,27 +22,26 @@ namespace Jellyfin.Profiles.Auth
     ///     .filterNot { it.id in storedUserIds }
     /// </code>
     ///
-    /// <para>and the card paints <c>user.name</c> from that copy. It is written by
-    /// <c>authenticateFinish</c> out of the account's real DTO — <c>getCurrentUser()</c> on a
-    /// token restore, or the authentication response on a PIN login — neither of which was
-    /// being rewritten. So the friendly name lasted exactly until the first sign-in, which is
-    /// how <c>BardFamily</c> read "family" on the test television while <c>Bard_test</c>,
-    /// which had been signed into on it, did not.</para>
+    /// <para>and the card paints <c>user.name</c> from that copy. <c>authenticateFinish</c>
+    /// writes it from the account's real DTO (<c>getCurrentUser()</c> on a token restore, or
+    /// the authentication response on a PIN login), and neither was rewritten. So the friendly
+    /// name lasted until the first sign-in: <c>BardFamily</c> read "family" on the test
+    /// television while <c>Bard_test</c>, already signed into there, did not.</para>
     ///
     /// <para><b>Why not rename the account.</b> The system username is
     /// <c>&lt;master&gt;_&lt;name&gt;</c> so two households on one server can both have a
-    /// "kids", and it is what the switcher, the audit log, Jellyfin's own dashboard and every
-    /// device record show. Only what a client is told about itself changes.</para>
+    /// "kids", and the switcher, audit log, Jellyfin's dashboard and device records all show it.
+    /// Only what a client is told about itself changes.</para>
     ///
-    /// <para><b>Every uncertain case returns null</b>, meaning "leave Jellyfin's bytes exactly
-    /// as they are". These are endpoints every client on the server depends on, and a
-    /// half-rewritten body is far worse than an unfriendly name.</para>
+    /// <para><b>Every uncertain case returns null</b>, leaving Jellyfin's bytes as they are.
+    /// Every client depends on these endpoints, and a half-rewritten body is worse than an
+    /// unfriendly name.</para>
     /// </summary>
     public static class ProfileNameRewriter
     {
         /// <summary>
-        /// The name a household gave this profile, or null if there is none, if it is a
-        /// master, or if Bonfire has never heard of the account.
+        /// The name a household gave this profile, or null if there is none, it is a master, or
+        /// Bonfire does not know the account.
         /// </summary>
         public static string? FriendlyNameFor(PluginConfiguration? config, Guid userId)
         {
@@ -59,9 +58,8 @@ namespace Jellyfin.Profiles.Auth
         /// <summary>
         /// The rewritten body, or null to leave the response untouched.
         /// <para>
-        /// Handles both shapes this is used on: a bare <c>UserDto</c> (<c>GET /Users/Me</c>)
-        /// and an <c>AuthenticationResult</c> with the user nested under <c>User</c>
-        /// (<c>POST /Users/AuthenticateByName</c>).
+        /// Handles a bare <c>UserDto</c> (<c>GET /Users/Me</c>) and an <c>AuthenticationResult</c>
+        /// with the user under <c>User</c> (<c>POST /Users/AuthenticateByName</c>).
         /// </para>
         /// </summary>
         public static byte[]? Rewrite(
@@ -80,8 +78,8 @@ namespace Jellyfin.Profiles.Auth
             }
             catch (JsonException)
             {
-                // Not JSON we can read. Common enough — an error page, a redirect body — and
-                // never worth a warning on an endpoint this busy.
+                // Not JSON we can read (an error page, a redirect body). Not worth a warning on
+                // an endpoint this busy.
                 return null;
             }
 
