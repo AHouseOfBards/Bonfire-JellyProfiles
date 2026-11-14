@@ -12,30 +12,29 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Profiles.Auth
 {
     /// <summary>
-    /// Passes a change made to a main account on to its profiles when it is made, rather
-    /// than the next time one of them is opened (R-1301).
+    /// Passes a change made to a main account on to its profiles when it is made, not the next
+    /// time one is opened (R-1301).
     ///
-    /// <para>A library taken away in Dashboard → Users, or a lower parental rating, reached
-    /// a profile only through <see cref="ProfilePolicySync"/>, which ran when the profile
-    /// signed in. A profile that stayed signed in on a television kept the old limits until
-    /// somebody opened it again. <see cref="IUserManager.OnUserUpdated"/> is raised after
-    /// every save of an account, in 10.11.5 and 12.0 alike
-    /// (<c>EventHandler&lt;GenericEventArgs&lt;User&gt;&gt;</c>), so this subscribes to it.</para>
+    /// <para>A library taken away in Dashboard → Users, or a lower parental rating, reached a
+    /// profile only through <see cref="ProfilePolicySync"/> at sign-in, so a profile left signed
+    /// in on a television kept the old limits until somebody opened it again.
+    /// <see cref="IUserManager.OnUserUpdated"/> is raised after every account save, in 10.11.5
+    /// and 12.0 alike (<c>EventHandler&lt;GenericEventArgs&lt;User&gt;&gt;</c>), so this
+    /// subscribes to it.</para>
     ///
-    /// <para><b>Off the event thread.</b> The event is raised from inside the save that
-    /// caused it, and a policy write takes Jellyfin's per-user lock; written from there it
-    /// waits on itself, which is the same hang that rules out writing from the PIN
-    /// provider (see <see cref="ProfilePolicySync"/>). The handler only looks the account up
-    /// in the mappings and queues the work through <see cref="Configuration.BackgroundWork"/>.</para>
+    /// <para><b>Off the event thread.</b> The event is raised inside the save that caused it, and
+    /// a policy write takes Jellyfin's per-user lock, so writing from there waits on itself: the
+    /// same hang that rules out writing from the PIN provider (see
+    /// <see cref="ProfilePolicySync"/>). The handler only looks the account up in the mappings
+    /// and queues the work through <see cref="Configuration.BackgroundWork"/>.</para>
     ///
-    /// <para><b>It cannot trigger itself.</b> Our own writes go to profile accounts and raise
-    /// the event for the profile, which is not the main account of anyone, so the handler
-    /// returns at the lookup. Should a main account's event arrive while its profiles are
-    /// being written (an administrator saving at that moment, or another plugin), it asks
-    /// for one more pass and no more: events during that second pass are dropped, so a
-    /// source that keeps writing the main account costs two passes per outside change and
-    /// not an endless run. A pass leaves an account that is already right alone, so a pass
-    /// with nothing to change writes nothing and raises nothing.</para>
+    /// <para><b>It cannot trigger itself.</b> Our writes go to profile accounts, which are no
+    /// one's main account, so the handler returns at the lookup. If a main account's event
+    /// arrives while its profiles are being written (an administrator saving, or another
+    /// plugin), it asks for one more pass and no more: events during that second pass are
+    /// dropped, so a source that keeps writing the main account costs two passes per outside
+    /// change, not an endless run. A pass leaves a correct account alone, so one with nothing to
+    /// change writes and raises nothing.</para>
     /// </summary>
     public class MasterUpdateListener : IHostedService
     {
@@ -50,8 +49,8 @@ namespace Jellyfin.Profiles.Auth
         private readonly Dictionary<Guid, Pass> _passes = new();
 
         /// <param name="services">
-        /// Asked for the library manager only when there is work, so building this listener
-        /// cannot fail the server's start (as for <see cref="BonfireSessionListener"/>).
+        /// Asked for the library manager only when there is work, so building this listener cannot
+        /// fail the server's start (as in <see cref="BonfireSessionListener"/>).
         /// </param>
         public MasterUpdateListener(
             IUserManager userManager,
@@ -88,7 +87,7 @@ namespace Jellyfin.Profiles.Auth
                     if (_passes.TryGetValue(id, out var state))
                     {
                         // Already being passed on: one more pass picks this change up. During
-                        // that more pass, drop it (see the class comment).
+                        // that pass, drop it (see the class comment).
                         if (state == Pass.Running) _passes[id] = Pass.Again;
                         return;
                     }
@@ -119,17 +118,17 @@ namespace Jellyfin.Profiles.Auth
                     }
                     finally
                     {
-                        // Normally RunPassesAsync forgot the run itself, under the lock that
-                        // decided there was nothing more to do; forgetting it again here could
-                        // erase a newer run's marker.
+                        // Normally RunPassesAsync already forgot the run, under the lock that
+                        // found nothing more to do; forgetting it again could erase a newer
+                        // run's marker.
                         if (!forgotten) lock (PassLock) _passes.Remove(id);
                     }
                 });
                 }
                 catch (Exception ex)
                 {
-                    // Starting the work threw: nothing will ever end this run, so it is not
-                    // left marked as running (every later change would be dropped).
+                    // Starting the work threw, so nothing will end this run. It is not left
+                    // marked as running, or every later change would be dropped.
                     lock (PassLock) _passes.Remove(id);
                     _logger.LogError(ex, "ProfilesPlugin: could not start passing a change to account {UserId} on to its profiles.", id);
                 }
@@ -145,8 +144,8 @@ namespace Jellyfin.Profiles.Auth
         internal static Action? AfterPasses = null;
 
         /// <summary>
-        /// True when the run was forgotten here, in the same lock that found nothing more to
-        /// do, so a change cannot arrive in between and be marked "again" for a run that is over.
+        /// True when the run was forgotten here, in the same lock that found nothing more to do,
+        /// so a change cannot arrive in between and be marked "again" for a run that is over.
         /// </summary>
         private async Task<bool> RunPassesAsync(Guid master)
         {
@@ -156,8 +155,7 @@ namespace Jellyfin.Profiles.Auth
             while (true)
             {
                 // The library list and the main account's policy are the same for every profile
-                // of this pass, so they are read once. A new pass (the "again" below) reads them
-                // anew, since that is only asked for when something changed.
+                // in a pass, so they are read once. A new pass ("again" below) reads them anew.
                 var pass = new ProfilePolicySync.Pass(_userManager, libraryManager);
                 foreach (var profile in ProfilesOf(master))
                 {
