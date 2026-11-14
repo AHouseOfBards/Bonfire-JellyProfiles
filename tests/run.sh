@@ -38,6 +38,16 @@
 #   --list             print the harnesses that would run (after --shard) and stop. Takes no
 #                      lock and builds nothing; tests/js/shards.js uses it.
 #
+#   --changed [BASE]   run only the harnesses a change can affect: those whose recorded files
+#                      (tests/depends.txt) differ between BASE and the working tree (default
+#                      BASE: the merge base with origin/beta), plus any harness the record
+#                      does not list, plus every harness if the record, this script, _lib.js,
+#                      fixture.js or chrome.js changed. Prints what it chose and why. For a
+#                      developer loop; CI runs everything.
+#   --record           record which repository files each harness reads while it runs, and
+#                      fold that into tests/depends.txt. Use it with a full run, or --only.
+#   --only a,b         run only these harnesses (section/name, e.g. js/inject,cs/configlock).
+#
 # Every result line ends with how long that harness took. At the end the total and the ten
 # slowest are printed, and every timing is written to $TMPDIR/bonfire-timings.txt in the
 # format of tests/timings.txt, ready to be copied over it.
@@ -54,7 +64,7 @@ now() { if [ -n "${EPOCHREALTIME:-}" ]; then echo "${EPOCHREALTIME/[.,]/}"; else
 if [ "${1:-}" = "--worker" ]; then
     tmp="$2"; f="$3"; b="$(basename "$f" .js)"
     t0=$(now)
-    node "$f" >"$tmp/$b.out" 2>&1
+    BONFIRE_RECORD_LABEL="js/$b" node "$f" >"$tmp/$b.out" 2>&1
     rc=$?
     echo $(( $(now) - t0 )) >"$tmp/$b.us"
     echo $rc >"$tmp/$b.rc.part"
@@ -62,13 +72,18 @@ if [ "${1:-}" = "--worker" ]; then
     exit 0
 fi
 
-WHICH="all"; SHARD=""; LIST=""
+WHICH="all"; SHARD=""; LIST=""; CHANGED=""; CHANGED_BASE=""; RECORD=""; ONLY=""
 if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then WHICH="$1"; shift; fi
 while [ $# -gt 0 ]; do
     case "$1" in
         --shard) SHARD="${2:-}"; shift 2 || { echo "--shard needs K/N" >&2; exit 2; } ;;
         --shard=*) SHARD="${1#--shard=}"; shift ;;
         --list) LIST=1; shift ;;
+        --record) RECORD=1; shift ;;
+        --only) ONLY="${2:-}"; shift 2 || { echo "--only needs a list" >&2; exit 2; } ;;
+        --only=*) ONLY="${1#--only=}"; shift ;;
+        --changed) CHANGED=1; shift
+            if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then CHANGED_BASE="$1"; shift; fi ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -186,8 +201,44 @@ if [ -n "$SHARD" ]; then
     for n in "${cs_names[@]}"; do items+=("$n:serial"); done
     if [ ${#items[@]} -gt 0 ]; then CS_MEMBERS="$(shard_members cs "${items[@]}")"; fi
 fi
-js_in_shard() { [ -z "$SHARD" ] || case "$JS_MEMBERS" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
-cs_in_shard() { [ -z "$SHARD" ] || case "$CS_MEMBERS" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+# --only and --changed narrow to a set of "section/name" labels, held as " a b c ".
+FILTER=""; FILTERED=""
+in_filter() { [ -z "$FILTERED" ] || case "$FILTER" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+if [ -n "$ONLY" ]; then FILTERED=1; FILTER=" ${ONLY//,/ } "; fi
+if [ -n "$CHANGED" ]; then
+    # What changed: tracked files against the base, in the working tree too, and files git
+    # does not know yet. --no-renames, so the old name of a moved file is listed as well.
+    base="$CHANGED_BASE"
+    if [ -z "$base" ]; then base="$(git merge-base HEAD origin/beta 2>/dev/null || git merge-base HEAD beta 2>/dev/null)"; fi
+    if [ -z "$base" ] || ! git rev-parse --verify -q "$base^{commit}" >/dev/null; then
+        echo "--changed: no base to compare with (no origin/beta or beta); pass one: --changed <commit>" >&2; exit 2
+    fi
+    CH_DIR="$(mktemp -d "${TMPDIR:-${TEMP:-/tmp}}/bonfire-changed.XXXXXX")"
+    { git diff --name-only --no-renames "$base" --; git ls-files -o --exclude-standard; } | sort -u >"$CH_DIR/files"
+    { for i in "${!names[@]}"; do echo "js/${names[$i]}"; done
+      HAS_JS && echo "js/sharedcopy"
+      for n in "${cs_names[@]}"; do echo "cs/$n"; done; } >"$CH_DIR/labels"
+    if ! node tests/depends.js select tests/depends.txt "$CH_DIR/files" <"$CH_DIR/labels" >"$CH_DIR/chosen"; then
+        echo "--changed: tests/depends.js failed" >&2; rm -rf "$CH_DIR"; exit 2
+    fi
+    FILTERED=1; FILTER=" "
+    skipped=0
+    echo "── --changed (against $(git rev-parse --short "$base")): $(wc -l <"$CH_DIR/files" | tr -d ' ') changed files ──" >&2
+    head -12 "$CH_DIR/files" | sed 's/^/    /' >&2
+    [ "$(wc -l <"$CH_DIR/files")" -gt 12 ] && echo "    ..." >&2
+    while IFS=$'\t' read -r verdict label reason; do
+        if [ "$verdict" = RUN ]; then
+            FILTER="$FILTER$label "
+            echo "  run   $label  ($reason)" >&2
+        else skipped=$((skipped + 1)); fi
+    done <"$CH_DIR/chosen"
+    echo "  skipped $skipped harnesses: none of the files they read changed" >&2
+    rm -rf "$CH_DIR"
+fi
+has_cs() { [ -z "$FILTERED" ] || case "$FILTER" in *" cs/"*) return 0 ;; *) return 1 ;; esac; }
+
+js_in_shard() { in_filter "js/$1" || return 1; [ -z "$SHARD" ] || case "$JS_MEMBERS" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+cs_in_shard() { in_filter "cs/$1" || return 1; [ -z "$SHARD" ] || case "$CS_MEMBERS" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 if [ -n "$LIST" ]; then
     for i in "${!names[@]}"; do js_in_shard "${names[$i]}" && echo "js/${names[$i]}"; done
@@ -250,6 +301,17 @@ trap 'exit 130' INT TERM
 
 acquire_lock
 
+# Recording: every Node process a harness starts loads tests/record-reads.js, which writes
+# what it read under $BONFIRE_RECORD_DIR; the record is rewritten at the end of the run.
+if [ -n "$RECORD" ]; then
+    REC_DIR="$(mktemp -d "${TMPDIR:-${TEMP:-/tmp}}/bonfire-record.XXXXXX")"
+    # Node on Windows cannot open Git Bash's /d/... paths, so hand it the real ones.
+    REC_WIN="$REC_DIR"; PRELOAD="$ROOT/tests/record-reads.js"
+    if command -v cygpath >/dev/null 2>&1; then REC_WIN="$(cygpath -m "$REC_DIR")"; PRELOAD="$(cygpath -m "$PRELOAD")"; fi
+    export BONFIRE_RECORD_DIR="$REC_WIN"
+    export NODE_OPTIONS="${NODE_OPTIONS:-} --require \"$PRELOAD\""
+fi
+
 # Print one harness's verdict. judge <label> <exit code> <output>
 judge() {
     local label="$1" rc="$2" out="$3" us="${4:-0}" took
@@ -287,7 +349,7 @@ run() {                       # run <label> <command...>
     local label="$1"; shift
     local out rc t0
     t0=$(now)
-    out=$("$@" 2>&1); rc=$?
+    out=$(BONFIRE_RECORD_LABEL="$SECTION/$label" "$@" 2>&1); rc=$?
     judge "$label" "$rc" "$out" $(( $(now) - t0 ))
 }
 
@@ -320,7 +382,7 @@ run_pool() {
 TFM="net9.0"
 [ "$WHICH" = "cs10" ] && TFM="net10.0"
 
-if [ "$WHICH" != "js" ]; then
+if [ "$WHICH" != "js" ] && has_cs; then
     echo "── Building the plugin (Release) ──────────────────────────────"
     if [ -z "${SKIP_BUILD:-}" ]; then
         if ! dotnet build -c Release -warnaserror --nologo -v q >/dev/null; then
@@ -416,6 +478,14 @@ if [ "$WHICH" = "all" ] || [ "$WHICH" = "cs" ] || [ "$WHICH" = "cs10" ]; then
     echo
 fi
 
+if [ -n "$RECORD" ]; then
+    # C# harnesses are recorded by what they are built from (tests/depends.js csDeps) plus
+    # whatever Node they started; the ones that ran are listed so they get that entry.
+    cs_ran=""
+    for t in "${TIMES[@]}"; do case "$t" in cs/*) l="${t%% *}"; cs_ran="$cs_ran,${l#cs/}" ;; esac; done
+    node tests/depends.js merge "$REC_DIR" tests/depends.txt --cs "${cs_ran#,}"
+    rm -rf "$REC_DIR"
+fi
 echo "──────────────────────────────────────────────────────────────"
 echo "  ($((SECONDS - START))s)"
 if [ ${#TIMES[@]} -gt 0 ]; then

@@ -7,6 +7,8 @@
         tests\run.ps1 cs10      # the same set, against the net10.0 build
         tests\run.ps1 js --shard 2/6   # one slice, as CI runs it; anything after the
                                        # section is passed to run.sh as it is
+        tests\run.ps1 --changed        # only the harnesses a change can affect (tests/depends.txt)
+        tests\run.ps1 js --changed main   # ...against another base; also --record, --only a,b
 
     This hands over to tests/run.sh through Git Bash. It used to be a second copy of the
     runner, and a second copy is how the desk and the pipeline come to disagree about what
@@ -39,6 +41,10 @@ if (-not $bash) {
     Write-Host 'tests\run.ps1 needs Git for Windows (bash.exe) to run tests/run.sh. Install it, or run tests/run.sh from Git Bash.'
     exit 2
 }
+
+# `run.ps1 --changed` has no section: the first word is an option, so it goes to run.sh as
+# one and the section stays "all".
+if ($Which.StartsWith('-')) { $Rest = @($Which) + $Rest; $Which = 'all' }
 
 $script = Join-Path $PSScriptRoot 'run.sh'
 & $bash $script $Which @Rest
