@@ -8,14 +8,13 @@ using System.Text.Json.Nodes;
 using Jellyfin.Profiles.Configuration;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tiles the server draws in a theme's colours (1.7.2): the Moonfin picker's folders and
-// a profile with no picture. Shapes only, in a PNG Bonfire writes itself.
+// Tiles the server draws in a theme's colors (1.7.2): the Moonfin picker's folders and a
+// profile with no picture. Shapes only, in a PNG Bonfire writes itself.
 //
-// Each PNG is taken apart here by a decoder written for this harness: the signature,
-// every chunk's CRC, the header, and the pixels inflated back out. Then the pixels are
-// read: the glyph's centre is the theme's accent, a corner is the theme's background,
-// and a gradient runs the way CSS draws it. A file that only looks like a PNG, or a
-// picture drawn in the wrong colours, fails.
+// Each PNG is taken apart by a decoder written for this harness: the signature, every
+// chunk's CRC, the header, and the inflated pixels. Then the pixels are read: the glyph's
+// center is the theme's accent, a corner is its background, and a gradient runs the way
+// CSS draws it. A file that only looks like a PNG, or is drawn in the wrong colors, fails.
 //
 // Against ae2dd66 this does not compile: TileImage does not exist.
 //
@@ -195,8 +194,8 @@ var bonfire = ThemeCatalog.BuiltIn.First(t => (string)t["id"]! == "bonfire");
     Ok("a non-string where a layer's type or shape belongs does not throw", oddThrew == null && oddPng != null && Decode(oddPng).Pixels != null, oddThrew);
 }
 
-// r2-21-01: the first draw reuses one array for the grid glyph's centres. A fresh array
-// per test of every pixel allocated hundreds of megabytes; this is a bound on the whole draw.
+// r2-21-01: the first draw reuses one array for the grid glyph's centers. A fresh array
+// per pixel test allocated hundreds of megabytes; this bounds the whole draw.
 {
     var fresh = (JsonObject)bonfire.DeepClone();
     fresh["colors"]!["accent"] = "#13579b";
@@ -240,8 +239,8 @@ var (trailPx, _) = Decode(TileImage.Png(trailing, TileGlyph.Person));
 Ok("a colour with a trailing newline is not a colour: the corner falls back to Bonfire's ground",
    Hex(trailPx, 0.02, 0.02) == "#121521", Hex(trailPx, 0.02, 0.02));
 
-// R-1085: a tile is cached a day by its tag, so a change to the drawing must change the tag.
-// The pixels of one tile are pinned with the drawing version. Draw differently and this
+// R-1085: a tile is cached a day by its tag, so a change to the drawing must change the
+// tag. One tile's pixels are pinned with the drawing version: draw differently and this
 // fails until DrawingVersion is raised and the hash below is updated with it.
 var (pinPx, _) = Decode(TileImage.Png(bonfire, TileGlyph.Person));
 var flatPx = new byte[256 * 256 * 3];
@@ -252,9 +251,9 @@ Ok("the drawing is version " + TileImage.DrawingVersion + ": its pixels hash to 
    TileImage.DrawingVersion == 1 && pinned == "37159e0e581a2ddd");
 
 // R-1084: a layer was read again for every pixel (a list, a regex per stop, a sort), about
-// 65,000 times a tile, and a television asking for several tiles at once drew each one
-// on every thread. The counters are read by reflection so that a build without them fails
-// here rather than failing to compile.
+// 65,000 times a tile, and a television asking for several tiles drew each on every thread.
+// The counters are read by reflection so a build without them fails here instead of
+// failing to compile.
 var drawsField = typeof(TileImage).GetField("Draws", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 var parsesField = typeof(TileImage).GetField("ColourParses", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 Ok("the drawing counters exist", drawsField != null && parsesField != null);

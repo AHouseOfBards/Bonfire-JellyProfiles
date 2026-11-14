@@ -39,9 +39,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 //  - The rules are a profile's, set by its main account with the main PIN (or an
 //    administrator), never on a main account, and not switched on while the main account
 //    has no PIN. Anyone in the household can read them; nobody outside it.
-//  - More time: with the main PIN from any device in the household, added on to time
-//    already given; 0 says no. Asking: once in ten minutes, a message on the parent's open
-//    apps, and an email if they asked for those.
+//  - More time: with the main PIN from any device in the household, added to time already
+//    given; 0 says no. Asking: once in ten minutes, a message on the parent's open apps,
+//    and an email if they asked for those.
 //  - The gate: new video refused with 403 and a code, music and browsing never; what is
 //    already playing is let through until the grace ends. Nobody limited costs one count.
 //  - The timer: counts unpaused video once per profile however many screens, warns five
@@ -50,7 +50,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 //  - Usage survives a restart; the rules survive Jellyfin's XmlSerializer unchanged.
 //
 // Against de05710 the first assertion fails: there are no limits at all.
-//
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -211,9 +210,9 @@ s1 = Eval(evening, london, 0, null, Utc(2026, 3, 29, 19, 30));
 Ok("after it, 19:30 UTC is 20:30 on the wall: refused", !Bool(s1, "Allowed"), Show(s1));
 s1 = Eval(evening, london, 0, null, Utc(2026, 3, 29, 18, 30));
 Ok("and bedtime is 19:00 UTC", Bool(s1, "Allowed") && (DateTime?)Get(s1, "UntilUtc") == Utc(2026, 3, 29, 19), Show(s1));
-// R-1027: the clock goes back. New York leaves EDT at 06:00 UTC on 2026-11-01, so 01:00 to 02:00
-// on the wall happens twice (05:00-06:00 UTC, then 06:00-07:00 UTC). A window that ends at 01:30
-// ends at the first 01:30; it must not be read as the second, and must not reopen after it.
+// R-1027: the clock goes back. New York leaves EDT at 06:00 UTC on 2026-11-01, so 01:00 to
+// 02:00 on the wall happens twice (05:00-06:00 UTC, then 06:00-07:00 UTC). A window ending
+// at 01:30 ends at the first 01:30; it must not be read as the second or reopen after it.
 var nightOwl = Rules(true, 0, null, Window(EveryDay, "20:00", "01:30"));
 s1 = Eval(nightOwl, newYork, 0, null, Utc(2026, 11, 1, 5, 10));
 Ok("the clock goes back: 01:10 the first time is 20 minutes from 01:30, not 80",
@@ -382,8 +381,8 @@ IList WindowList(params object[] w)
     foreach (var x in w) list.Add(x);
     return list;
 }
-// A signed-in caller who is refused gets a message: BonfireErrors sends a 401 with one as 403
-// forbidden. A bare 401 tells the client its token is dead, and some clients sign out on it.
+// A signed-in caller who is refused gets a message: BonfireErrors sends a 401 with one as
+// 403. A bare 401 tells the client its token is dead, and some clients sign out on it.
 bool Refused((int status, object value) r) => r.status == 403 || (r.status == 401 && r.value is string s && s.Length > 0);
 
 var ADMIN = Guid.NewGuid(); world.Add(ADMIN, "Admin", admin: true);
@@ -482,7 +481,7 @@ r = Call("UpdateAdminSettings", ADMIN, B(("DefaultTimeZone", "Nowhere/Special"))
 Ok("the administrator's default must be a real zone too", r.status == 400 && (string)cfgType.GetProperty("DefaultTimeZone").GetValue(config) == "Europe/London", r.status + " " + r.value);
 
 // Richer theme motion (2.0): off by default, an administrator's to turn on, and a save that
-// does not mention it leaves it alone. Here because this is the harness that already drives
+// does not mention it leaves it alone. It is here because this harness already drives
 // UpdateAdminSettings as an administrator and as someone who is not.
 var motion = cfgType.GetProperty("RichThemeMotion");
 Ok("richer theme motion exists and starts off", motion != null && !(bool)motion.GetValue(Activator.CreateInstance(cfgType)));
@@ -624,8 +623,8 @@ Ok("a download of the original file is playback", Kind("/Items/" + item + "/Down
 Ok("but not what an item page reads", Kind("/Items/" + item + "/Images/Primary") == "None"
    && Kind("/Items/" + item + "/Similar") == "None" && Kind("/Items/" + item + "/Download/x") == "None"
    && Kind("/Items/not-a-guid/Download") == "None");
-// Audit (wave 4). ASP.NET routes are case-insensitive, so a lower-case route is the same one,
-// and a player that lower-cases the path must not walk past the gate.
+// Audit (wave 4). ASP.NET routes are case-insensitive, so a lowercase route is the same
+// one, and a player that lowercases the path must not walk past the gate.
 Ok("the routes are matched whatever the case",
    Kind("/videos/" + item + "/stream.mkv") == "VideoStream" && Kind("/VIDEOS/" + item + "/main.m3u8") == "VideoStream"
    && Kind("/items/" + item + "/playbackinfo") == "PlaybackInfo" && Kind("/ITEMS/" + item + "/FILE") == "Download");
@@ -642,8 +641,8 @@ cfgType.GetProperty("DefaultTimeZone").SetValue(config, "Europe/London");
 
 // "Already playing" is what the gate let start, not what a session says it is playing: any
 // client can report an item with POST /Sessions/Playing and nothing checks it (R-1297). So
-// Kid starts the film at 16:00, inside its hours, through the gate; the rest of this section
-// is at 23:00, with that film the only thing the gate has seen start.
+// Kid starts the film at 16:00, inside its hours, through the gate; the rest of this
+// section is at 23:00, with that film the only thing the gate has seen start.
 clockNow = Utc(2026, 11, 4, 16); Fresh();
 var film = Guid.NewGuid();
 libStub.Items[film] = MediaType.Video;
@@ -664,8 +663,8 @@ libStub.Items[item] = MediaType.Video;
 Ok("PlaybackInfo for a song is let through", Check("/Items/" + song + "/PlaybackInfo", KID) == null);
 var unknownItem = Guid.NewGuid();
 Ok("one the library can't find is judged as video", Code(Check("/Items/" + unknownItem + "/PlaybackInfo", KID)) == "outside_viewing_hours");
-// Found, but of no media type (a folder): that is not music or a book, so it is still judged as
-// video. Only a type that is known and is not video is let through.
+// Found, but of no media type (a folder): not music or a book, so still judged as video.
+// Only a type that is known and is not video is let through.
 var untyped = Guid.NewGuid();
 libStub.Items[untyped] = MediaType.Unknown;
 Ok("one the library knows, with no media type, is judged as video too", Code(Check("/Items/" + untyped + "/PlaybackInfo", KID)) == "outside_viewing_hours");
@@ -677,8 +676,8 @@ Ok("a download of a song is let through", Check("/Items/" + song + "/Download", 
 Ok("a download the library can't find is judged as video", Code(Check("/Items/" + unknownItem + "/Download", KID)) == "outside_viewing_hours");
 Ok("a download by a profile with no limits is let through", Check("/Items/" + item + "/Download", KID2) == null);
 Ok("PlaybackInfo with a trailing slash is refused", Code(Check("/Items/" + item + "/PlaybackInfo/", KID)) == "outside_viewing_hours");
-// The film Kid started at 16:00 is in the gate's record, but outside hours no grace was ever set,
-// so asking for its PlaybackInfo again is not a stream finishing: it is a new start.
+// The film Kid started at 16:00 is in the gate's record, but outside hours no grace was
+// ever set, so asking for its PlaybackInfo again is a new start, not a stream finishing.
 Ok("PlaybackInfo of what it started earlier is refused when no grace was set", Code(Check("/Items/" + film + "/PlaybackInfo", KID)) == "outside_viewing_hours");
 
 stub.Sessions.Add(SessionStub.Make("kid-tv", KID, item, deviceId: "dev-kid"));
@@ -695,8 +694,8 @@ Ok("an item the app only says it is playing is refused", Code(Check("/Videos/" +
 Ok("and so is its main stream", Code(Check("/Videos/" + forgedItem + "/stream.mkv", KID)) == "outside_viewing_hours");
 stub.Sessions.Remove(forgedSession);
 
-// Who is in the index at all (Audit, wave 4). The gate asks it first, so a wrong member means
-// either a profile never limited or an account that was never meant to be.
+// Who is in the index at all (Audit, wave 4). The gate asks it first, so a wrong member
+// means a profile never limited or an account that was never meant to be.
 {
     bool Indexed(Guid g) => ((System.Collections.IDictionary)Static(tracker, "Index")).Contains(g);
     var mainRow = Mapping(MAIN);
@@ -922,9 +921,9 @@ Ok("and stopped after them", stub.Stopped.Contains("kid-tv"));
 Ok("the limit email went once", Mails() == mailsNow);
 Ok("the stream is refused once the grace is over, for an app that ignored the stop",
    Code(Static(gate, "Check", "/Videos/" + item + "/hls1/main/9.ts", KID, sessions, library, clockNow.AddMinutes(2))) == "daily_limit_reached");
-// An app that changes the audio track, the subtitles or the quality asks for PlaybackInfo of
-// the item it is already playing again. Refused, that ends a stream the grace is meant to
-// let finish; a different item, or the same one once the grace is over, is still refused.
+// An app that changes the audio track, subtitles or quality asks for PlaybackInfo of the
+// item it is already playing. Refusing that ends a stream the grace is meant to let
+// finish; a different item, or the same one once the grace is over, is still refused.
 Static(gate, "NoteAllowed", "/Items/" + item + "/PlaybackInfo", KID);
 Ok("PlaybackInfo for the item already playing goes through while the grace is open",
    Static(gate, "Check", "/Items/" + item + "/PlaybackInfo", KID, sessions, library, clockNow.AddSeconds(-10)) == null);
@@ -955,9 +954,9 @@ for (var i = 0; i < 4; i++) { clockNow = clockNow.AddSeconds(30); Tick(); }
 Ok("music is not counted", Used(KID2) == 0);
 
 // ── Plays between looks ──────────────────────────────────────────────────────
-// The tick sees only what is playing at the moment it looks, so a clip that starts and stops
-// between two looks was never billed (R-1025). The playback start and stop reports bill what
-// the tick did not, and nothing twice.
+// The tick sees only what is playing when it looks, so a clip that starts and stops
+// between two looks was never billed (R-1025). The playback start and stop reports bill
+// what the tick did not, and nothing twice.
 Section("Plays between looks");
 
 Static(tracker, "Reset");
@@ -967,7 +966,7 @@ stub.Sessions.Clear();
 var noteStart = timer.GetMethod("NotePlaybackStart", Any);
 var noteStop = timer.GetMethod("NotePlaybackStopped", Any);
 Ok("the timer bills a play that ends between two looks", noteStart != null && noteStop != null);
-// A build without the two still runs every assertion below, so each one fails for its own reason.
+// A build without the two still runs every assertion below, so each fails for its own reason.
 {
     double Secs(Guid id) => (double)Get(Static(tracker, "EntryFor", id), "Seconds");
     void Start(Guid who, string session, bool video = true) => noteStart?.Invoke(null, new object[] { who, session, video, clockNow });
@@ -1000,8 +999,8 @@ Ok("the timer bills a play that ends between two looks", noteStart != null && no
     Tick();
     Ok("and the next look, with nothing playing, bills nothing more", Secs(KID2) - before == 40, (Secs(KID2) - before).ToString());
 
-    // r2-07-02: a play that began 20 s before a look is billed 20 s by it, not the 30 s since the
-    // look before. The look after that, with the play still going, bills the whole interval.
+    // r2-07-02: a play that began 20 s before a look is billed 20 s by it, not the 30 s
+    // since the look before. The look after that, with the play still going, bills it all.
     before = Secs(KID2);
     clockNow = clockNow.AddSeconds(10);
     stub.Sessions.Add(SessionStub.Make("kid-two-late", KID2, item, deviceId: "dev-two-late"));
@@ -1078,10 +1077,10 @@ Ok("usage is written to the plugin's folder", file != null && File.Exists(file),
 Static(tracker, "Reset");
 Ok("and read back after a restart", Used(KID2) == 5, Used(KID2).ToString());
 
-// Two saves overlapping used to leave the older one in the file: each took its snapshot under
-// the lock and wrote outside it, so whichever write landed last won, whichever snapshot was
-// newer (R-1022). Here the first save is held between its snapshot and its write while a
-// newer state is saved; the file must end up holding the newer one.
+// Two saves overlapping used to leave the older one in the file: each took its snapshot
+// under the lock and wrote outside it, so whichever write landed last won, whichever
+// snapshot was newer (R-1022). Here the first save is held between its snapshot and its
+// write while a newer state is saved; the file must end up holding the newer one.
 {
     File.Delete(file);
     Static(tracker, "Reset");
@@ -1126,8 +1125,8 @@ Ok("and read back after a restart", Used(KID2) == 5, Used(KID2).ToString());
     Static(tracker, "Save", new object[] { null });
 }
 
-// A file already at the temp name (left by a write that died, or held by another process) used to
-// stop every later save: the write went to <file>.tmp. Each save now has a name of its own.
+// A file already at the temp name (left by a write that died, or held by another process)
+// used to stop every later save: the write went to <file>.tmp. Each save now has its own name.
 {
     Static(tracker, "Reset");
     Static(tracker, "AddSeconds", KID2, ViewingDay(clockNow), 41.0);
@@ -1159,8 +1158,8 @@ Ok("and read back after a restart", Used(KID2) == 5, Used(KID2).ToString());
     Ok("Copy handles it, and the copy's Windows is non-null", copyError == null && copied != null && Get(copied, "Windows") != null, copyError);
 }
 
-// Switching a profile's rules off forgets what it watched before yesterday: nothing reads it, and
-// it would sit in the file for good (R-1023).
+// Switching a profile's rules off forgets what it watched before yesterday: nothing reads
+// it, and it would sit in the file for good (R-1023).
 {
     bool Kept(Guid id) => ((System.Collections.IDictionary)tracker.GetField("Entries", Any).GetValue(null)).Contains(id);
     Call("SetViewingLimits", MAIN, B(("DailyMinutes", 10), ("MasterPin", "1234")), KID2);
@@ -1300,8 +1299,8 @@ r = Call("GrantViewingTime", MAIN, B(("Minutes", 240), ("MasterPin", "1234")), K
 Ok("and it resets at New York's midnight, not London's", r.status == 200, r.status + " " + r.value);
 zoneProp.SetValue(Mapping(MAIN), null); Fresh();
 
-// Two PIN holders answering at once: the check and the count are one step, so six grants of
-// 100 minutes racing each other give exactly two of them, never three.
+// Two PIN holders answering at once: the check and the count are one step, so six grants
+// of 100 minutes racing each other give exactly two, never three.
 Static(tracker, "Forget", KID2);
 clockNow = Utc(2026, 11, 12, 12); Fresh();
 var raced = new int[6];

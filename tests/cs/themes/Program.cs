@@ -15,9 +15,9 @@ using Jellyfin.Profiles.Configuration;
 //   - that a configuration saved before themes existed loads with choosing ON and the
 //     default Bonfire, so upgrading changes nobody's screen.
 //
-// The last one is the one that would be silent: Jellyfin reads PluginConfiguration.xml
-// with XmlSerializer, and a missing element keeps the property initializer. Change an
-// initializer and every existing server changes with it, with nothing in the log.
+// The last is silent when it breaks: Jellyfin reads PluginConfiguration.xml with
+// XmlSerializer, and a missing element keeps the property initializer. Changing an
+// initializer changes every existing server with nothing in the log.
 // ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
@@ -115,8 +115,8 @@ Ok("and lets profiles choose", fresh.AllowProfileThemes);
 Ok("with richer theme motion off: motion is calm until an administrator asks", !fresh.RichThemeMotion);
 
 // A configuration from before themes: no DefaultTheme, no AllowProfileThemes, and a
-// mapping with no Theme. Written by serialising a current one and deleting the elements,
-// so the rest of the document is exactly what the serializer expects.
+// mapping with no Theme. Made by serializing a current one and deleting the elements, so
+// the rest is what the serializer expects.
 var serializer = new XmlSerializer(typeof(PluginConfiguration));
 var before = new PluginConfiguration();
 before.Mappings.Add(new ProfileMapping { ProfileUserId = Guid.NewGuid(), MasterUserId = Guid.NewGuid(), ProfileName = "Kids" });
@@ -150,9 +150,9 @@ Ok("which the locked read copy keeps", loaded.Mappings[0].CopyForReading().Theme
 Console.WriteLine();
 Console.WriteLine("── Settings → Theme sets one profile, and only the owner's ────");
 
-// The route behind the Settings page. It exists because update rewrites every field from
-// what it is sent; this one must touch the theme and nothing else, and only inside the
-// caller's own household.
+// The route behind the Settings page. Update rewrites every field from what it is sent;
+// this one must touch the theme and nothing else, and only inside the caller's own
+// household.
 Guid kidsLibrary = Guid.NewGuid();
 Guid master = Guid.NewGuid(), child = Guid.NewGuid(), otherMaster = Guid.NewGuid(), otherChild = Guid.NewGuid();
 PluginConfiguration House() => new PluginConfiguration
@@ -210,10 +210,10 @@ Ok("nothing is set while the server does not let profiles choose",
 Console.WriteLine();
 Console.WriteLine("── The theme files, as the web client is sent them ──────────────");
 // ThemeCatalog.ClientPayload is what PublishThemes puts into profiles.js. tests/_lib.js
-// builds the same thing from the folder for the JS harnesses, and bundle.js holds the
-// script side of that to _lib; this holds the server side to the same rules, so the two
-// cannot drift into checking a payload nobody is sent: every file, Bonfire first and the
-// rest by id, each pattern escaped by Uri.EscapeDataString, nothing outside ASCII.
+// builds the same thing for the JS harnesses and bundle.js holds the script side to it;
+// this holds the server side to the same rules, so the two cannot drift into checking a
+// payload nobody is sent: every file, Bonfire first and the rest by id, each pattern
+// escaped by Uri.EscapeDataString, nothing outside ASCII.
 {
     var root = AppContext.BaseDirectory;
     while (root != null && !File.Exists(Path.Combine(root, "Jellyfin.Profiles.csproj"))) root = Path.GetDirectoryName(root);
@@ -275,7 +275,7 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
            pubPatterns.Count == svgs.Length && pubPatterns.All(p =>
                (string)p!["url"]! == "/plugins/profiles/themes/patterns/" + (string)p!["name"]!));
         // The names a font goes by when installed are the web client's business; an app
-        // given them would try to match local fonts that differ device to device.
+        // given them would try to match local fonts that differ from device to device.
         Ok("fonts carry a family, a fallback, files and a licence when served, and nothing else",
            pub["fonts"]!.AsArray().All(f => f!.AsObject().Select(p => p.Key).OrderBy(k => k)
                .SequenceEqual(f!["files"]!.AsArray().Count > 0
@@ -329,12 +329,13 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
            ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload(Srv("glass", false))) != tag
            && ThemeCatalog.ETagFor(ThemeCatalog.PublicPayload(Srv("harbor", true))) != tag);
 
-        // The routes themselves: anonymous, but checked by apidocs.js against the table that
-        // says so. Here, that they read the catalog and nothing else.
+        // The routes themselves are anonymous, and apidocs.js checks that against the table.
+        // Here, that they read the catalog and nothing else.
         var ctl = File.ReadAllText(Path.Combine(root, "Controllers", "ProfilesController.Themes.cs"));
-        // Read per route, not over the file. This read the whole file, which was right while
-        // it held only these routes; the logo route (1.7.2) joins a checked hash to its folder,
-        // and a whole-file search could not tell that from a pattern route building a path.
+        //
+        // Read per route, not over the file. The logo route (1.7.2) joins a checked hash to
+        // its folder, and a whole-file search could not tell that from a pattern route
+        // building a path.
         string Body(string method)
         {
             var at = ctl.IndexOf("public ActionResult " + method + "(", StringComparison.Ordinal);
@@ -362,10 +363,10 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
 
         Console.WriteLine();
         Console.WriteLine("── The validator: every built-in passes it ──────────────────────");
-        // A problem here is a theme the settings page would refuse to save if an
-        // administrator duplicated it unchanged. Known ones are listed with the decision they
-        // wait on, and each entry FAILS once the problem is gone, so none outlives its cause.
-        // Empty since the 1.7.2 theme review fixed Bonfire's button (white on #00a4dc).
+        // A problem here is a theme the settings page would refuse to save if an administrator
+        // duplicated it unchanged. Known ones are listed with the decision they wait on, and
+        // each entry FAILS once the problem is gone, so none outlives its cause. Empty since
+        // the 1.7.2 theme review fixed Bonfire's button (white on #00a4dc).
         var known = new Dictionary<string, string>();
         foreach (var f in files)
         {
@@ -394,9 +395,9 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
 
         Console.WriteLine();
         Console.WriteLine("── The validator: each broken file is caught, at the value at fault ");
-        // Harvest, which passes, broken one way at a time. Each must give the problem named,
-        // at the path named: a validator that said "invalid" without saying where would leave
-        // an administrator guessing, and one that missed a case lets it through to the screen.
+        // Harvest, which passes, broken one way at a time. Each must give the problem named at
+        // the path named: a validator that said "invalid" without where would leave an
+        // administrator guessing, and one that missed a case lets it through to the screen.
         var harvestText = File.ReadAllText(Path.Combine(dir, "harvest.json"));
         System.Text.Json.Nodes.JsonObject Harvest() => System.Text.Json.Nodes.JsonNode.Parse(harvestText)!.AsObject();
         void Caught(string what, Action<System.Text.Json.Nodes.JsonObject> breakIt, string path, string code)
@@ -418,8 +419,8 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
         Caught("an id with capitals and a space", t => t["id"] = "Bad Id", "id", "range");
         Caught("a later schema", t => t["schema"] = 2, "schema", "range");
         Caught("faint secondary text", t => t["colors"]!["text2"] = "#ffffff40", "colors.text2", "contrast");
-        // One layer whose LAST stop is white: the fill and the other stops are fine, so only
-        // a check of every stop on its own sees it.
+        // One layer whose LAST stop is white: the fill and the other stops are fine, so only a
+        // check of every stop on its own sees it.
         Caught("a gradient unreadable only at one end",
                t => t["background"]!["layers"]![0]!["stops"]![2]!["color"] = "#f0f0f0", "colors.text1", "contrast");
         Caught("a name too faint at its opacity",
@@ -433,7 +434,7 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                t => t["parts"]!["addTile"]!["text"] = "#202020", "parts.addTile.text", "contrast");
         Caught("an error colour that is blue", t => t["colors"]!["danger"] = "#3366ff", "colors.danger", "hue");
         Caught("a warning colour that is green", t => t["colors"]!["warning"] = "#33cc33", "colors.warning", "hue");
-        // The title shadow's own colour (the text glow): optional, and a bad one is named.
+        // The title shadow's own color (the text glow): optional, and a bad one is named.
         var withGlow = Harvest();
         withGlow["depth"]!["title"] = new System.Text.Json.Nodes.JsonObject
             { ["x"] = 0, ["y"] = 2, ["blur"] = 12, ["color"] = "#10a0f080" };
@@ -479,8 +480,8 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
                t => { t["decorations"]!.AsArray().Clear(); t["decorations"]!.AsArray().Add(Second(firstImage)); }, "decorations[0]", "range");
         Caught("two second patterns",
                t => { t["decorations"]!.AsArray().Add(Second(firstImage)); t["decorations"]!.AsArray().Add(Second(firstImage)); }, "decorations[2]", "range");
-        // r2-21-03: the name is shown as text everywhere, so a name that merely contains an address
-        // word ("Url(s) of fun", "https://example.com") is a name. Every other field is still checked.
+        // r2-21-03: the name is shown as text everywhere, so a name that merely contains an
+        // address word ("Url(s) of fun", "https://example.com") is a name. Other fields are checked.
         foreach (var named in new[] { "https://example.com", "Url(s) of fun" })
         {
             var tn = Harvest();
@@ -528,8 +529,8 @@ Console.WriteLine("── The theme files, as the web client is sent them ──
 Console.WriteLine();
 Console.WriteLine("── A Moonfin theme file, once the editor has turned it into a theme ──");
 // tests/js/moonfinthemes.js writes tests/moonfin/*.bonfire.json from Moonfin files made up
-// for the test and fails if they are not what the import gives today. This is the server's
-// own check of the same files: the editor's draft must be one the server would save.
+// for the test and fails if they differ from what the import gives today. This is the
+// server's check of the same files: the editor's draft must be one the server would save.
 {
     var root = AppContext.BaseDirectory;
     while (root != null && !File.Exists(Path.Combine(root, "Jellyfin.Profiles.csproj"))) root = Path.GetDirectoryName(root);

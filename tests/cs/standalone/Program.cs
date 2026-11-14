@@ -19,23 +19,19 @@ using Microsoft.Extensions.Logging.Abstractions;
 // ─────────────────────────────────────────────────────────────────────────────
 // Making a profile its own account (POST /admin/standalone).
 //
-// Runs the real route against a modelled Jellyfin and checks the order of what it does,
-// because the order is the whole difficulty:
-//
-//  - the master's policy is applied while it is still a profile (afterwards nothing
-//    would apply it, and it would keep whatever was on the account);
+// Runs the real route against a modelled Jellyfin and checks the order of its steps:
+//  - the master's policy is applied while it is still a profile, or nothing applies it
+//    and the account keeps whatever it had;
 //  - its sessions are ended;
-//  - it stops being a profile BEFORE the password is set, since Bonfire's provider
+//  - it stops being a profile before the password is set, because Bonfire's provider
 //    refuses a password change for a profile;
 //  - the provider is its master's, never Bonfire's and never empty (an empty id once
-//    made every user on a server unreadable), and is set before the password, which
-//    goes through it;
+//    made every user on a server unreadable), and is set before the password;
 //  - then the rename.
-//
-// And the refusals: not an administrator, no password, a main account, an unknown
+// Also the refusals: not an administrator, no password, a main account, an unknown
 // profile, a username Jellyfin would refuse or one already taken.
 //
-// Against the maintenance commit the first assertion fails: there is no such route.
+// Fails against the maintenance commit: there is no such route.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,8 +77,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-standalone-" + Guid.NewG
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 bool Mapped(Guid id) => mappings.Cast<object>().Any(m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m) == id);
@@ -201,7 +197,7 @@ Ok("a blank username keeps the current one", kept.status == 200 && world.Users[T
 
 world.Log.Clear();
 var ldap = Call(ADMIN, LDAPKID, "", "pw");
-// The directory has never heard of an account Bonfire made, and will not take its password.
+// The directory does not know an account Bonfire made and will not take its password.
 Ok("a profile of an LDAP account still gets a password that works", ldap.status == 200 && world.Passwords.ContainsKey(LDAPKID),
    ldap.status + " " + ldap.value);
 Ok("because it goes on Jellyfin's own provider, not the directory's", world.Users[LDAPKID].AuthenticationProviderId == JELLYFIN,
@@ -212,7 +208,7 @@ Ok("no account was ever given an empty provider", world.Users.Values.All(u => !s
 Console.WriteLine();
 Console.WriteLine("── A server that only has RenameUser(Guid, string, string) ─────");
 
-// R-1320: 10.11.11 and 12.0 removed RenameUser(User, string). Calling it threw
+// R-1320: 10.11.11 and 12.0 removed RenameUser(User, string); calling it threw
 // MissingMethodException after the password was already set.
 var SOLO = Guid.NewGuid();
 world.Add(SOLO, "Bard_Solo", BONFIRE);
@@ -232,9 +228,9 @@ world.GuidOnlyRename = false;
 Console.WriteLine();
 Console.WriteLine("── A write fails after the profile has left its household ──────");
 
-// R-1163: the mapping is gone by then, so a throw from the provider write used to escape as a
-// bare 500: an account that is no profile, with no known password, and no word to the
-// administrator. It answers like the password and rename failures do.
+// R-1163: with the mapping gone, a throw from the provider write escaped as a bare 500,
+// leaving an account that is no profile, has no known password and gives the admin no
+// word. It now answers like the password and rename failures.
 var FAILING = Guid.NewGuid();
 world.Add(FAILING, "Bard_Failing", BONFIRE);
 Map(FAILING, MASTER, "Failing");
@@ -251,9 +247,9 @@ Ok("and the profile is not a profile any more", !world.MappedNow(FAILING));
 Console.WriteLine();
 Console.WriteLine("── The profile picture goes with it ────────────────────────────");
 
-// R-1164: the picture was served only while a mapping existed, so a profile that became its
-// own account lost it. It is copied to the Jellyfin user's own avatar, which is what the
-// sign-in screen and every other client show.
+// R-1164: the picture was served only while a mapping existed, so a profile that became
+// its own account lost it. It is copied to the user's own avatar, which the sign-in
+// screen and other clients show.
 var PIC = Guid.NewGuid();
 var NOPIC = Guid.NewGuid();
 world.Add(PIC, "Bard_Pic", BONFIRE);
@@ -325,9 +321,8 @@ public class WorldProxy : DispatchProxy
 {
     public World W;
 
-    // What 10.11.11's and 12.0's UserManager has. The 10.11.5 interface the build is compiled
-    // against does not declare it, so it is a public method on the stub's own type, which is
-    // where the plugin's reflection looks, as it does on the real server.
+    // 10.11.11 and 12.0 have this; the 10.11.5 interface we compile against does not. It is
+    // a public method on the stub's own type, where the plugin's reflection looks.
     public Task RenameUser(Guid userId, string oldName, string newName)
         => (Task)Invoke(typeof(WorldProxy).GetMethod("RenameUser"), new object[] { userId, oldName, newName });
 
@@ -370,10 +365,9 @@ public class WorldProxy : DispatchProxy
                 W.Log.Add("password " + id + " mapped=" + W.MappedNow(id));
                 return Task.CompletedTask;
             case "RenameUser":
-                // Jellyfin 10.11.11 and 12.0 have only RenameUser(Guid, string, string); the
-                // build is compiled against 10.11.5's RenameUser(User, string). A DispatchProxy
-                // cannot drop a method from the interface, so on those servers this one throws
-                // what the runtime throws for a method that is not there.
+                // 10.11.11 and 12.0 have only RenameUser(Guid, string, string). A
+                // DispatchProxy cannot drop a method from the interface, so this one throws
+                // what the runtime throws for a missing method.
                 if (args.Length == 2 && W.GuidOnlyRename)
                     throw new MissingMethodException("IUserManager.RenameUser(User, string)");
                 var rid = args[0] is User ru ? ru.Id : (Guid)args[0];

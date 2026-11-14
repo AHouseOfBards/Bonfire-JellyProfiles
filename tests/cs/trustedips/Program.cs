@@ -92,8 +92,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-links-" + Guid.NewGuid()
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 // A server that already has Bonfire; a new install is tested in configbackup.
 config.GetType().GetProperty("RequireMainPin")?.SetValue(config, false);
@@ -728,7 +728,7 @@ public class WorldProxy : DispatchProxy
 
 // Jellyfin's two registered providers, as the plugin finds them in the request's services.
 // The real DefaultAuthenticationProvider compares the hash and nothing else; the lockout
-// count lives in UserManager, which is what the add route must not go through.
+// count lives in UserManager, which the add route must not go through.
 public sealed class DefaultAuthenticationProvider : MediaBrowser.Controller.Authentication.IAuthenticationProvider,
     MediaBrowser.Controller.Authentication.IRequiresResolvedUser
 {

@@ -7,31 +7,24 @@ using System.Reflection;
 // Issue #27: switching into another person's MAIN account through a Bonfire link
 // cleared that account's library access, permanently, on every switch.
 //
-// Bonfire is the route, not the fault. The grouping code correctly linked the two
-// accounts and correctly authorised the switch. The damage was done afterwards, by
-// the block that makes a sub-profile inherit its master's policy — it was gated
-// only on "the target is not the caller's own master", which is true for a
+// The grouping code linked the two accounts and authorized the switch correctly. The
+// damage came after, from the block that makes a sub-profile inherit its master's policy.
+// It was gated only on "the target is not the caller's own master", which is true for a
 // cross-account switch, and with no mapping the code took the target to be its own
 // master and inherited the account onto itself.
 //
-// Two halves here, because the truth table alone would be a restatement of the
-// guard:
-//
+// Two halves, because the truth table alone would restate the guard:
 //   1. the guard's answers, enumerated;
-//   2. a replay of the legacy folder computation, to show what it produced for a
-//      main account.
+//   2. a replay of the legacy folder computation, showing what it produced for a main
+//      account.
+// Neither bisects. Against 1.5.7 the guard does not exist, which is a structural failure,
+// not evidence. The replay is arithmetic on local values and passes in both builds; it
+// stays because its numbers are the argument for the fix.
 //
-// Be clear about which of those bisects. The truth table cannot: against 1.5.7 the
-// guard simply does not exist, and a missing method is a structural failure, not
-// evidence. The replay cannot either — it is arithmetic over local values, so it
-// passes in both builds; it is a demonstration of the consequence, kept because the
-// numbers are the whole argument for the fix, not because it discriminates.
-//
-// The assertions that genuinely fail on content are the WIRING ones at the end.
-// They read Controllers/ProfilesController.cs and require the call site to have
-// changed, so they go red against the shipped source for the right reason. They also
-// cover the failure mode that would otherwise look fine: a correct helper nobody
-// calls, which reads as coverage while changing nothing.
+// The assertions that fail on content are the wiring ones at the end. They read
+// Controllers/ProfilesController.cs and require the call site to have changed, so they
+// go red against the shipped source. They also cover a correct helper nobody calls, which
+// looks like coverage and changes nothing.
 // ─────────────────────────────────────────────────────────────────────────────
 
 static string RepoRoot()
@@ -44,7 +37,7 @@ static string RepoRoot()
 }
 
 // Whitespace runs read as one space on both sides, so a reformat cannot hide the text a
-// negative check is looking for (R-1292).
+// negative check looks for (R-1292).
 static bool SrcHas(string src, string needle)
 {
     string N(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ");
@@ -60,10 +53,9 @@ void Ok(string name, bool cond)
 }
 
 var root = RepoRoot();
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which plugin build to load. This harness's output sits in bin/Release/<tfm>/, so its
+// folder name is the framework the csproj resolved and cannot disagree with the
+// <Reference> that compiled it. tests/run.sh cs10 runs the set against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 var dll = System.IO.Path.Combine(root, "bin", "Release", tfm, "Jellyfin.Profiles.dll");
@@ -108,13 +100,12 @@ if (guard != null)
     Console.WriteLine();
     Console.WriteLine("── Who inherits, and who owns their own policy ─────────────────");
 
-    // The case in the report. No mapping exists for a main account, so this is the
-    // one that has to answer false.
+    // The reported case. A main account has no mapping, so this must answer false.
     Ok("a main account reached through a Bonfire does NOT inherit",
         !Inherits(null, userB, userA));
 
-    // A master may carry a self-mapping. It is still a real account that owns its
-    // policy; treating it as its own master is precisely the defect.
+    // A master may carry a self-mapping. It is still a real account that owns its policy;
+    // treating it as its own master is the defect.
     Ok("a master's own self-mapping does NOT inherit",
         !Inherits(MakeMapping(userB, userB), userB, userA));
 
@@ -135,13 +126,10 @@ if (guard != null)
 Console.WriteLine();
 Console.WriteLine("── What the shipped code computed for a main account ────────────");
 
-// A replay of the legacy branch as it stands in SwitchProfile, with a main account's
-// real policy shape. This is arithmetic, not a call into the plugin, so it runs
-// identically against any build — which is what makes the next assertion a bisect
-// rather than a restatement.
+// A replay of the legacy branch in SwitchProfile with a main account's real policy shape.
+// It is arithmetic, not a call into the plugin, so it runs the same against any build.
 //
-// The shape that matters: Jellyfin stores "all libraries" as EnableAllFolders = true
-// with an EMPTY EnabledFolders. The list is not a list of everything; it is empty.
+// Jellyfin stores "all libraries" as EnableAllFolders = true with an EMPTY EnabledFolders.
 bool mainEnableAllFolders = true;
 Guid[] mainEnabledFolders = Array.Empty<Guid>();
 Guid[] mainBlockedFolders = Array.Empty<Guid>();
@@ -149,7 +137,7 @@ Guid[] mainBlockedFolders = Array.Empty<Guid>();
 var library = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };   // three libraries
 
 // targetMasterUserId falls back to the target itself when mapping is null, so the
-// "master" policy below IS the target's own policy.
+// "master" policy below is the target's own policy.
 var masterEnabledFolders = mainEnabledFolders;
 
 List<Guid> legacyEnabled = mainEnableAllFolders
@@ -183,11 +171,10 @@ var controllerSrc = System.IO.File.ReadAllText(
     System.IO.Path.Combine(root, "Controllers", "ProfilesController.cs"))
     .Replace("\r\n", "\n");
 
-// The inheritance block moved out of SwitchProfile into Auth/ProfilePolicySync.cs in
-// 1.6.7, so that a profile opened on a television's sign-in screen gets it too. The
-// assertions below are about "what the switch does", which is now the controller plus the
-// method it calls, so both are read. The wiring checks further down are what make sure the
-// switch still calls it.
+// The inheritance block moved from SwitchProfile to Auth/ProfilePolicySync.cs in 1.6.7, so
+// a profile opened on a television's sign-in screen gets it too. "What the switch does" is
+// now the controller plus that method, so both are read. The wiring checks below make
+// sure the switch still calls it.
 var syncSrc = System.IO.File.ReadAllText(
     System.IO.Path.Combine(root, "Auth", "ProfilePolicySync.cs"))
     .Replace("\r\n", "\n");
@@ -212,7 +199,7 @@ if (blockStart > 0)
 Console.WriteLine();
 Console.WriteLine("── The guard is actually wired into the switch path ─────────────");
 
-// A helper nobody calls reads as coverage while changing nothing.
+// A helper nobody calls looks like coverage and changes nothing.
 Ok("SwitchProfile calls ShouldInheritMasterPolicy",
     SrcHas(controllerSrc, "ShouldInheritMasterPolicy(mapping, targetUser.Id, callerMasterUserId)"));
 
@@ -231,20 +218,17 @@ Ok("SwitchProfile calls ShouldInheritMasterPolicy",
 var oldGuard = "if (masterUser != null && targetUser.Id != callerMasterUserId)";
 Ok("the old unguarded condition is gone", !SrcHas(src, oldGuard));
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Issue #30: entering a profile reverted library access granted in Dashboard →
-// Users. The stored list was applied unconditionally, so a real, persisted grant
-// was undone the next time somebody used the feature.
+// Issue #30: entering a profile reverted library access granted in Dashboard -> Users.
+// The stored list was applied unconditionally, so a persisted grant was undone the next
+// time somebody used the feature.
 //
-// The rule cannot be "the account's list wins when they differ", because that is
-// also what a reset policy looks like, and healing those is why the stored copy
-// exists. The separator is DIRECTION: a reset can only lose grants, never invent
-// one, so additions are adopted and removals are not.
+// The rule cannot be "the account's list wins when they differ", because a reset policy
+// looks the same, and healing those is why the stored copy exists. The separator is
+// direction: a reset can only lose grants, never invent one, so additions are adopted and
+// removals are not.
 //
-// Unlike the #27 half above, these call the real code. Reconcile is pure, so the
-// harness can drive every case directly. The wiring assertions at the end are what
-// bisect — a correct helper nobody calls reads as coverage while changing nothing.
-// ─────────────────────────────────────────────────────────────────────────────
+// Unlike the #27 half, these call the real code. Reconcile is pure, so every case is
+// driven directly. The wiring assertions at the end are what bisect.
 Console.WriteLine();
 Console.WriteLine("── Issue #30: a grant in Dashboard -> Users is not a stale value ");
 
@@ -272,9 +256,8 @@ if (reconcile != null)
     bool Changed(object r) =>
         (bool)r.GetType().GetProperty("StoredListChanged").GetValue(r);
 
-    // The reported case: a library granted on the account, absent from the profile's
-    // stored copy. Before the fix the profile's copy was returned verbatim and the
-    // grant was written away.
+    // The reported case: a library granted on the account, absent from the profile's stored
+    // copy. Before the fix the stored copy was returned as is and the grant was written away.
     var grant = Run(new List<Guid> { MOVIES, SHOWS }, new List<Guid> { MOVIES, SHOWS, MUSIC }, false);
     Ok("a library granted outside the plugin survives entering the profile",
         Authority(grant).Contains(MUSIC));
@@ -285,8 +268,8 @@ if (reconcile != null)
     Ok("and the profile's stored list is updated rather than left to revert again",
         Changed(grant));
 
-    // The other direction, which must NOT change: this is what a reset looks like,
-    // and healing it is the whole reason a stored copy exists.
+    // The other direction must NOT change: this is what a reset looks like, and healing it
+    // is why a stored copy exists.
     var reset = Run(new List<Guid> { MOVIES, SHOWS }, new List<Guid>(), false);
     Ok("a profile whose account lost its libraries is still healed",
         Authority(reset).Count == 2
@@ -295,8 +278,8 @@ if (reconcile != null)
     Ok("but the mismatch is reported, because it reads as a failed save",
         Missing(reset).Count == 2);
 
-    // Jellyfin stores "all libraries" as EnableAllFolders = true with an EMPTY
-    // EnabledFolders — the same shape as a reset, and no per-library grant to read.
+    // "All libraries" is EnableAllFolders = true with an EMPTY EnabledFolders, the same
+    // shape as a reset, with no per-library grant to read.
     var all = Run(new List<Guid> { MOVIES }, new List<Guid>(), true);
     Ok("an all-libraries account adopts nothing", !Changed(all));
     Ok("and the profile's own list is what gets applied",
@@ -307,8 +290,8 @@ if (reconcile != null)
     Ok("two lists that agree report no grant", !Changed(same));
     Ok("and report nothing missing", Missing(same).Count == 0);
 
-    // Degenerate inputs. Guid.Empty is what an unparseable folder id becomes
-    // elsewhere in the plugin, so adopting it would grant nothing under a real name.
+    // Guid.Empty is what an unparseable folder id becomes elsewhere in the plugin, so
+    // adopting it would grant nothing under a real name.
     var empty = Run(new List<Guid> { MOVIES }, new List<Guid> { MOVIES, Guid.Empty }, false);
     Ok("an empty guid is never adopted as a library", !Granted(empty).Contains(Guid.Empty));
     Ok("and does not appear in the applied list", !Authority(empty).Contains(Guid.Empty));
@@ -322,8 +305,8 @@ if (reconcile != null)
     Ok("null lists on both sides resolve to nothing rather than throwing",
         Authority(nulls).Count == 0 && !Changed(nulls));
 
-    // A first grant onto a profile stored with an empty list. Adopting here is right:
-    // an empty stored list plus a populated account list is still an addition.
+    // A first grant onto a profile stored with an empty list. Adopting is right: an empty
+    // stored list plus a populated account list is an addition.
     var first = Run(new List<Guid>(), new List<Guid> { MOVIES }, false);
     Ok("a profile stored with no libraries still adopts a grant",
         Authority(first).Count == 1 && Changed(first));
@@ -335,8 +318,8 @@ Console.WriteLine("── The reconciler is wired into the switch path ───
 Ok("SwitchProfile calls the reconciler",
     SrcHas(src, "LibraryAccessReconciler.Reconcile("));
 
-// The stored list must no longer be handed straight through. This is the line the
-// issue is about, and its absence is what makes this assertion a bisect.
+// The stored list must no longer be handed straight through. This is the line the issue
+// is about.
 var oldApply = "authorityFolders = mapping.EnabledFolders;";
 Ok("the stored list is no longer applied unconditionally", !SrcHas(src, oldApply));
 
@@ -344,8 +327,8 @@ Ok("the stored list is no longer applied unconditionally", !SrcHas(src, oldApply
 Ok("an adopted grant is persisted to the mapping",
     SrcHas(src, "live.EnabledFolders = merged;"));
 
-// Re-resolved inside the lock: Jellyfin replaces the whole configuration object when
-// an administrator saves plugin settings, so the row captured earlier can be orphaned.
+// Re-resolved inside the lock: Jellyfin replaces the configuration object when an
+// administrator saves plugin settings, so the row captured earlier can be orphaned.
 Ok("the mapping row is re-resolved inside the config lock",
     System.Text.RegularExpressions.Regex.IsMatch(syncSrc,
         @"lock \(ProfilesBaseController\.ConfigLock\)\s*\{\s*var live = Plugin\.Instance\?\.Configuration\?\.Mappings\?"));
@@ -359,10 +342,9 @@ Console.WriteLine();
 Console.WriteLine("── A profile carries its master's restrictions ─────────────────");
 
 // A profile is a real Jellyfin account, and anything CopyUserPolicy does not write is
-// whatever Jellyfin gives a brand-new user. It used to copy eight fields, so a master an
-// administrator had restricted — LAN only, a schedule, a bitrate cap, no downloads — could
-// create a profile with none of it, and with sign-in from other apps, enter that profile
-// remotely on its own.
+// whatever Jellyfin gives a new user. It used to copy eight fields, so a master an
+// administrator had restricted (LAN only, a schedule, a bitrate cap, no downloads) could
+// create a profile with none of it and enter it remotely from other apps.
 var copy3 = baseCtl.GetMethod("CopyUserPolicy", Any, null,
     new[] { typeof(MediaBrowser.Model.Users.UserPolicy), typeof(MediaBrowser.Model.Users.UserPolicy), typeof(Guid) }, null);
 var copy2 = baseCtl.GetMethod("CopyUserPolicy", Any, null,
@@ -377,8 +359,8 @@ void Inherit(MediaBrowser.Model.Users.UserPolicy from, MediaBrowser.Model.Users.
         return;
     }
 
-    // An older build: the same method as an instance member with no user id. Run it all
-    // the same, so what fails below fails on what it did rather than on its signature.
+    // An older build has the same method as an instance member with no user id. Run it
+    // anyway, so a failure below is about what it did and not its signature.
     var ctl = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
         asm.GetType("Jellyfin.Profiles.Controllers.ProfilesController", true));
     copy2.Invoke(ctl, new object[] { from, to });
@@ -490,10 +472,9 @@ if (clamp != null)
     Ok("a master without a limit leaves the profile alone", Clamp(15, 1, null, null) == (15, 1));
 }
 
-// The clamp moved from a call in ProfilePolicySync into InheritedRating.Resolve (R-1045), which
-// the sync calls with the profile's own rating, so the wiring that matters is now two links:
-// the sync resolves through it, and it clamps what it resolves. tests/cs/policysync runs the
-// whole path and is what shows the clamp holds.
+// The clamp moved from ProfilePolicySync into InheritedRating.Resolve (R-1045). The wiring
+// that matters is two links: the sync resolves through it, and it clamps what it resolves.
+// tests/cs/policysync runs the whole path and shows the clamp holds.
 var ratingSrc = System.IO.File.ReadAllText(
     System.IO.Path.Combine(root, "Auth", "InheritedRating.cs")).Replace("\r\n", "\n");
 Ok("the switch path clamps the restored rating",
@@ -504,13 +485,11 @@ Ok("the switch path clamps the restored rating",
 Ok("and no longer restores it unchecked",
     !SrcHas(src, "targetPolicy.MaxParentalRating = childMaxParentalRating;"));
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The limits that only ever got stricter. Bitrate, session count, forced transcoding,
-// SyncPlay and blocked unrated items were "the stricter of the master's and the
-// account's" — and the account's value was mostly Bonfire's own previous write. So a
-// master loosened after being tightened never loosened its profiles. These drive the
-// real InheritedLimits.Resolve through the sequence a household actually produces.
-// ─────────────────────────────────────────────────────────────────────────────
+// SyncPlay and blocked unrated items were "the stricter of the master's and the account's",
+// and the account's value was mostly Bonfire's own previous write. So a master loosened
+// after being tightened never loosened its profiles. These drive the real
+// InheritedLimits.Resolve through the sequence a household produces.
 Console.WriteLine();
 Console.WriteLine("── A loosened master loosens its profiles ───────────────────────");
 
@@ -572,10 +551,8 @@ if (resolve != null && limitsCfg != null)
         Sessions(legacyStricter.Applied) == 1);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The allow-list fallback. When none of a profile's allowed tags is allowed for its
-// master any more, the profile used to get the master's whole allow-list.
-// ─────────────────────────────────────────────────────────────────────────────
+// The allow-list fallback. When none of a profile's allowed tags is allowed for its master
+// any more, the profile used to get the master's whole allow-list.
 Console.WriteLine();
 Console.WriteLine("── A profile's allow-list never widens to its master's ──────────");
 

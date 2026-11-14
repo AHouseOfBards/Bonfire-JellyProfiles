@@ -18,16 +18,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The starter avatars: thirty built-in pictures every server offers until the
-// administrator switches them off (asked for in issue #32).
+// administrator switches them off (issue #32).
 //
-// The avatar library starts empty, and on a television an empty library is the
-// whole picker — there is no file browser to upload from. So the set has to be
-// there on a fresh install with nothing configured, has to be really inside the
-// plugin (the release zip holds one DLL and nothing else), and has to go away
-// completely when switched off: not listed, not served, not copyable.
+// The avatar library starts empty, and on a television that is the whole picker: there is
+// no file browser to upload from. So the set must exist on a fresh install, must be inside
+// the plugin (the release zip holds one DLL), and must be gone completely when switched
+// off: not listed, not served, not copyable.
 //
-// Everything new is reached by reflection, so pointed at a build without the
-// feature this runs and fails rather than refusing to compile.
+// Everything new is reached by reflection, so against a build without the feature this
+// runs and fails instead of failing to compile.
 // ─────────────────────────────────────────────────────────────────────────────
 
 static string RepoRoot()
@@ -156,8 +155,8 @@ try
 {
     var plugin = (Plugin)Activator.CreateInstance(typeof(Plugin), new StubPaths(tempDir), new StubXml());
     var config = plugin.Configuration;
-    // A new install starts with Bonfire off (2.0), and off every gate stands down. This
-    // harness is about a server where it is on.
+    // A new install starts with Bonfire off (2.0) and every gate stands down. This harness
+    // is about a server where it is on.
     config.BonfireOn = true;
 
     // One avatar the administrator uploaded, with its file where the library keeps them.
@@ -252,8 +251,8 @@ try
     Ok("and a refused choice leaves the profile's current picture alone",
        current != null && File.Exists(current) && File.ReadAllBytes(current).SequenceEqual(before));
 
-    // The one settings endpoint switches them back on. There was a second, avatar-only route
-    // for it, which nothing called (r2-14-04); it is gone, and this is the only way.
+    // There was a second, avatar-only route for this that nothing called (r2-14-04); it is
+    // gone, and this is the only way.
     var backOn = Activator.CreateInstance(settingsType);
     settingsProp?.SetValue(backOn, (bool?)true);
     typeof(ProfilesController).GetMethod("UpdateAdminSettings").Invoke(controller, new[] { backOn });

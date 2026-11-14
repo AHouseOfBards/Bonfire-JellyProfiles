@@ -25,8 +25,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 //  - That a custom theme is checked on the way out too, so a hand-edited configuration
 //    cannot reach a client.
 //  - The WOFF2 reader: every built-in font reads back as its own family and weights, and
-//    anything else is refused with InvalidDataException and nothing else, whatever bytes
-//    it is handed — including a file that decompresses without end.
+//    anything else is refused with InvalidDataException and nothing else, including a
+//    file that decompresses without end.
 //  - Every route, end to end, on a real Plugin with stub paths, as an API key (which
 //    RequireAdministrator lets through) and as nobody (which it refuses).
 //
@@ -113,8 +113,8 @@ Ok("a name given as a key is refused: nobody wrote its translation",
 var aliased = Custom("aliased");
 aliased["aliases"] = new JsonArray("harbor");
 Ok("aliases are refused", ThemeCatalog.ValidateCustom(aliased, plain).Any(p => p.Path == "aliases"));
-// "There should be no restrictions on custom made themes" (the owner, 2026-11-12): no
-// contrast rule applies to one. This was "text the colour of its surface is refused".
+// "There should be no restrictions on custom made themes" (owner, 2026-11-12): no contrast
+// rule applies to one. This was "text the colour of its surface is refused".
 var bad = Custom("unreadable");
 bad["colors"]!["text1"] = bad["colors"]!["surface1"]!.DeepClone();
 bad["colors"]!["onAccent"] = bad["colors"]!["accent"]!.DeepClone();
@@ -126,8 +126,8 @@ Ok("a custom theme with no contrast anywhere passes: text on its surface, its ac
    badProblems.Count == 0, string.Join("; ", badProblems.Select(p => p.Path + " " + p.Code + " " + p.Detail)));
 Ok("while the built-ins are still held to contrast: the same colours on a built-in fail",
    ThemeCatalog.Validate(bad).Any(p => p.Code == "contrast"));
-// Nor the hue rule (the owner, 2026-11-12): a custom theme's error colour may be blue and its
-// warning green. The built-ins still must read as red and amber.
+// Nor the hue rule (owner, 2026-11-12): a custom theme's error color may be blue and its
+// warning green. The built-ins must still read as red and amber.
 var hues = Custom("cool-alerts");
 hues["colors"]!["danger"] = "#3366ff";
 hues["colors"]!["warning"] = "#33cc33";
@@ -191,9 +191,9 @@ var dupCfg = new PluginConfiguration
 Ok("an invalid first copy then a valid second copy of one id keeps the valid one",
    ThemeCatalog.ValidCustomThemes(dupCfg).Select(t => (string)t["id"]!).SequenceEqual(new[] { "dup" }));
 
-// r2-20-03: these objects are shared by concurrent anonymous requests, and a parsed JsonNode
-// builds its children on first read. Every object and array in the shared trees must already
-// be built. The detector is proved first: a node straight from Parse is not.
+// r2-20-03: these objects are shared by concurrent anonymous requests, and a parsed
+// JsonNode builds its children on first read, so every object and array in the shared
+// trees must already be built. The detector is proved first: a node from Parse is not.
 bool Built(JsonNode n)
 {
     var flag = BindingFlags.NonPublic | BindingFlags.Instance;
@@ -273,9 +273,9 @@ foreach (var f in fontList.Where(f => f!["files"] is JsonObject))
     Woff2Info info = null;
     string err = null;
     try { info = Woff2Font.Read(latin); } catch (Exception e) { err = e.GetType().Name + ": " + e.Message; }
-    // A variable font from Google's subsetter names its default instance, not its family:
-    // Outfit's file says "Outfit Thin", DM Sans's "DM Sans 9pt". The reader reports what
-    // the file says, which is why the upload route lets the administrator name it.
+    // A variable font from Google's subsetter names its default instance, not its family
+    // ("Outfit Thin", "DM Sans 9pt"). The reader reports what the file says, which is why
+    // the upload route lets the administrator name it.
     Ok(family + " reads as itself, or its default instance (" + info?.Family + ")",
        info != null && (info.Family == family || info.Family.StartsWith(family + " ", StringComparison.Ordinal)), err ?? info?.Family);
     Ok(family + " spans " + f["weight"]![0] + "–" + f["weight"]![1],
@@ -490,14 +490,14 @@ Directory.CreateDirectory(tempDir);
 var pluginType = asm.GetType("Jellyfin.Profiles.Plugin", true);
 Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var live = (PluginConfiguration)pluginType.GetProperty("Configuration").GetValue(pluginType.GetProperty("Instance").GetValue(null));
-// A new install starts with Bonfire off (2.0), and off every gate stands down. This harness
+// A new install starts with Bonfire off (2.0) and every gate stands down. This harness
 // is about a server where it is on.
 live.BonfireOn = true;
 Ok("the plugin stands up, its fonts folder under the stub data path",
    live != null && ThemeCatalog.CustomFontFolder.StartsWith(tempDir, StringComparison.Ordinal));
 
-// R-1078: GET /themes is anonymous and re-checks every custom theme it has not seen, so it
-// must not do that while holding the lock an administrator's save needs.
+// R-1078: GET /themes is anonymous and re-checks every custom theme it has not seen, so
+// it must not do that while holding the lock an administrator's save needs.
 {
     var forThemes = typeof(PluginConfiguration).GetMethod("SnapshotForThemes");
     Ok("a snapshot for GET /themes exists", forThemes != null);
@@ -537,8 +537,8 @@ var ctor =ctrlType.GetConstructors().First();
 var ctorArgs = ctor.GetParameters().Select(p => p.ParameterType.Name.StartsWith("ILogger")
     ? Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(ctrlType)) : null).ToArray();
 
-// An API key: what Jellyfin's own handler puts on one, and what RequireAdministrator lets
-// through without asking the user manager, which a harness does not have.
+// An API key: what Jellyfin's handler puts on one, and what RequireAdministrator lets
+// through without the user manager, which a harness does not have.
 ControllerBase As(bool admin, byte[] body = null)
 {
     var c = (ControllerBase)ctor.Invoke(ctorArgs);
@@ -630,9 +630,9 @@ Ok("and it saves", Status(savedFaint) == 200 && live.CustomThemes.Count == 2 && 
 // Taken out again, so what follows starts from the one theme it always had.
 Ok("and deletes like any other", Status(Call(As(true), "DeleteCustomTheme", "unreadable")) == 204 && live.CustomThemes.Count == 1);
 
-// A stale tab must not overwrite a newer save (R-1089). A theme's revision goes up on every
-// save and the page sends the one after the one it loaded, so a save whose revision is not
-// above the stored one was made from an older copy. One with no revision is still taken.
+// A stale tab must not overwrite a newer save (R-1089). A theme's revision rises on every
+// save and the page sends one past the one it loaded, so a save whose revision is not
+// above the stored one came from an older copy. One with no revision is still taken.
 Console.WriteLine("── Saving over a newer save ─────────────────────────────────────");
 JsonObject AtRevision(string id, string from, int? revision, string name)
 {
@@ -715,8 +715,8 @@ var servedFont = Call(As(false), "GetThemeFont", fileName);
 Ok("GET /themes/fonts serves it, to anyone, as font/woff2",
    servedFont is FileContentResult fc && fc.ContentType == "font/woff2" && fc.FileContents.SequenceEqual(good));
 
-// r2-15-03, r2-20-02: a revalidation is answered from the name alone, and a font file that
-// cannot be read (replaced or locked between Exists and the read) is a 404, not a 500.
+// r2-15-03, r2-20-02: a revalidation is answered from the name alone, and a font file
+// that cannot be read (replaced or locked after Exists) is a 404, not a 500.
 {
     var tag = "\"" + fileName.Substring(0, 32) + "\"";
     var fontPath = Path.Combine(ThemeCatalog.CustomFontFolder, fileName);
@@ -766,7 +766,7 @@ foreach (var raw in new[] { "[1]", "\"text\"", "5", "null" })
     Ok("a theme body of " + raw + " is a 400", thrown == null && Status(r) == 400, thrown?.InnerException?.Message ?? thrown?.Message);
 }
 
-// r2-15-04: a revision at the top of the range cannot be saved on (stored + 1 overflowed an int).
+// r2-15-04: a revision at the top of the range cannot be saved on (stored + 1 overflowed).
 Ok("a revision of int.MaxValue is refused", Status(Call(As(true), "SaveCustomTheme", "bigrev", Json(AtRevision("bigrev", "harvest", int.MaxValue, "Big")))) == 400);
 Ok("a revision a billion is still fine", Status(Call(As(true), "SaveCustomTheme", "bigrev", Json(AtRevision("bigrev", "harvest", 1000000000, "Big")))) == 200);
 Call(As(true), "DeleteCustomTheme", "bigrev");
@@ -1037,10 +1037,10 @@ live.LogoImage = null;
 Console.WriteLine();
 Console.WriteLine("── A custom theme's background image ────────────────────────────");
 
-// The file and the theme that names it. Until 2026-11-12 the validator held the text against
-// every picture there could be under the theme's fill at `dim`, and refused the weak ones.
-// The owner decided custom themes have no contrast rules, so every dim in range now passes;
-// the picture's shape (file name, dim range, no unknown field) is still checked.
+// The file and the theme that names it. Until 2026-11-12 the validator held the text
+// against every picture under the theme's fill at `dim` and refused the weak ones. The
+// owner decided custom themes have no contrast rules, so every dim in range passes; the
+// picture's shape (file name, dim range, no unknown field) is still checked.
 JsonObject WithImage(string id, string file, double dim)
 {
     var t = Custom(id);
@@ -1150,7 +1150,7 @@ Call(As(true), "SaveCustomTheme", "photo", Json(WithImage("photo", bg3, 0.9)));
 // An upload never saved is left for the orphan cleanup, which names it first.
 var stray = (string)Body(Call(As(true, Png(800, 600)), "UploadThemeBackground"))?["file"];
 // Not one uploaded a minute ago, though: that is an editor still open, and the cleanup
-// would delete the picture it is showing before its Save names it.
+// would delete the picture before its Save names it.
 var fresh = Call(As(true), "CleanupOrphans", false);
 Ok("the orphan cleanup leaves an image uploaded within the hour", (int?)Body(fresh)?["unusedImages"] == 0, Body(fresh)?.ToJsonString());
 try { Call(As(true), "CleanupOrphans", true); } catch (Exception) { /* the reconcile after it needs a server */ }

@@ -19,11 +19,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /startup: one signed-in request that returns what a client needs to draw the
-// profile picker. Its info, profiles, me, themes and announcements are each what the
-// separate route returns for the same caller (compared as serialized JSON), for a
-// main account and for a profile's token. No user is 401, an API key with no user is
-// refused as /list refuses it, a caller never sees another household's profiles, and a
-// part that fails fails the whole call.
+// profile picker. Its info, profiles, me, themes and announcements each match what the
+// separate route returns for the same caller (compared as serialized JSON), for a main
+// account and for a profile's token. No user is 401, an API key with no user is refused
+// as /list refuses it, a caller never sees another household's profiles, and a part that
+// fails fails the whole call.
 //
 // Against the tree before the route existed the first assertion fails: no route.
 //
@@ -66,8 +66,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-api-" + Guid.NewGuid().T
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 var announcements = (IList)cfgType.GetProperty("Announcements").GetValue(config);
@@ -285,9 +285,9 @@ Ok("a signed-in account the server cannot find is refused as /list refuses it, w
        Art(MAIN, KID).Contains(libA.ToString(), StringComparison.OrdinalIgnoreCase), Art(MAIN, KID));
     Ok("the main account with no id gets its own, which are none", Art(MAIN, null) == "[]", Art(MAIN, null));
     Ok("the main account may ask for its own id", ArtStatus(MAIN, MAIN) == 200);
-    // 401 here is the controller's own return (Unauthorized with a message) because this
-    // harness calls the method directly. On the wire ErrorCodes.cs turns every 401 that
-    // carries a message into a 403, and the doc says 403. Do not "fix" the doc to 401.
+    // 401 here is the controller's own Unauthorized(message), because this harness calls
+    // the method directly. On the wire ErrorCodes.cs turns a 401 with a message into a 403,
+    // and the doc says 403. Do not change the doc to 401.
     Ok("another household's profile is refused, with the old route's answer",
        ArtStatus(MAIN, OTHERKID) == 401 && !Art(MAIN, OTHERKID).Contains(libB.ToString(), StringComparison.OrdinalIgnoreCase));
     Ok("a profile cannot read a sibling's or its own by id, as before", ArtStatus(KID, KID) == 401);
@@ -320,9 +320,9 @@ Ok("a signed-in account the server cannot find is refused as /list refuses it, w
     var memberIds = (IList)groupType.GetProperty("MemberUserIds").GetValue(grp);
     memberIds.Add(OTHER);
 
-    // Without regenerate it is a create, and a create of what is already there hands back the
-    // code that is there. A stale page still showing "Generate", or a retry after a timeout,
-    // used to kill a code the owner had just given out (r3-03-03).
+    // Without regenerate it is a create, and a create of an existing code returns that
+    // code. A stale page showing "Generate", or a retry after a timeout, used to kill a
+    // code the owner had just given out (r3-03-03).
     var plain = Call("GenerateBonfireCode", UserPrincipal(MAIN), new object[] { false }, pinHdr);
     Ok("generate without regenerate on an existing Bonfire keeps its code",
        plain.status == 200 && Prop(plain.value, "BonfireCode") as string == firstCode && CodeOf(MAIN) == firstCode,
@@ -341,9 +341,9 @@ Ok("a signed-in account the server cannot find is refused as /list refuses it, w
     var wrongPin = Call("GenerateBonfireCode", UserPrincipal(MAIN), null, new Dictionary<string, string> { ["X-Bonfire-Master-Pin"] = "0000" });
     Ok("a wrong PIN is refused and changes nothing", wrongPin.status != 200 && CodeOf(MAIN) == newCode, wrongPin.status + "");
 
-    // A profile's token. This harness calls the controller directly, where a signed-in
-    // refusal is still Unauthorized(message) = 401; ErrorCodes.cs turns that into 403 on
-    // the wire. The doc says 403. Do not change this to 403 or the doc to 401.
+    // A profile's token. The controller is called directly, so a refusal is
+    // Unauthorized(message) = 401; ErrorCodes.cs turns it into 403 on the wire and the doc
+    // says 403. Do not change this to 403 or the doc to 401.
     var asKid = Call("GenerateBonfireCode", UserPrincipal(KID), null, pinHdr);
     Ok("a profile's token is refused and changes nothing", asKid.status == 401 && CodeOf(MAIN) == newCode && CodeOf(KID) == null, asKid.status + "");
     Ok("no user: 401", Call("GenerateBonfireCode", new ClaimsPrincipal(new ClaimsIdentity())).status == 401);
