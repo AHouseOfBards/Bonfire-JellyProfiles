@@ -11,15 +11,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 // ─────────────────────────────────────────────────────────────────────────────
 // The four image endpoints.
 //
-// All of them did File(System.IO.File.ReadAllBytes(path), type) — the whole file
-// onto the managed heap, per image, per request, with no cache validator. The
-// profile gate draws every avatar in the household at once and is drawn on every
-// page load, so a family of six re-downloaded six pictures on every navigation
-// and the server allocated all six each time. A 2 MB picture goes straight to
-// the large object heap, which is not compacted by default.
+// All four did File(System.IO.File.ReadAllBytes(path), type): the whole file on the managed
+// heap per image per request, with no cache validator. The profile gate draws every avatar
+// in the household on every page load, so a family of six re-downloaded six pictures on each
+// navigation. A 2 MB picture goes straight to the large object heap, which is not compacted
+// by default.
 //
-// This runs the real helper against a real file and looks at the result, rather
-// than reading the source and checking it mentions PhysicalFile.
+// This runs the real helper against a real file rather than reading the source for
+// PhysicalFile.
 // ─────────────────────────────────────────────────────────────────────────────
 
 static string RepoRoot()
@@ -39,10 +38,9 @@ void Ok(string name, bool cond)
     else { fails.Add(name); Console.WriteLine("  FAIL  " + name); }
 }
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build to load. This harness's output sits in bin/Release/<tfm>/, so its folder name
+// is the framework the csproj resolved: no second place to keep in step. tests/run.sh cs10
+// runs the whole set against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 var asm = Assembly.LoadFrom(Path.Combine(RepoRoot(), "bin", "Release", tfm, "Jellyfin.Profiles.dll"));

@@ -12,11 +12,10 @@ using System.Xml.Serialization;
 // ─────────────────────────────────────────────────────────────────────────────
 // The configuration file the last stable release wrote, read by today's build (R-1289).
 //
-// Jellyfin keeps the plugin's settings as XML written by System.Xml's XmlSerializer. A
-// property renamed, a type changed or an element that stops being read does not fail
-// anywhere visible: that setting, or the whole household list, comes back as its default.
-// Nothing guarded it. About fifteen harnesses replace IXmlSerializer with a stub that does
-// nothing, so no test had ever read a real file.
+// Jellyfin stores the plugin's settings as XML through XmlSerializer. A renamed property, a
+// changed type or an element no longer read fails silently: that setting, or the whole
+// household list, comes back as its default. About fifteen harnesses stub IXmlSerializer,
+// so no test had ever read a real file.
 //
 // tests/golden/PluginConfiguration.1.7.1.xml is what 1.7.1 (main) writes: its own
 // PluginConfiguration, every property given a value that is not the default, every kind of
@@ -314,10 +313,10 @@ if (files.Count > 0)
             baseline.Replace("<IndexInjectionMode>middleware</IndexInjectionMode>", "<IndexInjectionMode>" + mode + "</IndexInjectionMode>"),
             "<IndexInjectionMode>" + mode + "</IndexInjectionMode>");
 
-    // EmailSettings.FromName. The 1.7.1 golden file predates the email settings, so the
-    // section is added here, as a 1.9 beta wrote it, with and without the name. The setup
-    // was tested, so it also carries its fingerprint; cutting the name must not undo that,
-    // or every administrator's PIN reset by email would stop on upgrade.
+    // EmailSettings.FromName. The 1.7.1 golden file predates the email settings, so the section
+    // is added here as a 1.9 beta wrote it, with and without the name. The setup was tested, so
+    // it also carries its fingerprint; cutting the name must not undo that, or every
+    // administrator's PIN reset by email would stop on upgrade.
     {
         const string EmailTail = "<Host>smtp.example.com</Host><Port>2525</Port><Security>none</Security>"
             + "<Username>mailer</Username><Password>app-password</Password><FromAddress>bonfire@example.com</FromAddress>";
@@ -347,11 +346,10 @@ if (files.Count > 0)
         baselineLeaves = Leaves(Write(Read(baseline)));
     }
 
-    // OnboardingSettings.Steps, StepsChosen and WelcomeText: the "show this step" choice and
-    // the administrator's own welcome. Cut: every step is always offered and the welcome is
-    // Bonfire's. The 1.7.1 golden file predates first-time setup, so there is no element to
-    // list in droppedOnPurpose; the section is added here as a 1.9 beta wrote it, with the
-    // choice made. It must load, lose exactly these three and keep the rest.
+    // OnboardingSettings.Steps, StepsChosen and WelcomeText: the "show this step" choice and the
+    // administrator's welcome. Cut: every step is always offered and the welcome is Bonfire's.
+    // The golden file predates first-time setup, so the section is added here as a 1.9 beta
+    // wrote it. It must load, lose exactly these three and keep the rest.
     {
         string WithChoice(bool choice) =>
             baseline.Replace("</PluginConfiguration>", "<Onboarding><Enabled>true</Enabled>"
@@ -398,11 +396,10 @@ if (files.Count > 0)
     Ok("what it was told is not written back as the old field", !Write(Read(Bare("native"))).Contains("SwitcherMode"));
 }
 
-// Picture quality across an upgrade. A fresh install starts on maximum; a server that saved a
-// level keeps it, whatever it is. A file with no ProfileImageQuality at all (one written before
-// the setting existed) is the one case that takes the new default: XmlSerializer leaves the
-// property at its initialiser when the element is absent. A value this build cannot read is
-// kept as written but behaves as the safest level (ImageQualities.Normalize), not as maximum.
+// Picture quality across an upgrade. A fresh install starts on maximum; a saved level is kept.
+// A file with no ProfileImageQuality (written before the setting existed) takes the new
+// default, since XmlSerializer leaves the property at its initialiser. A value this build
+// cannot read is kept as written but behaves as the safest level (ImageQualities.Normalize).
 Console.WriteLine();
 Console.WriteLine("── Picture quality across an upgrade ───────────────────────────────");
 if (files.Count > 0)

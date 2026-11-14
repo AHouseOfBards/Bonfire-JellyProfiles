@@ -3,9 +3,8 @@ using System.Collections;
 using System.Linq;
 using System.Reflection;
 
-// Locate the repository root by walking up from this binary until the plugin's project
-// file appears. This was a hardcoded absolute path, so these harnesses could only run on
-// one machine — they failed on the first CI run.
+// Find the repository root by walking up from this binary to the plugin's project file.
+// A hardcoded path made these harnesses fail on the first CI run.
 static string RepoRoot()
 {
     var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
@@ -25,13 +24,12 @@ static string RepoPath(params string[] parts)
 //   - locale codes are discovered from embedded resources, not a hand-kept list
 //   - the client's locale list is filled in as profiles.js is served
 //
-// The point of both is that adding a language is one JSON file. A regression here is
-// silent — the file ships, the endpoint serves it, and no browser ever asks for it.
+// Adding a language must stay one JSON file. A regression is silent: the file ships and the
+// endpoint serves it, but no browser ever asks for it.
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build to load. This harness's output sits in bin/Release/<tfm>/, so its folder name
+// is the framework the csproj resolved: no second place to keep in step. tests/run.sh cs10
+// runs the whole set against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 var dll = RepoPath("bin", "Release", tfm, "Jellyfin.Profiles.dll");
@@ -103,9 +101,8 @@ if (publish != null)
     Ok("the marker is rewritten", !js.Contains(marker, StringComparison.Ordinal));
     Ok("with every discovered locale",
        discovered.All(c => js.Contains("'" + c + "'", StringComparison.Ordinal)));
-    // The whole list, in order, as one array literal. This used to look for "['fr'" and
-    // went red the day ca.json arrived and sorted ahead of it — it was testing which
-    // language came first, not the shape of the assignment.
+    // The whole list as one array literal. Looking for "['fr'" went red when ca.json sorted
+    // ahead of it: that tested which language came first, not the shape of the assignment.
     var expectedList = "let SUPPORTED_LOCALES = ["
         + string.Join(", ", discovered.Select(c => "'" + c + "'")) + "];";
     Ok("as a JS array assignment",
@@ -125,10 +122,8 @@ if (publish != null)
     var count = real.Split(marker).Length - 1;
     Ok("profiles.js carries the marker exactly once (found " + count + ")", count == 1);
 
-    // Built from what is actually embedded, not hardcoded to one language. This asserted
-    // ['fr'] literally until Polish arrived, at which point adding a single JSON file
-    // broke the build — which is precisely the promise the rest of this harness exists to
-    // defend. A test for "adding a language is one file" must not itself need editing
+    // Built from what is embedded. This asserted ['fr'] until Polish arrived and one new JSON
+    // file broke the build; a test for "adding a language is one file" must not need editing
     // when a language is added.
     var expected = "let SUPPORTED_LOCALES = ["
         + string.Join(", ", discovered.OrderBy(c => c, StringComparer.Ordinal).Select(c => "'" + c + "'"))
@@ -144,18 +139,13 @@ if (publish != null)
 Console.WriteLine();
 Console.WriteLine("── A failed read is not remembered ─────────────────────────────");
 
-// The loader was GetOrAdd with a factory returning null on failure, and GetOrAdd stores
-// what the factory returns — so one empty read put a permanent null in the dictionary and
-// that language was gone until the server restarted. Because t() falls back per key, the
-// visible symptom was the interface quietly reverting to English.
+// The loader was GetOrAdd with a factory returning null on failure. GetOrAdd stores that
+// null, so one empty read lost the language until restart, and because t() falls back per
+// key it showed as the interface quietly reverting to English.
 //
-// Driven directly rather than through the endpoint: the failure is a caching contract,
-// and asserting it through an HTTP round trip would need the whole DI graph to say
-// something the loader can say on its own.
-// The trap itself, shown rather than described. Pointing this harness at the old build
-// only proves the method did not exist yet, which says nothing about whether the bug was
-// real; this says it was. GetOrAdd stores what the factory returns, null included, and
-// there is then no way to tell a cached failure from a cached answer.
+// Driven directly: the failure is a caching contract, and an HTTP round trip would need the
+// whole DI graph. Run against the old build the method does not exist, which proves
+// nothing about the bug; here a cached null cannot be told from a cached answer.
 var trap = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
 trap.GetOrAdd("fr", _ => null);
 Ok("GetOrAdd caches a null the factory returned — the mechanism behind the bug "
@@ -196,10 +186,9 @@ if (readLocale != null && cachedCodes != null)
         Ok("a second read returns the same content", Equals(again, content));
     }
 
-    // The endpoint matches a code without regard to case, and the assembly's resource
-    // lookup is case-sensitive. A caller asking for "pt-br" when the file is pt-BR.json
-    // passed the first and failed the second, and was told 503 on every request. Each
-    // embedded code is asked for in both other cases, one at a time.
+    // The endpoint matches a code without regard to case and the assembly's resource lookup is
+    // case-sensitive, so "pt-br" for pt-BR.json passed the first and failed the second (503).
+    // Each embedded code is asked for in both other cases, one at a time.
     foreach (var code in embedded)
     {
         foreach (var variant in new[] { code.ToUpperInvariant(), code.ToLowerInvariant() })
@@ -269,10 +258,9 @@ if (readPart != null)
            + (missingKeys.Length > 0 ? " (lost: " + string.Join(", ", missingKeys.Take(3)) + ")" : ""),
            missingKeys.Length == 0
            && all.Where(p => !p.Key.StartsWith("email.", StringComparison.Ordinal) && !p.Key.StartsWith("notice.", StringComparison.Ordinal)).All(p => (app.TryGetValue(p.Key, out var v) || adm.TryGetValue(p.Key, out v)) && v == p.Value));
-        // Relaxed escaping: an accented letter arrives as itself rather than as é,
-        // which is what keeps a Polish or Turkish file from doubling in size.
-        // Asked of the letters themselves: an apostrophe still arrives as ', which is
-        // the encoder keeping HTML-sensitive characters escaped, and is wanted.
+        // Relaxed escaping: an accented letter arrives as itself, not as an escape sequence, which
+        // keeps a Polish or Turkish file from doubling in size. HTML-sensitive characters such as an
+        // apostrophe are still escaped, which is wanted.
         var raw = (string)readPart.Invoke(null, new object?[] { code, false, null })!;
         var letters = app.Values.Where(v => v != null).SelectMany(v => v!)
             .Where(ch => ch > 127 && char.IsLetter(ch)).Distinct().ToArray();

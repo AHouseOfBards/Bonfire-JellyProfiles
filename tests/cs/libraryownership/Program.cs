@@ -88,8 +88,7 @@ File.WriteAllText(Path.Combine(fieldGuideDir, "meta.json"),
     "{\"guid\":\"f7188173-3d03-4c95-8ba2-0dd8999a61ab\",\"name\":\"FieldGuide\",\"status\":\"Active\"}");
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down; this harness needs it on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 

@@ -3,9 +3,8 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-// Locate the repository root by walking up from this binary until the plugin's project
-// file appears. This was a hardcoded absolute path, so these harnesses could only run on
-// one machine — they failed on the first CI run.
+// Find the repository root by walking up from this binary to the plugin's project file.
+// A hardcoded path made these harnesses fail on the first CI run.
 static string RepoRoot()
 {
     var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
@@ -34,10 +33,9 @@ static string RepoPath(params string[] parts)
 // middleware can both act on the same document, and the failure mode is two copies of
 // profiles.js at different versions, which means two gates fighting each other.
 
-// Which build of the plugin to load. This harness's own output sits in
-// bin/Release/<tfm>/, so its folder name IS the framework the csproj resolved — there is
-// no second place to keep in step, and it cannot say net9.0 while the <Reference> that
-// compiled it pointed at net10.0. tests/run.sh cs10 runs the whole set against net10.0.
+// Which build to load. This harness's output sits in bin/Release/<tfm>/, so its folder name
+// is the framework the csproj resolved: no second place to keep in step. tests/run.sh cs10
+// runs the whole set against net10.0.
 var tfm = new System.IO.DirectoryInfo(AppContext.BaseDirectory.TrimEnd(
     System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)).Name;
 var asm = Assembly.LoadFrom(RepoPath("bin", "Release", tfm, "Jellyfin.Profiles.dll"));
@@ -192,13 +190,12 @@ Console.WriteLine("── An old head script is replaced, not duplicated ──�
 Console.WriteLine();
 Console.WriteLine("── A tag written by hand is recognised ──────────────────────");
 {
-    // Different quoting and attribute order. It must be recognised as ours, or the page gets
-    // a second copy: two scripts, two gates.
+    // Different quoting and attribute order must still be recognized as ours, or the page gets a
+    // second copy: two scripts, two gates.
     //
-    // Until 2.0 it was also left exactly as written, because WebInjection read the version
-    // back out and found it current. The coordinator compares whole tags instead, so it
-    // rewrites this one to its own form — still one tag, in the page as served; the file on
-    // disk is not touched. Asserted as it now is, rather than dropped.
+    // Until 2.0 it was left exactly as written, because WebInjection read the version back and
+    // found it current. The coordinator compares whole tags and rewrites it to its own form:
+    // still one tag in the served page, the file on disk untouched.
     var hand = Clean.Replace("</body>",
         $"<script defer src='/plugins/profiles/profiles.js?v={ScriptVersion}'></script>\n</body>");
     var withHead = Inject(hand).Html;
@@ -236,13 +233,11 @@ Console.WriteLine("── Remove puts the document back ────────
     Check("removing twice reports no change", second.Changed, false);
     Check("removing a clean document is a no-op", second.Html, Clean);
 
-    // Clean has no blank lines, which is why this went unnoticed: the tidy-up pass that
-    // used to run after the two removals was unanchored over the whole document, so it
-    // only showed itself on a file that had blank lines to collapse. Jellyfin's real
-    // index.html does. The consequence was not cosmetic — Remove reported a change for a
-    // document it had never patched, and middleware-only mode (the default) took that as
-    // reason to rewrite index.html on its first served page, in the mode whose entire
-    // promise is that the file is never touched.
+    // Clean has no blank lines, which hid this: the tidy-up pass after the two removals was
+    // unanchored over the whole document, so it only showed on a file with blank lines to
+    // collapse (Jellyfin's real index.html has them). Remove then reported a change for a
+    // document it never patched, and middleware-only mode (the default) rewrote index.html on
+    // the first served page, though that mode promises never to touch the file.
     const string Spaced =
         "<html>\n<head>\n\n<title>Jellyfin</title>\n\n</head>\n"
         + "<body>\n\n<div id=\"app\"></div>\n\n<script src=\"main.jellyfin.bundle.js\"></script>\n\n</body>\n</html>";
@@ -315,12 +310,10 @@ Console.WriteLine("── What the middleware answers ────────�
 Console.WriteLine();
 Console.WriteLine("-- Which version is running, and which one is waiting (issue #25) --");
 {
-    // "A restart is required" on its own is unfalsifiable from the reader's side. An
-    // administrator who has already restarted — or who pressed Jellyfin's own Restart
-    // button, which on most Docker images does not restart the process — cannot tell a
-    // stale banner from a live one. Two version numbers can be checked against what they
-    // just did. Jellyfin keeps every installed version in its own {Name}_{Version} folder
-    // and loads one of them, so the answer is in the folder names.
+    // "A restart is required" alone cannot be checked by an administrator who already restarted,
+    // or pressed Jellyfin's Restart button, which on most Docker images does not restart the
+    // process. Two version numbers can be checked. Jellyfin keeps each installed version in its
+    // own {Name}_{Version} folder and loads one, so the answer is in the folder names.
     var task = asm.GetType("Jellyfin.Profiles.ProfilesBootstrapTask", true);
     var newestBeside = task.GetMethod("NewestVersionBeside",
         System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic

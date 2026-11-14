@@ -154,10 +154,9 @@ foreach (var file in Directory.GetFiles(Path.Combine(root, "Controllers"), "*.cs
 Ok("the controllers were read", seen.Count > 60, seen.Count + " messages");
 
 // ── Pinned: what each message is coded as, and the rule table itself ──────────────────
-// Codes are derived from message text, so rewording a message silently recodes it (R-1129).
-// Every literal message and every rule is written down in messages.golden / rules.golden.
-// Rewording a message, or adding, removing or recoding a rule, fails here until the golden
-// is regenerated on purpose: BONFIRE_UPDATE_GOLDEN=1 dotnet run -c Release
+// Codes come from message text, so rewording a message silently recodes it (R-1129).
+// Every literal message and rule is in messages.golden / rules.golden. A change fails here
+// until the golden is regenerated on purpose: BONFIRE_UPDATE_GOLDEN=1 dotnet run -c Release
 {
     var here = Path.Combine(root, "tests", "cs", "errorcodes");
     var update = Environment.GetEnvironmentVariable("BONFIRE_UPDATE_GOLDEN") == "1";
@@ -185,11 +184,10 @@ Ok("the controllers were read", seen.Count > 60, seen.Count + " messages");
         Ok(label + ": nothing recoded, reworded, added or removed since it was pinned",
            changed.Count == 0, changed.Count + " differ: " + string.Join(" || ", changed.Take(6)));
     }
-    // The messages above are only the ones written inside a BadRequest(...) call. Many are
-    // built elsewhere (Announcements.Validate, the base controller) and handed in as a
-    // variable, so the pin cannot see them. Closing that gap: every rule must still match a
-    // string literal somewhere in the plugin's own source. A reworded message leaves its rule
-    // with nothing to match, and the message silently falls to the code for its status.
+    // Those are only the messages written inside BadRequest(...); others are built elsewhere
+    // (Announcements.Validate, the base controller) and passed as variables. So every rule must
+    // also match a string literal in the plugin source, or a reworded message leaves its rule
+    // matching nothing and falls to the code for its status.
     var sourceText = new System.Text.StringBuilder();
     foreach (var f in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
     {

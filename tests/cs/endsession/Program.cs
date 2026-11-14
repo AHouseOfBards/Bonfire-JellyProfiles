@@ -94,8 +94,7 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-links-" + Guid.NewGuid()
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down; this harness needs it on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 // A server that already has Bonfire; a new install is tested in configbackup.
 config.GetType().GetProperty("RequireMainPin")?.SetValue(config, false);

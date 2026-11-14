@@ -29,15 +29,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 //                         a known theme only, and only while the server lets profiles choose.
 //   the five old routes no longer exist.
 //
-// The "same as before" half is not restated here. tests/golden/formoptions.json holds what
-// the four old routes answered for a main account and for a profile's token, captured from
-// the tree before they were removed:
+// tests/golden/formoptions.json holds what the four old routes answered for a main account
+// and for a profile's token, captured before they were removed:
 //
 //     dotnet run -c Release -- --capture <file>      (against a tree that still has them)
 //
-// and every run compares the new route to it, part by part, naming the part that differs.
-// The machine's own time zone list and its own zone are the only things taken out of the
-// comparison: they are this computer's, not the plugin's.
+// Every run compares the new route to it part by part. Only this machine's time zone list
+// and zone are left out of the comparison.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -353,9 +351,8 @@ Section("/update sets a theme under the rules /theme had");
 
 // ── A theme-only /update changes nothing else ────────────────────────────────
 // Settings -> Theme and first-time setup send profileId, profileName, theme and the main PIN
-// and nothing more. POST /theme, which they used, touched only the theme; /update also runs the
-// sub-profile's policy sync, so "left out keeps what is stored" has to hold for every field it
-// can change, in the mapping and in the Jellyfin account Bonfire writes to.
+// only. /update also runs the sub-profile policy sync, so "left out keeps what is stored"
+// must hold for every field it can change, in the mapping and in the Jellyfin account.
 Section("A theme-only /update leaves every other field as it was");
 {
     SetCfg("AllowProfileThemes", true);
@@ -395,10 +392,10 @@ Section("A theme-only /update leaves every other field as it was");
         ""LastAppliedFolders"": [""11111111-1111-1111-1111-111111111111""] }");
     Fill(MAIN, Common);
 
-    // The account behind the profile: a rating of its own, tags, one library, and the limits
-    // Bonfire writes at sign-in, all non-default. Its blocked tags are the profile's own plus the
-    // main account's ("adult"), which is what the sign-in sync leaves; /update merges them again.
-    // The main account has its own policy, never written.
+    // The account behind the profile: its own rating, tags, one library and the limits Bonfire
+    // writes at sign-in, all non-default. Blocked tags are the profile's plus the main account's
+    // ("adult"), as the sign-in sync leaves them; /update merges them again. The main account's
+    // policy is never written.
     world.Policies[KID] = Policy(u =>
     {
         u.EnableAllFolders = false; u.EnabledFolders = new[] { libA };
