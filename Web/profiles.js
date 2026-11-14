@@ -6741,14 +6741,10 @@
             }
         },
 
-        // Called when the inactivity timer fires. Clears the active session,
-        // restores master credentials, then shows the profile selector.
-        //
-        // It used to restore the master's credentials here, which made the lock the least
-        // secure moment in the product: the device went from a restricted profile to the
-        // master account, with only the picker drawn over it. The profile's own session is
-        // kept instead; getting back into it — or into anything else — goes through the
-        // gate, and the server asks for the PIN.
+        // Inactivity timer fired: clear the active session and show the picker. The
+        // profile's own session is kept, not swapped for the master's, which made the lock
+        // the weakest moment in the product. Getting back in goes through the gate and
+        // the server asks for the PIN.
         lockActiveProfile: function () {
             this.stopInactivityTimer();
             this.clearProfileSession();
@@ -6756,8 +6752,7 @@
         },
 
         renderOverlayContent: function (overlay, profiles) {
-            // Claims the screen so a form still loading in the background does not
-            // draw itself over the grid when it finally returns.
+            // Claims the screen so a form still loading does not draw over the grid.
             this.beginNavigation();
 
             const title = this.isManageMode ? t('gate.manageProfiles') : t('gate.whosWatching');
@@ -6773,15 +6768,13 @@
             const masterState = this.readMasterState();
             const localMasterId = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
 
-            // Same condition the two settings tiles used, so Settings shows up in exactly
-            // the cases they used to.
+            // Same condition the two settings tiles used.
             const hasLocalMaster = profiles.some(p => p.isMaster && !p.isBonfire);
 
             // Group profiles by masterUserId
             const grouped = {};
             for (const p of profiles) {
-                // An added account sits with the household it was added to, not in a
-                // section of its own: it is one more person on this screen.
+                // An added account sits with the household it was added to.
                 const key = p.isLinked
                     ? localMasterId
                     : this.normalizeGuid(p.masterUserId || (p.isBonfire ? '' : localMasterId));
@@ -6803,18 +6796,12 @@
                 return nameA.localeCompare(nameB);
             });
 
-            // The signed-in Jellyfin user IS the active profile — switching signs in as
-            // that profile's own account. The gate never said which one that was, and the
-            // avatar-colour rings made it look as though it did.
-            //
-            // But ApiClient is not the authority when the picker was opened from the header
-            // bubble. handleBubbleClick puts the *master's* credentials back before listing,
-            // because a sub-profile's token cannot see its siblings — so by the time this
-            // renders, getCurrentUserId() is the master on every platform, and the badge
-            // sat on the master's card however long you had been using a profile. Reported
-            // as "the switcher says I am signed in as my main profile"; it is this, not a
-            // switch that failed. _resumeState is the profile that was active a moment ago
-            // and is what the badge means, so it wins when it is set.
+            // The signed-in Jellyfin user is the active profile. But when the picker opens
+            // from the header bubble, handleBubbleClick has already put the master's
+            // credentials back (a sub-profile's token cannot list its siblings), so
+            // getCurrentUserId() is the master and the badge landed on the master's card.
+            // Reported as "the switcher says I am signed in as my main profile". The
+            // _resumeState user is the profile that was active a moment ago, so it wins.
             const resumed = this._resumeState && !this._resumeState.closeOnly
                 ? this._resumeState.userId
                 : null;
@@ -6824,13 +6811,11 @@
                     ? this.normalizeGuid(ApiClient.getCurrentUserId())
                     : '');
 
-            // `focusable` is jellyfin-web's own hook, not ours — see focusManager.js,
-            // whose focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus that class, and
-            // which never looks at [tabindex]. Without it a profile card does not exist as
-            // far as upstream's remote navigation is concerned, so any moment our own trap
-            // does not get the key event leaves the whole grid unreachable and only the
-            // footer buttons focusable. That is issue #16's second report, word for word:
-            // "if I move off the top left one, it goes to manage profiles".
+            // `focusable` is jellyfin-web's own hook (focusManager.js: INPUT/TEXTAREA/SELECT/
+            // BUTTON/A plus that class; it never looks at [tabindex]). Without it a card is
+            // invisible to remote navigation and only the footer buttons can be focused
+            // whenever our trap misses a key. Issue #16: "if I move off the top left one,
+            // it goes to manage profiles".
             const renderCard = (p) => `
                 <div class="jpf-profile-card focusable ${this.isManageMode ? 'jpf-manage-mode' : ''}${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
@@ -6896,12 +6881,9 @@
                 let headerTitle = '';
                 let isBonfireIcon = false;
 
-                // Both headers use Bonfire's mark — it was the Bonfire's own section, and a
-                // house icon read as a different concept entirely. The headings say household
-                // now (a main account and its profiles; "Bonfire" is the product, and an
-                // invite-code group), but the mark stays. Your own household keeps the warm
-                // flame colour; linked ones are tinted by .bonfire-icon-color so the two
-                // remain distinguishable at a glance.
+                // Both headers use Bonfire's mark; a house icon read as a different concept.
+                // Your own household keeps the flame colour, linked ones are tinted by
+                // .bonfire-icon-color.
                 if (isLocalGroup) {
                     headerTitle = t('gate.yourBonfire');
                 } else {
@@ -6914,17 +6896,12 @@
                 let cardsHtml = groupProfiles.map(p => renderCard(p)).join('');
 
                 if (isLocalGroup) {
-                    // Settings used to sit here, as two cards in the same row as people.
-                    // They are not profiles: Switcher Style is per-account and Your Bonfire
-                    // is between accounts, and neither belongs to the grid of who can watch.
-                    // They live behind Settings now — which also means the LAN-bypass toggle,
-                    // the one that can hand somebody your admin rights, is somewhere you went
-                    // on purpose rather than somewhere you can land while renaming a profile.
+                    // Settings used to sit here as cards beside the people. They are not
+                    // profiles, and the LAN-bypass toggle (which can hand over your admin
+                    // rights) should be somewhere you go on purpose.
 
-                    // Manage Profiles only. The gate answers one question — who is
-                    // watching — and a card in that grid reads as a person. Adding one is
-                    // administration, and it belongs on the screen named for it, which is
-                    // one button away and already where you go to rename or delete.
+                    // Manage Profiles only: a card in this grid reads as a person, and adding
+                    // one is administration.
                     if (this.isManageMode) {
                         if (!atLimit) {
                             cardsHtml += `
@@ -6956,11 +6933,10 @@
                 `;
             }
 
-            // jpf-one-home: one household on screen, so its heading names nothing the title
-            // has not. Themes without a panel round each household hide it then.
-            // The live region sits outside .profiles-modal-content, which every screen
-            // after this one replaces: it has to be there, empty, before it has anything
-            // to say, or a screen reader does not announce the first change to it.
+            // jpf-one-home: one household on screen, so its heading names nothing new.
+            // The live region sits outside .profiles-modal-content, which later screens
+            // replace; it must exist, empty, before it speaks or a screen reader misses the
+            // first change.
             overlay.innerHTML = `
                 <div id="jpf-switch-live" class="jpf-sr" role="status" aria-live="polite"></div>
                 <div class="profiles-modal-content jpf-picker jpf-anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
@@ -7003,15 +6979,11 @@
             this.showTimeRequests(overlay, profiles, localMasterId);
         },
 
-        /// Profiles waiting for more time, as a row above the tiles. Only for the main
-        /// account's own household, and only when the list the picker just fetched already
-        /// says someone asked: the picker pays for one more call when there is something to
-        /// show, and nothing otherwise. Fetched when the picker is drawn, never from
-        /// checkRoute. The server decides what is pending and how much of the day's four
-        /// hours is left; this only draws it.
-        ///
-        /// A row is a real button, so Enter opens it and the remote can reach it. Opening it
-        /// asks for the main PIN, the prompt the picker already uses for the main account.
+        /// Profiles waiting for more time, as a row above the tiles. Main account's own
+        /// household only, and only when the fetched list already says someone asked.
+        /// Fetched when the picker is drawn, never from checkRoute. The server decides what
+        /// is pending and how much of the day's four hours is left. A row is a real button;
+        /// opening it asks for the main PIN.
         showTimeRequests: function (overlay, profiles, localMasterId) {
             const box = overlay.querySelector('#profiles-time-requests');
             if (!box || !localMasterId) return;
@@ -7045,8 +7017,8 @@
                     row.addEventListener('click', () => {
                         if (this._switchLock) return;
                         this.withMainPin(profiles, () => {
-                            // The picker comes back behind the dialog, so cancelling it leaves
-                            // the profiles on screen and not the PIN screen.
+                            // The picker returns behind the dialog, so cancel leaves the profiles
+                            // on screen, not the PIN screen.
                             refresh();
                             this.answerTimeRequest(req, refresh);
                         });
@@ -7069,9 +7041,8 @@
                 .catch(() => { /* nothing waiting is the safe reading */ });
         },
 
-        /// How much more time for a request, or no. The main PIN was just entered. Amounts
-        /// stop at what is left of the day's four hours; with none left, no is the only
-        /// answer. The server holds the same line, so a stale screen cannot give past it.
+        /// How much more time for a request, or no. Amounts stop at what is left of the
+        /// day's four hours; the server holds the same line.
         answerTimeRequest: function (req, refresh) {
             const name = req.profileName;
             const left = typeof req.grantMinutesLeft === 'number' ? req.grantMinutesLeft : 0;
@@ -7101,16 +7072,10 @@
 
         /// The administrator's announcements, above the title.
         ///
-        /// Asked for once a minute at most: the gate re-renders on every switch into and
-        /// out of manage mode, and a message that changed thirty seconds ago can wait.
-        /// Never from checkRoute — only when the gate is drawn.
-        ///
-        /// Plain text only. The message is written into textContent, never innerHTML,
-        /// because it reaches every household on the server.
-        ///
-        /// An info announcement can be dismissed on this device. The key is the id and the
-        /// text together, so one the administrator rewrites shows again. Warning and
-        /// critical stay until they end.
+        /// Asked for once a minute at most, and never from checkRoute. Written with
+        /// textContent, never innerHTML: the message reaches every household. An info
+        /// announcement can be dismissed on this device; the key is id plus text, so a
+        /// rewritten one shows again. Warning and critical stay until they end.
         showAnnouncements: function (overlay) {
             const draw = (items) => {
                 const box = overlay.querySelector('#profiles-announcements');
@@ -7149,8 +7114,7 @@
                         close.addEventListener('click', () => {
                             this._dismissAnnouncement(a);
                             draw(items);
-                            // The button that held focus was redrawn away. Next one if there
-                            // is one, otherwise the first control of the screen (R-1198).
+                            // The focused button was redrawn away: next one, else the first control (R-1198).
                             const next = box.querySelector('.profiles-announcement-dismiss')
                                 || overlay.querySelector('.focusable, button');
                             if (next && typeof next.focus === 'function') next.focus();
@@ -7173,8 +7137,8 @@
             this._fetchStartup(token, 60000)
                 .then(body => body && body.announcements)
                 .then(items => {
-                    // A refusal or a body that is not a list is not remembered: cached as
-                    // [] it hid a critical notice for the next minute.
+                    // A refusal or non-list body is not cached: cached as [] it hid a critical
+                    // notice for a minute.
                     if (!Array.isArray(items)) { this._startupHeld = null; return; }
                     const list = items;
                     this._announcementCache = { at: Date.now(), items: list };
@@ -7185,12 +7149,10 @@
 
         /// Closed for maintenance: say so, once per page load.
         ///
-        /// Asked of /info, which needs no token, because the people it is for are the ones
-        /// who cannot sign in. On the sign-in screen and for an administrator it is a strip
-        /// across the top; for anyone else signed in it covers the page, since every request
-        /// they make is refused and the page behind would only show errors.
-        ///
-        /// Written with textContent: the message is the administrator's own words.
+        /// Asked of /info, which needs no token, because the people it is for cannot sign
+        /// in. A strip across the top on the sign-in screen and for an administrator; a
+        /// cover over the page for anyone else, since their requests are all refused.
+        /// Written with textContent.
         checkMaintenance: function () {
             this.serverInfo()
                 .then(info => {
@@ -7201,14 +7163,11 @@
                 .catch(() => { /* unknown: say nothing */ });
         },
 
-        /// How the notice should look to whoever is on this page now: nobody signed in or an
-        /// administrator gets a strip, anyone else a cover. Asked again by the notice's own
-        /// timer, because the page is not reloaded by signing in or out (R-1209).
-        ///
-        /// Someone whose account cannot be read (offline, a bad token) is `unknown` and gets
-        /// the strip, never the cover: the cover locks the page, and locking an administrator
-        /// out of it over a failed request is worse than a notice that is too quiet. The
-        /// server refuses what it should whatever is drawn.
+        /// Strip for nobody signed in or an administrator, cover for anyone else. Asked
+        /// again by the notice's own timer, since signing in or out does not reload the
+        /// page (R-1209). An account that cannot be read (offline, bad token) is `unknown`
+        /// and gets the strip: locking an administrator out over a failed request is worse
+        /// than a quiet notice. The server refuses what it should regardless.
         _maintenanceView: function () {
             const userId = typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : null;
             if (!userId || typeof ApiClient.getCurrentUser !== 'function') {
@@ -7228,17 +7187,16 @@
             let back = '';
             if (until) {
                 const d = new Date(until);
-                // Only a time still to come: "Back by" an hour ago says the server is late.
+                // Only a future time: "Back by" an hour ago says the server is late.
                 if (!isNaN(d.getTime()) && d.getTime() > Date.now()) back = t('maintenance.backBy', { time: d.toLocaleString(activeLocale || [], { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) });
             }
 
             const box = document.createElement('div');
             box.id = 'profiles-maintenance';
-            // The cover is a trap surface. Without it, the focus trap hands focus back to the
-            // gate underneath, and a remote moves around profiles nobody can see.
+            // The cover is a trap surface; without it focus goes to the gate underneath.
             box.className = blocking ? 'profiles-maintenance is-blocking ' + this.TRAP_SURFACE_CLASS : 'profiles-maintenance';
             box.setAttribute('role', blocking ? 'alertdialog' : 'status');
-            // What it was drawn for, so a re-check can tell when who is looking has changed.
+            // What it was drawn for, so a re-check can see who is looking changed.
             box._maintenanceKey = (blocking ? 'cover' : 'strip') + (admin ? '-admin' : '');
 
             const inner = document.createElement('div');
@@ -7261,9 +7219,7 @@
                 inner.appendChild(when);
             }
 
-            // Asked again while the cover is up, on a timer the cover owns and stops when it
-            // closes. Never on checkRoute: that runs twice a second on every page, and this
-            // is needed only while a notice is showing.
+            // Timer owned by the cover, stopped when it closes. Never checkRoute.
             let status = null;
             if (blocking) {
                 const again = document.createElement('button');
@@ -7306,8 +7262,7 @@
         },
 
         /// Asks /info again, past the one-minute cache. Maintenance over takes the notice
-        /// down; an answer that cannot be read leaves it up, since "unknown" is not "open".
-        /// A cover is followed by a reload: everything behind it was refused while it was up.
+        /// down; an unreadable answer leaves it up. A cover is followed by a reload.
         _recheckMaintenance: function (box, blocking, status) {
             this._serverInfo = null;
             this.serverInfo().then(info => {
@@ -7315,8 +7270,7 @@
                 if (!info) return;
                 const still = info.maintenance || info.Maintenance;
                 if (still) {
-                    // Someone may have signed in or out since it was drawn. Redrawn for who
-                    // is here now, never taken down or downgraded on a failed account read.
+                    // Redrawn for whoever is here now, never taken down on a failed account read.
                     return this._maintenanceView().then(v => {
                         if (document.getElementById('profiles-maintenance') !== box) return;
                         const key = (v.blocking ? 'cover' : 'strip') + (v.admin ? '-admin' : '');
@@ -7357,34 +7311,25 @@
         _dismissAnnouncement: function (a) {
             const list = this._readDismissedAnnouncements();
             list.push(this._announcementKey(a));
-            // Fifty is the server's own limit, so nothing still showing is ever pushed out.
+            // Fifty is the server's own limit.
             try { localStorage.setItem('jpf-dismissed-announcements', JSON.stringify(list.slice(-50))); } catch (e) { /* private mode */ }
         },
 
-        /// Shrinks the profile tiles, only as far as needed, until the whole gate fits on
-        /// the screen without scrolling (issue #31).
+        /// Shrinks the profile tiles only as far as needed until the gate fits on screen
+        /// without scrolling (issue #31). Tiles were a fixed 280px on a television, so
+        /// four profiles on 1080p ran 247px past the bottom.
         ///
-        /// The tiles were a fixed size per device class — 280px on a television — so four
-        /// profiles on a 1080p set ran 247px past the bottom, and a remote had to scroll to
-        /// reach half the household. Two profiles still get the full size; more get smaller.
+        /// Measured, not calculated: tiles per row depend on names, linked sections,
+        /// manage mode and the theme's fonts. The tile size is a custom property; this
+        /// halves the gap between "fits" and "too big" a few times, reading the overlay's
+        /// scroll height. Runs only on draw and resize, never from checkRoute. Below the
+        /// floor it stops and lets the gate scroll.
         ///
-        /// Measured rather than calculated. How many tiles share a row depends on the names
-        /// under them, the sections a linked Bonfire adds, manage mode's extra controls and
-        /// the theme's fonts, and a formula would have to know all of that. Instead the
-        /// tile size is a custom property, and this halves the gap between "fits" and
-        /// "too big" a few times, reading the overlay's scroll height after each try. Only
-        /// ever runs when the gate is drawn or the window is resized — never on the route
-        /// poll, which is why it is not called from checkRoute.
-        ///
-        /// Below the floor it stops shrinking and lets the gate scroll: on a phone with
-        /// nine profiles, scrolling is better than tiles too small to read.
-        /// Evens out the rows of a grid: four tiles on a tablet drew three and then one alone.
-        /// The row length the width allows is read from the layout as it is; if the rows
-        /// that gives would differ by more than one tile, a zero-height break (a <span>, so
-        /// the avatar-ring :nth-of-type counting still sees only cards) is put after each
-        /// row of the even split: 4 = 2+2, 5 = 3+2, 10 = 4+3+3, longer rows first.
-        /// Run from fitGateToScreen, which already runs on every render and resize and
-        /// again for each tile size it tries; never from the route poll.
+        /// Evens out grid rows: four tiles on a tablet drew three and then one. If the
+        /// rows the width allows differ by more than one tile, a zero-height <span> break
+        /// (a span so avatar-ring :nth-of-type counting still sees only cards) goes after
+        /// each row of the even split: 4 = 2+2, 5 = 3+2, 10 = 4+3+3. Run from
+        /// fitGateToScreen.
         balanceGateRows: function (grid) {
             if (!grid || !grid.children || !grid.querySelectorAll) return;
             [].slice.call(grid.querySelectorAll('.jpf-row-break')).forEach((b) => { b.parentNode.removeChild(b); });
@@ -7397,16 +7342,14 @@
             while (per < n && Math.abs(cards[per].getBoundingClientRect().top - top0) < 2) per++;
             if (per >= n) return;
             const rows = Math.ceil(n / per);
-            if (n - (rows - 1) * per >= per - 1) return;       // already within one tile
+            if (n - (rows - 1) * per >= per - 1) return;       // within one tile
             const base = Math.floor(n / rows);
             const extra = n % rows;
-            // The line a break makes sits between two row gaps; one has to be taken back, or
-            // the rows it separates would be a gap further apart than the rest.
             let rowGap = parseFloat(getComputedStyle(grid).rowGap);
             if (!isFinite(rowGap)) rowGap = 0;
-            // A negative margin on the break itself does not work: a flex line cannot be
-            // shorter than nothing, so the rows came out two gaps apart. The tiles after
-            // the break take it instead, which shortens their line by the same amount.
+            // A break's line sits between two row gaps; one gap has to be taken back. A
+            // negative margin on the break fails (a flex line cannot be shorter than
+            // nothing; rows came out two gaps apart), so the tiles after it take it.
             let at = 0;
             for (let r = 0; r < rows - 1; r++) {
                 at += base + (r < extra ? 1 : 0);
@@ -7426,9 +7369,8 @@
             }
         },
 
-        /// A television rotating its UI, a desktop window being resized: fit again. Bound
-        /// once, and finds whatever gate is on screen when it fires: the picker, or the
-        /// setup step whose button row is pinned.
+        /// Fit again when a television rotates its UI or a window resizes. Bound once;
+        /// finds whichever gate is on screen (picker, or a setup step with a pinned row).
         _bindGateResize: function () {
             if (this._gateResizeBound || typeof window === 'undefined' || !window.addEventListener) return;
             this._gateResizeBound = true;
@@ -7445,13 +7387,11 @@
             });
         },
 
-        /// The row of buttons under a setup step that is taller than the screen (the theme
-        /// step: twelve cards) sticks to the bottom of it, drawn as the picker's row is
-        /// (.jpf-footer-stuck). The step's sheet is marked .jpf-step-tall, which lifts the
-        /// sheet's own 75vh cap, so the gate scrolls and not the sheet: a sticky row can only
-        /// stay on screen against the box that scrolls. Measured with the class off, so the
-        /// answer is the layout's and not the row's own padding; a step that fits keeps its
-        /// row in the flow. Run again on a resize and when the fonts are in.
+        /// The button row under a setup step taller than the screen (the twelve-card theme
+        /// step) sticks to the bottom like the picker's (.jpf-footer-stuck). The sheet is
+        /// marked .jpf-step-tall, lifting its 75vh cap so the gate scrolls, since a sticky
+        /// row only stays against the box that scrolls. Measured with the class off so the
+        /// answer is the layout's. Run again on resize and when fonts load.
         _pinSetupRow: function (overlay) {
             if (!overlay || !overlay.querySelector) return;
             this._bindGateResize();
@@ -7472,19 +7412,16 @@
             if (!overlay || !overlay.querySelector) return;
             this._bindGateResize();
 
-            // The class and the size go on the gate's own content, not on the overlay. The
-            // PIN, create and settings screens are drawn into the same overlay and share
-            // .profiles-title; a class left on the overlay would carry over to them. On the
-            // content it is replaced along with the markup it was measured for.
+            // Class and size go on the gate's content, not the overlay: PIN, create and
+            // settings screens share the overlay and .profiles-title.
             const grid = overlay.querySelector('.profiles-grid');
             const content = grid && grid.closest('.profiles-modal-content');
             if (!content) return;
             const fits = () => overlay.scrollHeight <= overlay.clientHeight + 1;
 
-            // Once more when the fonts this gate asked for have loaded: measured before, with
-            // the fallback's metrics, a list of four large profiles was fitted as fitting and
-            // then ran 3px off the screen. Once per drawn gate (the flag is on its content),
-            // and only while that gate is still the one on screen.
+            // Once more when fonts load: measured with fallback metrics, four large profiles
+            // fit and then ran 3px off screen. Once per drawn gate (flag on its content),
+            // and only while it is still on screen.
             if (!content._jpfFontRefit && typeof document !== 'undefined' && document.fonts && document.fonts.ready
                 && typeof document.fonts.ready.then === 'function') {
                 content._jpfFontRefit = true;
