@@ -20,20 +20,19 @@ namespace Jellyfin.Profiles.Auth
     /// <see cref="OutsideHours"/> or <see cref="LimitReached"/>. Browsing is never refused.
     ///
     /// <para><b>What is refused:</b> PlaybackInfo for a video, which is how every Jellyfin app
-    /// starts one, and a video stream of anything the profile is not already playing, which is
-    /// how an app that builds its own URL would. "Playing" is what this gate let start, kept
-    /// in <see cref="PlaybackRecord"/>; a session's own NowPlayingItem is the client's word
-    /// and proves nothing (R-1297). A stream of what is playing is let through
-    /// until the timer's grace is over (<see cref="ViewingTimer"/>), then refused too, for an
-    /// app that ignored the stop. Progress and stop reports always go through.</para>
+    /// starts one, and a video stream of anything the profile is not already playing, which is how
+    /// an app that builds its own URL would. "Playing" is what this gate let start, kept in
+    /// <see cref="PlaybackRecord"/>; a session's own NowPlayingItem is the client's word and proves
+    /// nothing (R-1297). A stream of what is playing is let through until the timer's grace is
+    /// over (<see cref="ViewingTimer"/>), then refused, for an app that ignored the stop. Progress
+    /// and stop reports always go through.</para>
     ///
-    /// <para><b>Cost:</b> one dictionary count on every request while no profile is limited.
-    /// Otherwise a path check, and a token lookup (remembered 30 seconds) only on the
-    /// requests above.</para>
+    /// <para><b>Cost:</b> one dictionary count per request while no profile is limited. Otherwise
+    /// a path check, and a token lookup (remembered 30 seconds) only on the requests above.</para>
     ///
-    /// <para><b>Not a security boundary</b>, for the same reason as
-    /// <see cref="MaintenanceGate"/>: an app that reports progress on an item it is not
-    /// playing can make that item "playing". It keeps an honest app to the household's rules.</para>
+    /// <para><b>Not a security boundary</b>, as with <see cref="MaintenanceGate"/>: an app that
+    /// reports progress on an item it is not playing can make that item "playing". It keeps an
+    /// honest app to the household's rules.</para>
     /// </summary>
     public static class ViewingGate
     {
@@ -62,8 +61,8 @@ namespace Jellyfin.Profiles.Auth
         internal static Kind Classify(string path)
         {
             if (string.IsNullOrEmpty(path)) return Kind.None;
-            // ASP.NET routes "/PlaybackInfo/" to the same action, and the endswith checks below
-            // did not: a trailing slash classified as None and walked past the gate (R-1020).
+            // ASP.NET routes "/PlaybackInfo/" to the same action but the endswith checks below
+            // did not, so a trailing slash classified as None and walked past the gate (R-1020).
             path = path.TrimEnd('/');
             var at = path.IndexOf("/Videos/", StringComparison.OrdinalIgnoreCase);
             if (at >= 0)
@@ -82,9 +81,9 @@ namespace Jellyfin.Profiles.Auth
             if (path.EndsWith("/PlaybackInfo", StringComparison.OrdinalIgnoreCase)
                 && path.Contains("/Items/", StringComparison.OrdinalIgnoreCase)) return Kind.PlaybackInfo;
             // Jellyfin serves the whole original file from these two, so a profile outside its
-            // hours could download a film and watch it offline; only /Videos and PlaybackInfo
-            // were gated before (R-1019, R-1296). Only an item's own two routes, with a real id:
-            // nothing an item page reads while browsing ends this way.
+            // hours could download a film and watch it offline; only /Videos and PlaybackInfo were
+            // gated (R-1019, R-1296). Only an item's own two routes, with a real id: nothing an
+            // item page reads while browsing ends this way.
             if ((path.EndsWith("/Download", StringComparison.OrdinalIgnoreCase)
                     || path.EndsWith("/File", StringComparison.OrdinalIgnoreCase))
                 && PlaybackInfoItem(path + "/") != null) return Kind.Download;
@@ -158,15 +157,15 @@ namespace Jellyfin.Profiles.Auth
                         && item.MediaType != Jellyfin.Data.Enums.MediaType.Unknown) return null;
                 }
 
-                // A player that changes the audio track, the subtitles or the quality asks for
-                // PlaybackInfo of the item it is already playing again. Refusing it ended a
-                // stream the grace is meant to let finish. Same rule as the stream itself.
+                // A player that changes audio track, subtitles or quality asks for PlaybackInfo of
+                // the item it is already playing. Refusing that ended a stream the grace is meant
+                // to let finish. Same rule as the stream itself.
                 if (kind == Kind.PlaybackInfo && id != null && PlaybackRecord.Has(userId, id.Value))
                 {
                     DateTime? playGrace;
                     lock (ViewingTracker.UsageLock) playGrace = ViewingTracker.EntryFor(userId).GraceEndsUtc;
-                    // Only inside a grace that was actually set: with none, there is nothing to
-                    // finish, and the record would be renewed by every request it let through.
+                    // Only inside a grace that was set: with none there is nothing to finish, and
+                    // every request let through would renew the record.
                     if (playGrace.HasValue && nowUtc < playGrace.Value.AddMinutes(1)) return null;
                 }
             }
@@ -188,9 +187,9 @@ namespace Jellyfin.Profiles.Auth
             var request = context.Request;
             var path = request.Path.Value ?? string.Empty;
 
-            // The whole cost while nobody is limited, except a PlaybackInfo: that is noted so
-            // "already playing" means something when a limit or maintenance starts later
-            // (see PlaybackRecord). Once per playback, not per segment.
+            // The whole cost while nobody is limited, except a PlaybackInfo: noted so "already
+            // playing" means something when a limit or maintenance starts later (see
+            // PlaybackRecord). Once per playback, not per segment.
             var limitsActive = ViewingTracker.Index().Count > 0;
             var kind = limitsActive ? Classify(path) : (Classify(path) == Kind.PlaybackInfo ? Kind.PlaybackInfo : Kind.None);
             if (kind == Kind.None) return false;
@@ -227,8 +226,9 @@ namespace Jellyfin.Profiles.Auth
             }
             catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
             {
-                // Fails CLOSED (r2-17-02): a check that broke must not let a limited child past
-                // the rule. MaintenanceGate and ProxySwitcher fail open, where a break only costs a rule.
+                // Fails CLOSED (r2-17-02): a broken check must not let a limited child past the
+                // rule. MaintenanceGate and ProxySwitcher fail open, where a break only costs a
+                // rule.
                 logger.LogError(ex, "ProfilesPlugin: the viewing-hours check failed for {Path}; refusing it.", path);
                 var response = context.Response;
                 response.StatusCode = StatusCodes.Status403Forbidden;
@@ -254,9 +254,9 @@ namespace Jellyfin.Profiles.Auth
                 if (seconds > 0) response.Headers[HeaderNames.RetryAfter] = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
             // Swiftfin ignores DisplayMessage and Roku shows none, so on those apps this body is
-            // the only explanation a child gets, if the app shows the error text at all. Fix
-            // first, then the reason. English only: the language the rules were saved in is not
-            // known here, and an app that shows this text is not one Bonfire can localise.
+            // the only explanation a child gets, if the app shows the error text at all. Fix first,
+            // then the reason. English only: the saved language is not known here, and Bonfire
+            // cannot localize an app that shows this text.
             var text = code == LimitReached
                 ? "Ask a parent for more time, or try again tomorrow. The daily viewing limit is reached."
                 : "Ask a parent, or try again when viewing hours open. It is outside viewing hours.";

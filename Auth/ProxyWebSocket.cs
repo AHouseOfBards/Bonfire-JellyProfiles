@@ -15,11 +15,10 @@ namespace Jellyfin.Profiles.Auth
     /// can close it on a switch and rewrite what the server sends down it.
     ///
     /// <para><b>Why our own handshake.</b> ASP.NET's <c>WebSocketMiddleware</c> installs its
-    /// <see cref="IHttpWebSocketFeature"/> only when none is set, and it runs after us: we
-    /// are at the very front of the pipeline (see <c>ProfilesStartupFilter</c>). So the only
-    /// way to get hold of the socket Jellyfin will use is to be the feature that makes it.
-    /// The handshake is RFC 6455 section 4.2.2 and nothing more: no compression, which
-    /// Jellyfin does not ask for.</para>
+    /// <see cref="IHttpWebSocketFeature"/> only when none is set, and it runs after us (we are at
+    /// the front of the pipeline, see <c>ProfilesStartupFilter</c>). The only way to hold the
+    /// socket Jellyfin will use is to be the feature that makes it. The handshake is RFC 6455
+    /// section 4.2.2 only, with no compression, which Jellyfin does not ask for.</para>
     /// </summary>
     internal sealed class ProxyWebSocketFeature : IHttpWebSocketFeature
     {
@@ -88,9 +87,9 @@ namespace Jellyfin.Profiles.Auth
     }
 
     /// <summary>
-    /// A server socket that passes everything through, except that each text message it
-    /// sends goes through <see cref="_rewrite"/> first. Used to show the app its main
-    /// account's id where the server wrote the profile's — see <see cref="ProxySwitcher"/>.
+    /// A server socket that passes everything through, except that each text message it sends
+    /// goes through <see cref="_rewrite"/> first. Shows the app its main account's id where the
+    /// server wrote the profile's (<see cref="ProxySwitcher"/>).
     /// </summary>
     internal sealed class RewritingWebSocket : WebSocket
     {
@@ -148,8 +147,8 @@ namespace Jellyfin.Profiles.Auth
         private async ValueTask SendCoreAsync(ReadOnlyMemory<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
         {
             // Every send takes the lock, binary included: the framework allows one send in
-            // flight and throws on a second, and a binary frame sent while a text message was
-            // being rewritten used to be exactly that second one (r2-05-04).
+            // flight and throws on a second, and a binary frame sent during a text rewrite was
+            // that second one (r2-05-04).
             await _send.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {

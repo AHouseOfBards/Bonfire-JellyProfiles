@@ -10,30 +10,28 @@ namespace Jellyfin.Profiles.Auth
     /// <summary>
     /// Decides what access schedule a profile's account gets at a sign-in (R-1345).
     ///
-    /// <para>Bonfire used to write the main account's schedule over the profile's at every
-    /// sign-in, so a narrower one an administrator set in Dashboard -> Users was lost. The
-    /// fix is the one used for libraries (R-1042): the mapping records what Bonfire last
-    /// wrote (<c>LastAppliedSchedules</c>). An account that still matches the record has not
-    /// been touched; one that differs was changed by an administrator, and that is adopted
-    /// as the profile's own (<c>OwnSchedules</c>). The own copy is needed because Bonfire's
-    /// next write would otherwise be mistaken for the main account's.</para>
+    /// <para>Bonfire wrote the main account's schedule over the profile's at every sign-in, so a
+    /// narrower one an administrator set in Dashboard -> Users was lost. The fix is the one used
+    /// for libraries (R-1042): the mapping records what Bonfire last wrote
+    /// (<c>LastAppliedSchedules</c>). An account that matches the record is untouched; one that
+    /// differs was changed by an administrator and is adopted as the profile's own
+    /// (<c>OwnSchedules</c>). The own copy is needed because Bonfire's next write would
+    /// otherwise be mistaken for the main account's.</para>
     ///
-    /// <para><b>Never wider than the main account's.</b> A schedule lists the hours a
-    /// profile may watch; none means always. The adopted hours are cut down to those inside
-    /// the main account's, and a main account with none leaves them as they are. If nothing
-    /// is left after the cut, the main account's own hours are used: an empty list would
-    /// read as "always".</para>
+    /// <para><b>Never wider than the main account's.</b> A schedule lists the hours a profile may
+    /// watch; none means always. Adopted hours are cut down to those inside the main account's,
+    /// and a main account with none leaves them as they are. If nothing is left after the cut,
+    /// the main account's hours are used, since an empty list would read as "always".</para>
     ///
-    /// <para><b>A reset is repaired, not adopted.</b> Jellyfin's default is no schedule, so
-    /// an account that was emptied when the record says it had hours looks like a reset and
-    /// is written back. The cost is that an administrator cannot clear a profile's schedule
-    /// here; they clear it in the profile's own settings or the main account's.</para>
+    /// <para><b>A reset is repaired, not adopted.</b> Jellyfin's default is no schedule, so an
+    /// account emptied when the record says it had hours looks like a reset and is written back.
+    /// The cost: an administrator cannot clear a profile's schedule here, only in the profile's
+    /// own settings or the main account's.</para>
     ///
-    /// <para>No record (a configuration from before this) is today's rule once: the main
-    /// account's hours, then recorded. XmlSerializer hands back an empty list, not null, for an
-    /// element that is absent from the file (as it does for the libraries' record), so an
-    /// empty list is "no record" and "the main account had no hours" is recorded as
-    /// <see cref="NoneMarker"/>.</para>
+    /// <para>No record (older configuration) applies today's rule once: the main account's hours,
+    /// then recorded. XmlSerializer returns an empty list, not null, for an element absent from
+    /// the file (as for the libraries' record), so an empty list means "no record" and "the main
+    /// account had no hours" is recorded as <see cref="NoneMarker"/>.</para>
     /// </summary>
     internal static class ScheduleReconciler
     {
@@ -120,8 +118,8 @@ namespace Jellyfin.Profiles.Auth
                     if (end <= start) continue;
                     var days = Days(o.Day).Intersect(Days(m.Day)).ToList();
                     if (days.Count == 0) continue;
-                    // Keep the label when both rows name the same days, so a result that
-                    // changed nothing is not rewritten as seven rows.
+                    // Keep the label when both rows name the same days, so an unchanged result is
+                    // not rewritten as seven rows.
                     if (o.Day == m.Day) result.Add(new Window(o.Day, start, end));
                     else foreach (var d in days) result.Add(new Window((DynamicDayOfWeek)d, start, end));
                 }
@@ -144,8 +142,8 @@ namespace Jellyfin.Profiles.Auth
             if (recorded != null && !SameSet(accountKeys, recorded)
                 && accountKeys.Count > 0)
             {
-                // Somebody changed it. (Emptied is the shape of a reset, handled by keeping
-                // the own hours as they were.)
+                // Somebody changed it. (Emptied looks like a reset, handled by keeping the own
+                // hours as they were.)
                 ownKeys = accountKeys;
             }
 

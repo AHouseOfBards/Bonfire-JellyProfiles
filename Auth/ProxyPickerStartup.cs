@@ -10,12 +10,11 @@ namespace Jellyfin.Profiles.Auth
 {
     /// <summary>
     /// At server start, ends the profile sessions the picker made before the last stop
-    /// (<see cref="PickerMarks.SweepAsync"/>). Jellyfin tokens do not expire, and the picker
-    /// forgets a profile's session when the server restarts, so nothing else would ever sign
-    /// them out.
+    /// (<see cref="PickerMarks.SweepAsync"/>). Jellyfin tokens do not expire and the picker
+    /// forgets a profile's session on restart, so nothing else would sign them out.
     ///
-    /// <para>Run a little after start rather than in it, and never the reason the server does
-    /// not start: the managers are asked for here, not injected, as the session listener does.</para>
+    /// <para>Runs a little after start, never the reason the server does not start. The managers
+    /// are asked for here, not injected, as in the session listener.</para>
     /// </summary>
     public sealed class ProxyPickerStartup : IHostedService
     {
@@ -31,10 +30,10 @@ namespace Jellyfin.Profiles.Auth
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            // The wait used StartAsync's token, which only covers starting up: a restart inside
-            // those twenty seconds left the old copy to wake up and sweep with the old host's
-            // disposed managers (Campground-Coordination #33). BackgroundWork's token is
-            // cancelled when the server stops.
+            // The wait used StartAsync's token, which covers only startup: a restart inside those
+            // twenty seconds left the old copy to wake and sweep with the old host's disposed
+            // managers (Campground-Coordination #33). BackgroundWork's token is cancelled when
+            // the server stops.
             _ = Configuration.BackgroundWork.Run(async stopping =>
             {
                 try

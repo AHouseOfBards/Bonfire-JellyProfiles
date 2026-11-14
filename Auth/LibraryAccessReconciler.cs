@@ -5,80 +5,61 @@ using System.Linq;
 namespace Jellyfin.Profiles.Auth
 {
     /// <summary>
-    /// Decides which libraries a profile should have when the profile's own stored list and
-    /// the Jellyfin account's current list disagree.
+    /// Decides which libraries a profile gets when its stored list and the account's list disagree.
     ///
-    /// <para><b>Issue #30.</b> A profile keeps its own copy of its enabled folders, and the
-    /// switch path re-applied that copy unconditionally. So granting a profile a new library
-    /// the normal way — Dashboard → Users, tick the box — was silently undone the next time
-    /// somebody entered the profile. The write was real and had persisted;
-    /// <c>GET /Users/{id}</c> agreed, the view appeared, it survived a refresh. Entering the
-    /// profile put it back.</para>
+    /// <para><b>Issue #30.</b> The switch path re-applied the profile's stored copy of its folders
+    /// unconditionally, so a library granted in Dashboard → Users was undone the next time anyone
+    /// entered the profile. The write persisted and <c>GET /Users/{id}</c> agreed; entering the
+    /// profile put the old list back. Nothing errored and polling an idle server showed a stable
+    /// policy, which ruled out scheduled tasks. The trigger is a person using the feature.</para>
     ///
-    /// <para>It read as "my save did not take" rather than "something overwrote this",
-    /// because the value it reverted to looked like a deliberate setting — it had been one,
-    /// once. Nothing errored, Jellyfin does not log policy writes at all, and polling the
-    /// policy with nobody using the server showed it perfectly stable, which ruled out a
-    /// scheduled task and made every background job look innocent. The mutation is
-    /// event-driven and the event is a person using the feature.</para>
+    /// <para><b>Why the stored copy cannot simply lose.</b> A reset policy looks the same as an
+    /// account that differs, and healing resets is why the stored copy exists.</para>
     ///
-    /// <para><b>Why the stored copy cannot simply lose.</b> Preferring the account's list
-    /// whenever the two differ is the obvious fix and it is wrong, because that is also what
-    /// a reset policy looks like — and healing those is the entire reason the stored copy
-    /// exists.</para>
-    ///
-    /// <para><b>What separates them is direction.</b> A reset can only lose grants; it cannot
-    /// invent one. So:</para>
+    /// <para><b>Direction separates them.</b> A reset can only lose grants, never invent one:</para>
     ///
     /// <list type="bullet">
-    /// <item><description>A folder the <b>account has and the profile does not</b> can only
-    /// have been granted by somebody, so it is adopted into the profile.</description></item>
-    /// <item><description>A folder the <b>profile has and the account does not</b> is
-    /// ambiguous — a revocation or a reset, indistinguishable — so the profile's list still
-    /// wins and the healing behaviour is unchanged.</description></item>
+    /// <item><description>A folder the <b>account has and the profile does not</b> was granted by
+    /// somebody, so it is adopted.</description></item>
+    /// <item><description>A folder the <b>profile has and the account does not</b> could be a
+    /// revocation or a reset, so the profile's list wins.</description></item>
     /// </list>
     ///
-    /// <para>The cost of that asymmetry was that removing a library in Dashboard → Users did
-    /// not stick: it came back at the next sign-in (R-1042). <see cref="Reconcile"/> still
-    /// works that way, and is what a profile from an older configuration gets once.</para>
+    /// <para>The cost: removing a library in Dashboard → Users did not stick (R-1042).
+    /// <see cref="Reconcile"/> still works this way, and is what an older configuration gets
+    /// once.</para>
     ///
-    /// <para><b>R-1042, Logan's decision.</b> Bonfire now records the list it last wrote to
-    /// the account (<c>ProfileMapping.LastAppliedFolders</c>), the way
-    /// <see cref="InheritedLimits"/> records the limits. With that record the ambiguity is
-    /// gone: an account that still matches it has not been touched, and one that differs
-    /// was changed by somebody, so the change is adopted in both directions — see
+    /// <para><b>R-1042.</b> Bonfire now records the list it last wrote
+    /// (<c>ProfileMapping.LastAppliedFolders</c>), as <see cref="InheritedLimits"/> does for
+    /// limits. An account that matches the record is untouched; one that differs was changed by
+    /// somebody, and the change is adopted in both directions. See
     /// <see cref="ReconcileWithLastApplied"/>.</para>
     ///
-    /// <para>Pure and static so it can be driven directly by a harness: every case below is
-    /// a list comparison, and the controller it serves needs six injected services to
-    /// reach.</para>
+    /// <para>Pure and static so a harness can drive it directly.</para>
     /// </summary>
     public static class LibraryAccessReconciler
     {
-        /// <summary>
-        /// The outcome of comparing a profile's stored library list with the account's.
-        /// </summary>
+        /// <summary>The result of comparing a profile's stored list with the account's.</summary>
         public sealed class Reconciliation
         {
             /// <summary>The list to apply to the account.</summary>
             public List<Guid> Authority { get; init; } = new();
 
             /// <summary>
-            /// Folders the account had that the profile did not, now adopted. Non-empty means
-            /// somebody granted a library outside the plugin.
+            /// Folders the account had that the profile did not, now adopted. Non-empty means somebody
+            /// granted a library outside the plugin.
             /// </summary>
             public List<Guid> Granted { get; init; } = new();
 
             /// <summary>
-            /// Folders the profile has that the account has lost. Not adopted — this is the
-            /// shape a reset takes — but worth saying out loud, because it is the case that
-            /// reads as a failed save.
+            /// Folders the profile has that the account lost. Not adopted, since a reset looks the same,
+            /// but reported because it reads as a failed save.
             /// </summary>
             public List<Guid> Missing { get; init; } = new();
 
             /// <summary>
-            /// Folders taken off the account since Bonfire last wrote it, now taken from the
-            /// profile too. Only ever set by <see cref="ReconcileWithLastApplied"/>.
+            /// Folders taken off the account since Bonfire last wrote it, now removed from the profile
+            /// too. Only set by <see cref="ReconcileWithLastApplied"/>.
             /// </summary>
             public List<Guid> Removed { get; init; } = new();
 
@@ -87,24 +68,20 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Reconciles a profile's stored list against the account's, knowing what Bonfire last
-        /// wrote there (R-1042).
+        /// Reconciles the stored list against the account's, using what Bonfire last wrote there
+        /// (R-1042).
         /// <list type="bullet">
-        /// <item><description><b>No record</b> (a configuration from before this): exactly
-        /// <see cref="Reconcile"/>, grants adopted and removals not.</description></item>
-        /// <item><description><b>The account is on "all libraries"</b>: the shape a reset
-        /// leaves, with no per-library list to read. The stored list is re-applied.</description></item>
-        /// <item><description><b>The account matches the record</b>: nobody touched it. The
-        /// stored list is re-applied, which is also what picks up a library the main account
-        /// gained since.</description></item>
-        /// <item><description><b>It differs</b>: somebody changed it in Dashboard → Users.
-        /// What they added joins the stored list and what they took away leaves it. Only the
-        /// difference from the record counts, so a stored library the account never carried
-        /// (one the main account lacks) is kept for when it gets it.</description></item>
+        /// <item><description><b>No record</b> (older configuration): same as <see cref="Reconcile"/>.</description></item>
+        /// <item><description><b>Account on "all libraries"</b>: a reset leaves this shape, with no
+        /// list to read. The stored list is re-applied.</description></item>
+        /// <item><description><b>Account matches the record</b>: untouched. The stored list is
+        /// re-applied, which also picks up libraries the main account gained.</description></item>
+        /// <item><description><b>It differs</b>: somebody changed it in Dashboard → Users. Additions
+        /// join the stored list and removals leave it. Only the difference from the record counts, so
+        /// a stored library the account never carried is kept for when it gets it.</description></item>
         /// </list>
-        /// A reset to an explicit empty list would read as "everything removed". That is the
-        /// direction that shows less, never more, and Jellyfin's default policy is "all
-        /// libraries", which is handled above.
+        /// A reset to an explicit empty list reads as "everything removed". That shows less, never
+        /// more, and Jellyfin's default is "all libraries", handled above.
         /// </summary>
         public static Reconciliation ReconcileWithLastApplied(
             IEnumerable<Guid>? stored,
@@ -137,28 +114,25 @@ namespace Jellyfin.Profiles.Auth
         private static List<Guid> Clean(IEnumerable<Guid>? ids) =>
             (ids ?? Enumerable.Empty<Guid>()).Where(id => id != Guid.Empty).Distinct().ToList();
 
-        /// <summary>
-        /// Reconciles a profile's stored list against the account's current one.
-        /// </summary>
+        /// <summary>Reconciles a profile's stored list against the account's current one.</summary>
         /// <param name="stored">
-        /// The profile's own list, from its mapping row. Never null here — a null stored list
-        /// means a profile that predates the field, which the caller migrates instead.
+        /// The profile's own list. Never null here: null means a profile that predates the field,
+        /// which the caller migrates.
         /// </param>
         /// <param name="accountCurrent">The account's live <c>Policy.EnabledFolders</c>.</param>
         /// <param name="accountEnableAllFolders">
-        /// The account's live <c>Policy.EnableAllFolders</c>. When set, nothing is adopted:
-        /// an all-libraries account carries an EMPTY <c>EnabledFolders</c> rather than a list
-        /// of everything, so there is no per-library grant to read, and it is the shape a
-        /// reset leaves behind. The switch path forces it back off regardless, because a
-        /// sub-profile that can see everything is not a profile.
+        /// The account's live <c>Policy.EnableAllFolders</c>. When set, nothing is adopted: an
+        /// all-libraries account has an empty <c>EnabledFolders</c>, so there is no grant to read, and
+        /// a reset leaves the same shape. The switch path forces it off regardless, because a
+        /// sub-profile that sees everything is not a profile.
         /// </param>
         public static Reconciliation Reconcile(
             IEnumerable<Guid>? stored,
             IEnumerable<Guid>? accountCurrent,
             bool accountEnableAllFolders)
         {
-            // Guid.Empty is what an unparseable folder id degrades to elsewhere in the
-            // plugin, and granting it would mean granting nothing under a real-looking name.
+            // Guid.Empty is what an unparseable folder id becomes elsewhere; granting it would
+            // grant nothing under a real-looking name.
             var storedList = (stored ?? Enumerable.Empty<Guid>())
                 .Where(id => id != Guid.Empty)
                 .Distinct()

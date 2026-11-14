@@ -9,14 +9,13 @@ namespace Jellyfin.Profiles.Auth
     /// The apps <see cref="ProxySwitcher"/> may serve, and which of them an administrator
     /// has ticked.
     ///
-    /// <para><b>Only apps we add.</b> Each entry is one we have read the source of and tried:
-    /// the picker is made of folders, and it only works on an app that opens a folder when
-    /// it is clicked and does not open it while scrolling past. An administrator typing in
-    /// a client name would get an app nobody has checked that on.</para>
+    /// <para><b>Only apps we add.</b> Each entry is one whose source we read and tried. The
+    /// picker is made of folders and only works on an app that opens a folder on click, not
+    /// while scrolling past. A client name typed by an administrator would be unchecked.</para>
     ///
-    /// <para><b>Matched on the client name the app sends.</b> That is client-supplied, and it
-    /// is fine here: a miss means the app behaves exactly as it does today, and a forged
-    /// match gets a forger the picker for an account they already hold the token of.</para>
+    /// <para><b>Matched on the client name the app sends.</b> It is client-supplied, which is
+    /// fine: a miss leaves the app as it is today, and a forged match gives a forger the picker
+    /// for an account whose token they already hold.</para>
     /// </summary>
     public static class ProxyClients
     {
@@ -26,9 +25,9 @@ namespace Jellyfin.Profiles.Auth
         /// <summary>
         /// Every app that can be ticked. Moonfin first, because we can test it.
         ///
-        /// <para>A stopgap per app: once an app supports Bonfire's own profile selector, its
-        /// entry is removed here and its checkbox from the dashboard in the same release.
-        /// A server that had it ticked loses the key through <see cref="Normalize"/>.</para>
+        /// <para>A stopgap per app: once an app supports Bonfire's own profile selector, its entry
+        /// and dashboard checkbox are removed in the same release. A server that had it ticked
+        /// loses the key through <see cref="Normalize"/>.</para>
         /// </summary>
         public static readonly IReadOnlyList<Entry> Catalogue = new[]
         {
@@ -57,9 +56,9 @@ namespace Jellyfin.Profiles.Auth
             => config?.ProxyClients != null && config.ProxyClients.Count > 0;
 
         /// <summary>
-        /// A cheap first look at a request's authorization headers: false when neither can
-        /// name a ticked app. A substring test, so it can say yes wrongly but never no wrongly;
-        /// the full parse follows only on a yes.
+        /// A cheap first look at the authorization headers: false when neither can name a ticked
+        /// app. A substring test, so a wrong yes is possible but never a wrong no; the full parse
+        /// follows only on a yes.
         /// </summary>
         public static bool MayBe(PluginConfiguration? config, string? authorization, string? embyAuthorization)
         {

@@ -7,21 +7,18 @@ namespace Jellyfin.Profiles.Auth
     /// <summary>
     /// PIN hashing and verification, in one place.
     /// <para>
-    /// This lived as protected members on <c>ProfilesBaseController</c> until the
-    /// authentication provider needed it too, and a provider is not a controller. The
-    /// alternative was a second implementation of a security primitive, which is how two
-    /// implementations drift and one of them stops being constant-time.
+    /// This lived on <c>ProfilesBaseController</c> until the authentication provider needed it
+    /// too. A second implementation of a security primitive is how two drift and one stops being
+    /// constant-time.
     /// </para>
     /// <para>
-    /// PINs are 4-8 digits, so the entire keyspace (10^4 - 10^8) is trivially enumerable
-    /// against a fast unsalted digest. Hashes are therefore PBKDF2-SHA256 with a per-PIN
-    /// random salt, stored as:
+    /// PINs are 4-8 digits, so the keyspace (10^4 - 10^8) is trivially enumerable against a fast
+    /// unsalted digest. Hashes are PBKDF2-SHA256 with a per-PIN random salt, stored as:
     /// </para>
     /// <code>pbkdf2.sha256$&lt;iterations&gt;$&lt;base64 salt&gt;$&lt;base64 hash&gt;</code>
     /// <para>
-    /// Hashes written before that change are bare 64-char SHA-256 hex. Those are still
-    /// accepted on verification and transparently re-hashed on the next successful entry,
-    /// so no existing PIN is invalidated.
+    /// Older hashes are bare 64-char SHA-256 hex. They still verify and are re-hashed on the
+    /// next successful entry, so no existing PIN is invalidated.
     /// </para>
     /// </summary>
     public static class PinHasher
@@ -67,10 +64,9 @@ namespace Jellyfin.Profiles.Auth
             => !string.IsNullOrEmpty(storedHash) && !storedHash.StartsWith(Prefix, StringComparison.Ordinal);
 
         /// <summary>
-        /// Constant-time comparison of a candidate PIN against a stored hash of either
-        /// format. An empty stored hash is <see cref="PinResult.NoMatch"/> — "no PIN set" is
-        /// a decision for the caller, and answering it here would let an empty PIN open a
-        /// profile that simply has none configured.
+        /// Constant-time comparison of a candidate PIN against a stored hash of either format.
+        /// An empty stored hash is <see cref="PinResult.NoMatch"/>: "no PIN set" is the caller's
+        /// decision, and answering it here would let an empty PIN open a profile with none.
         /// </summary>
         public static PinResult Verify(string? pin, string? storedHash)
         {
@@ -99,8 +95,8 @@ namespace Jellyfin.Profiles.Auth
             {
                 var salt = Convert.FromBase64String(parts[1]);
                 var expected = Convert.FromBase64String(parts[2]);
-                // An empty expected hash derives to an empty array, and two empty arrays
-                // compare equal: every PIN would match. Hash() never writes parts this short.
+                // An empty expected hash derives to an empty array, and two empty arrays compare
+                // equal, so every PIN would match. Hash() never writes parts this short.
                 if (salt.Length < MinSaltBytes || expected.Length < MinHashBytes) return PinResult.MalformedHash;
                 var actual = Rfc2898DeriveBytes.Pbkdf2(
                     Encoding.UTF8.GetBytes(pin), salt, iterations, HashAlgorithmName.SHA256, expected.Length);

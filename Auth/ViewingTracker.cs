@@ -15,13 +15,13 @@ namespace Jellyfin.Profiles.Auth
     /// (1.7.2). Kept in memory and written to <c>viewing_usage.json</c> every few minutes by
     /// <see cref="ViewingTimer"/>, so a restart loses at most that much.
     ///
-    /// <para><b>The rules are read from an index, not the configuration.</b> The gate runs on
-    /// every playback request; copying the configuration for each would cost more than the
-    /// request. The index is rebuilt at most every 30 seconds, and at once after Bonfire's own
-    /// routes change a rule or the household's zone (<see cref="Invalidate"/>).</para>
+    /// <para>The gate reads the rules from an index, not the configuration, because it runs on
+    /// every playback request and copying the configuration each time costs more than the
+    /// request. The index is rebuilt at most every 30 seconds, and at once when a rule or the
+    /// household's zone changes (<see cref="Invalidate"/>).</para>
     ///
-    /// <para>One static lock, <see cref="UsageLock"/>, for everything here, as
-    /// tests/cs/configlock requires of every lock in the plugin.</para>
+    /// <para>One static lock, <see cref="UsageLock"/>, covers everything here, as
+    /// tests/cs/configlock requires.</para>
     /// </summary>
     internal static class ViewingTracker
     {
@@ -39,9 +39,8 @@ namespace Jellyfin.Profiles.Auth
         internal static readonly TimeSpan AskQuiet = TimeSpan.FromMinutes(10);
 
         /// <summary>
-        /// The most more time one profile can be given in one household day: four hours. A fixed
-        /// limit, not a setting. The PIN holder is the only one who can give time, but a PIN
-        /// that is guessed, watched or lent is the case this is for: it caps what that gets.
+        /// The most more time one profile can be given in a household day: four hours. A fixed
+        /// limit, not a setting. It caps what a guessed, watched or lent PIN can grant.
         /// </summary>
         internal const int MaxDailyGrantMinutes = 240;
         /// <summary>A limited profile, as the gate and the timer need it.</summary>
@@ -85,8 +84,8 @@ namespace Jellyfin.Profiles.Auth
         private static Dictionary<Guid, Limited> _index = new();
         private static DateTime _indexUntil = DateTime.MinValue;
 
-        // Bumped by Invalidate. A rebuild that started before a bump read the rules before
-        // the save it was told about, so it may use what it built but must not stamp it fresh.
+        // Bumped by Invalidate. A rebuild that began before a bump may have read the rules
+        // before the save, so it may use what it built but must not mark it fresh.
         private static int _indexGeneration;
 
         /// <summary>For the harness: runs after a rebuild has read the rules and before it publishes them.</summary>
@@ -139,16 +138,14 @@ namespace Jellyfin.Profiles.Auth
             lock (UsageLock)
             {
                 _index = built;
-                // Not marked fresh if a rule was saved while this was being built: the next
-                // read rebuilds, instead of serving the old rules for the rest of the 30 seconds.
+                // Not fresh if a rule was saved mid-build, so the next read rebuilds.
                 current = generation == _indexGeneration;
                 _indexUntil = current ? now + IndexLife : DateTime.MinValue;
                 result = _index;
             }
 
-            // A rebuild that raced a save may have read the rules before it, so only a current one
-            // is published. Never before the configuration is loaded: that set would be empty, and
-            // would replace the one Bonfire last wrote down.
+            // Only a current rebuild is published. Never before the configuration is loaded:
+            // the set would be empty and replace the one last written.
             if (current && Plugin.Instance?.Configuration != null) PublishLimited(built.Keys);
             return result;
         }
@@ -156,9 +153,8 @@ namespace Jellyfin.Profiles.Auth
         private static string? _publishedKey;
         private static int _saidPublishFailed;
 
-        // Everyone in the index is refused with limits_unavailable by Campground.Shared when
-        // Bonfire does not answer. Written only when the set changed, so the 30-second rebuild
-        // does no file work. Never throws.
+        // Campground.Shared refuses everyone in the index with limits_unavailable when Bonfire
+        // does not answer. Written only when the set changed. Never throws.
         private static void PublishLimited(IEnumerable<Guid> ids)
         {
             try
@@ -413,8 +409,8 @@ namespace Jellyfin.Profiles.Auth
             }
             catch (Exception ex) when (ex is IOException || ex is JsonException || ex is UnauthorizedAccessException)
             {
-                // A broken file is today's minutes lost, not a server that won't start. But said:
-                // with no line in the log a day of counted time just vanished.
+                // A broken file loses today's minutes but must not stop the server. Logged, or
+                // a day of counted time just vanishes.
                 Log?.LogWarning(ex, "ProfilesPlugin: {File} could not be read and was dropped; today's viewing time starts again from nothing.", path);
             }
         }
@@ -425,12 +421,11 @@ namespace Jellyfin.Profiles.Auth
             var path = FilePath();
             if (path == null) return;
 
-            // One save at a time, snapshot and write together. The snapshot used to be taken
-            // under UsageLock and written outside it, to a temp file every writer shared: two
-            // saves overlapping either collided on the temp file or left the older snapshot in
-            // the file, whichever write landed last (R-1022). The order is always SaveLock then
-            // UsageLock, never the reverse, and the gate only ever takes UsageLock, so a slow
-            // disk holds up the next save and nothing else.
+            // One save at a time, snapshot and write together. The snapshot was taken under
+            // UsageLock and written outside it, to a temp file all writers shared, so
+            // overlapping saves collided or left the older snapshot in the file (R-1022).
+            // Lock order is SaveLock then UsageLock. The gate only takes UsageLock, so a slow
+            // disk delays only the next save.
             lock (SaveLock)
             {
                 string json;
@@ -448,8 +443,8 @@ namespace Jellyfin.Profiles.Auth
                 {
                     BeforeWrite?.Invoke();
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    // A name of its own per write: a fixed one let two writes at once move
-                    // each other's bytes. A failed write removes its file.
+                    // A unique name per write: a fixed one let concurrent writes move each
+                    // other's bytes. A failed write removes its file.
                     temp = Controllers.ProfilesBaseController.UniqueTempName(path);
                     File.WriteAllText(temp, json);
                     Controllers.ProfilesBaseController.MoveIntoPlace(temp, path);
@@ -457,8 +452,8 @@ namespace Jellyfin.Profiles.Auth
                 catch (Exception ex)
                 {
                     try { if (temp != null) File.Delete(temp); } catch (Exception) { }
-                    // Any exception, not a list of two: Save is documented never to throw, and a bad
-                    // data path (NotSupported, Argument) is as much a failed write as a locked file.
+                    // Any exception: Save never throws, and a bad data path counts as a failed
+                    // write like a locked file.
                     logger?.LogWarning("ProfilesPlugin: couldn't save viewing time: {Reason}", ex.Message);
                     lock (UsageLock) _dirty = true;
                 }
