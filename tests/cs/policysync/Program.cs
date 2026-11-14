@@ -13,33 +13,30 @@ using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Users;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ProfilePolicySync.ApplyAsync, run for real (R-1286).
 //
-// This is the clamp behind "a profile never gets more than its main account". It runs
-// from the web switch and from every sign-in on every client, and until this harness no
-// test executed it: tests/cs/switchpolicy reads source text and replays the arithmetic on
-// local values. A clamp nobody runs can be deleted with every check still green.
+// This is the clamp behind "a profile never gets more than its main account". It runs from
+// the web switch and every sign-in on every client, and until this harness no test executed
+// it: tests/cs/switchpolicy reads source text and replays the arithmetic. A clamp nobody
+// runs can be deleted with every check still green.
 //
-// Here the real ApplyAsync is called against a modelled Jellyfin — a user manager that
-// stores each account's policy and records every write, and a library manager with three
-// libraries — and the policy it writes is read back. What it is held to:
-//
+// The real ApplyAsync runs against a modelled Jellyfin (a user manager that stores each
+// account's policy and records writes, a library manager with three libraries) and the
+// written policy is read back. Held to:
 //   - a profile can't gain a library, tag, rating or schedule its main account lacks;
 //   - what the main account lost, the profile loses;
 //   - where the profile was narrower, it stays narrower;
 //   - a main account's own row is never touched, and an account already right is not
 //     rewritten (this runs twice on every sign-in);
-//   - a library an administrator adds or removes in Dashboard -> Users stays that way,
-//     and a reset is still repaired (R-1042: removals used to come back, because the
-//     stored list won). Red against 6e74bac: 12 fail.
+//   - a library added or removed in Dashboard -> Users stays that way and a reset is still
+//     repaired (R-1042: removals used to come back, because the stored list won).
+//     Red against 6e74bac: 12 fail.
 //
-// Shown able to go red by deleting the line in ApplyCoreAsync that intersects the
-// profile's libraries with the main account's (`authorityFolders = authorityFolders
-// .Where(id => masterAccessible.Contains(id))`): the library assertions fail.
+// Shown red by deleting the line in ApplyCoreAsync that intersects the profile's libraries
+// with the main account's (`authorityFolders = authorityFolders.Where(id =>
+// masterAccessible.Contains(id))`): the library assertions fail.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();
@@ -77,8 +74,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-policysync-" + Guid.NewG
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var mappings = (IList)cfgType.GetProperty("Mappings").GetValue(config);
 
@@ -178,10 +175,9 @@ Console.WriteLine("── Libraries ──────────────�
 }
 
 // ── Libraries changed in Dashboard -> Users (R-1042) ────────────────────────
-// A library an administrator took off a profile's account came back at the next sign-in:
-// the stored list won, because a removal and a reset looked the same. Bonfire now records
-// what it last wrote, so a change on the account is adopted both ways and a reset is
-// still repaired.
+// A library an administrator took off a profile's account came back at the next sign-in,
+// because a removal and a reset looked the same. Bonfire now records what it last wrote, so
+// a change on the account is adopted both ways and a reset is still repaired.
 Console.WriteLine();
 Console.WriteLine("── Libraries changed in Dashboard -> Users (R-1042) ────────────");
 {
@@ -349,9 +345,9 @@ Console.WriteLine("── Rating ───────────────�
 }
 
 // A main account set to PG for an evening used to leave every profile at PG for good: the
-// profile's own rating was whatever was on its account, and that is mostly what Bonfire wrote
-// there last time (R-1045). Same fix as the five limits (InheritedLimits): remember what
-// Bonfire last wrote, and read a different value on the account as somebody's own choice.
+// profile's rating was whatever was on its account, mostly what Bonfire wrote last time
+// (R-1045). Same fix as InheritedLimits: remember what Bonfire last wrote, and read a
+// different value as somebody's own choice.
 Console.WriteLine();
 Console.WriteLine("── Rating, after the main account relaxes (R-1045) ─────────────");
 {
@@ -434,9 +430,8 @@ Console.WriteLine("── Schedules, limits and permissions ──────�
        w?.AccessSchedules?.Length == 1 && w.AccessSchedules[0].StartHour == 9 && w.AccessSchedules[0].EndHour == 17);
 
     // ── Hours changed in Dashboard -> Users (R-1345) ────────────────────────
-    // Every sign-in used to replace the profile's hours with its main account's, so a
-    // narrower schedule an administrator set on the profile was lost. Bonfire now records
-    // what it last wrote, the way it does for libraries.
+    // Every sign-in used to replace the profile's hours with its main account's, losing a
+    // narrower schedule set on the profile. Bonfire now records what it last wrote, as for libraries.
     Console.WriteLine("  -- hours changed in Dashboard -> Users (R-1345) --");
     var schedLast = mapType.GetProperty("LastAppliedSchedules");
     var schedOwn = mapType.GetProperty("OwnSchedules");
@@ -582,8 +577,8 @@ return 0;
 public class World
 {
     public Dictionary<Guid, User> Users = new();
-    // Each account's policy as Jellyfin holds it. GetUserDto hands out a copy, the way the
-    // real one builds a fresh DTO: a change only lands through UpdatePolicyAsync.
+    // Each account's policy as Jellyfin holds it. GetUserDto hands out a copy, as the real one
+    // builds a fresh DTO: a change only lands through UpdatePolicyAsync.
     public Dictionary<Guid, UserPolicy> Policies = new();
     public Dictionary<Guid, Guid> Masters = new();
     public List<Guid> Libraries = new();

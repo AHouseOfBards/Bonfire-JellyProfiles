@@ -48,7 +48,7 @@ var slow = System.Threading.Tasks.Task.Run(() => Verify("1234", "pbkdf2.sha256$2
 Ok("an absurd iteration count is refused at once", slow.Wait(5000) && slow.Result == "MalformedHash");
 Ok("zero iterations is malformed", Verify("1234", "pbkdf2.sha256$0$" + B(16) + "$" + B(32)) == "MalformedHash");
 
-// ── Added by the test audit: each of these was a break that stayed green ──────────────
+// Each of these breaks stayed green before the test audit.
 string Sha(string pin) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
     System.Text.Encoding.UTF8.GetBytes(pin))).ToLowerInvariant();
 bool IsLegacy(string h) => (bool)hasher.GetMethod("IsLegacy").Invoke(null, new object[] { h });
@@ -56,9 +56,9 @@ string Derive(string pin, int rounds, System.Security.Cryptography.HashAlgorithm
     Convert.ToBase64String(System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(
         System.Text.Encoding.UTF8.GetBytes(pin), new byte[16], rounds, alg, 32));
 
-// Legacy (pre-PBKDF2) hashes are still accepted, so they are still a way in: the compare
-// has to be a compare. Dropping the stored value from it, or answering Match for every
-// mismatch, would open every profile that had not been re-hashed yet.
+// Legacy (pre-PBKDF2) hashes are still accepted, so the compare has to be a real compare.
+// Dropping the stored value, or answering Match for every mismatch, would open every
+// profile not yet re-hashed.
 var legacy = Sha("1234");
 Ok("a legacy hash matches its own PIN", Verify("1234", legacy) == "Match");
 Ok("a legacy hash rejects a wrong PIN", Verify("9999", legacy) == "NoMatch");

@@ -21,22 +21,18 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// Drives ProfilesIndexMiddleware through a real ASP.NET request, which nothing has ever
-// done outside a live server. This is the path that produces /web/index.html for every
-// user of the plugin: if it writes the wrong thing, nobody's Jellyfin loads at all.
+// Drives ProfilesIndexMiddleware through a real ASP.NET request. This is the path that
+// produces /web/index.html for every user: if it writes the wrong thing, Jellyfin does not load.
 //
-// From 1.4.4 the middleware buffers the downstream response instead of answering the
-// request itself, so that jellyfin-plugin-file-transformation — which swaps the static
-// file providers underneath us — still gets to produce the document we then edit. Most of
-// what follows is about that: the capture has to survive SendFileAsync, a PipeWriter, and
-// another plugin's markup, and it has to hand back anything it cannot transform exactly
-// as it arrived.
+// From 1.4.4 the middleware buffers the downstream response instead of answering itself, so
+// jellyfin-plugin-file-transformation (which swaps the static file providers underneath us)
+// still produces the document we edit. The capture has to survive SendFileAsync, a PipeWriter
+// and another plugin's markup, and hand back anything it cannot transform exactly as it came.
 //
-// From 2.0 the document is edited by the Campground coordinator (Campground.Shared), which
-// sits inside ProfilesIndexMiddleware. So Run() does not construct either middleware: it asks
-// the plugin's own PluginServiceRegistrator what to register, and composes the startup
-// filters exactly as ASP.NET's GenericWebHostService does (last registered innermost). The
-// order the two are in, and that each is in at all, is then under test with everything else.
+// From 2.0 the Campground coordinator (Campground.Shared) edits the document from inside
+// ProfilesIndexMiddleware. So Run() constructs neither middleware: it asks the plugin's
+// PluginServiceRegistrator what to register and composes the startup filters as ASP.NET's
+// GenericWebHostService does (last registered innermost).
 
 int pass = 0;
 var fails = new List<string>();
@@ -81,11 +77,10 @@ var indexFile = Path.Combine(tempDir, "index.html");
 await File.WriteAllTextAsync(indexFile, PlainIndex);
 
 // ── Harness ────────────────────────────────────────────────────────────────
-// What Jellyfin's host would have: the plugin's registrations, plus the services the
+// What Jellyfin's host would have: the plugin's registrations plus the services the
 // middlewares take per request. The user-list injection takes the user, device, session and
-// network managers; the index path this file exercises never touches them, and the proxies
-// throw on any call — so if that ever stops being true, these tests say so loudly instead of
-// quietly exercising a different path.
+// network managers; the index path never touches them, and the proxies throw on any call,
+// so a change in that shows up here.
 var services = new ServiceCollection();
 new PluginServiceRegistrator().RegisterServices(services, appHost);
 services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
@@ -380,14 +375,10 @@ Check("passing an already-injected page through clears it too", LastError() == n
 Console.WriteLine();
 Console.WriteLine("── Which requests this middleware answers itself ──────────────");
 
-// The middleware now intercepts three paths besides the index document, and each is
-// matched by a private predicate. Those predicates had no coverage at all while the
-// functions on either side of them had eighty-odd assertions between them — which is the
-// shape of every defect this project has shipped: the code that DECIDES whether a feature
-// runs is the code nobody tests.
-//
-// Driven by reflection because they are private, and with a real DefaultHttpContext so
-// the path and method are read the way a request presents them.
+// The middleware intercepts three paths besides the index document, each matched by a
+// private predicate. These had no coverage while the functions around them had eighty-odd
+// assertions: the code that decides whether a feature runs is the code nobody tests.
+// Driven by reflection (they are private) with a real DefaultHttpContext.
 var mwType = typeof(ProfilesIndexMiddleware);
 const System.Reflection.BindingFlags Priv =
     System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
@@ -421,11 +412,10 @@ Check("and not a path that merely starts the same way",
 Check("and not another verb entirely",
       !Ask("IsQuickConnectInitiatePath", "DELETE", "/QuickConnect/Initiate"));
 
-// The device id is captured for the provider to read during authentication, and ONLY on
-// user routes. The first version captured on every request, which put a quote-aware
-// character scan with a UrlDecode in front of every video segment and image on the server.
-// Too narrow is worse than too wide here: a missed capture makes the provider see no
-// device and refuse a PIN-less profile, silently.
+// The device id is captured for the provider to read during authentication, and only on
+// user routes. The first version captured on every request, which put a UrlDecode scan in
+// front of every video segment and image. Too narrow is worse: a missed capture makes the
+// provider see no device and refuse a PIN-less profile, silently.
 Check("the capture predicate exists", mwType.GetMethod("IsUserRoute", Priv) != null);
 
 Check("POST /Users/AuthenticateByName is captured for",
@@ -447,10 +437,8 @@ Check("an audio stream is not", !Ask("IsUserRoute", "GET", "/Audio/8e3cdfa5/univ
 Check("and the plugin's own script is not",
       !Ask("IsUserRoute", "GET", "/plugins/profiles/profiles.js"));
 
-// The own-user responses are gated on the setting, and with no plugin configured at all
-// there is nothing to rename — so every answer here must be false. That is worth pinning
-// on its own: a predicate that said yes with no configuration would buffer every
-// /Users/Me on the server for nothing.
+// The own-user responses are gated on the setting, and with no plugin configured every
+// answer must be false. A predicate that said yes would buffer every /Users/Me for nothing.
 Check("with no configuration, /Users/Me is not ours",
       !Ask("IsOwnUserPath", "GET", "/Users/Me"));
 Check("nor is the authentication endpoint",
@@ -459,31 +447,24 @@ Check("nor is the authentication endpoint",
 Console.WriteLine();
 Console.WriteLine("── The emergency disable reaches all of it ────────────────────");
 
-// Panic exists to recover a server the plugin has made unusable, and it used to have one
-// job: serve an inert client script, so the switcher disappears on the next page load.
-//
-// That was enough while everything Bonfire did happened in its own script. It is not
-// enough now: the plugin edits Jellyfin's OWN responses — the sign-in user list, the two
-// responses naming the signed-in account, and Quick Connect. If one of those is the thing
-// misbehaving, an inert script recovers nothing, and the switch an administrator reaches
-// for in an emergency would not turn it off.
+// Panic used to do one thing: serve an inert client script, so the switcher disappears on
+// the next page load. That is not enough now that the plugin edits Jellyfin's own responses
+// (the sign-in user list, the two responses naming the signed-in account, Quick Connect).
+// If one of those misbehaves, an inert script recovers nothing.
 var panicField = typeof(Plugin).GetField("_panicDisabled",
     System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
 Check("the panic flag is reachable", panicField != null);
 
 if (panicField != null)
 {
-    // Set directly rather than through TripPanicDisable, which by design has no way back —
-    // "there is no code path that clears it". A harness is not a code path, but it does
-    // have to leave the process as it found it.
+    // Set directly, not through TripPanicDisable, which has no way back. The harness has to
+    // leave the process as it found it.
     panicField.SetValue(null, true);
     try
     {
-        // Only Quick Connect is asserted here. The other two predicates also require
-        // EnableClientProfileList, and this harness has no plugin instance to switch it on
-        // with — so they read false whether panic works or not, which is an assertion that
-        // cannot fail. They live in tests/cs/publicusers, where the setting can be true and
-        // panic is the only thing left making the difference.
+        // Only Quick Connect is asserted here. The other two predicates also need
+        // EnableClientProfileList, which this harness cannot switch on, so they read false either
+        // way. They live in tests/cs/publicusers, where panic is the only thing left deciding.
         Check("panic stops refusing Quick Connect",
               !Ask("IsQuickConnectInitiatePath", "POST", "/QuickConnect/Initiate"));
     }
@@ -503,12 +484,11 @@ var servedProp = typeof(ProfilesIndexMiddleware)
     .GetProperty("ServedCountValue", System.Reflection.BindingFlags.Static
         | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
 var served = (long)servedProp.GetValue(null);
-// Seven documents were actually rewritten above: SendFile, Response.Body, PipeWriter, the
-// file-transformation one, the one carrying a second plugin's script, the conditional
-// request, and the success that clears the last error. The 404, the JSON, the encoded
-// body, the 304, the already-injected documents, the two that cannot be injected into,
-// /web/main.js and the POST must not count — the dashboard reports this number as "pages
-// served". It is the coordinator's count, read through the property the dashboard reads.
+// Seven documents were rewritten above: SendFile, Response.Body, PipeWriter, the
+// file-transformation one, the one with a second plugin's script, the conditional request,
+// and the success that clears the last error. The 404, the JSON, the encoded body, the 304,
+// the already-injected documents, the two that cannot be injected into, /web/main.js and the
+// POST must not count: the dashboard shows this as "pages served", read through its own property.
 Check("served count is one per document actually rewritten (got " + served + ")", served == 7);
 
 // ni-S-B1: with Bonfire off nothing of Bonfire's goes into index.html; on, it does. (The
@@ -574,10 +554,10 @@ static string ScriptVersionNow() =>
 Console.WriteLine();
 Console.WriteLine("── HTTPS required (R-1094) ─────────────────────────────────────");
 
-// Jellyfin redirects to HTTPS only when RequireHttps is set AND it is itself listening with
+// Jellyfin redirects to HTTPS only when RequireHttps is set and it is itself listening with
 // HTTPS (Startup.cs: config.RequireHttps && ListenWithHttps). This middleware runs before
-// forwarded headers are applied, so behind a TLS-terminating proxy IsHttps is false on
-// every request; stepping aside on RequireHttps alone meant nothing was ever injected.
+// forwarded headers are applied, so behind a TLS-terminating proxy IsHttps is false; stepping
+// aside on RequireHttps alone meant nothing was ever injected.
 networkConfig.BaseUrl = "";
 networkConfig.RequireHttps = true;
 
@@ -663,11 +643,10 @@ if (cleanedFlag != null)
 Console.WriteLine();
 Console.WriteLine("── The sign-in capture runs only for requests that can sign somebody in ──");
 
-// RequestDevice is read by the authentication provider and the session listener, and by
-// nothing on a GET. The capture is an address check, two header parses and three
-// AsyncLocal sets, and a client browsing makes tens of /Users GETs a page, so an ordinary
-// read must not pay it. Every POST under /Users still does: AuthenticateByName, the
-// obsolete {id}/Authenticate and the password change that verifies the old one.
+// RequestDevice is read by the authentication provider and the session listener, never on a
+// GET. Capture costs an address check, two header parses and three AsyncLocal sets, and a
+// client makes tens of /Users GETs a page, so a read must not pay it. Every POST under
+// /Users still does: AuthenticateByName, {id}/Authenticate and the password change.
 async Task<(string Device, string Client, bool HasNote)> Captured(string verb, string path)
 {
     Jellyfin.Profiles.Auth.RequestDevice.Capture(null, null, false);
@@ -742,12 +721,11 @@ sealed class Result
     public SeenHeaders Seen;
 }
 
-// Both interfaces gain and lose members between Jellyfin patch releases, and the harness
-// has no interest in any of them. A proxy answers the one call the middleware actually
-// makes and throws on everything else. The middleware no longer takes IApplicationPaths
-// at all, which is the strongest possible form of "it does not read index.html off disk".
-// IServerApplicationHost, answering only ListenWithHttps: true when Jellyfin has a
-// certificate and HTTPS enabled, which is the only time its HTTPS redirect is in the pipeline.
+// Both interfaces gain and lose members between Jellyfin patch releases. A proxy answers the
+// one call the middleware makes and throws on everything else. The middleware no longer takes
+// IApplicationPaths, so it cannot read index.html off disk.
+// IServerApplicationHost answers only ListenWithHttps: true when Jellyfin has a certificate
+// and HTTPS enabled, the only time its HTTPS redirect is in the pipeline.
 public class AppHostProxy : DispatchProxy
 {
     public static bool ListenWithHttps;

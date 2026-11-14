@@ -19,25 +19,18 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// An administrator sets one household's PIN prompts (issue #42, part 3).
+// Issue #42, part 3: an administrator sets one household's PIN prompts.
 //
-// What it holds the plugin to:
-//
-//  - POST admin/pin-prompts sets "Ask PIN to open" on a main account and "No PIN on the
-//    server's network" on profiles under it, and saves.
-//  - Nothing else on any row changes: compared field by field, every property, before and
-//    after, for every row in the configuration.
-//  - A non-admin is refused. A profile id from another household is refused and the whole
-//    request changes nothing. An administrator's own household is refused. An unknown id
-//    and a target that is a profile are refused.
-//  - The household's own screens read the same rows (/list and the account settings), so
-//    the new values show the next time they load.
+// POST admin/pin-prompts sets "Ask PIN to open" on a main account and "No PIN on the
+// server's network" on profiles under it, and saves. Checked:
+//  - nothing else on any row changes (every property compared before and after);
+//  - a non-admin is refused; so are a profile id from another household (the whole
+//    request changes nothing), an administrator's own household, an unknown id and a profile;
+//  - the household's own screens (/list, account settings) show the new values.
 //
 // Against 3dbc190..922b6da the first case fails: there is no such route.
 //
 // Usage: dotnet run -c Release   (loads bin/Release/<tfm>/Jellyfin.Profiles.dll)
-// ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
 var fails = new List<string>();
@@ -97,8 +90,8 @@ var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-links-" + Guid.NewGuid()
 Directory.CreateDirectory(tempDir);
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
-// A new install starts with Bonfire off (2.0), and off every gate stands down, so a
-// refusal here would prove nothing. This harness is about a server where it is on.
+// A new install starts with Bonfire off (2.0) and every gate stands down, so a refusal
+// would prove nothing. This harness is about a server where it is on.
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 // A server that already has Bonfire; a new install is tested in configbackup.
 config.GetType().GetProperty("RequireMainPin")?.SetValue(config, false);
@@ -235,7 +228,7 @@ object Prompts(params (Guid id, bool bypass)[] items)
 }
 
 // Every public property of every row, as text, keyed by profile id. Compared whole before
-// and after, so a field nobody thought of cannot move without a case going red.
+// and after, so no field can move unnoticed.
 Dictionary<Guid, Dictionary<string, string>> Snapshot() => mappings.Cast<object>().ToDictionary(
     m => (Guid)mapType.GetProperty("ProfileUserId").GetValue(m),
     m => mapType.GetProperties().Where(p => p.GetIndexParameters().Length == 0).ToDictionary(p => p.Name, p =>
@@ -457,8 +450,8 @@ public class WorldProxy : DispatchProxy
 }
 
 // Jellyfin's two registered providers, as the plugin finds them in the request's services.
-// The real DefaultAuthenticationProvider compares the hash and nothing else; the lockout
-// count lives in UserManager, which is what the add route must not go through.
+// The real DefaultAuthenticationProvider only compares the hash; the lockout count lives
+// in UserManager, which the add route must not go through.
 public sealed class DefaultAuthenticationProvider : MediaBrowser.Controller.Authentication.IAuthenticationProvider,
     MediaBrowser.Controller.Authentication.IRequiresResolvedUser
 {

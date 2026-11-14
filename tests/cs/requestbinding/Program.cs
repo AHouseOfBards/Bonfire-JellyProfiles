@@ -11,24 +11,17 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Issue #33: "Can't create new profiles."
-//
+// Issue #33: "Can't create new profiles." The body was
 //   {"errors":{"":["The supplied value is invalid."],"request":["The request field is required."]}}
+// which is model binding giving up on the whole request. EnabledFolders was List<Guid>,
+// and Jellyfin's JsonGuidConverter throws FormatException (not JsonException) on a string
+// that is not a GUID, so the error lands on no field and the action receives null. A
+// library listed without an id gave its checkbox the value "undefined"; ticking it was enough.
 //
-// That body is ASP.NET model binding giving up on the request as a whole. EnabledFolders
-// was List<Guid>, and Jellyfin's JsonGuidConverter turns a string that is not a GUID into
-// a FormatException rather than a JsonException — so instead of an error against
-// "$.enabledFolders[0]" the formatter reports one against no field at all, and the action
-// receives null. One library the form listed without an id gave its checkbox the value
-// "undefined", and ticking it was enough.
+// Only real binding reproduces this: Jellyfin's JSON settings, the plugin's request types
+// and a real [ApiController] action over HTTP. Hand deserializing throws where MVC returns 400.
 //
-// Only real binding reproduces this: Jellyfin's own JSON settings, the plugin's own
-// request types, a real [ApiController] action, over HTTP. Deserializing by hand would
-// throw where MVC returns 400, and would not show the shape the report showed.
-//
-// Point it at an older build by building that checkout and running this from it.
-// ─────────────────────────────────────────────────────────────────────────────
+// For an older build, build that checkout and run this from it.
 
 int pass = 0;
 var fails = new List<string>();
