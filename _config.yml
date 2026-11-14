@@ -78,6 +78,8 @@ exclude:
   - CLAUDE.md
   - CONTRIBUTING.md
   - SECURITY.md
+  # The release workflow's input; the same notes are in CHANGELOG.md, which is a page.
+  - release-notes/
 
 defaults:
   - scope:

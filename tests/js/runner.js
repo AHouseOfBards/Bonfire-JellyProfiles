@@ -169,16 +169,24 @@ function lockWith(pid) {
         fs.writeFileSync(tmp + '/bonfire-tests.lock/pid', pid + '\n');
     };
 }
-// A bash process that stays alive for a while, so there is a pid the runner can see.
+// A process that stays alive for a while, so there is a pid the runner can see.
+//
+// Not a child of this process. It used to be (`exec sleep` in a bash this script spawned),
+// and on Linux a child that exits while this script sits in spawnSync cannot be reaped, so
+// it stays a zombie and `kill -0` still finds it: the run under test waited for a holder
+// that was already dead until it gave up (v1.9.0.5 CI, "Gave up after 30s"). Windows has no
+// zombies, which is why it only failed there. The sleep is backgrounded by a bash that
+// exits at once, so it belongs to init (or the runner's subreaper), which reaps it.
 function holder(seconds) {
     const f = path.join(os.tmpdir(), 'runner-holder-' + process.pid + '-' + seconds);
     try { fs.unlinkSync(f); } catch (e) { /* none yet */ }
-    const child = cp.spawn('bash', ['-c', 'echo $$ > "' + fwd(f) + '"; exec sleep ' + seconds], { stdio: 'ignore' });
+    cp.spawnSync('bash', ['-c', 'sleep ' + seconds + ' >/dev/null 2>&1 & echo $! > "' + fwd(f) + '"'], { stdio: 'ignore' });
     let pid = '';
     for (let i = 0; i < 200 && !pid; i++) {
         try { pid = fs.readFileSync(f, 'utf8').trim(); } catch (e) { cp.spawnSync('bash', ['-c', 'sleep 0.05']); }
     }
-    return { pid: pid, child: child, stop: function () { try { child.kill(); } catch (e) { /* gone */ } try { fs.unlinkSync(f); } catch (e) { /* gone */ } } };
+    const kill = function () { cp.spawnSync('bash', ['-c', 'kill ' + pid + ' 2>/dev/null'], { stdio: 'ignore' }); };
+    return { pid: pid, kill: kill, stop: function () { kill(); try { fs.unlinkSync(f); } catch (e) { /* gone */ } } };
 }
 
 const clean = runSet(quick, {});

@@ -71,12 +71,26 @@ const COMPARE = `(async function (A) {
       // bottom curves and none inside, and widening the margin to 2.5 device pixels still left
       // ten of them on that line. The straight edges keep their one device pixel below, and the
       // build before the opaque fills (c7eee21^) still fails 20 here, as it did.
-      var rad = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, r.width / 2, r.height / 2) * k + 2 * k;
+      //
+      //
+      // That margin is a circle of radius plus two pixels, tangent to the edges: wide on the
+      // diagonal, almost nothing where the curve meets a straight edge. A Linux runner's
+      // rasteriser put two antialiased pixels exactly there on bloom's PIN box, 0.94 and
+      // 0.97 CSS pixels inside the real curve (v1.9.0.5 CI). So a pixel within 1.25 CSS
+      // pixels of the real curve is skipped as well, the least that covers them. The pre-fix
+      // build still fails on its three inputs, by 1,000 to 3,400 pixels each; its two bloom
+      // sharing buttons no longer fail, and they only ever had 1 and 2 pixels on their curves,
+      // the same antialiasing, not an ornament.
+      var cr = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, r.width / 2, r.height / 2) * k;
+      var rad = cr + 2 * k, band = cr - 1.25 * k;
       var bx0 = r.left * k, bx1 = r.right * k, by0 = r.top * k, by1 = r.bottom * k;
       for (y = y0; y < y1; y++) for (x = x0; x < x1; x++) {
         var qx = x + 0.5 < bx0 + rad ? bx0 + rad - x - 0.5 : x + 0.5 > bx1 - rad ? x + 0.5 - (bx1 - rad) : 0;
         var qy = y + 0.5 < by0 + rad ? by0 + rad - y - 0.5 : y + 0.5 > by1 - rad ? y + 0.5 - (by1 - rad) : 0;
         if (qx * qx + qy * qy > rad * rad) continue;
+        var tx = x + 0.5 < bx0 + cr ? bx0 + cr - x - 0.5 : x + 0.5 > bx1 - cr ? x + 0.5 - (bx1 - cr) : 0;
+        var ty = y + 0.5 < by0 + cr ? by0 + cr - y - 0.5 : y + 0.5 > by1 - cr ? y + 0.5 - (by1 - cr) : 0;
+        if (tx && ty && band > 0 && tx * tx + ty * ty > band * band) continue;
         // And the outermost device pixel on each side: the box sits on a fractional position,
         // so that row is part backdrop.
         if (x < bx0 + 1 || x + 1 > bx1 - 1 || y < by0 + 1 || y + 1 > by1 - 1) continue;
