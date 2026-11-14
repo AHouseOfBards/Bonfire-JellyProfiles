@@ -6,10 +6,10 @@ namespace Jellyfin.Profiles.Configuration
     /// Closed for maintenance: only administrators can use the server.
     ///
     /// <para><b>It does not end by itself</b>, unless the administrator asked it to.
-    /// <see cref="UntilUtc"/> is what the household is told, and the Retry-After an app is
-    /// sent. An upgrade that overruns should not reopen the server half-finished because a
-    /// clock said so, so reopening at that time is a choice made each time it is closed
-    /// (<see cref="ReopenAutomatically"/>), off unless ticked.</para>
+    /// <see cref="UntilUtc"/> is what the household is told, and the Retry-After an app is sent.
+    /// An upgrade that overruns should not reopen the server half-finished because a clock said
+    /// so, so reopening then is chosen each time it is closed (<see cref="ReopenAutomatically"/>),
+    /// off unless ticked.</para>
     /// </summary>
     public class MaintenanceMode
     {
@@ -24,9 +24,9 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>
         /// Open again at <see cref="UntilUtc"/>, by itself. The server does it: the gate stops
-        /// refusing at that moment and settles the saved state on the next request, so it
-        /// does not depend on the administrator's page, a browser or a timer that a restart
-        /// would lose. Meaningless without an end time.
+        /// refusing at that moment and settles the saved state on the next request, so it does not
+        /// depend on the administrator's page, a browser or a timer a restart would lose. Meaningless
+        /// without an end time.
         /// </summary>
         public bool ReopenAutomatically { get; set; }
 

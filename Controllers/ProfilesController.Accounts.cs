@@ -45,9 +45,9 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Shows another account in the caller's switcher. Its password, typed once, is its
-        /// consent; Bonfire never stores it. Wrong passwords count against the same limits as
-        /// PINs, and against the account's own lockout in Jellyfin.
+        /// Shows another account in the caller's switcher. Its password, typed once, is its consent;
+        /// Bonfire never stores it. Wrong passwords count against the same limits as PINs and against
+        /// the account's own lockout in Jellyfin.
         /// </summary>
         [HttpPost("accounts/links/add")]
         [ProducesResponseType(typeof(AccountLinksResponse), StatusCodes.Status200OK)]
@@ -68,13 +68,12 @@ namespace Jellyfin.Profiles.Controllers
             var username = (request.Username ?? string.Empty).Trim();
             if (username.Length == 0 || string.IsNullOrEmpty(request.Password)) return BadRequest(CredentialsWrongMessage);
 
-            // Counted before the password is tried, like a PIN, so guesses sent together can't all get
-            // through.
+            // Counted before the password is tried, like a PIN, so guesses sent together cannot all
+            // get through.
             var address = "link:" + (HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
-            // Not BeginPinAttempt: that spends the household's own PIN allowance (PinBudget) and raises
-            // the "PIN locked" log and email, so ten wrong passwords typed for someone else's account
-            // locked the household's own switcher PIN (R-1071). A password guessed here has its own
-            // allowance.
+            // Not BeginPinAttempt: that spends the household's own PIN allowance (PinBudget) and
+            // raises the "PIN locked" log and email, so ten wrong passwords typed for someone else's
+            // account locked the household's own switcher PIN (R-1071). This has its own allowance.
             if (!RateLimiter.Pin.TryBegin(address))
                 return TooManyAttempts(RateLimiter.Pin, address, "Too many failed attempts.");
             var accountKey = "link:" + username.ToUpperInvariant();
@@ -83,17 +82,16 @@ namespace Jellyfin.Profiles.Controllers
             if (!RateLimiter.LinkPerAccountDaily.TryBegin(accountKey))
                 return TooManyAttempts(RateLimiter.LinkPerAccountDaily, accountKey, "Too many failed attempts.");
 
-            // The password is checked by Jellyfin's own provider, not UserManager.AuthenticateUser,
-            // which counts a wrong password toward the account's lockout; with a lockout set the account
-            // is turned off after three, so anyone in a household could get another's account disabled
-            // by typing wrong passwords on purpose. The rate limit above stops guessing here.
+            // Checked by Jellyfin's own provider, not UserManager.AuthenticateUser, which counts a
+            // wrong password toward the account's lockout: three wrong passwords would disable the
+            // account, so anyone in a household could lock out another's. The rate limit above stops
+            // guessing here.
             var account = _userManager.GetUserByName(username);
 
-            // An unknown name, a disabled account and one whose password lives in LDAP or SSO (which
-            // Bonfire can't ask without the lockout) all answer like a wrong password, so a name can't be
-            // probed (R-1069). They hash a password first so they take as long as a wrong one; answering
-            // at once told them apart by the clock (r2-10-04). An administrator can still add an LDAP
-            // account from the dashboard.
+            // An unknown name, a disabled account and one whose password lives in LDAP or SSO all
+            // answer like a wrong password, so a name cannot be probed (R-1069). They hash a password
+            // first so they take as long as a wrong one; answering at once told them apart by the
+            // clock (r2-10-04). An administrator can still add an LDAP account from the dashboard.
             if (account == null
                 || !PasswordChecksHere(account)
                 || (_userManager.GetUserDto(account, string.Empty).Policy?.IsDisabled ?? false))
@@ -123,7 +121,7 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             // Only once something was added. Cleared right after the password matched, an account
-            // already on the switcher was a free reset between guesses at any other account's password
+            // already on the switcher was a free reset between guesses at another account's password
             // (R-1068). LinkPerAccount is never cleared.
             RateLimiter.Pin.Reset(address);
 
@@ -133,8 +131,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Takes an account off a switcher. Either side may: the household (send
-        /// <c>userId</c>) or the account itself (send <c>householdId</c>).
+        /// Takes an account off a switcher. Either side may: the household (send <c>userId</c>) or
+        /// the account itself (send <c>householdId</c>).
         /// </summary>
         [HttpPost("accounts/links/remove")]
         [ProducesResponseType(typeof(AccountLinksResponse), StatusCodes.Status200OK)]
@@ -217,9 +215,9 @@ namespace Jellyfin.Profiles.Controllers
         internal const string NotInHouseholdMessage = "That profile isn't in this household.";
 
         /// <summary>
-        /// Sets one household's PIN prompts: "Ask PIN to open" on the main account and "No PIN
-        /// on the server's network" on its profiles. Nothing else of the household is touched,
-        /// and never an administrator's own. All or nothing: one bad profile id changes nothing.
+        /// Sets one household's PIN prompts: "Ask PIN to open" on the main account and "No PIN on the
+        /// server's network" on its profiles. Nothing else of the household is touched, and never an
+        /// administrator's own. All or nothing: one bad profile id changes nothing.
         /// </summary>
         [HttpPost("admin/pin-prompts")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -315,8 +313,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Whether the account's password lives in Jellyfin: on Jellyfin's own provider, or
-        /// on Bonfire's PIN provider, which hands passwords to Jellyfin's.
+        /// Whether the account's password lives in Jellyfin: on Jellyfin's own provider, or on
+        /// Bonfire's PIN provider, which hands passwords to Jellyfin's.
         /// </summary>
         private static bool PasswordChecksHere(Jellyfin.Database.Implementations.Entities.User account)
         {
@@ -326,9 +324,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Does the work of one password check against nothing, at Jellyfin's own cost
-        /// (PBKDF2 over SHA-512, 210,000 rounds), so a refusal that never reached a real
-        /// hash is not quicker than one that did.
+        /// Does the work of one password check against nothing, at Jellyfin's own cost (PBKDF2 over
+        /// SHA-512, 210,000 rounds), so a refusal that never reached a real hash is not quicker.
         /// </summary>
         internal static void SpendPasswordTime(string password)
         {
@@ -341,8 +338,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Checks a password with Jellyfin's own provider, which compares the hash and
-        /// nothing else: no lockout count, no session, no last-login time.
+        /// Checks a password with Jellyfin's own provider: the hash only, with no lockout count,
+        /// session or last-login time.
         /// </summary>
         private async Task<bool> PasswordMatchesAsync(Jellyfin.Database.Implementations.Entities.User account, string password)
         {
@@ -462,9 +459,9 @@ namespace Jellyfin.Profiles.Controllers
                 // row to explain why (R-1070). Everything before the password is put back on failure; a
                 // revoked session cannot be.
 
-                // 1. Hidden from the sign-in screen, like every profile, and on Jellyfin's own
-                //    provider. Jellyfin's UpdatePolicyAsync writes the policy's provider onto
-                //    the account, so both go in the one write.
+                // 1. Hidden from the sign-in screen, like every profile, and put on Jellyfin's own
+                //    provider. UpdatePolicyAsync writes the policy's provider onto the account, so both
+                //    go in one write.
                 var provider = StandaloneProviderId(request.HouseholdId);
                 var policy = _userManager.GetUserDto(user, string.Empty).Policy;
                 var wasHidden = policy.IsHidden;
@@ -504,8 +501,8 @@ namespace Jellyfin.Profiles.Controllers
                     }
                 }
 
-                // 2. A password nobody knows, set while it is not yet a profile: Bonfire's own
-                //    provider refuses a password change for one.
+                // 2. A password nobody knows, set while it is not yet a profile: Bonfire's own provider
+                //    refuses a password change for one.
                 try
                 {
                     await ChangePasswordCompat(user, Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N")).ConfigureAwait(false);
@@ -623,8 +620,8 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// The libraries an account can see now, as a profile's own list. "Every library" with
-        /// nothing blocked stays "every library the household has"; anything narrower is kept
-        /// as the list it is.
+        /// nothing blocked stays "every library the household has"; anything narrower is kept as
+        /// the list it is.
         /// </summary>
         private List<Guid> ProfileFoldersFrom(MediaBrowser.Model.Users.UserPolicy policy, MediaBrowser.Model.Users.UserPolicy householdPolicy, out bool allLibraries)
         {
@@ -636,8 +633,8 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             allLibraries = false;
-            // A library another plugin manages is not copied into the profile's own list: it stays on the
-            // account as it is, and Bonfire does not manage it from here on.
+            // A library another plugin manages is not copied into the profile's list: it stays on
+            // the account as it is, and Bonfire does not manage it from here on.
             var owned = Auth.LibraryOwnership.ManagedByOwnerIds(_libraryManager);
             IEnumerable<Guid> visible = policy.EnableAllFolders
                 ? Auth.LibraryOwnership.ManagedFolderIds(_libraryManager)

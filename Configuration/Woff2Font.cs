@@ -13,24 +13,23 @@ namespace Jellyfin.Profiles.Configuration
     public sealed record Woff2Info(string Family, int WeightMin, int WeightMax);
 
     /// <summary>
-    /// Reads an uploaded font far enough to know it is a WOFF2 font that can draw a name, and
-    /// what it is called. A C# copy of tests/js/_woff2.js, which reads the built-in fonts.
+    /// Reads an uploaded font far enough to know it is a WOFF2 font that can draw a name, and what
+    /// it is called. A C# copy of tests/js/_woff2.js, which reads the built-in fonts.
     /// <para>
-    /// WOFF2 is a 48-byte header, a table directory, and every table run through one Brotli
-    /// stream. cmap, name, OS/2 and fvar are never transformed (only glyf, loca and hmtx are),
-    /// so after decompressing they sit in the stream as plain OpenType tables, one after
-    /// another in directory order. https://www.w3.org/TR/WOFF2/
+    /// WOFF2 is a 48-byte header, a table directory, and every table run through one Brotli stream.
+    /// cmap, name, OS/2 and fvar are never transformed (only glyf, loca and hmtx are), so after
+    /// decompressing they sit in the stream as plain OpenType tables in directory order.
+    /// https://www.w3.org/TR/WOFF2/
     /// </para>
     /// <para>
-    /// This is not the browser's check and does not try to be: Chromium runs every web font
-    /// through its own sanitiser and draws the fallback for one it refuses. What this stops
-    /// is the administrator uploading something that is not a font at all, a font that cannot
-    /// draw Latin letters, or a file whose name would have to go into CSS unescaped — and it
-    /// says which, at upload, instead of a theme that quietly draws in the fallback.
+    /// This is not the browser's check. Chromium runs every web font through its own sanitizer and
+    /// draws the fallback for one it refuses. This stops an upload that is not a font at all, a font
+    /// that cannot draw Latin letters, or a file whose name would have to go into CSS unescaped, and
+    /// says which at upload, instead of a theme that quietly draws in the fallback.
     /// </para>
     /// <para>
-    /// Every read is bounds-checked, and the decompressed stream is capped, so a file built to
-    /// expand without end stops at the cap. Anything not understood is refused with
+    /// Every read is bounds-checked and the decompressed stream is capped, so a file built to expand
+    /// without end stops at the cap. Anything not understood is refused with
     /// <see cref="InvalidDataException"/>, never guessed at.
     /// </para>
     /// </summary>
@@ -95,11 +94,10 @@ namespace Jellyfin.Profiles.Configuration
         }
 
         /// <summary>
-        /// True for a family name that can go into CSS and the settings page as it is:
-        /// letters, digits, spaces, '-', '_' and '.', 1 to 64 of them. A quote, a backslash,
-        /// a brace or a control character would need escaping in every place a name is
-        /// written, and one missed place is an injection; refusing is the one rule that holds
-        /// everywhere.
+        /// True for a family name that can go into CSS and the settings page as it is: letters,
+        /// digits, spaces, '-', '_' and '.', 1 to 64 of them. A quote, backslash, brace or control
+        /// character would need escaping everywhere a name is written, and one missed place is an
+        /// injection. Refusing is the one rule that holds everywhere.
         /// </summary>
         public static bool IsSafeFamily(string family)
         {
@@ -144,9 +142,9 @@ namespace Jellyfin.Profiles.Configuration
 
                 if (tag == null) throw new InvalidDataException("That file isn't a WOFF2 font Bonfire can read.");
                 var version = flags >> 6;
-                // The format defines glyf and loca at 0 (transformed) or 3 (not), hmtx at 0 or
-                // 1, and every other table at 0 only. Anything else is a file no font tool
-                // writes, and reading its length by a guess would misplace every table after.
+                // The format defines glyf and loca at 0 (transformed) or 3 (not), hmtx at 0 or 1, and every
+                // other table at 0 only. Anything else is a file no font tool writes, and guessing its
+                // length would misplace every table after.
                 var knownVersion = tag == "glyf" || tag == "loca" ? version == 0 || version == 3
                     : tag == "hmtx" ? version <= 1 : version == 0;
                 if (!knownVersion) throw new InvalidDataException("That file isn't a WOFF2 font Bonfire can read.");

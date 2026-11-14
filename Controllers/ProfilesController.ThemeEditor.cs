@@ -14,12 +14,11 @@ namespace Jellyfin.Profiles.Controllers
 {
     /// <summary>
     /// The administrator's side of themes (1.7.2): their own themes, the built-ins they hide,
-    /// and the fonts they upload. Every route here is administrator-only (Logan, beta 8). What
-    /// they make reaches everyone else through <c>GET /themes</c>.
+    /// and the fonts they upload. Every route is administrator-only. What they make reaches
+    /// everyone else through <c>GET /themes</c>.
     /// <para>
-    /// A theme is checked by <see cref="ThemeCatalog.ValidateCustom"/> before it is stored,
-    /// and again whenever it is served, so this is not the only gate. It is the one that tells
-    /// the administrator which value is wrong.
+    /// A theme is checked by <see cref="ThemeCatalog.ValidateCustom"/> before it is stored and
+    /// again when served. This check is the one that tells the administrator which value is wrong.
     /// </para>
     /// </summary>
     public partial class ProfilesController
@@ -37,9 +36,9 @@ namespace Jellyfin.Profiles.Controllers
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
 
-                // Every custom theme, the broken ones too, each with what is wrong with it: a
-                // theme edited by hand into something invalid is left out of every picker, and
-                // this is where the administrator finds out why.
+                // Every custom theme, broken ones too, each with what is wrong with it. A theme edited
+                // by hand into something invalid is left out of every picker; this is where the
+                // administrator finds out why.
                 var custom = config.CustomThemes.Select(c =>
                 {
                     var node = ParseTheme(c.Json);
@@ -86,9 +85,8 @@ namespace Jellyfin.Profiles.Controllers
 
             if (body.ValueKind != JsonValueKind.Object) return BadRequest("Send the logo's text and alt text.");
 
-            // A field the body does not have is left as it is, so a client that sets one does
-            // not wipe the other. null or "" clears it. Anything else that is not text is
-            // refused rather than read as "clear" (R-1090).
+            // A field the body leaves out stays as it is, so a client that sets one does not wipe
+            // the other. null or "" clears it. Anything that is not text is refused (R-1090).
             bool Has(string name, out JsonElement v) => TryProperty(body, name, out v);
             string? Read(JsonElement v) => v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
@@ -215,9 +213,9 @@ namespace Jellyfin.Profiles.Controllers
                     throw;
                 }
 
-                // Deleted here, not after the lock: two uploads at once, the second sending
-                // the first one's old bytes, could otherwise have the first delete a file
-                // the second had just made current, leaving LogoImage naming nothing (R-1083).
+                // Deleted here, not after the lock: two uploads at once could otherwise have the first
+                // delete a file the second had just made current, leaving LogoImage naming nothing
+                // (R-1083).
                 if (old != null && old != file) DeleteLogoFile(old);
             }
 
@@ -270,9 +268,9 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Uploads a background image for a custom theme. The body is the file: PNG, JPEG or
-        /// WebP, up to 2 MB. Only stored: the theme names it when it is saved, and a file no
-        /// theme names goes on the next save that drops it, or with the orphan cleanup.
+        /// Uploads a background image for a custom theme: PNG, JPEG or WebP, up to 2 MB. Only
+        /// stored; the theme names it when saved. A file no theme names goes on the next save that
+        /// drops it, or with the orphan cleanup.
         /// </summary>
         [HttpPost("admin/themes/backgrounds")]
         [RequestSizeLimit(ThemeBackground.MaxBytes + 4096)]
@@ -324,9 +322,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Uploads a pattern picture for a custom theme. The body is the file: PNG or WebP,
-        /// up to 2 MB, not animated. Only stored, as a background image is: the theme names
-        /// it when it is saved.
+        /// Uploads a pattern picture for a custom theme: PNG or WebP, up to 2 MB, not animated.
+        /// Only stored, like a background image.
         /// </summary>
         [HttpPost("admin/themes/patterns")]
         [RequestSizeLimit(ThemePattern.MaxBytes + 4096)]
@@ -399,9 +396,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Checks a theme without saving it, for the editor's live warnings. The rules are
-        /// applied here rather than in the page so there is one implementation of them. A
-        /// custom theme has no contrast rules (ThemeCatalog.ValidateCustom).
+        /// Checks a theme without saving it, for the editor's live warnings. The rules live here
+        /// so there is one implementation. A custom theme has no contrast rules.
         /// </summary>
         [HttpPost("admin/themes/validate")]
         [RequestSizeLimit(ThemeValidator.MaxBytes + 4096)]
@@ -453,8 +449,8 @@ namespace Jellyfin.Profiles.Controllers
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
 
-                // The revision a save has to beat. A file with none takes the next one, so a
-                // caller that never heard of revisions keeps working (and keeps last-write-wins).
+                // The revision a save has to beat. A file with none takes the next one, so a caller
+                // that ignores revisions keeps working (last write wins).
                 var stored = config.CustomThemes.FirstOrDefault(c => c.Id == id);
                 var storedRevision = StoredRevision(stored);
                 if (node is JsonObject file && !file.ContainsKey("revision")) file["revision"] = storedRevision + 1;
@@ -483,10 +479,9 @@ namespace Jellyfin.Profiles.Controllers
 
                 var existing = stored;
 
-                // A theme's revision goes up on every save and the editor sends the one after
-                // the one it loaded. One that is not above the stored revision was made from a
-                // copy another save has since replaced, and would overwrite that save, live at
-                // once for every profile. Refused; the page says to reload (R-1089).
+                // A save has to carry a revision above the stored one. One that does not was made from
+                // a copy another save has since replaced, and would overwrite that save for every
+                // profile at once. Refused; the page says to reload (R-1089).
                 if (existing != null && node!["revision"] is JsonValue rev && rev.TryGetValue<double>(out var sent) && sent <= storedRevision)
                     return Conflict("That theme was changed somewhere else. Reload it and try again.");
 
@@ -607,13 +602,12 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Uploads one WOFF2 font. The body is the file itself. <c>rights=true</c> says the
-        /// administrator may use it; <c>fallback</c> is <c>sans-serif</c> or <c>serif</c>.
-        /// <c>family</c> names it; without one, the name the file gives itself is used.
+        /// Uploads one WOFF2 font. The body is the file. <c>rights=true</c> says the administrator
+        /// may use it; <c>fallback</c> is <c>sans-serif</c> or <c>serif</c>. <c>family</c> names it;
+        /// without one, the file's own name is used.
         /// <para>
-        /// A name can be given because the file's own is often not the family's: Google's
-        /// subsetter names a variable font's default instance, so Outfit's file calls itself
-        /// "Outfit Thin". The name is only what CSS and the editor call it.
+        /// A name can be given because the file's own is often wrong: Google's subsetter names a
+        /// variable font's default instance, so Outfit's file calls itself "Outfit Thin".
         /// </para>
         /// </summary>
         [HttpPost("admin/themes/fonts")]

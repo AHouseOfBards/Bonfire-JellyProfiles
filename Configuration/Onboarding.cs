@@ -5,22 +5,20 @@ using System.Linq;
 namespace Jellyfin.Profiles.Configuration
 {
     /// <summary>
-    /// First-time setup: a few screens a main account is walked through the first time it
-    /// opens Bonfire in a full app (jellyfin-web and the apps that wrap it). Off by default.
+    /// First-time setup: a few screens a main account is walked through the first time it opens
+    /// Bonfire in a full app (jellyfin-web and the apps that wrap it). Off by default.
     ///
-    /// <para><b>Who sees it.</b> Main accounts only, never a profile, and once per account
-    /// rather than per device: what was seen is stored here, so finishing on the phone means
-    /// the TV does not ask again. Accounts that already existed when the administrator first
-    /// turned it on are counted as having seen it; "show again to everyone" bumps
-    /// <see cref="Generation"/>, which un-sees it for every account at once.</para>
+    /// <para><b>Who sees it.</b> Main accounts only, never a profile, and once per account rather
+    /// than per device: finishing on the phone means the TV does not ask again. Accounts that
+    /// existed when the administrator first turned it on count as having seen it; "show again to
+    /// everyone" bumps <see cref="Generation"/>, which un-sees it for every account at once.</para>
     ///
-    /// <para><b>Every step is always offered.</b> There used to be a list of the steps to
-    /// show, a flag for whether the administrator had picked, and the administrator's own
-    /// welcome text. All three were cut: the Show boxes had no entry for the email step, so
-    /// saving the tab dropped it for good, and nobody needed to hide a step that each person
-    /// can skip. A configuration that still has the elements loads (XmlSerializer ignores
-    /// what the class no longer has) and the next save leaves them out; see the "first-time
-    /// setup steps and welcome" case in tests/cs/goldenconfig.</para>
+    /// <para><b>Every step is always offered.</b> There used to be a list of steps to show, a flag
+    /// for whether the administrator had picked, and the administrator's own welcome text. All three
+    /// were cut: the Show boxes had no entry for the email step, so saving the tab dropped it for
+    /// good, and nobody needed to hide a step each person can skip. A configuration that still has
+    /// the elements loads (XmlSerializer ignores what the class no longer has) and the next save
+    /// leaves them out; see the "first-time setup steps and welcome" case in tests/cs/goldenconfig.</para>
     /// </summary>
     public class OnboardingSettings
     {
@@ -39,10 +37,10 @@ namespace Jellyfin.Profiles.Configuration
         /// <summary>The keys the dashboard's Getting started list uses.</summary>
         public static readonly string[] GettingStartedItems = { "pins", "zone" };
 
-        // There used to be a RequiredSteps list here, "can't skip" per step. It was only ever
-        // a client screen with no Skip on it, and nothing on the server held anyone to it
-        // (a main PIN is what RequireMainPin is for). Every step can be skipped now. A file
-        // or backup that still has the element loads; the next save leaves it out.
+        // There used to be a RequiredSteps list here ("can't skip" per step). It was only a client
+        // screen with no Skip button, and nothing on the server held anyone to it (RequireMainPin
+        // does that). Every step can be skipped now. A file or backup that still has the element
+        // loads; the next save leaves it out.
 
         /// <summary>Bumped by "show again to everyone". An account has seen the current
         /// setup when it has a record at this generation or later.</summary>

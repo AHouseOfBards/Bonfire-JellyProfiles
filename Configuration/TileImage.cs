@@ -22,16 +22,15 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// Pictures the server draws in a theme's colours (1.7.2), for apps that show Bonfire's
-    /// picker as folders (the Moonfin proxy picker). The theme's background, and a glyph in
-    /// its accent. Shapes only, by Logan's choice: drawing letters needs a font rasteriser,
-    /// and the one Jellyfin ships (SkiaSharp) is its internal dependency, whose version can
-    /// change between 10.11 and 12 under a plugin that linked against it. The app writes the
-    /// name under the tile itself.
+    /// Pictures the server draws in a theme's colors (1.7.2), for apps that show Bonfire's picker
+    /// as folders (the Moonfin proxy picker): the theme's background and a glyph in its accent.
+    /// Shapes only, by Logan's choice. Letters need a font rasterizer, and the one Jellyfin ships
+    /// (SkiaSharp) is its internal dependency, whose version can change between 10.11 and 12 under
+    /// a plugin that linked against it. The app writes the name under the tile itself.
     /// <para>
-    /// A PNG, written here: rows of RGB, zlib-compressed, with a CRC per chunk. No library,
-    /// so nothing to version. Glyphs are drawn at 4×4 samples a pixel so their edges are
-    /// smooth at the size a television shows them.
+    /// A PNG, written here: rows of RGB, zlib-compressed, with a CRC per chunk. No library, so
+    /// nothing to version. Glyphs are drawn at 4x4 samples a pixel so their edges are smooth at the
+    /// size a television shows them.
     /// </para>
     /// </summary>
     public static class TileImage
@@ -40,10 +39,10 @@ namespace Jellyfin.Profiles.Configuration
         public const int Size = 256;
 
         /// <summary>
-        /// The version of the drawing code, part of every tag. Apps cache a tile for a day by
-        /// its tag, so a change to how a glyph or a gradient is drawn must change the tag too,
-        /// or a household keeps the old picture until the cache runs out. Raise it with any
-        /// change to the drawing; the pixel check in tests/cs/tileimages fails until you do.
+        /// The version of the drawing code, part of every tag. Apps cache a tile for a day by its
+        /// tag, so a change to how a glyph or gradient is drawn must change the tag, or a household
+        /// keeps the old picture until the cache runs out. Raise it with any change to the drawing; the
+        /// pixel check in tests/cs/tileimages fails until you do.
         /// </summary>
         public const int DrawingVersion = 1;
 
