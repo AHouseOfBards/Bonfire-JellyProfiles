@@ -151,7 +151,7 @@ const TR = {
     },
     tr: {
         'common.unlock': 'Aç', 'common.submit': 'Devam',
-        'panic.dialogBody': 'Yöneticinizin belirlediği kodu girin. Bu, Jellyfin yeniden başlayana kadar seçiciyi kapatır.',
+        'panic.dialogBody': 'Yöneticinizin belirlediği kodu girin. Bu, Jellyfin yeniden başlayana kadar profil değiştiriciyi kapatır.',
         'refused.limitsInvalid': 'İzleme sınırlarını kontrol edip tekrar deneyin.',
         'errors.heicUnsupported': 'HEIC görselleri desteklenmiyor. Önce görseli JPEG olarak dışa aktarın.',
         'profileForm.autoLock': 'Otomatik kilitleme', 'profileForm.sectionLockingTitle': 'Otomatik kilitleme',
