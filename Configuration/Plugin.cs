@@ -145,7 +145,7 @@ namespace Jellyfin.Profiles
         /// <c>Plugin.Instance.Configuration</c> then went on mutating an orphan: its changes were saved
         /// nowhere, and a lock on the old object excluded nobody. ConfigLock fixed the second half. This
         /// fixes the first at the one place it can happen, instead of at each of the two dozen places that
-        /// read the configuration before taking the lock (P2-25). With the reference fixed for the life of
+        /// read the configuration before taking the lock, P2-25. With the reference fixed for the life of
         /// the process, reading early is safe.
         /// </para>
         /// <para>

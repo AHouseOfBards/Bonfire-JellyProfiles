@@ -63,7 +63,9 @@ check() { if [ "$2" = "0" ]; then pass "$1"; else fail "$1${3:+  -- $3}"; fi; }
 # Docker mounts /config (config and data live under it) and /cache. A native server is given
 # every directory on its command line, so nothing lands in a profile or ProgramData.
 if [ -n "$IMAGE" ]; then
-  PLUGINS_DIR="$WORK/config/data/plugins"; LOG_DIR="$WORK/config/log"
+  # The image sets JELLYFIN_DATA_DIR=/config and JELLYFIN_CONFIG_DIR=/config/config, so plugins
+  # sit at /config/plugins. config/data/plugins was a guess, and the first CI run loaded nothing.
+  PLUGINS_DIR="$WORK/config/plugins"; LOG_DIR="$WORK/config/log"
 else
   PLUGINS_DIR="$WORK/data/plugins"; LOG_DIR="$WORK/log"
 fi

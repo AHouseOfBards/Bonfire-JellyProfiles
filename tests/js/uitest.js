@@ -61,7 +61,9 @@ ok(count(html, '\r\r') === 0, 'dashboard has no doubled CR');
 const jsNoThemeCss = jsOnly.indexOf('function themeCss(') === -1 ? jsOnly
     : jsOnly.replace(L.extractFunction(jsOnly, 'themeCss'), '');
 ok(count(jsNoThemeCss, 'action-add-profile') === 3, 'the Add card has exactly its three references');
-const addBlock = js.slice(js.indexOf('// Manage Profiles only.'), js.indexOf('sectionsHtml +='));
+// From the local group's cards to where the section is written. Anchored on code, not on a
+// comment, so rewording a comment cannot move it.
+const addBlock = js.slice(js.indexOf("let cardsHtml = groupProfiles.map(p => renderCard(p)).join('');"), js.indexOf('sectionsHtml +='));
 has(addBlock, 'if (this.isManageMode) {', 'Add card is gated on manage mode');
 has(addBlock, 'action-add-profile', 'the Add card is inside that gate');
 has(addBlock, 'profiles-limit-notice', 'the limit notice is inside it too');
