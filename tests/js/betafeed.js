@@ -8,15 +8,15 @@
  *
  * Two halves, because either alone is a promise:
  *   - the manifest on a beta line has at most three entries now;
- *   - release.yml prunes to three after it stamps the checksum, on the beta channel only,
- *     before anything is committed or pushed. A one-off prune of the file would be back
- *     to 4 at the next tag.
+ *   - release.yml prunes to three right after it adds the new entry, on the beta channel
+ *     only, before anything is committed or pushed, so the oldest entry is the one that
+ *     goes. A one-off prune of the file would be back to 4 at the next tag.
  *
  * main's stable manifest is a curated milestone list, not a feed, so the first half only
  * applies when the csproj says this tree is a beta (InformationalVersion, the one place
  * the channel lives).
  *
- *   node tests/js/betafeed.js [manifest.json]
+ *   node tests/js/betafeed.js [manifest.json [release.yml]]
  */
 'use strict';
 
@@ -56,18 +56,18 @@ if (isBeta) {
 
 console.log('\n── release.yml prunes the beta feed after adding to it ─────────');
 
-const yml = fs.readFileSync(path.join(L.ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+const yml = fs.readFileSync(process.argv[3] || path.join(L.ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
 const code = yml.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
 const steps = code.split(/\n\s*- (?=name:|uses:|run:)/);
-const upd = steps.find(s => /map\(if \.version == \$v then \.checksum = \$c/.test(s)) || '';
-ok('there is a step that stamps the checksum', upd !== '');
+const upd = steps.find(s => /checksum: \$c/.test(s)) || '';
+ok('there is a step that adds the manifest entry', upd !== '');
 
 const pruneAt = upd.search(/\.\[0\]\.versions\s*\|=[^\n]*(\[:3\]|\[0:3\]|limit\(3|\.\[:3\])/);
-const stampAt = upd.search(/map\(if \.version == \$v then \.checksum = \$c/);
+const stampAt = upd.search(/checksum: \$c/);
 const commitAt = upd.search(/git commit/);
 const pushAt = upd.search(/git push origin/);
 ok('it keeps ' + LIMIT + ' entries with jq', pruneAt !== -1);
-ok('after the checksum is stamped', pruneAt !== -1 && pruneAt > stampAt);
+ok('after the new entry is added, so the oldest one is what goes', pruneAt !== -1 && stampAt !== -1 && pruneAt > stampAt);
 ok('before the commit', pruneAt !== -1 && commitAt !== -1 && pruneAt < commitAt);
 ok('before the push', pruneAt !== -1 && pushAt !== -1 && pruneAt < pushAt);
 ok('sorted by version first, so it keeps the newest and not the first three in the file',

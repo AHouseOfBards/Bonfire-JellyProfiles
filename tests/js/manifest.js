@@ -15,6 +15,13 @@
  *
  * Run against the file on whichever branch is checked out, so it covers whichever channel
  * is about to be released.
+ *
+ *   node tests/js/manifest.js [release.yml [_ [manifest.json]]]
+ *
+ * A manifest entry is no longer written by hand. The release notes live in
+ * release-notes/<version>.md, and release.yml adds the finished entry (real checksum
+ * included) after the release is published, so no server is offered a version before it can
+ * be installed. A placeholder checksum in the tree is therefore always a bug.
  */
 'use strict';
 
@@ -29,6 +36,7 @@ function ok(name, cond) {
     else { fails.push(name); console.log('  FAIL  ' + name); }
 }
 
+const WF = process.argv[2] || path.join(L.ROOT, '.github', 'workflows', 'release.yml');
 const MANIFEST = process.argv[4] || path.join(L.ROOT, 'manifest.json');
 const raw = fs.readFileSync(MANIFEST, 'utf8').replace(/^﻿/, '');
 
@@ -85,26 +93,19 @@ if (collisions === 0) ok('every version has its own artefact', true);
 
 console.log('\n── Every entry is installable ──────────────────────────────────');
 
-// Exactly one entry may still carry the "0" placeholder: the release being prepared right
-// now. The workflow stamps the real checksum when the tag is pushed, so between adding the
-// entry and tagging it, the placeholder is the correct content — and refusing it here
-// would make CI red on every release commit.
+// No entry may carry the "0" placeholder. The workflow used to need one, written by hand
+// before the tag and stamped afterwards; for that whole run every server on the channel was
+// offered a version whose install failed. It now writes the entry whole, after the release,
+// so a placeholder in the tree means someone wrote an entry by hand and the workflow will
+// refuse the tag (the version is already in the manifest).
 //
-// Pinned to the version in the csproj rather than "the newest entry", so it cannot drift
-// into a general excuse. Any other placeholder is the bug that made two releases
-// uninstallable.
+// One entry is excused by name: 1.9.0.5, committed under the old process before it was
+// replaced. Delete it, add release-notes/1.9.0.5.md, and remove LEGACY_PLACEHOLDER with it.
+// It is a version, not "the version in the csproj", so it cannot grow into a general excuse.
+const LEGACY_PLACEHOLDER = '1.9.0.5';
 const csproj = fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'utf8');
 const inFlight = (/<Version>([^<]+)<\/Version>/.exec(csproj) || [])[1];
 ok('the csproj names a version to release (' + (inFlight || 'none found') + ')', !!inFlight);
-
-// Jellyfin's manifest wants four parts. A three-part csproj version is padded; a
-// four-part one is already there. Padding unconditionally made 1.6.0.1 into 1.6.0.1.0,
-// which matches no entry — so the release being prepared looked like an unrelated entry
-// carrying a placeholder checksum, which is the one thing this file exists to catch.
-// release.yml derives the same value the same way.
-const pending = inFlight
-    ? (inFlight.split('.').length === 4 ? inFlight : inFlight + '.0')
-    : null;
 
 // Enumerated one version at a time. An "all checksums look fine" aggregate is exactly the
 // shape of check that let two uninstallable releases through.
@@ -113,16 +114,16 @@ versions.forEach(function (v) {
     const sum = String(v.checksum || '');
     const real = /^[0-9a-f]{32}$/i.test(sum) && !/^0+$/.test(sum);
 
-    if (!real && v.version === pending) {
+    if (!real && v.version === LEGACY_PLACEHOLDER) {
         placeholders++;
-        console.log('  note  ' + v.version + ' still has the placeholder — this is the '
-                    + 'release being prepared; the workflow stamps it on tag push');
+        console.log('  note  ' + v.version + ' still has the placeholder — the one hand-written '
+                    + 'entry left from the old process; the workflow will refuse its tag until it is removed');
         return;
     }
     ok(v.version + ' has a real checksum, not the placeholder', real);
 });
 
-ok('at most one entry is waiting to be stamped (' + placeholders + ')', placeholders <= 1);
+ok('at most the one named legacy entry is waiting for a checksum (' + placeholders + ')', placeholders <= 1);
 
 // One historical tag does not follow the convention: 1.1.0.0 was released as `v1.1`,
 // before the three-part tag name settled. The URL is right — it serves, and `gh release
@@ -145,11 +146,41 @@ console.log('\n── The workflow refuses what this file must never contain ─
 // The manifest being clean today does not stop the next release dirtying it, so the
 // guard in the workflow is what keeps it clean. Checked here because a green manifest
 // with the guard deleted looks exactly like a green manifest with it.
-const wf = fs.readFileSync(path.join(L.ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+const wf = fs.readFileSync(WF, 'utf8');
 ok('the release workflow rejects a checksum that already belongs to another version',
    /select\(\.checksum == \$c and \.version != \$v\)/.test(wf));
 ok('and says so as an error rather than a warning',
    /same checksum as/.test(wf) && /::error::/.test(wf));
+
+console.log('\n── The release notes are in the file the workflow reads ─────────');
+
+// CHANGELOG.md stays a manual step, done in the same commit as the notes file: a workflow
+// that edited it would need a second push to a branch (main) that the beta channel does
+// not run from, and the changelog is read by people, who want it reviewed. What the
+// harness holds is that the two agree.
+const NOTES_DIR = path.join(L.ROOT, 'release-notes');
+const changelog = fs.readFileSync(path.join(L.ROOT, 'CHANGELOG.md'), 'utf8').replace(/\r\n/g, '\n');
+const noteFiles = fs.existsSync(NOTES_DIR) ? fs.readdirSync(NOTES_DIR).filter(n => !/^\./.test(n)) : [];
+noteFiles.forEach(function (n) {
+    ok('release-notes/' + n + ' is named for a four-part version', /^\d+\.\d+\.\d+\.\d+\.md$/.test(n));
+    const text = fs.readFileSync(path.join(NOTES_DIR, n), 'utf8').replace(/\r\n/g, '\n');
+    ok('release-notes/' + n + ' is not empty', text.trim() !== '');
+    const missing = text.split('\n').map(l => l.trim()).filter(l => l && changelog.indexOf(l) === -1);
+    ok('every line of release-notes/' + n + ' is in CHANGELOG.md', missing.length === 0,
+       'missing: ' + missing.slice(0, 2).join(' | '));
+    const inManifest = versions.some(v => v.version === n.replace(/\.md$/, ''));
+    if (inManifest) {
+        const entry = versions.find(v => v.version === n.replace(/\.md$/, ''));
+        ok('release-notes/' + n + ' is what the ' + entry.version + ' manifest entry says',
+           String(entry.changelog).trim() === text.trim());
+    }
+});
+ok('release.yml reads the notes from release-notes/<version>.md and refuses when missing',
+   /release-notes\/\$\{V\}\.md/.test(wf) && /-s "\$NOTES"/.test(wf));
+ok('and writes the entry itself, checksum included',
+   /--rawfile notes/.test(wf) && /checksum: \$c/.test(wf));
+ok('and refuses a version that is already in either manifest',
+   /for B in main beta/.test(wf) && /already in the manifest on/.test(wf));
 
 console.log('\n── Campground hears about stable releases, and only those ──────');
 
