@@ -5,11 +5,9 @@
 //     node Web/i18n/validate.js            # all files
 //     node Web/i18n/validate.js fr         # just one
 //
-// No dependencies — plain node, any recent version. Run it before opening a pull
-// request; it catches the four things that go wrong in a translation and that reading
-// the diff will not reliably show you.
-//
-// See docs/developer-api.md, "Adding a translation", for the whole process.
+// Plain node, no dependencies. Run it before opening a pull request: it catches four
+// translation mistakes a diff does not show. See docs/developer-api.md, "Adding a
+// translation", for the whole process.
 
 const fs = require('fs');
 const path = require('path');
@@ -18,13 +16,12 @@ const HERE = __dirname;
 const PROFILES_JS = path.join(HERE, '..', 'profiles.js');
 
 // ── Reading a catalogue's entries ───────────────────────────────────────────
-// 'key': 'value' is the common shape, but a value may be written in double quotes (any
-// English string with an apostrophe), split across lines as 'a ' + 'b', or be a template
-// literal. A single-literal regex read the first piece of a split value and dropped the
-// rest, or skipped the entry, and the translation check then passed on half a string. So
-// each value is read whole: every literal in a + chain, with escapes decoded. An entry
-// whose value is anything else (a call, a variable, a template with ${}) fails the run,
-// because an entry that cannot be read whole cannot be checked.
+// A value may be 'single', "double" (any English string with an apostrophe), a template
+// literal, or split across lines as 'a ' + 'b'. A single-literal regex read only the
+// first piece of a split value, and the check passed on half a string. So each value is
+// read whole: every literal in a + chain, escapes decoded. An entry whose value is
+// anything else (a call, a variable, a template with ${}) fails the run, because an
+// entry that cannot be read whole cannot be checked.
 function decodeEscapes(s) {
     return s.replace(/\\(u\{([0-9a-fA-F]+)\}|u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2})|\r?\n|[\s\S])/g, function (m, g, cp, u4, x2) {
         if (cp) return String.fromCodePoint(parseInt(cp, 16));
@@ -78,8 +75,8 @@ function readEntries(body, label) {
 }
 
 // ── The English catalogue ───────────────────────────────────────────────────
-// EN_STRINGS in profiles.js is the single source of truth for what keys exist.
-// Read out of the file rather than duplicated here, so this cannot drift from it.
+// EN_STRINGS in profiles.js is the source of truth for what keys exist. Read from the
+// file, not copied here, so this cannot drift from it.
 function readEnglish() {
     const src = fs.readFileSync(PROFILES_JS, 'utf8');
     const start = src.indexOf('const EN_STRINGS = {');
@@ -103,10 +100,10 @@ function fail(msg) {
 }
 
 // ── The settings page's English ─────────────────────────────────────────────
-// The administrator's page keeps its English in two places, one per kind of text, and
-// a key may live in only one of them:
+// The administrator's page keeps its English in two places, and a key may live in only
+// one:
 //
-//   - the markup: an element marked data-i18n="admin.…" holds its own English, as text,
+//   - the markup: an element marked data-i18n="admin.…" holds its own English, as text
 //     or as HTML when it has tags inside (that is how the page applies a translation
 //     too); data-i18n-placeholder and data-i18n-aria-label name an attribute's English;
 //   - ADMIN_EN in the page's script, for what the script writes.
@@ -119,8 +116,8 @@ function decodeEntities(s) {
 
 const VOID_TAGS = new Set(['input', 'br', 'img', 'hr', 'meta', 'link', 'source', 'wbr']);
 
-/// The markup before the script, as a flat list of tags and text. Enough of a parser for
-/// a page this file's own authors write; not a general one.
+/// The markup before the script, as a flat list of tags and text. Enough of a parser
+/// for a page this file's authors write, not a general one.
 function tokenizeMarkup(html) {
     const end = html.indexOf('<script');
     const markup = end === -1 ? html : html.slice(0, end);
@@ -140,8 +137,8 @@ function attr(attrs, name) {
     return m ? m[1] : null;
 }
 
-/// key -> English for every data-i18n element and attribute in the markup. A key used on
-/// several elements must say the same thing on all of them.
+/// key -> English for every data-i18n element and attribute in the markup. A key used
+/// on several elements must say the same thing on all of them.
 function readAdminMarkup(html, problems) {
     const { markup, toks } = tokenizeMarkup(html);
     const out = {};
@@ -161,7 +158,7 @@ function readAdminMarkup(html, problems) {
         const key = attr(tk.attrs, 'data-i18n');
         if (!key) continue;
         if (VOID_TAGS.has(tk.tag)) { problems.push(key + ': data-i18n on an empty <' + tk.tag + '>.'); continue; }
-        // Walk to the matching close tag, counting nested tags of any kind.
+        // Walk to the matching close tag, counting nested tags.
         let depth = 0, j = i + 1, hasTags = false;
         for (; j < toks.length; j++) {
             const x = toks[j];
@@ -179,7 +176,7 @@ function readAdminMarkup(html, problems) {
     return out;
 }
 
-/// ADMIN_EN out of the page's script, read the same way EN_STRINGS is.
+/// ADMIN_EN out of the page's script, read the way EN_STRINGS is.
 function readAdminScript(html) {
     const start = html.indexOf('const ADMIN_EN = {');
     if (start === -1) return {};
@@ -206,9 +203,9 @@ function readAdminEnglish(problems) {
 }
 
 // ── The mail's English ──────────────────────────────────────────────────────
-// Bonfire's emails are written on the server, so their English lives in
-// Mail/EmailText.cs, one ["email.…"] = "…" line per key. So do the messages it sends to
-// a profile's apps, as notice.* keys. The server never sends either to a browser.
+// Bonfire's emails are written on the server; their English lives in Mail/EmailText.cs,
+// one ["email.…"] = "…" line per key, as do the notice.* messages it sends to a
+// profile's apps. The server never sends either to a browser.
 const MAIL_TEXT = path.join(HERE, '..', '..', 'Mail', 'EmailText.cs');
 const REPO = path.join(HERE, '..', '..');
 
@@ -242,15 +239,15 @@ function csSources(dir, acc) {
     return acc;
 }
 
-/// The {token} placeholders in a string, as a sorted list. A translation that drops one
-/// renders the literal word "{name}" to a user; one that invents a new token renders it
-/// verbatim too, because t() only substitutes what the caller passed.
+/// The {token} placeholders in a string, as a sorted list. A translation that drops or
+/// invents one shows the literal word ("{name}") to a user, because t() only
+/// substitutes what the caller passed.
 function tokens(str) {
     return (str.match(/\{[a-zA-Z0-9_]+\}/g) || []).sort();
 }
 
 /// Tags a translator must carry across. t() interpolates into templates that reach
-/// innerHTML, so a mismatch here is a broken layout rather than a wrong word.
+/// innerHTML, so a mismatch breaks the layout.
 function tags(str) {
     return (str.match(/<\/?[a-zA-Z][^>]*>/g) || [])
         .map(t => t.toLowerCase().replace(/\s+/g, ' '))
@@ -293,8 +290,8 @@ for (const file of files) {
     const problems = [];
     const notes = [];
 
-    // The filename is the locale code the browser is matched against, so it has to be a
-    // tag a browser actually sends: "fr", "pt-BR", "zh-Hans".
+    // The filename is the locale code the browser is matched against, so it must be a
+    // tag a browser sends: "fr", "pt-BR", "zh-Hans".
     if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(code)) {
         problems.push('Filename is not a locale code. Use fr.json, pt-BR.json, zh-Hans.json.');
     }
@@ -316,7 +313,7 @@ for (const file of files) {
 
     const keys = Object.keys(data);
 
-    // Missing keys are not fatal at runtime — t() falls back to English per key — but a
+    // Missing keys are not fatal (t() falls back to English per key), but a
     // half-translated screen is worth knowing about before it ships.
     const missing = englishKeys.filter(k => !(k in data));
     const unknown = keys.filter(k => !(k in english));
@@ -373,20 +370,19 @@ for (const file of files) {
 
 // ── Strings nobody will ever see ────────────────────────────────────────────
 //
-// A key defined in EN_STRINGS but referenced nowhere else is dead: it renders in no
-// interface, and every translator who fills it in has done that work for nothing.
-// `switcher.switchProfileSuffix` was exactly this — added with the French translation,
-// its only caller removed by the route-poll work three releases later, and translated
-// into two languages in between.
+// A key defined in EN_STRINGS but referenced nowhere else renders in no interface, and
+// every translator who fills it in has worked for nothing. `switcher.switchProfileSuffix`
+// was one: added with the French translation, its only caller removed three releases
+// later, and translated into two languages in between.
 //
-// Counted as a bare quoted literal rather than as t('key'), because several keys are
-// legitimately reached through a table (the parental-rating options are a list of
-// [value, key] pairs) and a t()-only scan would call all of those dead too.
+// Counted as a bare quoted literal, not t('key'), because several keys are reached
+// through a table (the parental-rating options are [value, key] pairs) and a t()-only
+// scan would call them dead.
 //
 // A theme's name is the one key reached by building it: the client shows t(name.key)
 // from the theme's own file (Web/themes/<id>.json), so a key a theme file names is used.
 // The pattern takes a hyphen because theme ids have them (theme.high-contrast); without
-// it those keys were not read as defined at all, so a dead one could never be reported.
+// it those keys were not read as defined, so a dead one could never be reported.
 {
     const profilesJs = fs.readFileSync(PROFILES_JS, 'utf8');
     const themesDir = path.join(HERE, '..', 'themes');
@@ -418,9 +414,9 @@ for (const file of files) {
 
 // ── The settings page's own catalogue ───────────────────────────────────────
 //
-// The same two questions as above, asked of the settings page: is every ADMIN_EN string
-// used, and does every t('admin.…') the page's script makes name a string that exists?
-// A typo in the second shows the administrator the key itself.
+// The same two questions for the settings page: is every ADMIN_EN string used, and does
+// every t('admin.…') its script makes name a string that exists? A typo in the second
+// shows the administrator the key itself.
 if (fs.existsSync(DASHBOARD)) {
     const html = fs.readFileSync(DASHBOARD, 'utf8');
     const scriptStart = html.indexOf('<script');
@@ -449,8 +445,8 @@ if (fs.existsSync(DASHBOARD)) {
 
 // ── The mail's catalogue ────────────────────────────────────────────────────
 //
-// Each email key must be named, as a literal, somewhere in the server's code other than
-// its definition. A key built from parts would read as unused here; write it out.
+// Each email key must be named, as a literal, somewhere in the server's code besides its
+// definition. A key built from parts reads as unused here; write it out.
 if (Object.keys(mailEnglish).length) {
     const problems = mailProblems.slice();
     const others = csSources(REPO, []).filter(f => path.resolve(f) !== path.resolve(MAIL_TEXT))
@@ -471,15 +467,13 @@ if (Object.keys(mailEnglish).length) {
 
 // ── Copy that cannot reach t() at all ───────────────────────────────────────
 //
-// A `content:` string in the stylesheet is user-facing text with no route to a
-// translation file: t() cannot reach it, so a Polish household read one English
-// sentence in the middle of an otherwise translated form. There was exactly one —
-// the tag list's empty state — and it is now `content: attr(data-empty-label)`
-// with the label set from t().
+// A `content:` string in the stylesheet is user-facing text t() cannot reach, so a
+// Polish household read one English sentence in a translated form. There was exactly
+// one (the tag list's empty state); it is now `content: attr(data-empty-label)` with
+// the label set from t().
 //
-// This is the check that stops a second one appearing. `content: ''` and
-// `content: ""` are decorative pseudo-elements and are fine; anything with a
-// character in it is copy.
+// This stops a second one. `content: ''` and `content: ""` are decorative
+// pseudo-elements and fine; anything with a character in it is copy.
 const stylesPath = path.join(__dirname, '..', 'styles.css');
 if (fs.existsSync(stylesPath)) {
     const css = fs.readFileSync(stylesPath, 'utf8');

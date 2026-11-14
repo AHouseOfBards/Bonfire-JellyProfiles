@@ -11,14 +11,12 @@
         tests\run.ps1 js --changed main   # ...against another base; also --record, --only a,b
 
     This hands over to tests/run.sh through Git Bash. It used to be a second copy of the
-    runner, and a second copy is how the desk and the pipeline come to disagree about what
-    "the tests pass" means: the parallel JavaScript run, the one-pass C# build, the
-    one-full-run-at-a-time lock and the no-totals-line check would each have had to be
-    written twice. BONFIRE_JOBS, BONFIRE_LOCK_WAIT and SKIP_BUILD are read by run.sh as
-    they are here.
+    runner, and a second copy lets the desk and the pipeline disagree about what "the tests
+    pass" means. BONFIRE_JOBS, BONFIRE_LOCK_WAIT and SKIP_BUILD are read by run.sh as they
+    are here.
 
-    Needs Git for Windows (bash). The WSL bash that ships in System32 is not used: it would
-    run the tests inside Linux against a Windows checkout.
+    Needs Git for Windows (bash). The WSL bash in System32 is not used: it would run the
+    tests inside Linux against a Windows checkout.
 #>
 param(
     [string]$Which = 'all',
