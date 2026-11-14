@@ -268,7 +268,7 @@ js/themeeditor 41.7 serial
 js/themefade 12.8 serial
 js/themefonts 0.1 parallel
 js/themegrid 4.5 serial
-js/themelayout 337.3 serial
+js/themelayout 88.0 serial
 js/themelists 5.6 serial
 js/themephoto 43.0 serial
 js/themes 1.2 parallel
