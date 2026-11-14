@@ -112,7 +112,7 @@ const TR = {
     es: {
         'common.unlock': 'Abrir', 'common.submit': 'Continuar',
         'panic.dialogBody': 'Introduce el código que definió el administrador. Esto apaga el selector hasta que se reinicie Jellyfin.',
-        'refused.limitsInvalid': 'Revisa los límites de visionado e inténtalo de nuevo.',
+        'refused.limitsInvalid': 'Revisa los límites de visualización e inténtalo de nuevo.',
         'errors.heicUnsupported': 'Las imágenes HEIC no son compatibles. Exporta primero la imagen como JPEG.',
         'profileForm.autoLock': 'Bloqueo automático', 'profileForm.sectionLockingTitle': 'Bloqueo automático',
         'profileForm.sectionSecuritySubtitle': 'PIN y bloqueo automático',
