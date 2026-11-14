@@ -111,44 +111,52 @@ async function main() {
     chrome.DEVICES['tablet-land'] = { width: 1180, height: 820, mobile: true, scale: 1 };
     let measured = 0;
     try {
+        // Every theme, size and scene is its own page and independent of the others, so they are
+        // measured several at a time (chrome.js checks()). The checks come back in the order a
+        // serial loop would have made them.
+        const grid = [];
         for (const theme of themes()) {
             for (const device of WIDE.concat(NARROW)) {
                 const wide = WIDE.indexOf(device) !== -1;
                 for (const scene of SCENES) {
                     // The narrow sizes only need one pass with the fold open: it holds every card.
                     if (!wide && scene !== 'add-more' && scene !== 'edit-more') continue;
-                    const where = theme + ' ' + scene + ' ' + device;
-                    const r = await c.open('http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=' + scene + '&device=' + device, device);
-                    if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
-                    const m = await c.evaluate(MEASURE);
-                    if (!m.found) { ok(where + ': the form is drawn', false, 'no form'); continue; }
-                    measured++;
-                    const more = /more/.test(scene);
-                    ok(where + ': cards are drawn', m.cards >= (more ? 6 : 3), m.cards + ' cards');
-                    ok(where + ': nothing sideways', m.sideways <= 1 && m.pageSideways <= 1 && m.outside === 0,
-                        'form ' + m.sideways + 'px, page ' + m.pageSideways + 'px, ' + m.outside + ' cards outside');
-                    ok(where + ': viewing limits is drawn', !!m.viewing && m.sides.length === 2, JSON.stringify(m.sides.length));
-                    if (wide) {
-                        // Asked before the halves are looked for, so it fails on its own.
-                        const worst = m.gaps.reduce((x, g) => g.gap > x.gap ? g : x, { gap: 0, title: '' });
-                        ok(where + ': no card has an empty area beside it over a header (' + Math.round(m.header) + 'px)', worst.gap <= m.header,
-                            worst.title + ' has ' + worst.gap + 'px');
-                    }
-                    if (!m.viewing || m.sides.length !== 2) continue;
-                    if (wide) {
-                        const spans = m.viewing.w >= (m.inner.r - m.inner.l) - 2;
-                        ok(where + ': viewing limits spans the form', spans, 'card ' + Math.round(m.viewing.w) + 'px in ' + Math.round(m.inner.r - m.inner.l) + 'px');
-                        const [a, b] = m.sides;
-                        ok(where + ': its two halves sit side by side', b.l >= a.r - 1 && Math.abs(a.t - b.t) <= 2,
-                            'halves at ' + Math.round(a.l) + '-' + Math.round(a.r) + ' and ' + Math.round(b.l) + '-' + Math.round(b.r) + ', tops ' + Math.round(a.t) + '/' + Math.round(b.t));
-                    } else {
-                        const [a, b] = m.sides;
-                        ok(where + ': one column, the halves stacked', b.t >= a.b - 1 && m.gaps.length === 0,
-                            'second half at ' + Math.round(b.t) + ' after ' + Math.round(a.b) + ', ' + m.gaps.length + ' cards with a neighbour');
-                    }
+                    grid.push({ theme, device, wide, scene });
                 }
             }
         }
+        const results = await c.checks(grid, async (t, { theme, device, wide, scene }, ok) => {
+            const where = theme + ' ' + scene + ' ' + device;
+            const r = await t.open('http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=' + scene + '&device=' + device, device);
+            if (r.error) { ok(where + ': the screen draws', false, r.error); return; }
+            const m = await t.evaluate(MEASURE);
+            if (!m.found) { ok(where + ': the form is drawn', false, 'no form'); return; }
+            measured++;
+            const more = /more/.test(scene);
+            ok(where + ': cards are drawn', m.cards >= (more ? 6 : 3), m.cards + ' cards');
+            ok(where + ': nothing sideways', m.sideways <= 1 && m.pageSideways <= 1 && m.outside === 0,
+                'form ' + m.sideways + 'px, page ' + m.pageSideways + 'px, ' + m.outside + ' cards outside');
+            ok(where + ': viewing limits is drawn', !!m.viewing && m.sides.length === 2, JSON.stringify(m.sides.length));
+            if (wide) {
+                // Asked before the halves are looked for, so it fails on its own.
+                const worst = m.gaps.reduce((x, g) => g.gap > x.gap ? g : x, { gap: 0, title: '' });
+                ok(where + ': no card has an empty area beside it over a header (' + Math.round(m.header) + 'px)', worst.gap <= m.header,
+                    worst.title + ' has ' + worst.gap + 'px');
+            }
+            if (!m.viewing || m.sides.length !== 2) return;
+            if (wide) {
+                const spans = m.viewing.w >= (m.inner.r - m.inner.l) - 2;
+                ok(where + ': viewing limits spans the form', spans, 'card ' + Math.round(m.viewing.w) + 'px in ' + Math.round(m.inner.r - m.inner.l) + 'px');
+                const [a, b] = m.sides;
+                ok(where + ': its two halves sit side by side', b.l >= a.r - 1 && Math.abs(a.t - b.t) <= 2,
+                    'halves at ' + Math.round(a.l) + '-' + Math.round(a.r) + ' and ' + Math.round(b.l) + '-' + Math.round(b.r) + ', tops ' + Math.round(a.t) + '/' + Math.round(b.t));
+            } else {
+                const [a, b] = m.sides;
+                ok(where + ': one column, the halves stacked', b.t >= a.b - 1 && m.gaps.length === 0,
+                    'second half at ' + Math.round(b.t) + ' after ' + Math.round(a.b) + ', ' + m.gaps.length + ' cards with a neighbour');
+            }
+        });
+        results.forEach(a => ok(a[0], a[1], a[2]));
     } finally {
         await c.close();
         await server.close();
