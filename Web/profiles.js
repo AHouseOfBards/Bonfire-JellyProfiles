@@ -8279,8 +8279,7 @@
                 status.textContent = text || '';
                 status.style.color = bad ? 'var(--jpf-danger)' : '';
             };
-            // One call at a time: a second tap on Send while the first was in flight sent
-            // a second code email.
+            // One call at a time: a second tap on Send while the first was in flight sent a second code email.
             let busy = false;
             const run = (path, body, done) => {
                 if (busy) return;
@@ -8292,8 +8291,8 @@
 
             const draw = () => {
                 if (!document.body.contains(slot)) return;
-                // Email off on this server: say so and where to turn it on, instead of an
-                // account page with no hint that a forgotten PIN could ever be reset (P2-607).
+                // Email off on this server: say so and where to turn it on, instead of an account
+                // page with no hint that a forgotten PIN could be reset (P2-607).
                 if (field('available') !== true) {
                     slot.innerHTML = this.renderSection('mail', t('accountEmail.title'), t('accountEmail.subtitle'),
                         `<div class="jpf-form-hint" id="account-email-off">${t('account.emailOff')}</div>`);
@@ -8405,14 +8404,12 @@
                 .catch(() => { /* no section; the rest of the page works without it */ });
         },
 
-        /// Puts the picker into "working on it" while a switch is in flight.
-        ///
-        /// The switch is a round trip to the server and then a full page reload. On a phone
-        /// that is a couple of seconds during which nothing on screen changed at all, so the
-        /// only reasonable reading was that the tap had missed — and the reporter kept
-        /// tapping. _switchLock already made the extra taps harmless; it just never said so.
+        /// Puts the picker into "working on it" while a switch is in flight. The switch is a
+        /// round trip and a full page reload; on a phone nothing on screen changed for a couple
+        /// of seconds, so people read the tap as missed and kept tapping. _switchLock made the
+        /// extra taps harmless but never said so.
         setSwitchBusy: function (profileId, busy) {
-            // The spinner is all a sighted person gets; this is the same news in words.
+            // The spinner is for sighted people; this is the same news in words.
             const live = document.getElementById('jpf-switch-live');
             if (live) {
                 const wanted = this.normalizeGuid(profileId);
@@ -8426,8 +8423,7 @@
                 if (busy) overlay.setAttribute('aria-busy', 'true');
                 else overlay.removeAttribute('aria-busy');
 
-                // Matched by normalised id rather than an attribute selector, so a profile
-                // id can never be read as one.
+                // Matched by normalised id, not an attribute selector, so a profile id can never be read as one.
                 const wanted = busy ? this.normalizeGuid(profileId) : null;
                 overlay.querySelectorAll('.jpf-profile-card').forEach(card => {
                     const isTarget = !!wanted
@@ -8436,22 +8432,20 @@
                 });
             }
 
-            // Started from a PIN prompt, the button is what the user is looking at — the
-            // card behind it may not even be on screen.
+            // Started from a PIN prompt, the button is what the user is looking at; the card
+            // behind it may not be on screen.
             ['pin-submit-btn', 'master-pin-submit-btn'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.classList.toggle('is-busy', busy);
             });
         },
 
-        /// fetch() that gives up. A request the person is waiting on locks the picker until
-        /// it settles, and a server that accepts the connection and never answers (a
-        /// restart, a proxy dropping the reply) means only a page reload gets them out.
+        /// fetch() that gives up. A server that accepts the connection and never answers (a
+        /// restart, a proxy dropping the reply) would lock the picker until a page reload.
         ///
-        /// A timer raced against the request, not an AbortController: webOS 4.5 is
-        /// Chromium 53 and has none. The request itself is not cancelled; it is simply
-        /// no longer listened to, so a reply that turns up late changes nothing.
-        /// Rejects with isTimeout set.
+        /// A timer raced against the request, not an AbortController: webOS 4.5 is Chromium 53
+        /// and has none. The request is not cancelled, just no longer listened to. Rejects
+        /// with isTimeout set.
         _fetchTimed: function (url, init, ms) {
             return new Promise((resolve, reject) => {
                 const timer = setTimeout(() => {
@@ -8466,38 +8460,37 @@
             });
         },
 
-        /// What to tell the person about a failed request. The server's own words go
-        /// through as they are; anything the browser raised ("Failed to fetch", "Load
-        /// failed", a JSON parse error) is not for them and not translated, so it is
-        /// replaced. Otherwise "wrong PIN" and "server unreachable" read the same.
+        /// What to tell the person about a failed request. The server's own words go through;
+        /// anything the browser raised ("Failed to fetch", "Load failed", a JSON parse error)
+        /// is replaced, since it is untranslated and makes "wrong PIN" and "server unreachable"
+        /// read the same.
         _failText: function (err, fallback) {
             if (err && err.serverText) return err.serverText;
-            // By name, not instanceof: an error raised in another frame is not an instance
-            // of this one's TypeError.
+            // By name, not instanceof: an error from another frame is not an instance of this one's TypeError.
             if (err && (err.isTimeout || err.name === 'TypeError' || err.name === 'SyntaxError')) {
                 return t('switcher.unreachable');
             }
             return fallback;
         },
 
-        /// The profile saved and its viewing hours did not. Said apart, so it does not read as
-        /// a profile that was lost; the server's reason, when it gave one, follows.
+        /// The profile saved and its viewing hours did not. Said apart so it does not read as
+        /// a lost profile; the server's reason follows when it gave one.
         _hoursFailText: function (err) {
             const why = this._failText(err, '');
             return t('errors.savingHours') + (why ? ' ' + why : '');
         },
 
-        // onError: optional callback(message) invoked on a failed switch.
-        // Callers capture their own DOM references via closure so we never re-query
-        // the DOM inside an async callback (which can race against overlay teardown).
+        // onError: optional callback(message) on a failed switch. Callers capture their own
+        // DOM references via closure so nothing re-queries the DOM inside an async callback
+        // (it can race overlay teardown).
         executeProfileSwitch: function (profileId, pin, onError) {
             if (this._switchLock) return;
 
             const apiClient = ApiClient;
             const masterState = this.readMasterState();
             if (!masterState) {
-                // No household to act for: nothing was sent. Saying nothing left a PIN
-                // screen that took its digits and then did nothing (R-1207).
+                // No household to act for: nothing was sent. Saying nothing left a PIN screen that
+                // took its digits and did nothing (R-1207).
                 if (typeof onError === 'function') onError(t('switcher.failedBody'));
                 else this.showAlert(t('switcher.failedTitle'), t('switcher.failedBody'));
                 return;
@@ -8516,16 +8509,16 @@
                 if (!res.ok) {
                     return res.text().then(text => {
                         const body = (text || '').trim();
-                        // Our own 401 (caller's token rejected) has an empty body. A 401 with a
-                        // message came from something failing further in — the target profile,
-                        // not the caller — so signing the master out would be wrong (issue #15).
+                        // Our own 401 (caller's token rejected) has an empty body. A 401 with a message came
+                        // from further in (the target profile, not the caller), so signing the master out
+                        // would be wrong (issue #15).
                         if (res.status === 401 && !body) {
                             this._switchLock = false;
                             this.handleSessionExpired();
                             throw new Error('Session expired');
                         }
-                        // A 429's sentence is English; the wait is built here, in the viewer's
-                        // language. Any other refusal is said by its code; the body is not shown.
+                        // A 429's sentence is English; the wait is built here in the viewer's language. Any
+                        // other refusal is said by its code; the body is not shown.
                         const shown = res.status === 429 ? this._lockedText(res) : refusalText(res);
                         const refusal = new Error(shown || t('pin.incorrectPin'));
                         refusal.serverText = shown;
@@ -8538,14 +8531,13 @@
                 const activeProfileToken = data.activeProfileToken || data.ActiveProfileToken;
                 const jellyfinUserId = data.jellyfinUserId || data.JellyfinUserId;
 
-                // The session being left, ended once the new one is safely stored below.
+                // The session being left, ended once the new one is stored below.
                 const leavingToken = masterState.token;
 
-                // Before anything else is written, because this is the one write that has
-                // to survive the reload. Without it the token lives only on this page's
-                // ApiClient, and the reload signs back in as whoever was there before —
-                // right name in the header, wrong account underneath. Bail here rather
-                // than leave session keys describing a switch that will not happen.
+                // First write, because it is the one that must survive the reload. Without it the
+                // token lives only on this page's ApiClient and the reload signs back in as whoever
+                // was there before: right name in the header, wrong account underneath. Bail here
+                // rather than leave session keys describing a switch that will not happen.
                 if (!this.updateStoredCredentials(activeProfileToken, jellyfinUserId)) {
                     this._switchLock = false;
                     this.setSwitchBusy(profileId, false);
@@ -8555,17 +8547,15 @@
 
                 this._sessionSet(this.config.activeSessionKey, activeProfileToken);
 
-                // Nothing on this device should go on holding the account it just left —
-                // above all when that was the master. Its token was the thing the switcher
-                // is meant to stand in front of, and a copy kept "for later" is a copy anyone
-                // at this browser can use. Coming back is a /switch like any other.
+                // Nothing on this device keeps the account it just left, above all the master. Its
+                // token is what the switcher stands in front of, and a kept copy is usable by anyone
+                // at this browser. Coming back is a /switch like any other.
                 if (leavingToken && leavingToken !== activeProfileToken) this._endSession(leavingToken);
 
-                // Cached against the profile being switched into, before the reload, so the
-                // next load starts with the right rules already in place.
+                // Cached against the profile being switched into, so the next load starts with the right rules.
                 this.cacheLibraryArtwork(jellyfinUserId, data.libraryArtwork || data.LibraryArtwork || []);
 
-                // A switch has happened; there is no longer an earlier profile to go back to.
+                // A switch has happened; there is no earlier profile to go back to.
                 this._resumeState = null;
 
                 const profile = this.currentProfiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
@@ -8581,32 +8571,28 @@
 
                 apiClient.setAuthenticationInfo(activeProfileToken, jellyfinUserId);
 
-                // The overlay is opaque and covers the viewport, so leaving it up is all it
-                // takes to keep the old page out of sight — and it keeps the spinner on
-                // screen for however long the reload costs. Blanking the document instead
-                // meant a phone showed several seconds of black with nothing to say the tap
-                // had registered. Only the background is calmed towards the next page.
+                // The overlay is opaque and covers the viewport, so leaving it up hides the old page
+                // and keeps the spinner on screen through the reload. Blanking the document instead
+                // showed a phone several seconds of black with no sign the tap registered.
                 const leavingBg = this._captureLeavingBackground();
-                // A second layer under the gate, in its colour, for as long as this page
-                // lives. The gate is the cover while it stays up; this is for the moment
-                // it does not — whatever takes it down before the navigation lands, the
-                // old profile's home is not what shows. Only the reload failing takes it
-                // down (_reloadFailed), so there is no backstop timer to race the reload.
+                // A second layer under the gate, in its colour, for the life of this page: if the
+                // gate comes down before the navigation lands, the old profile's home must not show.
+                // Only a failed reload takes it down (_reloadFailed), so no backstop timer races the reload.
                 this._holdCoverForSwitch();
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
                     overlay.classList.add('jpf-bg-fade');
                     overlay.style.background = leavingBg;
                 } else {
-                    // Menu-mode switch with no gate on screen: nothing is covering the app,
-                    // so the old page does still have to be hidden before it repaints.
+                    // Menu-mode switch with no gate on screen: nothing covers the app, so the old
+                    // page must be hidden before it repaints.
                     document.documentElement.style.cssText =
                         'opacity:0;background:' + leavingBg + ';color-scheme:'
                         + (this._isLightColour(leavingBg) ? 'light' : 'dark');
                 }
                 this._reloading = true;
-                // Guarded like every other use of the key: storage that is full or blocked
-                // threw here, into the catch below, after the switch had already succeeded.
+                // Guarded like every other use of the key: full or blocked storage threw here, into
+                // the catch below, after the switch had already succeeded.
                 try { localStorage.setItem(this.config.switchingKey, '1'); } catch (e) { /* the reload still happens */ }
                 this.reloadAtHome();
             })
@@ -8615,12 +8601,11 @@
                 this.setSwitchBusy(profileId, false);
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
-                    // Caller has closed-over references to the DOM — no re-query needed
+                    // Caller holds its own DOM references; no re-query needed
                     onError(this._failText(err, err.message || t('pin.incorrectPin')));
                 } else {
-                    // No PIN screen is shown (a direct tap on a profile with no PIN): put
-                    // the picker back and say why, or the tile just stops responding and
-                    // the person has nothing to retry on but another tap.
+                    // No PIN screen is shown (a direct tap on a profile with no PIN): put the picker
+                    // back and say why, or the tile just stops responding.
                     this.isManageMode = false;
                     this.interceptHomeAndShowProfiles();
                     this.showAlert(t('switcher.failedTitle'),
@@ -8630,23 +8615,19 @@
         },
 
         // ── Avatar images ──────────────────────────────────────────────────────────
-        // Two renderings are produced for every picture: a master used where the avatar is
-        // shown large, and a thumbnail used by grids and switcher cards. Twenty full-size
-        // avatars in a picker would otherwise decode about twenty megabytes of bitmap,
-        // which is enough to stall the TV browsers this plugin supports.
-        //
-        // Both are produced here, in the browser, so the plugin needs no server-side image
-        // library. It also means the accepted input set is "whatever this browser can
-        // decode" while the stored output stays deliberately narrow.
+        // Two renderings per picture: a master for large display and a thumbnail for grids and
+        // switcher cards. Twenty full-size avatars in a picker would decode about twenty
+        // megabytes of bitmap, enough to stall the TV browsers this plugin supports.
+        // Both are made in the browser, so the plugin needs no server-side image library;
+        // the accepted input is whatever this browser can decode, the stored output stays narrow.
 
         IMAGE_MASTER_SIZE: 512,
         IMAGE_THUMB_SIZE: 128,
         IMAGE_JPEG_QUALITY: 0.85,
 
-        /// The sizes to render a picture at, from the server's picture quality setting.
-        /// Anything missing or out of range falls back to the standard sizes above, which
-        /// are what every picture was before the setting existed — and what a server older
-        /// than it expects, since it will refuse anything over 2 MB.
+        /// The sizes to render a picture at, from the server's picture quality setting. Missing
+        /// or out-of-range values fall back to the standard sizes above, which are what every
+        /// picture was before the setting and what an older server expects (it refuses over 2 MB).
         parseImageSpec: function (raw) {
             const pick = (k) => raw ? (raw[k] !== undefined ? raw[k] : raw[k.charAt(0).toUpperCase() + k.slice(1)]) : undefined;
             const size = Number(pick('masterSize'));
@@ -8663,21 +8644,19 @@
             return this._imageSpec || this.parseImageSpec(null);
         },
 
-        /// Formats refused before we even try to decode, each with a reason worth showing.
-        /// Everything else is handed to the browser: if it decodes, we can store it.
+        /// Formats refused before decoding, each with a reason worth showing. Everything else
+        /// goes to the browser: if it decodes, we can store it.
         _rejectImageFile: function (file) {
             const name = (file.name || '').toLowerCase();
             const type = (file.type || '').toLowerCase();
 
-            // The common case by a distance: iPhones shoot HEIC by default, and only Safari
-            // can decode it. Elsewhere the canvas load simply fails, so without this the
-            // user gets silence and no idea why.
+            // The common case: iPhones shoot HEIC and only Safari can decode it. Elsewhere the
+            // canvas load just fails, leaving the user with silence.
             if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
                 return t('errors.heicUnsupported');
             }
 
-            // SVG can carry script, and these files are served back from the server's own
-            // origin. Not worth it for an avatar.
+            // SVG can carry script and these files are served from the server's origin.
             if (type.includes('svg') || /\.svgz?$/.test(name)) {
                 return t('errors.svgUnsupported');
             }
@@ -8689,7 +8668,7 @@
             return null;
         },
 
-        /// Reads a File into a decoded <img>. Rejects with a message fit to show the user.
+        /// Reads a File into a decoded <img>. Rejects with a message fit to show.
         loadImageFromFile: function (file) {
             return new Promise((resolve, reject) => {
                 const reason = this._rejectImageFile(file);
@@ -8706,8 +8685,8 @@
                         }
                         resolve(img);
                     };
-                    // Reached for any format this browser cannot decode — including a HEIC
-                    // that slipped past the check above with an empty MIME type.
+                    // Any format this browser cannot decode, including HEIC that slipped past the check
+                    // above with an empty MIME type.
                     img.onerror = () => reject(new Error(t('errors.imageFormatUnsupported')));
                     img.src = event.target.result;
                 };
@@ -8715,10 +8694,10 @@
             });
         },
 
-        /// Loads a URL into an <img> for cropping. Used when someone picks an avatar from the
-        /// administrator's library. The canvas has to stay untainted or the crop cannot be
-        /// re-encoded, so anything off-origin is requested with CORS — that is the packaged
-        /// clients, where the page origin is the app rather than the server.
+        /// Loads a URL into an <img> for cropping, for avatars picked from the administrator's
+        /// library. The canvas must stay untainted or the crop cannot be re-encoded, so
+        /// off-origin URLs are requested with CORS (the packaged clients, where the page
+        /// origin is the app).
         loadImageFromUrl: function (url) {
             const resolved = pluginUrl(url);
             return new Promise((resolve, reject) => {
@@ -8734,14 +8713,13 @@
             });
         },
 
-        /// Pointer bookkeeping for the picture-position dialog: one finger pans, two
-        /// pinch. pan(dx, dy) and setZoom(z) are the dialog's own; getZoom() reads the
-        /// slider; grab(true/false) flips the cursor. Returns begin/move/end by pointer id.
+        /// Pointer bookkeeping for the picture-position dialog: one finger pans, two pinch.
+        /// pan(dx, dy) and setZoom(z) are the dialog's; getZoom() reads the slider; grab(bool)
+        /// flips the cursor. Returns begin/move/end by pointer id.
         ///
-        /// When one finger of a pinch lifts, the finger left down is measured again from
-        /// where it is now. It was last measured as part of the pinch, so without that the
-        /// first move after the lift was taken from where the drag began and the picture
-        /// jumped (R-1204).
+        /// When one finger of a pinch lifts, the remaining finger is measured again from where
+        /// it is now. Otherwise the first move after the lift was taken from where the drag
+        /// began and the picture jumped (R-1204).
         _cropGesture: function (getZoom, pan, setZoom, grab) {
             let dragging = false, lastX = 0, lastY = 0, pinchStart = 0, pinchZoomStart = 1;
             const active = new Map();
@@ -8789,7 +8767,7 @@
             return Math.max(size / img.width, size / img.height);
         },
 
-        /// Keeps the image covering the viewport, so a crop can never include blank edges.
+        /// Keeps the image covering the viewport, so a crop never has blank edges.
         _clampCrop: function (img, viewport, crop) {
             const w = img.width * crop.zoom;
             const h = img.height * crop.zoom;
@@ -8811,30 +8789,26 @@
             return canvas;
         },
 
-        /// Renders the cropped square at `outSize` and returns it as a data URL.
-        /// PNG is used when the source has transparency — re-encoding a cut-out avatar as
-        /// JPEG would fill the transparent area with black.
+        /// Renders the cropped square at `outSize` as a data URL. PNG when the source has
+        /// transparency: JPEG would fill a cut-out avatar's transparent area with black.
         renderCrop: function (img, viewport, crop, outSize, preferPng) {
             const canvas = this._cropCanvas(img, viewport, crop, outSize);
             return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', this.imageSpec().jpegQuality);
         },
 
-        /// Reads an image's alpha channel at low resolution and answers the two separate
-        /// questions the picker has about it. One decode, two answers.
+        /// Reads an image's alpha channel at low resolution and answers the picker's two
+        /// questions in one decode.
         ///
-        ///   hasAlpha — is any pixel less than fully opaque? Decides PNG over JPEG, where
-        ///              a single soft pixel is enough to matter, because re-encoding a
-        ///              cut-out as JPEG fills the transparent area with black.
+        ///   hasAlpha: is any pixel less than fully opaque? Decides PNG over JPEG; one soft
+        ///             pixel is enough to matter.
         ///
-        ///   cutout   — is this shaped art rather than a rectangular photo? Decides
-        ///              whether to paint the avatar colour behind it (issue #23). This is
-        ///              a much stricter question and deliberately not the same test: an
-        ///              antialiased edge or a soft border makes hasAlpha true, and must
-        ///              not be allowed to switch somebody's background off.
+        ///   cutout:   is this shaped art rather than a rectangular photo? Decides whether to
+        ///             paint the avatar colour behind it (issue #23). Much stricter: an
+        ///             antialiased edge makes hasAlpha true and must not switch somebody's
+        ///             background off.
         ///
-        /// cutout reads the corners, because `object-fit: cover` means the corners are the
-        /// only place the colour is ever visible. A circular avatar has four transparent
-        /// corners; a photograph has none.
+        /// cutout reads the corners, because `object-fit: cover` makes them the only place the
+        /// colour is visible. A circular avatar has four transparent corners; a photo has none.
         _alphaProfile: function (source) {
             const out = { hasAlpha: false, cutout: false };
             try {
@@ -8849,12 +8823,11 @@
                     if (data[i] < 250) { out.hasAlpha = true; break; }
                 }
 
-                // Nothing is transparent at all, so there is no shape to work around and
-                // the corner walk cannot say otherwise.
+                // Nothing is transparent, so there is no shape to work around.
                 if (!out.hasAlpha) return out;
 
-                // A corner counts as cut away only when a whole 4x4 block of it is clear.
-                // One outermost pixel would let a single stray sample decide this.
+                // A corner counts as cut away only when a whole 4x4 block is clear; one outermost
+                // pixel would let a stray sample decide.
                 const BLOCK = 4;
                 const corners = [[0, 0], [s - BLOCK, 0], [0, s - BLOCK], [s - BLOCK, s - BLOCK]];
                 let clearCorners = 0;
@@ -8871,24 +8844,22 @@
                     if (clear) clearCorners++;
                 }
 
-                // Three of four rather than all four: a circle with one stray opaque
-                // sample still counts, a rectangle with one rounded corner still does not.
+                // Three of four, not all: a circle with one stray opaque sample still counts, a
+                // rectangle with one rounded corner still does not.
                 out.cutout = clearCorners >= 3;
             } catch (e) { /* tainted canvas or no context — assume an opaque photo */ }
             return out;
         },
 
-        /// True when any pixel is not fully opaque. Sampled at low resolution — this only
-        /// decides an output format, so an exact answer is not worth the work.
+        /// True when any pixel is not fully opaque. Sampled at low resolution; it only picks
+        /// an output format.
         _hasTransparency: function (img) {
             return this._alphaProfile(img).hasAlpha;
         },
 
-        /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does
-        /// nothing if the user cancels.
-        ///
-        /// Supports all three input modes the supported clients need: mouse drag, touch
-        /// drag, and D-pad (arrows pan, +/- zoom, and the zoom slider is focusable).
+        /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does nothing
+        /// if the user cancels. Supports mouse drag, touch drag and D-pad (arrows pan, +/-
+        /// zoom, the zoom slider is focusable).
         showCropDialog: function (img, onDone) {
             // Two quick picks used to open two dialogs, one on top of the other.
             if (this._cropClose) this._cropClose();
@@ -8898,8 +8869,7 @@
             const minZoom = this._coverZoom(img, VIEW);
             let crop = this._clampCrop(img, VIEW, {
                 zoom: minZoom,
-                // Start centred — the subject of a photo is far more often in the middle
-                // than in a corner.
+                // Start centred: a photo's subject is far more often in the middle.
                 x: (VIEW - img.width * minZoom) / 2,
                 y: (VIEW - img.height * minZoom) / 2
             });
@@ -8959,8 +8929,7 @@
             const setZoom = (multiplier, anchorX, anchorY) => {
                 const next = Math.max(1, Math.min(4, multiplier));
                 const newZoom = minZoom * next;
-                // Zoom about a point so the image does not lurch sideways: keep whatever
-                // was under the anchor in the same place.
+                // Zoom about a point: keep whatever was under the anchor in the same place.
                 const ax = anchorX === undefined ? VIEW / 2 : anchorX;
                 const ay = anchorY === undefined ? VIEW / 2 : anchorY;
                 const ratio = newZoom / crop.zoom;
@@ -8976,11 +8945,10 @@
             zoomInput.addEventListener('input', () => setZoom(parseFloat(zoomInput.value)));
 
             // ── Dragging ──────────────────────────────────────────────────────────
-            // Movement and release are tracked on window, not on the circle. Pointer
-            // capture used to be what kept a gesture alive, and it is not dependable
-            // across the clients this runs on — a throw from setPointerCapture aborted
-            // the handler before dragging was ever set, which is why panning did nothing
-            // while the zoom slider still worked. Capture is now best-effort only.
+            // Movement and release are tracked on window, not the circle. Pointer capture was
+            // unreliable across clients: a throw from setPointerCapture aborted the handler before
+            // dragging was set, so panning did nothing while the zoom slider worked. Capture is
+            // now best-effort.
             const gesture = this._cropGesture(
                 () => parseFloat(zoomInput.value),
                 (dx, dy) => {
@@ -8994,7 +8962,7 @@
             const movePointer = (id, x, y) => gesture.move(id, x, y);
             const endPointer = (id) => gesture.end(id);
 
-            // Tracked so the window-level listeners come off again when the dialog closes.
+            // Tracked so the window-level listeners come off when the dialog closes.
             const bound = [];
             const on = (target, type, fn, opts) => {
                 target.addEventListener(type, fn, opts);
