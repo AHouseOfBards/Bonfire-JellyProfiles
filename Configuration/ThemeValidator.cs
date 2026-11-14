@@ -19,35 +19,34 @@ namespace Jellyfin.Profiles.Configuration
 
     /// <summary>
     /// Checks a theme file against docs/themes.md, schema 1. Every built-in passes it (see
-    /// tests/cs/themes), and an administrator's theme is checked by it before it is saved or
-    /// imported, without the contrast rules.
+    /// tests/cs/themes), and an administrator's theme is checked by it before it is saved or imported,
+    /// without the contrast rules.
     /// <para>
-    /// Strict, because an imported file is untrusted: an unknown field is a problem rather
-    /// than something kept, every value is checked for its type and range, and no string may
-    /// hold an address. The web client sanitises again as it writes CSS (themeCss forces every
-    /// value into its type), so a file that got past this could still not inject CSS; this is
-    /// what tells the administrator which value is wrong instead of drawing it as nothing.
+    /// Strict, because an imported file is untrusted: an unknown field is a problem, not something
+    /// kept; every value is checked for type and range; and no string may hold an address. The web
+    /// client sanitizes again as it writes CSS (themeCss forces every value into its type), so a file
+    /// that got past this still could not inject CSS. This tells the administrator which value is
+    /// wrong instead of drawing it as nothing.
     /// </para>
     /// <para>
-    /// Contrast is a rule for the built-ins only, which are ours. The owner's decision
-    /// (2026-11-12): "There should be no restrictions on custom made themes", so a theme an
-    /// administrator made is never refused for its contrast or for the hue of its error and
-    /// warning colours, and the settings page does not warn about either. Everything else
-    /// here (shape, types, ranges, fonts, pictures, no addresses) still applies to it.
+    /// Contrast is a rule for the built-ins only, which are ours. Owner's decision (2026-11-12): "There
+    /// should be no restrictions on custom made themes". A theme an administrator made is never
+    /// refused for contrast or for the hue of its error and warning colors, and the settings page does
+    /// not warn about either. Everything else (shape, types, ranges, fonts, pictures, no addresses)
+    /// still applies.
     /// </para>
     /// <para>
-    /// Contrast is checked pair by pair against every colour the background has, the fill and
-    /// each stop of each layer, one at a time. An average would let a gradient that is
-    /// unreadable at one end pass on the strength of the other.
+    /// Contrast is checked pair by pair against every color the background has: the fill and each stop
+    /// of each layer, one at a time. An average would let a gradient that is unreadable at one end
+    /// pass on the strength of the other.
     /// </para>
     /// <para>
-    /// The pairs are the ones where the theme names both the text and what it sits on: the
-    /// colours against the background, text1 against the panel, onAccent against both
-    /// accents, and the text of button2, its focus, the add tile (resting and focused) and
-    /// the input against their fills. Not checked, on purpose: the card, the sheet, the
-    /// surfaces and the borders. They carry no text of their own; the text drawn on them is
-    /// the colours above, already held against the background they sit on, and a border or
-    /// line is decoration, not something read.
+    /// The pairs are those where the theme names both the text and what it sits on: the colors against
+    /// the background, text1 against the panel, onAccent against both accents, and the text of
+    /// button2, its focus, the add tile (resting and focused) and the input against their fills. Not
+    /// checked, on purpose: the card, the sheet, the surfaces and the borders. They carry no text of
+    /// their own, the text drawn on them is already held against the background, and a border is
+    /// decoration.
     /// </para>
     /// </summary>
     public static class ThemeValidator
@@ -56,12 +55,12 @@ namespace Jellyfin.Profiles.Configuration
         public const int Schema = 1;
 
         /// <summary>
-        /// The highest revision a theme may carry. Well below int.MaxValue: a save writes the
-        /// stored revision plus one, which overflowed an int at the top of the range.
+        /// The highest revision a theme may carry. Well below int.MaxValue: a save writes the stored
+        /// revision plus one, which overflowed an int at the top of the range.
         /// </summary>
         public const int MaxRevision = 1_000_000_000;
 
-        /// <summary>A serialised theme larger than this is refused before anything else.</summary>
+        /// <summary>A serialized theme larger than this is refused first.</summary>
         public const int MaxBytes = 64 * 1024;
 
         /// <summary>The id of the theme that must reach 7:1 wherever the others need 4.5:1.</summary>
@@ -84,9 +83,9 @@ namespace Jellyfin.Profiles.Configuration
 
         /// <summary>
         /// Every problem with <paramref name="node"/>, or none. <paramref name="fonts"/> and
-        /// <paramref name="patterns"/> are the font families and pattern pictures Bonfire
-        /// holds; a theme may only name those. <paramref name="contrast"/> false leaves out the
-        /// colour rules (contrast and the red and amber hues), for a theme an administrator made.
+        /// <paramref name="patterns"/> are the font families and pattern pictures Bonfire holds; a theme
+        /// may only name those. <paramref name="contrast"/> false leaves out the color rules (contrast and
+        /// the red and amber hues), for a theme an administrator made.
         /// </summary>
         public static IReadOnlyList<ThemeProblem> Validate(JsonNode? node, IEnumerable<string> fonts, IEnumerable<string> patterns, bool contrast = true)
         {
@@ -109,9 +108,9 @@ namespace Jellyfin.Profiles.Configuration
 
         private static int Encoding(JsonNode node) => System.Text.Encoding.UTF8.GetByteCount(node.ToJsonString());
 
-        // ── Colour arithmetic, WCAG 2 ────────────────────────────────────────────────────
+        // Color arithmetic, WCAG 2.
 
-        /// <summary>A colour: 0–255 channels and 0–1 alpha.</summary>
+        /// <summary>A color: 0-255 channels and 0-1 alpha.</summary>
         internal readonly record struct Rgba(double R, double G, double B, double A);
 
         internal static Rgba? ParseHex(string? value)
@@ -175,7 +174,7 @@ namespace Jellyfin.Profiles.Configuration
 
             public void Add(string path, string code, string detail) => Problems.Add(new ThemeProblem(path, code, detail));
 
-            // ── Shape of the file ─────────────────────────────────────────────────────
+            // Shape of the file.
 
             /// <summary>The object at <paramref name="path"/> with exactly these keys allowed.</summary>
             private JsonObject? Obj(JsonNode? node, string path, bool required, params string[] allowed)
@@ -231,9 +230,8 @@ namespace Jellyfin.Profiles.Configuration
                     return null;
                 }
 
-                // Read through the JSON text: TryGetValue<double> is false for a value made
-                // from an int in code rather than parsed, which is how a theme built by the
-                // settings page arrives.
+                // Read through the JSON text: TryGetValue<double> is false for a value made from an int in
+                // code rather than parsed, which is how a theme built by the settings page arrives.
                 if (n is not JsonValue jv || jv.GetValueKind() != JsonValueKind.Number
                     || !double.TryParse(jv.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d))
                 {
@@ -297,7 +295,7 @@ namespace Jellyfin.Profiles.Configuration
                 return Color(o, at, "color", true);
             }
 
-            // ── The file ──────────────────────────────────────────────────────────────
+            // The file.
 
             public void Run(JsonObject t)
             {
@@ -323,8 +321,8 @@ namespace Jellyfin.Profiles.Configuration
                 Depth(t);
                 Focus(t);
                 var parts = Parts(t);
-                // The four choices besides households (2.0) are optional: absent is today's
-                // look (tiles, centred, medium, logo top right), so no saved theme changes.
+                // The four choices besides households (2.0) are optional: absent is today's look (tiles,
+                // centered, medium, logo top right), so no saved theme changes.
                 var layout = Obj(t["layout"], "layout", true, "households", "profiles", "align", "size", "logo");
                 if (layout != null)
                 {
@@ -347,7 +345,7 @@ namespace Jellyfin.Profiles.Configuration
                 // Built-ins only: see the class summary.
                 if (_contrast && colors != null && bg.Count > 0)
                 {
-                    // A name is drawn at type.name.opacity, so that is the colour to check.
+                    // A name is drawn at type.name.opacity, so that is the color to check.
                     var opacity = t["type"]?["name"]?["opacity"] is JsonValue ov && ov.GetValueKind() == JsonValueKind.Number
                         && double.TryParse(ov.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var o) && o >= 0 && o <= 1 ? o : 1;
                     colors["name"] = colors["name"] with { A = colors["name"].A * opacity };
@@ -408,9 +406,9 @@ namespace Jellyfin.Profiles.Configuration
                     if (c != null) all[f] = c.Value;
                 }
 
-                // Red and amber, so an error never reads as anything else: a rule for the
-                // built-ins, like contrast. A custom theme may use any colour (the owner,
-                // 2026-11-12, "no restrictions on custom made themes").
+                // Red and amber, so an error never reads as anything else: a built-in rule, like contrast. A
+                // custom theme may use any color (owner, 2026-11-12, "no restrictions on custom made
+                // themes").
                 if (_contrast && all.TryGetValue("danger", out var danger))
                 {
                     var (h, s) = HueOf(danger);
@@ -439,11 +437,10 @@ namespace Jellyfin.Profiles.Configuration
                 if (fill.Value.A < 1) Add("background.fill", "range", "Must not be see-through.");
                 stops.Add(("background.fill", ground));
 
-                // A picture (ThemeBackground), drawn under the fill at `dim`. Only a custom
-                // theme has one, so it is checked for its shape and not for contrast. Until
-                // 2026-11-12 it was also one contrast entry standing for every picture there
-                // could be, worst case included (a grey picture of the text's own lightness,
-                // 1:1); the owner decided custom themes have no contrast rules.
+                // A picture (ThemeBackground), drawn under the fill at `dim`. Only a custom theme has one, so
+                // it is checked for shape, not contrast. Until 2026-11-12 it was also one contrast entry
+                // standing for every possible picture, worst case included (a grey picture of the text's own
+                // lightness, 1:1); the owner decided custom themes have no contrast rules.
                 var image = Obj(o["image"], "background.image", false, "file", "dim");
                 if (image != null)
                 {
@@ -690,8 +687,8 @@ namespace Jellyfin.Profiles.Configuration
                     {
                         case "pattern":
                         case "pattern2":
-                            // pattern2 is a second pattern, drawn above the first (2.0). Same
-                            // fields; it needs the first, which it sits above.
+                            // pattern2 is a second pattern, drawn above the first (2.0). Same fields; it needs the first,
+                            // which it sits above.
                             Obj(d, at, true, "name", "image", "size", "drift", "seconds", "opacity");
                             Num(d, at, "opacity", false, 0.1, 1);
                             if (name == "pattern2" && !list.Any(x => x is JsonObject p && p["name"] is JsonValue pn && pn.TryGetValue<string>(out var s) && s == "pattern"))
@@ -731,8 +728,8 @@ namespace Jellyfin.Profiles.Configuration
                         case "twinkle":
                             Obj(d, at, true, "name", "seconds");
                             Num(d, at, "seconds", true, 2, 120);
-                            // It fades the pattern layer, so without a pattern there is
-                            // nothing to twinkle and the value would be silently ignored.
+                            // It fades the pattern layer, so without a pattern there is nothing to twinkle and the value
+                            // would be silently ignored.
                             if (!list.Any(x => x is JsonObject p && p["name"] is JsonValue pn && pn.TryGetValue<string>(out var s) && s == "pattern"))
                             {
                                 Add(at, "range", "Needs a pattern decoration to twinkle.");
@@ -744,10 +741,9 @@ namespace Jellyfin.Profiles.Configuration
             }
 
             /// <summary>
-            /// No string anywhere in the file may point somewhere: fonts and pictures are
-            /// files Bonfire holds, named by name. Checked over every string, not only the
-            /// fields expected to hold one, because a field this validator does not know is
-            /// exactly where an address would be put.
+            /// No string anywhere in the file may point somewhere: fonts and pictures are files Bonfire holds,
+            /// named by name. Checked over every string, not only the expected fields, because a field this
+            /// validator does not know is exactly where an address would be put.
             /// </summary>
             private void NoAddresses(JsonNode? n, string path)
             {
@@ -759,10 +755,9 @@ namespace Jellyfin.Profiles.Configuration
                     case JsonArray a:
                         for (int i = 0; i < a.Count; i++) NoAddresses(a[i], path + "[" + i + "]");
                         break;
-                    // The name a person typed, shown as text everywhere (textContent, or escaped
-                    // before it goes into markup: Web/profiles.js themeName, the dashboard's
-                    // themeDisplayName). It is never fetched, so "Url(s) of fun" is a name,
-                    // not an address. r2-21-03.
+                    // The name a person typed, shown as text everywhere (textContent, or escaped before it goes
+                    // into markup: Web/profiles.js themeName, the dashboard's themeDisplayName). It is never
+                    // fetched, so "Url(s) of fun" is a name, not an address. r2-21-03.
                     case JsonValue when path == "name.text":
                         break;
                     case JsonValue v when v.TryGetValue<string>(out var s):
@@ -778,13 +773,13 @@ namespace Jellyfin.Profiles.Configuration
                 }
             }
 
-            // ── Contrast ──────────────────────────────────────────────────────────────
+            // Contrast.
 
             private void Contrast(Dictionary<string, Rgba> c, List<(string Path, Rgba Color)> bg, Dictionary<string, Rgba> parts, bool high)
             {
                 double text = high ? 7 : 4.5;
 
-                // Against every colour of the background, one at a time.
+                // Against every color of the background, one at a time.
                 void OnBackground(string field, double min)
                 {
                     foreach (var stop in bg)
@@ -805,9 +800,8 @@ namespace Jellyfin.Profiles.Configuration
                     if (r < min) Add(path, "contrast", Ratio(r, min) + " on " + against + ".");
                 }
 
-                // The title and body text at 7:1, as the web client's own checks have held
-                // since 1.6.6. A name is a label under a picture, so 4.5:1, the same as any
-                // other text.
+                // The title and body text at 7:1, as the web client's own checks have held since 1.6.6. A
+                // name is a label under a picture, so 4.5:1 like any other text.
                 OnBackground("text1", 7);
                 OnBackground("name", text);
                 OnBackground("text2", text);
@@ -825,8 +819,8 @@ namespace Jellyfin.Profiles.Configuration
                 Pair("colors.onAccent", c["onAccent"], accent, text, "colors.accent");
                 Pair("colors.onAccent", c["onAccent"], accentFocus, text, "colors.accentFocus");
 
-                // The parts sit on the background, so a see-through fill is mixed onto each
-                // of its colours first, and the text checked on each result.
+                // The parts sit on the background, so a see-through fill is mixed onto each of its colors
+                // first, and the text checked on each result.
                 void OnPart(string textKey, string fillKey, string path)
                 {
                     if (!parts.TryGetValue(textKey, out var fg) || !parts.TryGetValue(fillKey, out var fill)) return;
