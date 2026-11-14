@@ -3534,17 +3534,12 @@
                 .filter(tag => tag);
         },
 
-        /// Runs one startup step, and refuses to let it take the rest of init() with it.
+        /// Runs one startup step so a throw in it cannot stop the rest of init().
         ///
-        /// 1.5.2 shipped a stray backtick inside the stylesheet template literal in
-        /// injectStyles. The file still parsed — it was valid JavaScript, just not what
-        /// anyone meant — so the syntax check passed and it went out. At runtime
-        /// injectStyles threw, and because init() called these bare, the nine steps after
-        /// it never ran: no focus trap, so a remote could not reach the gate; no switcher
-        /// preferences; no panic shortcut, which is the escape hatch for exactly this;
-        /// no session validation. bindEvents had already run, so the route poll kept
-        /// raising an unstyled gate and the plugin looked alive while almost nothing
-        /// worked. A broken stylesheet should cost styling and nothing else.
+        /// 1.5.2 shipped a stray backtick in the injectStyles stylesheet. The file still
+        /// parsed, so the syntax check passed, but injectStyles threw at runtime and the
+        /// nine steps after it never ran: no focus trap, switcher preferences, panic
+        /// shortcut or session validation. A broken stylesheet should cost styling only.
         _step: function (name, fn) {
             try {
                 fn();
@@ -3555,21 +3550,16 @@
 
         /// Upstream's TV test, copied so the two cannot disagree.
         ///
-        /// From jellyfin-web src/scripts/browser.js isTv(), which is the function behind
-        /// browser.tv and therefore behind layoutManager's own auto-detection. Its own
-        /// first comment is "This is going to be really difficult to get right", which is
-        /// why this is a copy rather than something reasoned out afresh.
-        ///
-        /// `web0s` is spelt with a ZERO. That is upstream's spelling because it is what
-        /// LG actually puts in the user agent, and writing the letter O here would miss
-        /// every webOS set silently.
+        /// From jellyfin-web src/scripts/browser.js isTv(), which is behind browser.tv and
+        /// layoutManager's auto-detection. `web0s` is spelt with a ZERO, as upstream does
+        /// and as LG sends it; the letter O would miss every webOS set.
         _uaLooksLikeTv: function (ua) {
             const s = String(ua || '').toLowerCase();
             // The Oculus browser carries samsungbrowser in its UA and is a headset.
             if (s.indexOf('oculusbrowser') !== -1) return false;
-            // No samsungbrowser: upstream dropped it in 12.x (browser.js, with a test),
-            // because Samsung Internet on an Android phone carries it too and was laid out
-            // as a television. A Samsung set says SMART-TV and TV, so 'tv' still finds it.
+            // No samsungbrowser: upstream dropped it in 12.x because Samsung Internet on an
+            // Android phone carries it and was laid out as a TV. A Samsung set says SMART-TV
+            // and TV, so 'tv' still finds it.
             return s.indexOf('tv') !== -1
                 || s.indexOf('viera') !== -1
                 || s.indexOf('titanos') !== -1
@@ -3577,17 +3567,15 @@
                 || s.indexOf('web0s') !== -1;
         },
 
-        /// Does this browser lay out flex containers with `gap`?
+        /// Does this browser lay out flex containers with `gap`? (Chrome 84.)
         ///
-        /// Chrome 84. webOS 5 (the LG CX) is Chromium 68 and Tizen 6.0 is 76, so on both
-        /// of the televisions this plugin has open issues from, every `gap` on a flex
-        /// container is ignored and the spacing between children is simply gone.
+        /// webOS 5 is Chromium 68 and Tizen 6.0 is 76, so on both TVs this plugin has
+        /// issues from, flex `gap` is ignored and the spacing is gone.
         ///
-        /// Measured, not asked. `@supports (gap: 1px)` answers TRUE on Chromium 68,
-        /// because grid gap shipped in 66 and the query cannot tell the two layout modes
-        /// apart — so the obvious feature query returns yes on exactly the devices where
-        /// flex gap does nothing. Two empty children in a column box with a 1px row-gap
-        /// make the box 1px tall where it works and 0 where it does not.
+        /// Measured, not asked: `@supports (gap: 1px)` is TRUE on Chromium 68 because grid
+        /// gap shipped in 66 and the query cannot tell the layout modes apart. Two empty
+        /// children in a column box with a 1px row-gap make the box 1px tall where gap
+        /// works and 0 where it does not.
         _supportsFlexGap: function () {
             if (this._flexGapOk !== undefined) return this._flexGapOk;
             if (!document.body) return true;   // too early to tell; assume modern
@@ -3608,36 +3596,29 @@
             return this._flexGapOk;
         },
 
-        /// Puts `jpf-tv` and `jpf-no-flex-gap` on <html>, so the stylesheet can size for
-        /// a screen three metres away and can replace flex gaps the device ignores.
+        /// Puts `jpf-tv` and `jpf-no-flex-gap` on <html> so the stylesheet can size for a TV
+        /// and replace flex gaps the device ignores.
         ///
-        /// The plan said to read `layoutManager.tv`. It cannot be read: layoutManager is
-        /// an ES module default export in jellyfin-web and is never placed on window.
-        /// What it does do is write `layout-tv` / `layout-mobile` / `layout-desktop` onto
+        /// layoutManager cannot be read: it is an ES module export and never on window.
+        /// It does write `layout-tv` / `layout-mobile` / `layout-desktop` onto
         /// document.documentElement (src/components/layoutManager.js, setLayout), so that
-        /// class is the supported signal — and it is strictly better than sniffing,
-        /// because it also honours a layout the user has forced in Display settings. A
-        /// desktop set to TV mode gets TV sizing, which sniffing would never give it.
+        /// class is the signal. It also honors a layout forced in Display settings, which
+        /// sniffing would not. The UA is the fallback for a cold load before
+        /// layoutManager.init() and for the pre-sign-in gate.
         ///
-        /// The UA is only the fallback, for the two moments the class is not there yet:
-        /// a cold load where we run before layoutManager.init(), and the pre-sign-in gate.
-        ///
-        /// Re-run on class changes rather than on a timer. layoutManager can switch mode
-        /// at runtime and fires 'modechange', but that event is on the module object we
-        /// cannot reach; the class attribute it writes is observable, costs nothing when
-        /// nothing changes, and is not the route poll's business.
+        /// Re-run on class changes, not a timer: layoutManager's 'modechange' event is on
+        /// the module object we cannot reach, but the class attribute it writes is
+        /// observable and costs nothing when unchanged.
         applyDeviceClasses: function () {
             const root = document.documentElement;
             if (!root) return;
 
-            // Writes only on an actual change. The observer below watches the very
-            // attribute this touches, and a write that changes nothing would still be a
-            // mutation record and a second pass through here on every unrelated class
-            // change Jellyfin makes.
+            // Writes only on a real change. The observer below watches the attribute this
+            // touches, so a no-op write would cause a second pass on every unrelated class
+            // change.
             //
-            // This device's own choice comes first (Settings → Your account → More), read
-            // from storage once and then kept: apply() runs on every class change Jellyfin
-            // makes, and none of those should touch localStorage.
+            // This device's own choice (Settings > Your account > More) wins. Read from
+            // storage once and kept, because apply() runs on every class change.
             if (this._layoutChoice === undefined) this._layoutChoice = this._readLayoutChoice();
             const apply = () => {
                 const choice = this._layoutChoice;
@@ -3650,9 +3631,8 @@
                 if (isTv !== root.classList.contains('jpf-tv')) {
                     root.classList.toggle('jpf-tv', isTv);
                 }
-                // The flat look follows the layout: a television that cannot afford the
-                // blur and the moving decoration. A phone or a desktop that cannot blur is
-                // left alone, and so is a television that can.
+                // The flat look follows the layout: a TV that cannot blur. A phone or desktop
+                // that cannot blur is left alone, and so is a TV that can.
                 const flat = isTv && !this._canBlur();
                 if (flat !== root.classList.contains('jpf-flat')) {
                     root.classList.toggle('jpf-flat', flat);
@@ -3671,11 +3651,10 @@
             });
         },
 
-        /// Can this browser afford the full look? Asked by capability, not by user agent:
-        /// backdrop-filter is Chromium 76, and a television browser without it (webOS 4.5
-        /// is 53, webOS 5 is 68) is the class whose compositor chokes on a blurred shadow
-        /// behind every tile. No CSS.supports at all is answered "no": better flat than
-        /// slow. Worked out once; a browser does not gain a feature while a page is open.
+        /// Can this browser afford the full look? Asked by capability, not user agent:
+        /// backdrop-filter is Chromium 76, and a TV browser without it (webOS 4.5 is 53,
+        /// webOS 5 is 68) chokes on a blurred shadow behind every tile. No CSS.supports
+        /// means no: better flat than slow. Worked out once.
         _canBlur: function () {
             if (this._blurCapable === undefined) {
                 let can = false;
@@ -3697,10 +3676,10 @@
             return raw === 'tv' || raw === 'standard' ? raw : null;
         },
 
-        /// Settings → Your account → More → Layout on this device. 'auto' forgets the
-        /// answer (the key is removed, never stored as a value that could go stale);
-        /// anything but the three is ignored. Applied at once, and by the same function
-        /// the class observer runs, so the two cannot disagree about which one wins.
+        /// Settings > Your account > More > Layout on this device. 'auto' removes the key
+        /// rather than storing a value that could go stale; anything but the three is
+        /// ignored. Applied through the same function the class observer runs, so the two
+        /// cannot disagree about which wins.
         setLayoutChoice: function (value) {
             if (value !== 'auto' && value !== 'tv' && value !== 'standard') return;
             this._layoutChoice = value === 'auto' ? null : value;
@@ -3713,11 +3692,9 @@
         },
 
         /// loadLocale, then take down the switcher entries already in the page if the
-        /// language actually changed. The header button, the user-menu row, the Settings
-        /// row and the profile-page section are built once and read t() once: built
-        /// before the language file arrived (or before the language was changed), they
-        /// kept saying "Switch profile" in English for good (R-1244). The route poll puts
-        /// them back, and it is the poll that rebuilds them, so nothing is added to it.
+        /// language changed. The header button, user-menu row, Settings row and
+        /// profile-page section are built once and read t() once, so they kept saying
+        /// "Switch profile" in English (R-1244). The route poll rebuilds them.
         _loadLocaleAndRelabel: function () {
             const before = activeLocale;
             return loadLocale().then(() => {
@@ -3731,41 +3708,34 @@
         },
 
         init: function () {
-            // Turned off: the same teardown as the emergency code, without remembering it,
-            // so the next page load after it is turned back on starts as normal. Before the
-            // ApiClient wait, because nothing here needs it and the head script's cover
-            // should come down at once.
+            // Turned off: the same teardown as the emergency code, without remembering it, so
+            // the next load after turning it back on starts normally. Before the ApiClient
+            // wait so the head script's cover comes down at once.
             if (BONFIRE_OFF) {
                 this._step('applyPanicDisable', () => this.applyPanicDisable(/* persist */ false));
-                // The head script raises its startup cover from this cache. Left in place,
-                // every page load while off would flash the cover until this script ran.
-                // Turned back on, loadSwitcherPrefs writes it again.
+                // The head script raises its startup cover from this cache. Left in place, every
+                // load while off would flash the cover. loadSwitcherPrefs writes it again.
                 try { localStorage.removeItem(this.config.switcherModeKey); } catch (e) { /* blocked */ }
                 return;
             }
             if (typeof ApiClient === 'undefined') {
-                // If ApiClient is not defined yet, wait for it. Not forever: a page that
-                // never defines it would otherwise run this timer for as long as it stays
-                // open. 600 tries at 100 ms is about a minute.
+                // Wait for ApiClient, but not forever: 600 tries at 100 ms is about a minute.
                 this._initTries = (this._initTries || 0) + 1;
                 if (this._initTries > 600) return;
                 setTimeout(() => this.init(), 100);
                 return;
             }
-            // viewshow fires when Jellyfin's React view system finishes rendering a view.
-            // We gate _revealPage() on this event so we never fade in to a blank shell.
+            // viewshow fires when Jellyfin finishes rendering a view. _revealPage() waits for
+            // it so we never fade in to a blank shell.
             this._viewShowFired = false;
             this._pendingReveal = false;
-            // Kicked off now so it usually finishes before anyone actually needs a
-            // translated string — fetchAndRenderProfiles awaits it just before drawing
-            // the gate for the first time, which is the only render early enough to
-            // matter.
+            // Started now so it usually finishes before a string is needed.
+            // fetchAndRenderProfiles awaits it before the first gate render.
             this._step('loadLocale', () => { this._i18nReady = this._loadLocaleAndRelabel(); });
-            // fetchAndRenderProfiles awaits this before the first gate render, so it has to
-            // be a promise even if the step above failed.
+            // Must be a promise even if the step above failed.
             if (!this._i18nReady) this._i18nReady = Promise.resolve();
-            // Follows Jellyfin's Display language when it changes without a reload. Screens
-            // drawn after that are in the new language; one already open keeps its text.
+            // Follows Jellyfin's Display language when it changes without a reload. A screen
+            // already open keeps its text.
             this._step('watchJellyfinLanguage', () => watchJellyfinLanguage(() => {
                 this._i18nReady = this._loadLocaleAndRelabel();
             }));
@@ -3773,43 +3743,40 @@
             this._step('bindEvents', () => this.bindEvents());
             // Once per page load, never on the route poll.
             try { localStorage.removeItem(this.config.deviceGateKey); } catch (e) { /* blocked */ }
-            // Before injectStyles, so the sheet's .jpf-tv and .jpf-no-flex-gap rules match
-            // on the first paint rather than after a reflow the viewer can see.
+            // Before injectStyles so the .jpf-tv and .jpf-no-flex-gap rules match on first
+            // paint, not after a visible reflow.
             this._step('applyDeviceClasses', () => this.applyDeviceClasses());
-            // Same reason: the first frame of the gate should already be in this
-            // account's theme.
-            // Before applyCachedTheme, which would otherwise turn a custom theme it does not
-            // know yet into Bonfire for the first frame.
+            // The first frame of the gate should already be in this account's theme. Before
+            // applyCachedTheme, which would turn a custom theme it does not know yet into
+            // Bonfire.
             this._step('restoreCustomThemes', () => this.restoreCustomThemes());
             this._step('applyCachedTheme', () => this.applyCachedTheme());
             this._step('injectStyles', () => this.injectStyles());
             this._step('loadCustomThemes', () => this.loadCustomThemes());
-            // Before anything that can decide about the gate, so every one of those
-            // decisions knows whether a cover is waiting on it.
+            // Before anything that decides about the gate, so each decision knows whether a
+            // cover is waiting.
             this._step('_adoptCover', () => this._adoptCover());
-            // Kicked off before the first route check so the gate decision is usually made
-            // with the real answer in hand rather than the cached one.
-            // Before any Jellyfin view renders: the cached rules have to be in the document
-            // by the time the first library card paints, or the artwork this profile is not
-            // meant to see gets a frame on screen.
+            // Started before the first route check so the gate decision usually has the real
+            // answer. Before any Jellyfin view renders, or the cached rules arrive after the
+            // first library card paints and the artwork this profile should not see gets a
+            // frame on screen.
             this._step('applyCachedLibraryArtwork', () => this.applyCachedLibraryArtwork());
             this._step('loadLibraryArtwork', () => this.loadLibraryArtwork());
             this._step('loadSwitcherPrefs', () => this.loadSwitcherPrefs());
             this._step('bindPanicShortcut', () => this.bindPanicShortcut());
-            // Bound once for the life of the page. It resolves the active Bonfire screen on
-            // every event and does nothing when there is none, so it covers the gate, the
-            // PIN prompt, the profile forms and every dialog without per-screen wiring.
+            // Bound once. It resolves the active Bonfire screen on every event and does
+            // nothing when there is none, so it covers the gate, PIN prompt, forms and dialogs.
             this._step('_bindOverlayFocusTrap', () => this._bindOverlayFocusTrap());
-            // Before validateSessionState, which can trigger a reload of its own.
+            // Before validateSessionState, which can trigger a reload.
             this._step('checkPersistedPanic', () => this.checkPersistedPanic());
             if (this._panicDisabled) return;
             this._startPageChecks();
         },
 
-        /// What runs once per page load once the interface is known to be on. Init calls
-        /// it, or checkPersistedPanic does when the server says a remembered panic is
-        /// over: without that, a page that started disabled and came back never had its
-        /// maintenance check, stale-session revert or lockout timer (R-1186).
+        /// What runs once per page load when the interface is known to be on. Init calls
+        /// it, or checkPersistedPanic does when the server says a remembered panic is over.
+        /// Without that, a page that started disabled never ran its maintenance check,
+        /// stale-session revert or lockout timer (R-1186).
         _pageChecksStarted: false,
         _startPageChecks: function () {
             if (this._pageChecksStarted) return;
@@ -3817,19 +3784,19 @@
             // Once per page load, never from checkRoute.
             this._step('checkMaintenance', () => this.checkMaintenance());
             this._step('validateSessionState', () => this.validateSessionState());
-            // If the user refreshes while a profile is active, restart the inactivity timer
+            // Restart the inactivity timer if the page is refreshed while a profile is active.
             setTimeout(() => this._step('initLockoutTimer', () => this.initLockoutTimer()), 800);
         },
 
         bindEvents: function () {
             const doCheck = () => this.checkRoute();
 
-            // Jellyfin view-system events (fires on every page/view change)
-            // Use doCheck so all logic is centralised in checkRoute.
+            // Jellyfin view-system events fire on every view change. Everything goes through
+            // doCheck so the logic stays in checkRoute.
             document.addEventListener('viewshow', () => {
-                // Mark the view as ready so _revealPage() knows content is rendered.
+                // Content is rendered.
                 this._viewShowFired = true;
-                // If _revealPage() was deferred waiting for this event, run it now.
+                // Run a _revealPage() that was waiting for this event.
                 if (this._pendingReveal) this._revealPage();
                 doCheck();
             });
@@ -3837,11 +3804,10 @@
             this._bindSettingsRefresh();
 
             // SPA navigation. With the Campground runtime on the page, route changes come
-            // from its `route` event (it listens for popstate, hashchange and viewshow) and
-            // history is wrapped only through its patch(), so the brake can undo it. The
-            // runtime can be missing —
-            // a Content-Security-Policy blocked /Campground/runtime.js, or the brake is on —
-            // and then Bonfire listens and wraps by itself, as it always did.
+            // from its `route` event (popstate, hashchange, viewshow) and history is wrapped
+            // only through its patch(), so the brake can undo it. If the runtime is missing
+            // (a CSP blocked /Campground/runtime.js, or the brake is on), Bonfire listens
+            // and wraps history itself.
             const cg = window.Campground;
             const hasRuntime = !!(cg && typeof cg.on === 'function');
             if (hasRuntime) {
@@ -3851,32 +3817,29 @@
                 window.addEventListener('hashchange', doCheck);
             }
 
-            // The corner-pill fallback is placed by geometry, so its position is stale
-            // only when the viewport changes — a rotation on a phone, a window resize.
-            // Marking it here is what lets the route tick stop recomputing it.
+            // The corner-pill fallback is placed by geometry, so it is stale only when the
+            // viewport changes. Marking it here lets the route tick skip recomputing it.
             ['resize', 'orientationchange'].forEach(evt => {
                 window.addEventListener(evt, () => { this._fallbackPosDirty = true; });
             });
 
-            // Intercept history.pushState / replaceState (React-router style navigation).
-            // The runtime's route event does not cover these: 10.11 keeps the route in the
-            // path and navigates by pushState, which fires neither popstate nor hashchange.
-            // When the runtime is there but patch() declines (the brake is on), history is
-            // left alone and the poll below notices the change.
+            // Intercept pushState / replaceState. The runtime's route event does not cover
+            // them: 10.11 keeps the route in the path and navigates by pushState, which fires
+            // neither popstate nor hashchange. If patch() declines (brake on), history is left
+            // alone and the poll notices the change.
             ['pushState', 'replaceState'].forEach(method => {
                 const wrap = orig => function (...args) {
                     const result = orig.apply(this, args);
-                    // Small delay so the URL is committed before we read it
+                    // Let the URL commit before reading it.
                     setTimeout(doCheck, 0);
                     return result;
                 };
                 if (hasRuntime && typeof cg.patch === 'function') {
                     cg.patch(history, method, wrap, 'bonfire');
                 } else {
-                    // No runtime, or one older than 0.10.0, which has no patch(). Nothing
-                    // else guards this path, so a second copy of the script, or a second
-                    // bindEvents, would wrap an already wrapped function and every
-                    // navigation would run doCheck twice. The marker says it is ours.
+                    // No runtime, or one older than 0.10.0 with no patch(). A second copy of the
+                    // script or a second bindEvents would wrap the wrapper and run doCheck twice on
+                    // every navigation, so the marker says it is ours.
                     if (!history[method] || !history[method]._bonfireWrapped) {
                         const wrapped = wrap(history[method]);
                         wrapped._bonfireWrapped = true;
@@ -3885,50 +3848,38 @@
                 }
             });
 
-            // Clear the cached master token on native Jellyfin sign-out, so it does not
-            // persist in localStorage on a shared or public device. Signing out of
-            // Jellyfin has to mean signing out of Bonfire too, or the next person at the
-            // machine inherits the switcher.
+            // Clear the cached master token on native Jellyfin sign-out so it does not stay
+            // in localStorage on a shared device; the next person would inherit the switcher.
             document.addEventListener('usersignedout', () => {
-                // One try per step: a failure in one (blocked storage, a throwing
-                // sessionStorage) used to skip every step after it, including the removal
-                // of the household's cached list below (R-1310).
+                // One try per step: a failure (blocked storage, a throwing sessionStorage) used to
+                // skip every later step, including removing the cached list below (R-1310).
                 const step = fn => { try { fn(); } catch (e) { /* ignore storage errors */ } };
                 step(() => this.clearMasterState());
                 step(() => localStorage.removeItem(this.config.activeSessionKey));
                 step(() => localStorage.removeItem(this.config.switcherModeKey));
                 this._switcherPrefs = null;
-                // Learned from the same response as the preferences, so it goes with them.
+                // Learned from the same response as the preferences.
                 this._panicLinkAvailable = null;
                 step(() => localStorage.removeItem(this.config.libraryArtKey));
-                // Names, avatars and the household's tiles: the next person at a shared
-                // browser must not be able to read them (R-1310).
+                // Names, avatars and tiles: the next person at a shared browser must not read
+                // them (R-1310).
                 step(() => localStorage.removeItem('jellyfin_profiles_cached_list'));
                 step(() => this.clearProfileSession());
             });
 
-            // 500 ms is sufficient because viewshow, popstate and hashchange already cover
-            // every SPA navigation. The poll is only a safety net for the cases that change
-            // the DOM without changing the route — the video OSD is the one that matters.
+            // 500 ms is enough because viewshow, popstate and hashchange cover SPA
+            // navigation. The poll is a safety net for DOM changes without a route change,
+            // chiefly the video OSD.
             //
-            // It backs off to 2 s once playback starts. There is nothing for the plugin to
-            // do during playback — the gate is not raised, the bubble is hidden, and the
-            // menus are not on screen — and that is exactly when the device has least
-            // headroom: a TV decoding 4K is the weakest hardware in the house doing the
-            // hardest thing it ever does. Four times fewer wake-ups for work that has no
-            // effect.
-            //
-            // Not stopped outright. The tick is also what notices playback *ending* on a
-            // client whose URL does not change, and a poll that switched itself off would
-            // then need something else to switch it back on. 2 s is a quarter of a second
-            // of latency on the bubble reappearing, which nobody can see.
+            // It backs off to 2 s during playback: nothing is shown then, and a TV decoding
+            // 4K has the least headroom. Not stopped outright, because the tick is also what
+            // notices playback ending on a client whose URL does not change.
             this._tickMs = 500;
             const arm = () => {
                 clearInterval(this._routeTimer);
                 this._routeTimer = setInterval(() => {
                     doCheck();
-                    // _lastRouteType is set by checkRoute, so this reads the classification
-                    // that has just been made rather than repeating the work to get it.
+                    // _lastRouteType is set by checkRoute, so this reuses that classification.
                     const want = this._lastRouteType === 'videoosd' ? 2000 : 500;
                     if (want !== this._tickMs) {
                         this._tickMs = want;
@@ -3942,23 +3893,21 @@
             setTimeout(doCheck, 200);
         },
 
-        /// True when the browser is sitting on the home screen.
+        /// True when the browser is on the home screen.
         ///
-        /// Extracted from checkRoute so reloadAtHome() can ask the same question. The two
-        /// must agree: reloadAtHome only redirects when this is false, so a route this
-        /// says is home is a route it will never try to build a URL for.
+        /// Extracted from checkRoute so reloadAtHome() asks the same question. It only
+        /// redirects when this is false, so a home route never gets a URL built for it.
         isHomeRoute: function () {
             const hash = window.location.hash || '';
             const path = window.location.pathname || '';
 
-            // Check if we are on the home screen
-            // The home screen route can be: empty, '#/', '#/home', '#/home.html', or similar.
-            // But we must NOT trigger it if we are on pages like configuration, plugins, selectserver, login, etc.
+            // Home is: empty, '#/', '#/home', '#/home.html', or similar. Not configuration,
+            // plugins, selectserver, login, etc.
             //
-            // Matched on route segments, not as substrings of the whole address: a server
-            // hosted under a base path like /plugins-media/web/ contains 'plugin' on every
-            // page, so the substring test said "not home" there forever. Only what follows
-            // /web/ is the route; the query string is not part of it either.
+            // Matched on route segments, not substrings of the address: a server under a base
+            // path like /plugins-media/web/ contains 'plugin' on every page, so the substring
+            // test said "not home" forever. Only what follows /web/ is the route, not the
+            // query string.
             const webRoute = path.match(/^.*\/web\/(.*)$/);
             const ignoredWord = /(^|[\/#!])(configuration|plugin|login|selectserver)/i;
             const isIgnoredPage = ignoredWord.test(hash.split('?')[0]) ||
@@ -3966,10 +3915,9 @@
 
             if (isIgnoredPage) return false;
 
-            // 10.11 moved the route out of the fragment and into the path, so on those
-            // builds the hash is empty on every page — and the `hash === ''` clause below
-            // was therefore answering "yes, this is home" for all of them. Whenever the
-            // path carries a route, it is the authority and the hash has nothing to say.
+            // 10.11 moved the route from the fragment into the path, so the hash is empty on
+            // every page and the `hash === ''` clause below said "home" for all of them. When
+            // the path carries a route, it wins.
             if (webRoute) {
                 const route = webRoute[1].replace(/\/+$/, '');
                 if (route !== '' && route !== 'index.html') {
@@ -3980,54 +3928,49 @@
             return (
                 hash === '' ||
                 hash === '#/' ||
-                // The route segment, not any hash containing the word: a search for
-                // "home" is '#/search.html?query=home' (R-1189).
+                // The route segment, not any hash containing the word: a search for "home" is
+                // '#/search.html?query=home' (R-1189).
                 /^#!?\/home(\.html)?([?\/]|$)/.test(hash) ||
                 path.endsWith('/home') ||
                 path.endsWith('/home.html') ||
-                // If there is no hash and we are at /web/index.html or root
+                // No hash and at /web/index.html or root.
                 (!hash && (path.endsWith('index.html') || path === '/' || path === '/web/'))
             );
         },
 
-        /// The home screen's URL in whichever routing style this build of jellyfin-web
-        /// uses, or null when neither shape is recognisable.
+        /// The home screen's URL in the routing style this jellyfin-web uses, or null if
+        /// neither shape is recognized.
         ///
-        /// Two styles are in the wild: 10.10 and earlier keep the route in the fragment
-        /// ('/web/index.html#/home.html'), 10.11 moved it into the path ('/web/home').
-        /// Guessing wrong here means a 404 rather than a stale page, so an unrecognised
-        /// shape returns null and the caller stays put instead.
+        /// 10.10 and earlier keep the route in the fragment ('/web/index.html#/home.html');
+        /// 10.11 moved it into the path ('/web/home'). A wrong guess is a 404, so an
+        /// unrecognized shape returns null and the caller stays put.
         homeUrl: function () {
             const loc = window.location;
             const hash = loc.hash || '';
 
-            // Hash-routed: the document does not change, only the fragment. Whichever
-            // prefix this build uses is reused rather than guessed at.
+            // Hash-routed: only the fragment changes. Reuse whichever prefix this build uses.
             if (hash.startsWith('#!/')) return loc.pathname + loc.search + '#!/home.html';
             if (hash.startsWith('#/')) return loc.pathname + loc.search + '#/home.html';
 
-            // Path-routed: '/web/mypreferencesmenu' -> '/web/home'. Matched from '/web/'
-            // so a server hosted on a base path keeps it.
+            // Path-routed: '/web/mypreferencesmenu' -> '/web/home'. Matched from '/web/' so a
+            // base path is kept.
             const m = loc.pathname.match(/^(.*\/web\/)/);
             if (m) return m[1] + 'home';
 
             return null;
         },
 
-        /// Reloads onto the home screen. For every caller here the signed-in identity has
-        /// just changed, so the app must re-initialise under the new token — and the page
-        /// that was on screen belonged to the previous profile.
+        /// Reloads onto the home screen. Every caller has just changed the signed-in
+        /// identity, so the app must re-initialize under the new token and the page on
+        /// screen belonged to the previous profile.
         ///
-        /// Issue #22: this used to be a bare reload, which preserves the route. Switching
-        /// from the user menu therefore reloaded /web/mypreferencesmenu as the new
-        /// profile, leaving the user to find their own way home. The gate never showed it
-        /// because the gate only ever runs from home, where the two are the same thing.
+        /// Issue #22: this was a bare reload, which keeps the route. Switching from the
+        /// user menu reloaded /web/mypreferencesmenu as the new profile. The gate never
+        /// showed it because it only runs from home.
         reloadAtHome: function () {
-            // Already home: reload exactly as before. This is the path the gate uses and
-            // the one with hardware testing behind it, so it is left untouched. It also
-            // keeps homeUrl() away from the one case it could get wrong — a hash-routed
-            // build sitting at '/web/' with no fragment, where the path branch would
-            // wrongly produce '/web/home'.
+            // Already home: reload as before. This is the gate's path and has hardware
+            // testing behind it. It also keeps homeUrl() away from a hash-routed build at
+            // '/web/' with no fragment, where the path branch would wrongly give '/web/home'.
             if (this.isHomeRoute()) {
                 this._reloadWithFallback(null);
                 return;
@@ -4036,52 +3979,46 @@
             this._reloadWithFallback(this.homeUrl());
         },
 
-        /// How long to wait before deciding a navigation attempt did not take.
-        ///
-        /// Long enough that a slow television is not interrupted mid-teardown, short
-        /// enough that somebody who tapped a profile is not left staring at the wrong
-        /// account. A page that is genuinely unloading never reaches the timer.
+        /// How long to wait before deciding a navigation attempt did not take. Long enough
+        /// that a slow TV is not interrupted mid-teardown, short enough that someone who
+        /// tapped a profile is not left on the wrong account. An unloading page never
+        /// reaches the timer.
         RELOAD_ESCALATE_MS: 1200,
 
         /// Reloads the page, and checks that the reload happened.
         ///
-        /// By the time this runs the switch is complete everywhere except the screen: the
-        /// profile's token is in localStorage and in ApiClient, and all that is left is for
-        /// the document to be rebuilt under the new identity. If that does not happen,
-        /// jellyfin-web goes on rendering the page it built for the *previous* profile —
-        /// its home sections, its Continue Watching, its Next Up — while the header shows
-        /// the profile that was picked, because Bonfire draws that part itself.
+        /// By now the profile's token is in localStorage and ApiClient; only the document
+        /// needs rebuilding. If that does not happen, jellyfin-web keeps rendering the
+        /// previous profile's page (home sections, Continue Watching, Next Up) while the
+        /// header, which Bonfire draws itself, shows the new one.
         ///
-        /// Reported on Samsung Tizen as "it lets you pick a profile, but nothing changes
-        /// once you load in". The credentials, the token and the server were all ruled out
-        /// first; what was left is that `location.reload()` is not reliable everywhere this
-        /// runs. The bundled television clients serve jellyfin-web from a local file://
-        /// origin, which is where it has been seen to do nothing at all.
+        /// Reported on Samsung Tizen as "it lets you pick a profile, but nothing changes".
+        /// Credentials, token and server were ruled out; `location.reload()` is not
+        /// reliable everywhere. The bundled TV clients serve jellyfin-web from file://,
+        /// where it has been seen to do nothing.
         ///
-        /// So each step is a different mechanism rather than a retry of the same one. The
-        /// last rung says so out loud: showing a child the parent's Continue Watching while
-        /// they believe it is theirs is worse than admitting the reload failed.
+        /// So each step is a different mechanism, not a retry. The last rung says so
+        /// aloud: showing a child the parent's Continue Watching is worse than admitting
+        /// the reload failed.
         _reloadWithFallback: function (target) {
             const step = (n) => {
                 try {
                     if (n === 0) {
                         if (target) {
-                            // replace() rather than assignment so Back does not return to
-                            // the previous profile's page.
+                            // replace() so Back does not return to the previous profile's page.
                             window.location.replace(target);
-                            // A fragment-only change does not reload the document, and a
-                            // full re-initialisation is the entire point of the call.
+                            // A fragment-only change does not reload the document, and re-initializing is the
+                            // point.
                             if (target.indexOf('#') !== -1) window.location.reload();
                         } else {
                             window.location.reload();
                         }
                     } else if (n === 1) {
-                        // Assignment, not replace(): a different code path in the browser,
-                        // which is the only reason to try it at all.
+                        // Assignment, not replace(): a different browser code path, the only reason to try it.
                         window.location.href = target || window.location.href;
                     } else if (n === 2) {
-                        // Force a cache-busting navigation. Some webviews treat a reload
-                        // of an identical URL as a no-op but will honour a changed query.
+                        // Cache-busting navigation. Some webviews treat reloading an identical URL as a
+                        // no-op but honor a changed query.
                         const url = target || window.location.href;
                         const sep = url.indexOf('?') === -1 ? '?' : '&';
                         const bust = url.indexOf('#') === -1
@@ -4098,17 +4035,15 @@
                 this._reloadTimer = setTimeout(() => step(n + 1), this.RELOAD_ESCALATE_MS);
             };
 
-            // A navigation that has committed fires pagehide, and on a set slow enough to
-            // still be running timers a step later the escalation would then navigate a
-            // second time — onto a cache-busted URL nobody asked for. The ladder is for a
-            // reload that does nothing, not for one that is merely slow.
+            // A committed navigation fires pagehide. On a set slow enough to still run timers,
+            // the escalation would navigate a second time onto a cache-busted URL nobody asked
+            // for. The ladder is for a reload that does nothing, not a slow one.
             //
-            // Taken off again when the ladder ends, which is not academic: the last rung
-            // reveals the page and leaves the viewer able to try another profile, so a
-            // ladder that never unbinds leaves a pair of listeners behind per attempt.
+            // Removed when the ladder ends: the last rung reveals the page and lets the viewer
+            // try another profile, so otherwise each attempt leaves a pair of listeners.
             this._releaseReloadGuards();
-            // A second call while a ladder is still climbing would otherwise leave the
-            // first one's timer running, and two ladders navigate twice (R-1189).
+            // A second call while a ladder is climbing would leave the first timer running,
+            // and two ladders navigate twice (R-1189).
             if (this._reloadTimer) clearTimeout(this._reloadTimer);
             const stop = () => { if (this._reloadTimer) clearTimeout(this._reloadTimer); };
             this._reloadGuards = stop;
@@ -4118,10 +4053,6 @@
             step(0);
         },
 
-        /// Nothing rebuilt the page, so the profile that was chosen is signed in but the
-        /// screen still belongs to whoever was there before. Reveal the page and say so —
-        /// the alternative is leaving somebody looking at another person's library and
-        /// believing it is their own.
         /// Drops the pagehide/beforeunload pair the ladder arms. Safe with none outstanding.
         _releaseReloadGuards: function () {
             if (!this._reloadGuards) return;
@@ -4130,13 +4061,16 @@
             this._reloadGuards = null;
         },
 
+        /// Nothing rebuilt the page, so the chosen profile is signed in but the screen
+        /// still belongs to the previous one. Reveal the page and say so, rather than leave
+        /// someone looking at another person's library believing it is theirs.
         _reloadFailed: function () {
             this._reloading = false;
             this._releaseReloadGuards();
             try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
 
-            // The switch hid the page behind an opaque overlay, or behind the head
-            // script's opacity:0. Either would leave this message invisible.
+            // The switch hid the page behind an opaque overlay or the head script's
+            // opacity:0; either would hide this message.
             document.documentElement.style.removeProperty('opacity');
             document.documentElement.style.removeProperty('background');
             this._dropCover();
@@ -4148,8 +4082,8 @@
         },
 
         checkRoute: function () {
-            // Emergency disable: do nothing at all. This runs on a 500 ms timer, so without
-            // this guard it would rebuild the gate immediately after the teardown.
+            // Emergency disable: do nothing. This runs on a 500 ms timer and would rebuild
+            // the gate right after the teardown.
             if (this._panicDisabled) return;
 
             const hash = window.location.hash || '';
@@ -4157,42 +4091,39 @@
 
             const isHome = this.isHomeRoute();
 
-            // skipReveal: set to true when we know the gate overlay is about to be shown.
-            // In that case showProfileOverlay() will call _revealPage() once the overlay
-            // covers the page, preventing a blank-home flash during the async profile fetch.
+            // Set when the gate overlay is about to show: showProfileOverlay() then calls
+            // _revealPage() once the overlay covers the page, avoiding a blank-home flash
+            // during the profile fetch.
             let skipReveal = false;
 
             if (isHome) {
-                // Preferences are null until we have learned them for this account. Waiting
-                // is the safe direction: loadSwitcherPrefs() re-runs this check the moment it
-                // resolves, so at worst the gate arrives a beat late — whereas guessing would
-                // flash a full-screen overlay at somebody who turned it off, on every load.
+                // Preferences are null until learned for this account. Waiting is safe:
+                // loadSwitcherPrefs() re-runs this check when it resolves, so the gate is at worst
+                // a beat late, whereas guessing would flash a full-screen overlay at someone who
+                // turned it off, on every load.
                 //
-                // Usually unknown because init() ran before the user had signed in, so there
-                // was no token to ask with. Retrying here is what gets the gate working on the
-                // first home screen after a fresh login. loadSwitcherPrefs guards itself and
-                // settles on the historical default if the request fails, so this cannot spin
-                // on the 500 ms route poll.
-                // _panicLinkAvailable rides on the same response and is never cached, so a
-                // browser holding a valid preferences cache would otherwise never learn it
-                // and would hide the emergency link for the whole session.
+                // Usually unknown because init() ran before sign-in, with no token. Retrying here
+                // gets the gate working on the first home screen after login. loadSwitcherPrefs
+                // guards itself and settles on the historical default if the request fails, so it
+                // cannot spin on the poll.
+                // _panicLinkAvailable comes in the same response and is never cached, so a valid
+                // preferences cache would otherwise hide the emergency link all session.
                 if (this.getSwitcherPrefs() === null || this._panicLinkAvailable === null) {
                     this.loadSwitcherPrefs();
                 }
 
-                // Same reason: init runs before sign-in on a fresh load, and there was no
-                // token to ask with. Without a retry the artwork rules never arrive.
+                // Same reason: init runs before sign-in, so without a retry the artwork rules
+                // never arrive.
                 if (!this._libraryArtLoaded) this.loadLibraryArtwork();
 
                 if (this.shouldAskOnStartup()
                     && !this.isProfileSessionActive()
                     && !document.getElementById('profiles-gate-overlay')) {
-                    // This used to call interceptHomeAndShowProfiles on every tick until the
-                    // gate existed, and each call sent its own /list: a slow server got a
-                    // pile of them, a down one got one every 500 ms. Now: a request already
-                    // out means the gate is on its way, so keep the page hidden and wait for
-                    // it; a recent failure means it is not, so let the page show (the catch
-                    // dropped the cover) and ask again when POLL_RETRY_MS is up.
+                    // This used to call interceptHomeAndShowProfiles every tick until the gate
+                    // existed, each sending its own /list: a slow server got a pile, a down one got
+                    // one every 500 ms. Now a request already out means the gate is coming, so keep
+                    // the page hidden; a recent failure means it is not, so show the page (the catch
+                    // dropped the cover) and ask again at POLL_RETRY_MS.
                     if (this._listPending()) {
                         skipReveal = true;
                     } else if (this._listPollMayRequest()) {
@@ -4201,14 +4132,12 @@
                     }
                 }
             } else {
-                // If we navigate away from home, ensure the overlay is removed if it somehow got stuck
+                // Remove the overlay if it got stuck after navigating away from home.
                 //
-                // Not while a switch is reloading the page. executeProfileSwitch marks the
-                // new profile active *before* it reloads, which is exactly this test's
-                // "stuck" signature — so on any page but home (the switcher opened from the
-                // button or the user menu) the next tick took the opaque gate down and showed
-                // the old profile's page until the navigation landed. On a television that is
-                // most of a second.
+                // Not while a switch is reloading the page. executeProfileSwitch marks the new
+                // profile active before it reloads, which looks exactly like "stuck", so on any
+                // page but home the next tick took the gate down and showed the old profile's
+                // page until the navigation landed (most of a second on a TV).
                 // Nor while first-time setup is on screen: a field read, no DOM work.
                 if (!this._reloading && !this._onboarding
                     && document.getElementById('profiles-gate-overlay') && this.isProfileSessionActive()) {
@@ -4216,10 +4145,9 @@
                 }
             }
 
-            // Profile accounts stay off Dashboard -> Users. A string compare per tick and
-            // nothing else: the work happens once, when the address changes. A failed read
-            // also asks again once its wait is over, for an admin who stays on the page
-            // (tests/js/pollbackoff.js, R-1183); until a read fails that is one field read.
+            // Profile accounts stay off Dashboard -> Users. A string compare per tick; the
+            // work happens once, when the address changes. A failed read asks again once its
+            // wait is over (tests/js/pollbackoff.js, R-1183).
             if (hash !== this._usersRouteHash
                 || (this._usersRetryDue && Date.now() >= this._usersMappingsRetryAt)) {
                 this._usersRetryDue = false;
@@ -4233,30 +4161,23 @@
                                    (hash.includes('video') && !hash.includes('videos'));
 
             // ── Active player: DOM-based detection (catches delayed URL updates) ──
-            // The OSD element appears in the DOM the moment playback starts.
-            // Class selectors only. This list carried [class*="videoOsd"] and
-            // [class*="osdBottom"] as well, and an unqualified attribute-substring
-            // selector cannot use the class index — the engine walks every element in the
-            // document and tests each one. That ran twice a second, for the life of the
-            // page, on every device, including the weakest hardware in the house *during
-            // playback*, which is the one moment it has least to spare.
-            //
-            // They also never matched anything the three explicit names beside them did
-            // not already match: .videoOsdBottom is itself the element [class*="videoOsd"]
-            // was reaching for. Verified against jellyfin-web 10.11 —
-            // src/controllers/playback/video/index.html — and recorded in
-            // tests/upstream-selectors.json.
+            // The OSD element appears the moment playback starts. Class selectors only: this
+            // list also had [class*="videoOsd"] and [class*="osdBottom"], and an unqualified
+            // attribute-substring selector cannot use the class index, so the engine walked
+            // every element twice a second during playback, when weak hardware has least to
+            // spare. They matched nothing the three names beside them did not
+            // (.videoOsdBottom is the element [class*="videoOsd"] was reaching for).
+            // Verified against jellyfin-web 10.11 src/controllers/playback/video/index.html
+            // and recorded in tests/upstream-selectors.json.
             const hasOsdDom = !!document.querySelector(
                 '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo'
             );
 
             // ── Admin / server-management pages ─────────────────────────────────
-            // Exception: our own plugin settings page (configurationpage?name=Bonfire) is
-            // the only admin-area page where the button should stay visible.
-            //
-            // Both spellings are accepted. The page was registered as "Profiles" until 1.5
-            // and the name is what forms this URL, so a browser sitting on the old address —
-            // a bookmark, or a tab open across the upgrade — would otherwise lose the button.
+            // Exception: our own settings page (configurationpage?name=Bonfire), the only
+            // admin-area page where the button stays visible. Both spellings are accepted:
+            // the page was "Profiles" until 1.5, so a bookmark or a tab open across the
+            // upgrade would otherwise lose the button.
             const isProfilesSettingsPage = hash.includes('configurationpage')
                 && (hash.toLowerCase().includes('name=bonfire')
                     || hash.toLowerCase().includes('name=profiles'));
@@ -4281,12 +4202,10 @@
             );
 
             // The sign-in and server-select screens belong to nobody. validateSessionState
-            // already forgets the previous account there, but only once, at init — and the
-            // iOS app signs out without reloading, so init never runs again and the old
-            // account's profile and master carried straight into the next sign-in. Classified
-            // here, from the URL this tick already read, so the bubble can act on it without
-            // a second look at location. Same four tests validateSessionState uses: the two
-            // must agree on what a sign-in screen is.
+            // forgets the previous account there, but only once at init, and the iOS app signs
+            // out without reloading, so the old profile and master carried into the next
+            // sign-in. Classified here from the URL this tick already read. Same four tests as
+            // validateSessionState: the two must agree on what a sign-in screen is.
             const isSignIn = hash.includes('login') || hash.includes('selectserver')
                           || path.includes('login') || path.includes('selectserver');
 
@@ -4298,9 +4217,8 @@
             this._lastRouteType = viewType;
             this.evaluateFloatingBubbleVisibility(viewType);
 
-            // Menu-location entry points. Both are re-asserted on every route change
-            // because React discards and rebuilds these views freely; the calls are cheap
-            // and no-op when the element is already in place.
+            // Menu entry points, re-asserted on every route change because React discards and
+            // rebuilds these views. Cheap, and a no-op when the element is in place.
             this.syncUserMenuEntry();
             this.syncPreferencesMenuEntry();
             if (this.isMenuLocation()) {
@@ -4308,47 +4226,40 @@
                 if (isUserProfilePage) this.injectProfilePageSection();
             }
 
-            // Reveal the page now that the gate decision has been made.
-            // Skip when skipReveal is set — the overlay isn't in the DOM yet and
-            // revealing now would show a blank page during the profile fetch.
+            // Reveal the page now that the gate decision is made. Not when skipReveal is set:
+            // the overlay is not in the DOM yet and a reveal would flash a blank page.
             if (!skipReveal) this._revealPage();
 
-            // The startup cover is waiting on exactly the decision made above. If it was
-            // not "raise the gate" — a profile is already active, the preferences say no
-            // or are not this account's, this is not home, the sign-in page — there is
-            // nothing coming to replace it. A cached boolean first: this runs twice a
-            // second for the life of the page, and the cover is up for a second or two of
-            // it at most.
-            // Off home it comes down even while a gate request is out: that gate is never
-            // going to be drawn here.
+            // The startup cover waits on the decision made above. If it was not "raise the
+            // gate" (a profile is already active, the preferences say no or are not this
+            // account's, this is not home, the sign-in page), nothing is coming to replace
+            // it. A cached boolean first: this runs twice a second and the cover is up for a
+            // second or two at most. Off home it comes down even while a gate request is out,
+            // because that gate will never be drawn here.
             if (this._coverUp && !skipReveal && !this._coverForSwitch
                 && (!isHome || !this._coverHeldForGate)) this._dropCover();
         },
 
-        // Smoothly fades the page back in after a profile switch.
-        // Guards on _viewShowFired to ensure React has rendered the view before we
-        // expose it — otherwise a blank white shell flashes for a moment.
+        // Fades the page back in after a profile switch. Waits for _viewShowFired so
+        // React has rendered the view; otherwise a blank white shell flashes.
         /**
-         * Records the colour the page is currently painted in, so the next load can hold
-         * that colour while it renders instead of a hardcoded one.
-         *
-         * The head script used to set background:#101010 and color-scheme:dark
-         * unconditionally. Jellyfin ships light themes and lets a user pick any of them,
-         * so on every one of those a profile switch flashed a full-screen black rectangle
-         * — the exact flash the head script exists to prevent, just in the other
-         * direction. It also forced dark form controls and scrollbars for that moment.
-         *
-         * Read here rather than guessed there, because here is the one place the answer is
-         * knowable: the page is fully rendered, the theme stylesheet has applied, and
-         * whatever the user is looking at is what we should keep showing.
-         *
-         * Returns the colour, so the caller can paint with it immediately as well.
-         */
+        * Records the color the page is painted in, so the next load can hold that color
+        * while it renders instead of a hardcoded one.
+        *
+        * The head script used to set background:#101010 and color-scheme:dark always.
+        * Jellyfin ships light themes, so on those a profile switch flashed a black
+        * rectangle, the flash the head script exists to prevent. It also forced dark form
+        * controls and scrollbars for that moment.
+        *
+        * Read here because this is the one place the answer is known: the page is
+        * rendered and the theme stylesheet has applied.
+        *
+        * Returns the color so the caller can paint with it at once.
+        */
         _captureLeavingBackground: function () {
             let colour = '';
             try {
-                // The body carries the theme colour in Jellyfin's stylesheets; when it is
-                // transparent the colour is on <html> behind it, so ask that instead.
+                // The body carries the theme color; when it is transparent the color is on <html>.
                 const fromBody = getComputedStyle(document.body || document.documentElement).backgroundColor;
                 colour = this._isSeeThrough(fromBody)
                     ? getComputedStyle(document.documentElement).backgroundColor
@@ -4357,8 +4268,8 @@
 
             if (!colour || this._isSeeThrough(colour)) colour = '#101010';
 
-            // The scheme has to match the colour or the browser paints dark scrollbars and
-            // form controls over a light page for the length of the switch.
+            // The scheme must match the color or the browser paints dark scrollbars and form
+            // controls over a light page during the switch.
             const scheme = this._isLightColour(colour) ? 'light' : 'dark';
 
             try {
@@ -4377,10 +4288,9 @@
         },
 
         /**
-         * Relative luminance, so "which colour-scheme is this" is decided by the colour
-         * itself rather than by a list of theme names that would need updating whenever
-         * Jellyfin adds one.
-         */
+        * Relative luminance, so the color-scheme follows the color and not a list of
+        * theme names that would need updating whenever Jellyfin adds one.
+        */
         _isLightColour: function (colour) {
             const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(colour);
             if (!m) return false;
@@ -4390,15 +4300,13 @@
 
         // ── The startup cover ──────────────────────────────────────────────────────
         //
-        // With "Ask on startup" on, the home screen used to be on view before the gate:
-        // jellyfin-web renders home as soon as it has a user, while the gate waits for the
-        // first route check (200 ms after init, which itself waits for ApiClient), then for
-        // the profile list from the server, then fades in from opacity 0 over 220 ms. On a
-        // phone that was a third of a second of somebody else's Continue Watching; on a
-        // television more. The head script now covers the page before the first frame
-        // when the cached preferences say the gate is coming — see WebInjection.HeadScript
-        // for the rules it decides by — and everything here is about taking it down again
-        // at the right moment:
+        // With "Ask on startup" on, home used to be visible before the gate:
+        // jellyfin-web renders home once it has a user, while the gate waits for the first
+        // route check (200 ms after init, which waits for ApiClient), then the profile
+        // list, then fades in over 220 ms. That was a third of a second of somebody else's
+        // Continue Watching on a phone, more on a TV. The head script now covers the page
+        // before the first frame when the cached preferences say the gate is coming (see
+        // WebInjection.HeadScript). This code takes the cover down again:
         //
         //   - the gate is drawn and opaque           -> showProfileOverlay
         //   - the gate is not coming after all       -> checkRoute, interceptHomeAndShowProfiles
@@ -4407,8 +4315,7 @@
         //   - none of the above within GATE_COVER_MS -> the backstop timer
         //
         // It is a pseudo-element under the gate's z-index, not opacity on <html>, so the
-        // gate can be drawn and fade in while the cover is still behind it, and dropping
-        // the cover is then invisible because the two are the same colour.
+        // gate can fade in over it and dropping it is invisible (same color).
 
         _coverUp: false,
         _coverHeldForGate: false,
@@ -4422,9 +4329,8 @@
         /// GATE_COVER_MS (3 s), so the startup cover is still up when it ends.
         GATE_THEME_WAIT_MS: 2000,
 
-        /// Notes a cover the head script put up, or puts one up when a page that has no
-        /// head script — the Tizen package — is heading for the gate. The second case is
-        /// late by construction (the package's own page has been showing for a while) but
+        /// Notes a cover the head script put up, or puts one up when a page with no head
+        /// script (the Tizen package) is heading for the gate. The second case is late, but
         /// still takes home off the screen sooner than the gate would.
         _adoptCover: function () {
             const root = document.documentElement;
@@ -4432,8 +4338,8 @@
                 this._coverUp = true;
                 return;
             }
-            // Only the head script knows about the reload that is landing; that page has
-            // its own cover and no gate.
+            // Only the head script knows about the landing reload; that page has its own
+            // cover and no gate.
             if (window.__jpSwitching) return;
             if (!this._gateIsComing()) return;
 
@@ -4459,7 +4365,7 @@
         },
 
         /// True when jellyfin-web holds a token for some server. ApiClient's own token is
-        /// empty for a moment during startup, so it is not the thing to ask.
+        /// empty for a moment during startup.
         _hasStoredSession: function () {
             try {
                 const creds = JSON.parse(localStorage.getItem('jellyfin_credentials') || 'null');
@@ -4474,9 +4380,9 @@
             window.__jpCoverT = setTimeout(() => this._dropCover(), GATE_COVER_MS);
         },
 
-        /// The gate request is out. The head script's timer started before this script had
-        /// even loaded, so it gets one fresh allowance — once, so a gate that never comes
-        /// is still bounded.
+        /// The gate request is out. The head script's timer started before this script
+        /// loaded, so it gets one fresh allowance, once, so a gate that never comes is
+        /// still bounded.
         _holdCoverForGate: function () {
             if (!this._coverUp) return;
             this._coverHeldForGate = true;
@@ -4485,8 +4391,8 @@
             this._armCoverBackstop();
         },
 
-        /// Puts the cover up for a switch that is about to reload the page. No timer: the
-        /// reload replaces the document, and _reloadFailed drops it if that never happens.
+        /// Puts the cover up for a switch about to reload the page. No timer: the reload
+        /// replaces the document, and _reloadFailed drops it if that never happens.
         _holdCoverForSwitch: function () {
             try {
                 if (!document.getElementById('jpf-cover-css')) {
@@ -4503,8 +4409,8 @@
             } catch (e) { /* no document: nothing to cover */ }
         },
 
-        /// Takes the cover down. Safe to call at any time, any number of times, and with
-        /// no cover up; it also clears one this object never noticed going up.
+        /// Takes the cover down. Safe at any time, any number of times; it also clears a
+        /// cover this object never noticed going up.
         _dropCover: function () {
             this._coverUp = false;
             this._coverForSwitch = false;
@@ -4519,8 +4425,7 @@
         _revealPage: function () {
             if (this._pageRevealed || !document.documentElement.style.opacity) return;
 
-            // Defer until Jellyfin's view system has finished rendering the view.
-            // _viewShowFired is set by the viewshow listener in bindEvents().
+            // Wait for the view system to finish rendering (_viewShowFired, set in bindEvents()).
             if (!this._viewShowFired) {
                 this._pendingReveal = true;
                 return;
@@ -4529,23 +4434,20 @@
             this._pageRevealed = true;
             this._pendingReveal = false;
 
-            // The reload this flag was raised for has landed. Clearing it here rather than
-            // only in removeProfileOverlay() matters twice over: the session mirror is
-            // believed only while the flag is up, so leaving it set would keep a marker
-            // alive across a genuine app close; and the head script hides the page whenever
-            // it sees the flag, so a stale one cost a fade on every later hard refresh.
-            //
-            // Safe this late: validateSessionState() ran during init() and has already
-            // pulled anything it needed into the in-memory tier.
+            // The reload this flag was raised for has landed. Cleared here, not only in
+            // removeProfileOverlay(), because the session mirror is believed only while the
+            // flag is up (a stale flag would keep a marker alive across a real app close), and
+            // the head script hides the page whenever it sees the flag (a stale one cost a
+            // fade on every later hard refresh). Safe this late: validateSessionState() ran in
+            // init() and already pulled what it needed into memory.
             if (!this._reloading) {
                 try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
-                // The head script has almost certainly already taken the key; this is the
-                // copy that actually outlives it.
+                // The head script has probably already taken the key; this is the copy that
+                // outlives it.
                 try { window.__jpSwitching = 0; } catch (e) { /* ignore */ }
-                // The mirror of the profile token is only believed while that flag is up,
-                // so it has no job now. Left in localStorage it was a readable copy of a
-                // bearer token that outlived the switch, for any script on the origin.
-                // The in-memory and session copies stay; only the mirror goes.
+                // The mirror is believed only while that flag is up. Left in localStorage it was a
+                // readable copy of a bearer token outliving the switch, for any script on the
+                // origin. The in-memory and session copies stay.
                 try { localStorage.removeItem(this.SESSION_MIRROR_PREFIX + this.config.activeSessionKey); } catch (e) { /* ignore */ }
             }
 
@@ -4554,8 +4456,8 @@
                 window.__jpReveal = null;
             }
 
-            // The fade is a class and not an inline transition, so the stylesheet's
-            // reduced-motion rule can skip it (an inline style could not be overridden).
+            // A class, not an inline transition, so the stylesheet's reduced-motion rule can
+            // skip it.
             document.documentElement.classList.add('jpf-fading');
             document.documentElement.style.opacity = '1';
             setTimeout(() => {
@@ -4568,41 +4470,41 @@
         },
 
         /// Profile accounts are Bonfire's, not people to list beside real ones, so the
-        /// administrator's Dashboard -> Users page does not show them (owner decision,
-        /// 2026-11-11). Main accounts and accounts outside Bonfire still appear.
+        /// Dashboard -> Users page hides them (owner decision, 2026-11-11). Main accounts
+        /// and accounts outside Bonfire still appear.
         ///
         /// A stylesheet rule per profile id, not a script walking the cards. jellyfin-web
         /// renders each user as <div class="card" data-userid=ID> inside div.localUsers
-        /// (src/apps/dashboard/routes/users/index.tsx, components/dashboard/users/UserCardBox.tsx,
-        /// the same on release-10.11.z and master), and the browser applies a rule to cards that
-        /// React draws now or later with no observer and no query on the 500 ms poll. The
-        /// previous version read data-id and the card's link: it matched on 10.11 only because
-        /// that link carried ?userId=, 12.0 moved the id into the path, and it walked the whole
-        /// document on every tick and every DOM mutation. data-userid is the same on both.
+        /// (src/apps/dashboard/routes/users/index.tsx,
+        /// components/dashboard/users/UserCardBox.tsx, same on release-10.11.z and master),
+        /// so a rule covers cards React draws now or later with no observer and no query
+        /// on the poll. The first version read data-id and the card's link; that matched
+        /// on 10.11 only because the link carried ?userId=, 12.0 moved the id into the
+        /// path, and it walked the whole document on every tick and mutation.
         ///
-        /// Never filtered out of the server's /Users answer: apps and other plugins read it.
-        /// The ids come from admin/mappings, which the server answers for an administrator
-        /// only, so anyone else gets a refusal and the page never holds the list.
+        /// Never filtered out of the server's /Users answer: apps and other plugins read
+        /// it. The ids come from admin/mappings, answered to an administrator only, so
+        /// anyone else gets a refusal and never holds the list.
         ///
         /// Called from checkRoute when the address changes, never on a tick that did not.
         _usersRouteHash: null,
         _usersMappingsRetryAt: 0,
         _usersRetryDue: false,
-        /// A user card on that page. Recorded in tests/upstream-selectors.json; the id is
-        /// added to the attribute, which is why it must end in `]`.
+        /// A user card on that page (tests/upstream-selectors.json). The id is added to the
+        /// attribute, so this must end in `]`.
         USERS_CARD_SELECTOR: '.localUsers [data-userid]',
 
         syncHiddenProfiles: function (hash) {
-            // The list route only. "users/profile" and "users/<id>/profile" are the pages an
-            // administrator reaches from Bonfire's own admin page and must not start a request.
+            // The list route only. "users/profile" and "users/<id>/profile" are reached from
+            // Bonfire's own admin page and must not start a request.
             if (!/dashboard\/users\/?(\?|$)/i.test(hash || '')) return;
             const apiClient = typeof ApiClient !== 'undefined' ? ApiClient : null;
             if (!apiClient) return;
             // A refusal (403, anyone but an administrator) or a dead server waits out
-            // POLL_RETRY_MS before it is asked again, across navigation.
-            // checkRoute cleared the retry flag before calling here, so an early return that
-            // does not raise it again forgets the retry: an admin who navigated onto this page
-            // inside the wait kept profile accounts visible until the address changed.
+            // POLL_RETRY_MS across navigation. checkRoute cleared the retry flag before
+            // calling here, so an early return that does not raise it again forgets the retry:
+            // an admin who navigated onto this page inside the wait kept profile accounts
+            // visible until the address changed.
             if (this._usersMappingsRetryAt && Date.now() < this._usersMappingsRetryAt) {
                 this._usersRetryDue = true;
                 return;
@@ -4629,9 +4531,9 @@
             });
         },
 
-        /// Both spellings of each id, because jellyfin-web writes the id the way the server
-        /// serialised it and the two are not guaranteed to agree: 32 hex, or dashed. The `i`
-        /// flag is Chromium 49; the dashboard is not a television page in any case.
+        /// Both spellings of each id (32 hex or dashed), because jellyfin-web writes the id
+        /// as the server serialized it. The `i` flag is Chromium 49; the dashboard is not a
+        /// TV page anyway.
         _applyHiddenProfiles: function (ids) {
             const sels = [];
             ids.forEach(raw => {
@@ -4652,33 +4554,31 @@
         },
 
         // ── Active-profile session storage ────────────────────────────────────────
-        // The active profile lives in sessionStorage deliberately: closing the app should
-        // drop back to the picker rather than leave a child profile signed in.
+        // The active profile lives in sessionStorage on purpose: closing the app should
+        // drop back to the picker, not leave a child profile signed in.
         //
-        // Some runtimes throw sessionStorage away on a full reload — and a full reload is
-        // exactly how a profile switch finishes. The marker is then gone by the time the
-        // page comes back, validateSessionState() concludes the app was closed, and it
-        // reverts to the master token. On Samsung's Tizen that looked like the avatar
-        // changing and nothing else (issues #15 and #16). On Android it is worse, because
-        // the revert reloads: the reload loses the marker again, which reverts again — the
-        // picker over and over, which is what an Android reporter saw.
+        // Some runtimes discard sessionStorage on a full reload, which is how a switch
+        // finishes. The marker is gone when the page returns, validateSessionState()
+        // decides the app was closed and reverts to the master token. On Samsung Tizen
+        // that looked like the avatar changing and nothing else (issues #15, #16). On
+        // Android the revert reloads, which loses the marker again: the picker over and
+        // over.
         //
         // That was first fixed by sniffing for Tizen, which meant meeting each new runtime
-        // through a bug report. There is no sniff any more. The rule is about WHY
-        // sessionStorage is empty, which is the part that actually decides the answer:
+        // through a bug report. Now the rule is about WHY sessionStorage is empty:
         //
         //   empty because the app was closed     -> show the picker, drop the profile
         //   empty because our own reload lost it -> put it back, keep the profile
         //
-        // and those two are told apart by the switching flag, which is set immediately
-        // before every reload this plugin performs and at no other time.
+        // The two are told apart by the switching flag, set just before every reload this
+        // plugin performs and at no other time.
         //
         // Values are also held in memory for the life of the page, so a runtime where
         // sessionStorage does not work at all still behaves while the page lives.
         SESSION_MIRROR_PREFIX: 'jpf-persist-',
 
         /// How long after our own reload the mirror is still believable. A reload takes
-        /// seconds; anything older is a new session wearing a flag nobody cleared.
+        /// seconds; older is a new session wearing a flag nobody cleared.
         SESSION_MIRROR_MAX_AGE_MS: 60000,
 
         _sessionMemory: {},
@@ -4708,26 +4608,22 @@
             const mirrored = this._readSessionMirror(key);
             if (mirrored === null) return null;
 
-            // Put it back where the rest of the code expects to find it, so this costs one
-            // read per page load rather than one per call.
+            // Put it back where the code expects it: one read per page load, not one per call.
             this._sessionMemory[key] = mirrored;
             try { sessionStorage.setItem(key, mirrored); } catch (e) { /* storage blocked */ }
             return mirrored;
         },
 
-        /// The mirrored value, but only when this page load is the continuation of a reload
-        /// we caused, and that reload was recent. Null otherwise — which is what still makes
-        /// closing the app drop back to the picker.
+        /// The mirrored value, only when this page load continues a reload we caused and
+        /// that reload was recent. Null otherwise, which is what makes closing the app drop
+        /// back to the picker.
         _readSessionMirror: function (key) {
-            // The injected head script consumes this key: it runs synchronously during head
-            // parsing, while profiles.js is deferred, so by the time anything here looks the
-            // key has been gone for the whole document parse. Reading localStorage alone made
-            // this function return null every single time, which left the 1.4.6 switch-loop
-            // fix dead on arrival — the three-reload backstop was doing all the work.
-            //
-            // The head script republishes it as a window global for this reason. localStorage
-            // stays as the fallback for a page still carrying an older head script, and for
-            // any caller reached before the head script has run.
+            // The injected head script consumes this key. It runs synchronously in head
+            // parsing while profiles.js is deferred, so the key is gone for the whole parse.
+            // Reading localStorage alone returned null every time, which left the 1.4.6
+            // switch-loop fix dead on arrival (the three-reload backstop did all the work).
+            // The head script republishes it as a window global; localStorage stays as the
+            // fallback for an older head script and for callers before it has run.
             let switching = false;
             try { switching = !!window.__jpSwitching; } catch (e) { /* no window */ }
             if (!switching) {
@@ -4745,8 +4641,8 @@
             try { parsed = JSON.parse(raw); } catch (e) { /* the older mirror: a bare string */ }
 
             if (!parsed || typeof parsed !== 'object' || typeof parsed.v !== 'string') {
-                // Written by the Tizen-only mirror, which carried no timestamp. Upgrading
-                // must not sign anyone out, so the switching flag above is all it gets.
+                // Written by the Tizen-only mirror, which had no timestamp. Upgrading must not
+                // sign anyone out, so the switching flag above is all it gets.
                 return raw;
             }
 
@@ -4764,8 +4660,8 @@
             try { localStorage.removeItem(this.SESSION_MIRROR_PREFIX + key); } catch (e) { /* ignore */ }
         },
 
-        /// Drops every trace of an active profile session. Used by sign-out, the login
-        /// route and the revert-to-master path, which must all clear both copies.
+        /// Drops every trace of an active profile session. Sign-out, the login route and
+        /// the revert-to-master path all need both copies cleared.
         clearProfileSession: function () {
             this._sessionRemove(this.config.activeSessionKey);
             this._sessionRemove('jellyfin_profiles_active_info');
@@ -4776,28 +4672,26 @@
         },
 
         // ── Emergency disable ──────────────────────────────────────────────────────
-        // An escape hatch for when the switcher itself is what is blocking the interface.
-        // The administrator sets a long code in the plugin settings; entering it here shuts
+        // An escape hatch for when the switcher itself blocks the interface. The
+        // administrator sets a long code in the plugin settings; entering it here shuts
         // the plugin down until the server restarts.
         //
-        // Note the honest limit: this is script running inside the plugin, so it only helps
-        // when the plugin is misbehaving, not when profiles.js fails to load or throws on
-        // startup. In that case the answer is restarting Jellyfin or removing the plugin
-        // folder, which is what the documentation says.
+        // Limit: this is script inside the plugin, so it only helps when the plugin
+        // misbehaves, not when profiles.js fails to load or throws at startup. Then the
+        // answer is restarting Jellyfin or removing the plugin folder, as the docs say.
         //
-        // Entry is a deliberate action rather than a keystroke sniffer. Watching everything
-        // typed anywhere would burn the server's five-per-hour attempt budget on ordinary
-        // typing — a search box would lock the real administrator out of their own escape
-        // hatch.
+        // Entry is a deliberate action, not a keystroke sniffer. Watching all typing would
+        // burn the server's five-per-hour attempt budget on ordinary typing, and a search
+        // box would lock the real administrator out of their own escape hatch.
 
-        /// Tears the switcher down and stops every code path that could rebuild it.
-        /// Setting the flag matters as much as the teardown: checkRoute runs on a 500 ms
-        /// timer, so removing the overlay without it would have the gate back within half a
-        /// second — failing in exactly the situation this feature exists for.
+        /// Tears the switcher down and stops every code path that could rebuild it. The
+        /// flag matters as much as the teardown: checkRoute runs every 500 ms, so without
+        /// it the gate would be back within half a second, in exactly the situation this
+        /// feature exists for.
         applyPanicDisable: function (persist) {
             this._panicDisabled = true;
             this._releaseOverlayFocusTrap();
-            // The cover is waiting for a gate this has just forbidden.
+            // The cover waits for a gate this has just forbidden.
             this._dropCover();
 
             if (persist) {
@@ -4809,9 +4703,8 @@
             this.removeProfileOverlay();
             const bubble = document.getElementById('profiles-floating-bubble');
             if (bubble) bubble.remove();
-            // The drawer link injectSidebarLink used to add. Kept in the teardown, and
-            // only here: a browser that ran an older build in this tab may still have one
-            // in the page, and the emergency disable has to leave nothing of ours behind.
+            // The drawer link injectSidebarLink used to add. Kept here only: a tab that ran an
+            // older build may still have one, and the disable must leave nothing of ours.
             const sidebarLink = document.getElementById('profiles-sidebar-link');
             if (sidebarLink) sidebarLink.remove();
             const menuItem = document.getElementById('profiles-user-menu-item');
@@ -4826,9 +4719,9 @@
             try { localStorage.removeItem(this.config.switchingKey); } catch (e) { /* ignore */ }
         },
 
-        /// On startup, honour a disable from a previous page load, then confirm it with the
+        /// On startup, honor a disable from a previous page load, then confirm it with the
         /// server. The flag is cleared once Jellyfin has restarted and the plugin is live
-        /// again — the disable is meant to last until a restart, not forever.
+        /// again: the disable lasts until a restart, not forever.
         checkPersistedPanic: function () {
             let marked = false;
             try {
@@ -4836,8 +4729,8 @@
             } catch (e) { /* storage unavailable — nothing to honour */ }
             if (!marked) return;
 
-            // Apply first and ask afterwards: the request may be slow, and a gate that
-            // appears for two seconds before vanishing is the behaviour being escaped.
+            // Apply first, ask afterwards: the request may be slow, and a gate that appears
+            // for two seconds before vanishing is the behavior being escaped.
             this.applyPanicDisable(/* persist */ false);
 
             fetch(ApiClient.getUrl('plugins/profiles/panic-state'), { cache: 'no-store' })
@@ -4847,21 +4740,20 @@
                     if (disabled) return;
                     try { localStorage.removeItem(this.config.panicKey); } catch (e) { /* ignore */ }
                     this._panicDisabled = false;
-                    // The teardown above released the focus trap. Coming back to life has to
-                    // put it back, or issue #16 returns for the rest of this page load.
+                    // The teardown released the focus trap. Coming back to life must restore it, or
+                    // issue #16 returns for the rest of this page load.
                     this._bindOverlayFocusTrap();
                     this._startPageChecks();
                     this.checkRoute();
                 })
                 .catch(() => {
-                    // Server unreachable: stay disabled. Erring towards "off" leaves the
-                    // interface usable, which is the whole point.
+                    // Server unreachable: stay disabled. Erring toward "off" keeps the interface usable.
                 });
         },
 
         /// Shows the emergency link only once the server has said a code exists. Unknown
-        /// counts as no — the feature is off by default, and advertising an escape hatch
-        /// that cannot work is worse than not offering one.
+        /// counts as no: the feature is off by default and an escape hatch that cannot work
+        /// is worse than none.
         applyPanicLinkVisibility: function () {
             const link = document.getElementById('profiles-panic-link');
             if (!link) return;
@@ -4870,11 +4762,9 @@
 
         bindPanicShortcut: function () {
             document.addEventListener('keydown', (e) => {
-                // Ctrl+Shift+B. Chosen to be unreachable by accident and not to collide
-                // with Jellyfin's own shortcuts. It is the way in when the switcher has
-                // failed badly enough that no overlay renders at all.
-                // Only when the server has said a code is set. Otherwise the key is the
-                // browser's (Ctrl+Shift+B toggles the bookmarks bar) and is left alone.
+                // Ctrl+Shift+B: unlikely by accident, no clash with Jellyfin's shortcuts, and the
+                // way in when no overlay renders at all. Only when the server has said a code is
+                // set; otherwise the key is the browser's (Ctrl+Shift+B toggles the bookmarks bar).
                 if (e.ctrlKey && e.shiftKey && (isKey(e, 'B') || isKey(e, 'b'))
                     && this._panicLinkAvailable === true) {
                     e.preventDefault();
@@ -4938,17 +4828,16 @@
                 })
                 .then(res => {
                     if (res.ok) {
-                        // Tear the switcher down here and now rather than waiting for a
-                        // reload: the person doing this is stuck, and telling them to
-                        // reload a page they cannot use would not help.
+                        // Tear down now rather than wait for a reload: the person is stuck, and a page
+                        // they cannot use will not help them reload it.
                         close();
                         this.applyPanicDisable(/* persist */ true);
                         this.showAlert(t('panic.disabledTitle'), t('panic.disabledBody'));
                         return;
                     }
-                    // Only a refusal is "incorrect". A 500 or a dead connection is not the
-                    // person's mistake, and the browser's own words ("Failed to fetch") are
-                    // neither theirs nor translated (R-1185).
+                    // Only a refusal is "incorrect". A 500 or a dead connection is not the person's
+                    // mistake, and the browser's own words ("Failed to fetch") are neither theirs nor
+                    // translated (R-1185).
                     const shown = new Error('panic');
                     if (res.status === 429) shown.panicText = t('panic.tooManyAttempts');
                     else if (res.status === 400 || res.status === 401 || res.status === 403) shown.panicText = t('panic.incorrectCode');
@@ -4975,22 +4864,22 @@
         // ── Switcher preferences ───────────────────────────────────────────────────
         // Two independent settings, because they answer different questions:
         //
-        //   askOnStartup     — does the "Who's Watching?" screen appear when the client
+        //   askOnStartup     - does the "Who's Watching?" screen appear when the client
         //                      loads? (Once per browser session, not per home visit.)
-        //   switcherLocation — 'button' (Bonfire's floating header button) or 'menu'
+        //   switcherLocation - 'button' (Bonfire's floating header button) or 'menu'
         //                      (a row in Jellyfin's own user menu, no floating button).
         //
-        // These were one setting in 1.3.1-beta, which could not express "ask me on startup
-        // but put the switcher in Jellyfin's menu" — the combination issue #14 asked for.
+        // They were one setting in 1.3.1-beta, which could not express "ask on startup but
+        // put the switcher in Jellyfin's menu" (issue #14).
         //
-        // checkRoute has to decide about the gate long before a network round trip could
-        // answer, so both are mirrored into localStorage and read synchronously, with the
-        // server refreshing the copy in the background on every load.
+        // checkRoute decides about the gate long before a network round trip could answer,
+        // so both are mirrored into localStorage and read synchronously; the server
+        // refreshes the copy in the background on every load.
 
-        /// The cached preferences, or null when we have not learned them for this account.
-        /// Null means "do not raise the gate yet" — a wrong guess that way costs a moment of
-        /// home screen, whereas wrongly assuming a gate throws a full-screen overlay at
-        /// somebody who deliberately turned it off, on every single load.
+        /// The cached preferences, or null when not learned for this account. Null means
+        /// "do not raise the gate yet": a wrong guess that way costs a moment of home
+        /// screen, whereas wrongly assuming a gate throws a full-screen overlay at someone
+        /// who turned it off, on every load.
         getSwitcherPrefs: function () {
             if (this._switcherPrefs) return this._switcherPrefs;
 
@@ -4998,9 +4887,9 @@
                 const cached = JSON.parse(localStorage.getItem(this.config.switcherModeKey) || 'null');
                 if (!cached) return null;
 
-                // The cache belongs to one account. On a shared browser the next person to
-                // sign in must not inherit it, so it only counts when it matches either the
-                // signed-in user or the master profile behind the active sub-profile.
+                // The cache belongs to one account. On a shared browser the next person must not
+                // inherit it, so it counts only when it matches the signed-in user or the master
+                // behind the active sub-profile.
                 const cachedMaster = this.normalizeGuid(cached.masterUserId);
                 const currentUserId = (typeof ApiClient !== 'undefined' && ApiClient)
                     ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
@@ -5012,8 +4901,8 @@
                 if (typeof cached.askOnStartup === 'boolean' && cached.location) {
                     prefs = { askOnStartup: cached.askOnStartup, location: cached.location };
                 } else if (cached.mode) {
-                    // A cache written by 1.3.1-beta. Expand it rather than discarding it,
-                    // so upgrading does not flash a gate at someone who turned it off.
+                    // A cache written by 1.3.1-beta. Expand it so upgrading does not flash a gate at
+                    // someone who turned it off.
                     prefs = cached.mode === 'native'
                         ? { askOnStartup: false, location: 'menu' }
                         : { askOnStartup: true, location: 'button' };
@@ -5031,17 +4920,16 @@
         /// True only when we know the startup prompt is wanted. Unknown reads as false so
         /// the gate is never raised on a guess.
         ///
-        /// One answer per account, for every device. 1.6.x–1.7.1 let a device keep its own
-        /// ("Use the same answer on all my devices"); it was cut in 1.7.2 as one setting
-        /// too many for what it bought, and a TV that should always ask is now a household
-        /// that always asks.
+        /// One answer per account, for every device. 1.6.x-1.7.1 had a per-device override;
+        /// it was cut in 1.7.2 as one setting too many, so a TV that should always ask is
+        /// now a household that always asks.
         shouldAskOnStartup: function () {
             const p = this.getSwitcherPrefs();
             return !!p && p.askOnStartup === true;
         },
 
         /// True when the switcher belongs in Jellyfin's user menu rather than the floating
-        /// button. Unknown reads as false, which keeps the historical button behaviour.
+        /// button. Unknown reads as false, the historical button behavior.
         isMenuLocation: function () {
             const p = this.getSwitcherPrefs();
             return !!p && p.location === 'menu';
@@ -5059,29 +4947,29 @@
         },
 
         // ── Theme ──────────────────────────────────────────────────────────────────
-        // One attribute on <html>; the theme's block (themeCss) does the rest. Per profile, so it is cached
-        // per account: on a shared browser the next person must not inherit the last one's.
+        // One attribute on <html>; the theme's block (themeCss) does the rest. Per profile,
+        // so it is cached per account: on a shared browser the next person must not
+        // inherit the last one's.
 
         /// Puts a theme on the page. Unknown ids become Bonfire, so a stale cache or an
-        /// older server can never leave the attribute naming a theme this script has no block for
-        /// (which would leave the tints resolving to nothing).
+        /// older server cannot leave the attribute naming a theme this script has no block
+        /// for (the tints would resolve to nothing).
         applyTheme: function (theme) {
             const root = document.documentElement;
             if (!root) return;
-            // Kept as asked, so a custom theme that arrives after this is put on then.
+            // Kept as asked, so a custom theme that arrives later is applied then.
             this._wantedTheme = String(theme || '').toLowerCase();
             const id = normalizeTheme(theme);
-            // A name this page does not know yet may be a theme an administrator made,
-            // whose block comes with themes?part=custom — and the preferences naming it
-            // often answer first. Turning it into Bonfire here put Bonfire on the startup
-            // cover, empty, before the household's own theme (1.9.0.4-beta). So until that
-            // answer is in, the page is left as it is (the head script's cached theme, or
-            // the plain cover), and useCustomThemes applies it then, Bonfire included.
+            // A name this page does not know yet may be an administrator's theme, whose block
+            // comes with themes?part=custom, and the preferences often answer first. Turning
+            // it into Bonfire put Bonfire on the startup cover before the household's own
+            // theme (1.9.0.4-beta). So until that answer is in, the page is left as is, and
+            // useCustomThemes applies it then, Bonfire included.
             this._themeDeferred = !!this._wantedTheme && id !== this._wantedTheme && !this._customThemesAnswered;
             if (this._themeDeferred) return;
             // A gate held back for this answer (see the fade-in in showProfileOverlay).
             if (this._gateThemeHold) this._gateThemeHold();
-            // Its picture, if it is a custom theme with one: once per page, so a no-op after.
+            // Its picture, if it is a custom theme with one. Once per page.
             this.loadThemePhotoOf(id);
             const before = root.getAttribute('data-jpf-theme');
             if (before !== id) {
@@ -5097,23 +4985,21 @@
         /// styles.css), with a margin. Change the two together.
         THEME_FADE_MS: 300,
 
-        /// A cross-fade from the theme the gate is wearing to the one about to replace it,
-        /// instead of a hard cut. Called just before data-jpf-theme changes.
+        /// A cross-fade from the theme the gate is wearing to the one replacing it, not a
+        /// hard cut. Called just before data-jpf-theme changes.
         ///
-        /// A transition on the variables cannot do this: a gradient, a pattern and a
-        /// background picture do not interpolate, and a font does not at all. So the old
-        /// look is copied as it is drawn now (the gate's background, and its pattern layer)
-        /// onto a layer that sits above the new background and under the content, and that
-        /// layer's opacity goes from 1 to 0. Opacity only, which a television does without
-        /// repainting. The text and the tiles change at once: animating the content's own
-        /// opacity replays .jpf-anim-fade-in when it ends, so it is left alone.
+        /// A transition on the variables cannot do this: gradients, patterns and
+        /// background pictures do not interpolate, and fonts do not at all. So the old look
+        /// (the gate's background and pattern layer) is copied onto a layer above the new
+        /// background and under the content, and its opacity goes from 1 to 0. Opacity
+        /// only, which a TV does without repainting. Text and tiles change at once:
+        /// animating the content's opacity replays .jpf-anim-fade-in when it ends.
         ///
-        /// Nothing happens without a gate on screen, or for anyone who asked for less
-        /// motion. The household's richer-motion setting is not asked: it governs the
-        /// decorations that move for as long as a screen is open, and this is a 0.3 second
-        /// transition that stops by itself. A second choice during the fade leaves the
-        /// first layer to finish; the page underneath is already on the second theme, so
-        /// it ends there. Run from applyTheme only, never from checkRoute.
+        /// Does nothing without a gate on screen or for anyone who asked for less motion.
+        /// The richer-motion setting is not asked: it governs decorations that move while a
+        /// screen is open, and this is a 0.3 second transition. A second choice during the
+        /// fade lets the first layer finish; the page underneath is already on the second
+        /// theme. Run from applyTheme only, never from checkRoute.
         fadeThemeFrom: function () {
             const gate = document.getElementById('profiles-gate-overlay');
             if (!gate || gate.querySelector('.jpf-theme-veil')) return;
@@ -5147,11 +5033,10 @@
         /// The stored themes: { last, users: { normalisedUserId: theme }, bg: { theme: gate
         /// background } }. Injection/WebInjection.cs reads all three before this file loads.
         ///
-        /// One entry per account, not one for the device. It was one, and a household
-        /// overwrote it every time it moved between profiles: open as the main account,
-        /// pick a child's profile, and the child's theme replaced the parent's — so the next
-        /// start drew the "Who's watching?" screen, and the cover before it, in Bonfire's
-        /// colours instead of the parent's. Reads the 1.6.6.1 development shape too.
+        /// One entry per account, not per device. It was per device, and moving between
+        /// profiles overwrote it: pick a child's profile and the child's theme replaced the
+        /// parent's, so the next start drew the gate and the cover in Bonfire's colors.
+        /// Reads the 1.6.6.1 development shape too.
         _readThemeCache: function () {
             let raw = null;
             try { raw = JSON.parse(localStorage.getItem(this.config.themeKey) || 'null'); } catch (e) { /* unreadable */ }
@@ -5174,8 +5059,8 @@
         },
 
         /// The theme stored for whoever is signed in, applied before the server answers.
-        /// Before anyone is signed in it applies the last one stored on this device, which is
-        /// the person most likely to be signing in.
+        /// Before anyone is signed in it applies the last one stored on this device, the
+        /// person most likely to be signing in.
         applyCachedTheme: function () {
             const cache = this._readThemeCache();
 
@@ -5196,11 +5081,11 @@
                 ? prefs[name]
                 : prefs[name.charAt(0).toUpperCase() + name.slice(1)];
 
-            // A server older than this build sends none of these. Leave the page as it is
-            // and offer no picker, rather than pretend the server knows about themes.
+            // A server older than this build sends none of these. Leave the page as is and
+            // offer no picker.
             if (read('theme') === undefined) return;
-            // As sent, for useCustomThemes: a custom theme named here before its file has
-            // arrived normalises to Bonfire below, and is read again once it has.
+            // As sent, for useCustomThemes: a custom theme named before its file arrived
+            // normalizes to Bonfire below and is read again once it has.
             this._lastThemePrefs = prefs;
 
             const settings = {
@@ -5209,31 +5094,28 @@
                 allow: read('allowProfileThemes') !== false
             };
             this._themeSettings = settings;
-            // Whether themes with a special animation may use it. Two arguments: the
-            // class is added or removed, whatever it was.
+            // Whether themes with a special animation may use it. The class is added or
+            // removed whatever it was.
             try { document.documentElement.classList.toggle('jpf-rich-motion', read('richThemeMotion') === true); } catch (e) { /* no document */ }
-            // As sent, not normalised, so a custom theme still on its way is waited for
-            // rather than drawn as Bonfire.
+            // As sent, not normalized, so a custom theme still on its way is waited for.
             this.applyTheme(read('theme'));
             this.injectFonts();
 
             try {
                 const userId = (typeof ApiClient !== 'undefined' && ApiClient) ? this.normalizeGuid(ApiClient.getCurrentUserId()) : '';
-                // Not while that theme is waited for: the cache would say Bonfire, and the
-                // next start's cover would wear it.
+                // Not while that theme is waited for: the cache would say Bonfire and the next
+                // start's cover would wear it.
                 if (userId && !this._themeDeferred) {
                     const cache = this._readThemeCache();
-                    // Re-inserted so the most recent is last, and capped: a browser that
-                    // has seen many accounts keeps only the most recent twenty.
+                    // Re-inserted so the most recent is last, and capped at the twenty most recent.
                     delete cache.users[userId];
                     cache.users[userId] = settings.theme;
                     const ids = Object.keys(cache.users);
                     ids.slice(0, Math.max(0, ids.length - 20)).forEach(k => { delete cache.users[k]; });
                     cache.last = settings.theme;
-                    // The gate's background for each theme still named here, for the head
-                    // script's startup cover, which runs before this file has loaded and so
-                    // cannot read a theme. It used to carry a copy of every built-in's
-                    // background; a theme an administrator makes was never in that copy.
+                    // The gate's background per theme still named here, for the head script's startup
+                    // cover, which runs before this file loads and cannot read a theme. It used to
+                    // carry a copy of every built-in's background, which a custom theme never had.
                     const bg = gateBackground(settings.theme);
                     if (bg) cache.bg[settings.theme] = bg;
                     Object.keys(cache.bg).forEach(k => {
@@ -5245,8 +5127,8 @@
         },
 
         /// The theme picker for the profile forms, or '' when the server does not let
-        /// profiles choose (or has not said). `stored` is the profile's own choice, null for
-        /// "follow the server default".
+        /// profiles choose (or has not said). `stored` is the profile's own choice, null
+        /// for "follow the server default".
         renderThemePicker: function (prefix, stored) {
             const settings = this._themeSettings;
             if (!settings || !settings.allow) return '';
@@ -5267,8 +5149,8 @@
         },
 
         /// A small "Who's watching?" wearing one theme: its name as the title, three tiles
-        /// with the first in the theme's focus frame, and a button. Drawn entirely from the
-        /// theme's tokens through its own data-jpf-theme, so it is what choosing it does.
+        /// with the first in the theme's focus frame, and a button. Drawn from the theme's
+        /// tokens through its own data-jpf-theme, so it is what choosing it does.
         renderThemePreview: function (theme, id) {
             const shown = normalizeTheme(theme);
             return `
@@ -5287,8 +5169,8 @@
             const select = document.getElementById(prefix + '-theme-select');
             const preview = document.getElementById(prefix + '-theme-preview');
             if (!select || !preview) return;
-            // The preview wears the chosen theme, picture and all, and only the theme the
-            // page wears has its picture fetched up front (applyCustomThemesCss).
+            // The preview wears the chosen theme, picture and all. Only the theme the page
+            // wears has its picture fetched up front (applyCustomThemesCss).
             this.loadThemePhotoOf(preview.getAttribute('data-jpf-theme'));
             select.addEventListener('change', () => {
                 const settings = this._themeSettings;
@@ -5308,22 +5190,22 @@
             return select ? (select.value ? normalizeTheme(select.value) : '') : undefined;
         },
 
-        /// How often coming back to the app may re-read the preferences. A television
-        /// woken from standby, a phone unlocked: once a minute is plenty, and it keeps a
-        /// tab being flicked between from asking every time.
+        /// How often coming back to the app may re-read the preferences. Once a minute is
+        /// plenty for a TV woken from standby or a phone unlocked, and stops a tab being
+        /// flicked between from asking every time.
         SETTINGS_REFRESH_MS: 60000,
 
         /// Picks up a changed theme, or any other preference, without a reload.
         ///
-        /// The theme used to arrive once per page load, so an administrator changing the
-        /// server default, or anyone changing a profile's theme on another device, saw
-        /// nothing until the app was restarted. Three signals now re-read it:
-        ///   - 'jpf-settings-changed' on this window, which the admin page dispatches after
-        ///     a save — it runs inside jellyfin-web, in the same window as this script;
-        ///   - a write to the 'jellyfin_profiles_settings_epoch' key from another tab, which
-        ///     the admin page also makes, and which arrives here as a 'storage' event;
+        /// The theme used to arrive once per page load, so a changed server default, or a
+        /// profile's theme changed on another device, showed nothing until a restart.
+        /// Three signals re-read it:
+        ///   - 'jpf-settings-changed' on this window, dispatched by the admin page after a
+        ///     save (it runs inside jellyfin-web, in the same window as this script);
+        ///   - a write to 'jellyfin_profiles_settings_epoch' from another tab, which the
+        ///     admin page also makes and which arrives as a 'storage' event;
         ///   - the page becoming visible again, at most once a minute.
-        /// None of these is on the route poll, which must not grow (see checkRoute).
+        /// None is on the route poll, which must not grow (see checkRoute).
         _bindSettingsRefresh: function () {
             if (this._settingsRefreshBound || typeof window === 'undefined' || !window.addEventListener) return;
             this._settingsRefreshBound = true;
@@ -5343,16 +5225,16 @@
         },
 
         /// Refreshes the cached preferences from the server. Called once per page load;
-        /// re-runs the route check afterwards so a first-ever load on a new device settles
-        /// into the right behaviour without the user having to navigate.
+        /// re-runs the route check afterward so a first load on a new device settles
+        /// without the user navigating.
         loadSwitcherPrefs: function () {
             if (this._switcherPrefsLoading) return;
             if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
 
             this._switcherPrefsLoading = true;
-            // A hung request must not leave the flag set for the life of the page, and
-            // AbortController is Chromium 58, so the wait is raced rather than cancelled.
-            // The first answer to arrive, reply or timeout, is the one that counts.
+            // A hung request must not leave the flag set for the life of the page.
+            // AbortController is Chromium 58, so the wait is raced, not cancelled; the first
+            // of reply or timeout counts.
             let settled = false;
             const timeout = new Promise((resolve, reject) => {
                 setTimeout(() => reject(new Error('preferences timed out')), this.config.prefsTimeoutMs || 10000);
@@ -5371,9 +5253,8 @@
                 const locRaw = prefs.switcherLocation || prefs.SwitcherLocation;
                 const master = prefs.masterUserId || prefs.MasterUserId;
 
-                // The 1.3.1-beta switcherMode answer is not read any more: the field was
-                // removed from the server before 2.0, and a server old enough to send only
-                // it is older than anything that serves this script.
+                // The 1.3.1-beta switcherMode answer is not read any more: the field was removed
+                // from the server before 2.0, and a server that old sends nothing this script runs on.
                 const ask = typeof askRaw === 'boolean' ? askRaw : true;
                 const location = locRaw === 'menu' || locRaw === 'button' ? locRaw : 'button';
 
@@ -5390,12 +5271,10 @@
                 if ((prefs.onboardingPending !== undefined ? prefs.onboardingPending : prefs.OnboardingPending) === true) {
                     this.maybeStartOnboarding();
                 }
-                // The gate may already be on screen — reveal or hide the link in place
-                // rather than waiting for the next load.
+                // The gate may already be on screen: show or hide the link in place.
                 this.applyPanicLinkVisibility();
                 this._switcherPrefsLoading = false;
-                // Only re-check when the answer actually moved; checkRoute runs on a timer
-                // anyway and this avoids a redundant pass on every load.
+                // Re-check only when the answer moved; checkRoute runs on a timer anyway.
                 if (changed) this.checkRoute();
             })
             .catch(() => {
@@ -5403,28 +5282,28 @@
                 // A throw from the reply handler lands here too, after it settled.
                 if (settled) return;
                 settled = true;
-                // Server unreachable or an older plugin build: fall back to the historical
-                // behaviour rather than leaving the gate permanently suppressed.
+                // Server unreachable or an older plugin build: use the historical behavior rather
+                // than suppress the gate permanently.
                 if (!this._switcherPrefs) {
                     this._switcherPrefs = { askOnStartup: true, location: 'button' };
                     this._switcherPrefsGuessed = true;
                 }
-                // The fallback is a guess, and a blip should not fix it for the page: ask
-                // again a few times, well apart. Not from checkRoute; a timer of its own.
+                // The fallback is a guess and a blip should not fix it for the page: ask again a
+                // few times, well apart, from a timer of its own, not checkRoute.
                 this._switcherPrefsRetries = (this._switcherPrefsRetries || 0) + 1;
                 if (this._switcherPrefsGuessed && this._switcherPrefsRetries <= 3) {
                     setTimeout(() => this.loadSwitcherPrefs(), 15000 * this._switcherPrefsRetries);
                 }
-                // Settle this too. Leaving it unknown would have the route check re-request
-                // on every poll, and an emergency link we cannot vouch for stays hidden.
+                // Settle this too. Unknown would make the route check re-request on every poll,
+                // and an emergency link we cannot vouch for stays hidden.
                 if (this._panicLinkAvailable === null) this._panicLinkAvailable = false;
             });
         },
 
         // What goes into the localStorage copy of the profile list. Its one reader is
-        // getCachedActiveProfile, which builds the header bubble from these six fields, so
-        // device ids, tags and library lists have no business in a store that outlives the
-        // session on a shared browser. Keep this in step with that reader.
+        // getCachedActiveProfile, which builds the header bubble from these six fields.
+        // Device ids, tags and library lists do not belong in a store that outlives the
+        // session on a shared browser. Keep in step with that reader.
         _cacheableProfiles: function (profiles) {
             return (profiles || []).map(function (p) {
                 return {
@@ -5447,7 +5326,7 @@
                 } catch (e) {}
             }
 
-            // Fallback: search in localStorage cached profiles
+            // Fallback: the cached profiles in localStorage.
             const haveClient = typeof ApiClient !== 'undefined' && !!ApiClient;
             const currentUserId = haveClient ? ApiClient.getCurrentUserId() : null;
             if (currentUserId) {
@@ -5465,7 +5344,7 @@
                                     profileImage: profile.profileImage || null,
                                     transparent: !!profile.transparentAvatar
                                 };
-                                // Store it in sessionStorage for future fast access
+                                // Keep for fast access later.
                                 this._sessionSet('jellyfin_profiles_active_info', JSON.stringify(info));
                                 return info;
                             }
@@ -5476,10 +5355,10 @@
                 }
             }
 
-            // Ultimate fallback (e.g. before any profile list has been loaded)
+            // Last resort (e.g. before any profile list has loaded).
             const apiClient = haveClient ? ApiClient : null;
-            // Empty, not a word of English: the one caller that shows the name falls back
-            // through t() when it is empty, so a translated page never says 'Profiles'.
+            // Empty, not English: the one caller that shows the name falls back through t()
+            // when it is empty, so a translated page never says 'Profiles'.
             let fallbackName = '';
             let fallbackInitial = 'P';
             if (apiClient) {
@@ -5511,10 +5390,9 @@
 
             const currentToken = apiClient.accessToken();
             if (!currentToken) {
-                // If ApiClient token is empty, check if we are truly logged out of Jellyfin.
-                // During initial page load, ApiClient.accessToken() is temporarily empty
-                // while the web app initializes, but 'jellyfin_credentials' in localStorage
-                // still contains the active session token.
+                // If ApiClient's token is empty, check whether we are really logged out. During
+                // page load ApiClient.accessToken() is briefly empty while the web app
+                // initializes, but 'jellyfin_credentials' in localStorage still has the token.
                 let isLoggedOut = true;
                 try {
                     const credsStr = localStorage.getItem('jellyfin_credentials');
@@ -5534,19 +5412,19 @@
             }
 
             // Reading the state also retires a master token an earlier version left in this
-            // browser, ending that session on the server; see readMasterState.
+            // browser, ending that session on the server (see readMasterState).
             //
-            // This used to go on to a second step. If the app had been closed while a profile
-            // was in use, it put the stored master token back and reloaded, so the gate came
-            // up signed in as the master. That step was the reason the master token lived in
-            // the browser at all, and it meant closing a tab left the least restricted account
-            // in the house signed in behind a picture of a picker. It also needed a backstop
-            // against reloading forever (_revertReloadAllowed), which went with it.
+            // This used to go on to a second step: if the app had been closed while a profile
+            // was in use, it put the stored master token back and reloaded, so the gate came up
+            // signed in as the master. That was the reason the master token lived in the
+            // browser at all, and closing a tab left the least restricted account signed in
+            // behind a picture of a picker. It also needed a backstop against reloading
+            // forever (_revertReloadAllowed), which went with it.
             //
             // Now the session in use stays in use. checkRoute still raises the gate over it
-            // when the household asks on startup, because the active-profile marker is gone
-            // with the tab — and every way out of the gate, the master included, is a /switch
-            // the server checks.
+            // when the household asks on startup, because the active-profile marker goes with
+            // the tab, and every way out of the gate, the master included, is a /switch the
+            // server checks.
             this.readMasterState();
         },
 
@@ -5571,9 +5449,9 @@
 
         /// First line of the handler for any request the person made on purpose. A 401
         /// means the main session has ended; without this the screen showed a refusal
-        /// sentence, or a JSON error, for a sign-in that had expired (R-1228). Returns
-        /// the response so it can sit in a chain. Anything other than 401 is left to the
-        /// caller, which knows its own failure wording.
+        /// sentence or a JSON error for an expired sign-in (R-1228). Returns the response
+        /// so it can sit in a chain. Anything else is left to the caller, which knows its
+        /// own failure wording.
         checked: function (res) {
             if (res && res.status === 401) this.handleSessionExpired();
             return res;
@@ -5586,19 +5464,18 @@
             const currentUserId = apiClient.getCurrentUserId();
             const token = apiClient.accessToken();
 
-            // Not a reason to drop the cover. During startup jellyfin-web sits on /web/ —
-            // which is home as far as isHomeRoute can tell — before it knows who is signed
-            // in, and the route poll asks again next tick. Taking the cover down here put
-            // the flash straight back. A sign-in page is not home, so checkRoute drops it
-            // there; anything else is the backstop's.
+            // Not a reason to drop the cover. During startup jellyfin-web sits on /web/, which
+            // isHomeRoute reads as home, before it knows who is signed in, and the poll asks
+            // again next tick. Dropping it here put the flash straight back. A sign-in page is
+            // not home, so checkRoute drops it there; anything else is the backstop's.
             if (!currentUserId || !token) return;
 
             this._holdCoverForGate();
 
             // Listed as whoever is signed in. The household's master is learned from the list
-            // (fetchAndRenderProfiles) rather than assumed to be the current user, which it is
-            // not when a profile was signed into directly — a profile's PIN works on the web
-            // sign-in page too once other apps' sign-in is on.
+            // (fetchAndRenderProfiles), not assumed to be the current user, which it is not
+            // when a profile was signed into directly (a profile's PIN works on the web
+            // sign-in page too once other apps' sign-in is on).
             const known = this.readMasterState();
             this.fetchAndRenderProfiles(apiClient, known ? known.masterUserId : currentUserId, token);
         },
@@ -5606,18 +5483,17 @@
         /// Every request for the profile list goes through here, so the route poll can see
         /// one already out and a recent failure before it sends another.
         ///
-        /// Two poll paths ask for the list — the gate (interceptHomeAndShowProfiles) and
-        /// the button's prefetch — and neither used to know about a request in flight or a
-        /// failure. The gate path asked on every tick until the gate was drawn, so a slow
-        /// server collected a pile of identical requests and a down one got a request every
-        /// 500 ms; the prefetch had a pending flag but cleared it on failure with no pause.
-        /// Only the poll consults this (_listPollMayRequest): a person who saves a profile
-        /// or goes back to the grid still gets the request they asked for.
+        /// Two poll paths ask for the list: the gate (interceptHomeAndShowProfiles) and the
+        /// button's prefetch. Neither knew about a request in flight or a failure. The gate
+        /// asked every tick until drawn, so a slow server collected a pile of requests and
+        /// a down one got one every 500 ms; the prefetch cleared its pending flag on
+        /// failure with no pause. Only the poll consults this (_listPollMayRequest): a
+        /// person who saves a profile or goes back to the grid still gets their request.
         _requestList: function (apiClient, token, init) {
-            // Stamped on every send, not only when nothing is in flight. A request that
-            // hangs is treated as lost after POLL_RETRY_MS and the poll sends another; if
-            // only the first send stamped, the stamp stayed old, _listPending stayed false
-            // and the poll sent about two requests a second for as long as the network was dead.
+            // Stamped on every send, not only when nothing is in flight. A hung request is
+            // treated as lost after POLL_RETRY_MS and the poll sends another; if only the first
+            // send stamped, _listPending stayed false and the poll sent about two requests a
+            // second for as long as the network was dead.
             this._listSentAt = Date.now();
             this._listInFlight++;
             const done = () => { this._listInFlight = Math.max(0, this._listInFlight - 1); };
@@ -5634,9 +5510,9 @@
                 });
         },
 
-        /// True when one is already out. A request that has not answered within
-        /// POLL_RETRY_MS is treated as lost: fetch has no timeout of its own, and a hung
-        /// connection would otherwise keep the gate from ever being asked for again.
+        /// True when one is already out. One that has not answered within POLL_RETRY_MS is
+        /// treated as lost: fetch has no timeout, and a hung connection would otherwise
+        /// keep the gate from ever being asked for again.
         _listPending: function () {
             return this._listInFlight > 0 && Date.now() - this._listSentAt < this.POLL_RETRY_MS;
         },
@@ -5646,35 +5522,34 @@
             return !this._listPending() && Date.now() >= this._listRetryAt;
         },
 
-        /// Drops the prefetch cache so the next render is guaranteed to hit the server.
-        /// Must be called after anything that changes profile state — otherwise the render
-        /// that follows a save shows the pre-save snapshot.
+        /// Drops the prefetch cache so the next render hits the server. Call after anything
+        /// that changes profile state, or the render after a save shows the old snapshot.
         invalidateProfileCache: function () {
             this.cachedProfiles = [];
             this._profilePrefetchPending = false;
             // A prefetch already in flight was asked before this change and would land after
-            // it, putting the pre-edit list back. It checks this number when it answers.
+            // it, putting the old list back. It checks this number when it answers.
             this._profileCacheGen = (this._profileCacheGen || 0) + 1;
         },
 
         /// Renders the profile grid.
         ///
         /// `forceRefresh` bypasses the prefetch cache and is REQUIRED after any mutation
-        /// (create / edit / delete). The cache exists only to make opening the switcher from
-        /// the home screen flash-free; serving it after a save showed stale data — a freshly
-        /// saved PIN still read as "No PIN" until the page was reloaded.
+        /// (create / edit / delete). The cache only makes opening the switcher from home
+        /// flash-free; serving it after a save showed stale data (a saved PIN still read
+        /// "No PIN" until reload).
         fetchAndRenderProfiles: function (apiClient, masterUserId, masterToken, forceRefresh) {
-            // Recorded, not claimed: several callers have already taken a ticket and are
-            // finishing by coming back to the grid, and claiming a new one here would
-            // invalidate theirs. This only needs to know whether the screen moved on while
-            // the list was in flight — Settings, or a profile form, drawn over by a slow
-            // grid was the same race the tickets were added for.
+            // Recorded, not claimed: several callers already took a ticket and finish by
+            // returning to the grid, and a new claim here would invalidate theirs. This only
+            // needs to know whether the screen moved on while the list was in flight (Settings
+            // or a profile form drawn over by a slow grid was the race the tickets were added
+            // for).
             const ticket = this._navTicket;
 
             if (forceRefresh) {
                 this.invalidateProfileCache();
             } else if (this.cachedProfiles && this.cachedProfiles.length) {
-                // Consume the prefetch exactly once, then drop it.
+                // Consume the prefetch once, then drop it.
                 const profiles = this.cachedProfiles;
                 this.invalidateProfileCache();
                 (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(profiles));
@@ -5682,8 +5557,8 @@
             }
 
             this._requestList(apiClient, masterToken, {
-                // Never let a conditional/heuristic cache answer this — it drives the
-                // PIN and library state shown in the editor.
+                // No conditional or heuristic cache: this drives the PIN and library state in the
+                // editor.
                 cache: 'no-store'
             })
             .then(res => {
@@ -5691,62 +5566,54 @@
                     this.handleSessionExpired();
                     throw new Error("Unauthorized");
                 }
-                // A 500 used to go on to res.json() and be drawn as whatever its body
-                // parsed to. It is a failure like any other.
+                // A 500 used to go on to res.json() and be drawn as whatever its body parsed to.
                 if (!res.ok) throw new Error('Profile list unavailable (' + res.status + ')');
                 return res.json();
             })
             .then(profiles => {
-                // Not a reason to drop the startup cover: a stale ticket is usually a list
-                // that another request has already drawn the gate from (a user action
-                // while the poll's request was out — the poll itself no longer sends a
-                // second, see _requestList), or one with the gate still on its way.
-                // Dropping here showed home through the gate's fade. A cover nothing
-                // replaces is the backstop's.
+                // Not a reason to drop the startup cover: a stale ticket is usually a list another
+                // request already drew the gate from (a user action while the poll's request was
+                // out), or one with the gate still on its way. Dropping here showed home through
+                // the gate's fade. A cover nothing replaces is the backstop's.
                 if (!this.navIsCurrent(ticket)) return;
                 const normalized = this.normalizeProfiles(profiles);
                 this._listNoticeShown = false;
-                // The household's own master: the master tile that is not a linked Bonfire.
-                // Only its id is kept — see readMasterState.
+                // The household's own master: the master tile that is not a linked Bonfire. Only
+                // its id is kept (see readMasterState).
                 const ownMaster = normalized.find(p => p.isMaster && !p.isBonfire);
                 if (ownMaster) this.writeMasterState(ownMaster.profileUserId);
-                // Deliberately NOT stored in cachedProfiles: that field is the one-shot
-                // prefetch buffer, and repopulating it here made the *next* call short-circuit
-                // to data that was already stale.
-                // Storage that is full or blocked throws here; left unguarded the catch below
-                // reported "list failed" and the profile screen never appeared on that device.
+                // Not stored in cachedProfiles: that is the one-shot prefetch buffer, and filling
+                // it here made the next call short-circuit to stale data.
+                // Full or blocked storage throws here; unguarded, the catch below reported "list
+                // failed" and the profile screen never appeared on that device.
                 try { localStorage.setItem('jellyfin_profiles_cached_list', JSON.stringify(this._cacheableProfiles(normalized))); } catch (e) { /* the screen does not need the copy */ }
                 return (this._i18nReady || Promise.resolve()).then(() => this.showProfileOverlay(normalized));
             })
             .catch(err => {
                 console.error("Failed to load sub-profiles:", err);
-                // Said out loud, once, for a few seconds. The comment below is right that
-                // the home screen is the honest state, but nothing told the person why the
-                // picker they expected is not there. Not for an expired session: that has
-                // its own screen, and a notice over it would be wrong.
-                // Once until a list loads: the retry below runs every 30 s and the note
-                // came back with every one of them.
+                // Said once, for a few seconds: the home screen is the honest state, but nothing
+                // told the person why the picker they expected is missing. Not for an expired
+                // session, which has its own screen. Once until a list loads: the retry below runs
+                // every 30 s and the note came back with each one.
                 if (!(err && err.message === 'Unauthorized') && !this._listNoticeShown) {
                     this._listNoticeShown = true;
                     this._showListNotice();
                 }
-                // No gate is coming from this attempt. The poll will try again after
-                // POLL_RETRY_MS and the home screen shows in between — which is the honest
-                // state of things. _requestList has already set the pause for a failed
-                // request; this covers a body that would not parse or a grid that would not
-                // draw, which retrying twice a second would not fix either.
+                // No gate is coming from this attempt. The poll retries after POLL_RETRY_MS and
+                // home shows meanwhile. _requestList already paused for a failed request; this
+                // covers a body that would not parse or a grid that would not draw, which
+                // retrying twice a second would not fix either.
                 this._listRetryAt = Date.now() + this.POLL_RETRY_MS;
                 this._dropCover();
-                // The saved master is NOT forgotten here any more. It was, on every failure
-                // — a network blip, a 500, a restart — which cost the household its master
-                // for no reason. Only a 401 says the session is gone, and that path is
-                // handleSessionExpired's, which clears it itself.
+                // The saved master is not forgotten here. It was, on every failure (a network
+                // blip, a 500, a restart), which cost the household its master for no reason. Only
+                // a 401 says the session is gone, and handleSessionExpired clears it.
             });
         },
 
         /// A short note that the profile list did not load. Not a dialog: the gate asks
-        /// again by itself, and a dialog every POLL_RETRY_MS would be worse than the
-        /// silence. role=status so a screen reader says it without taking focus.
+        /// again by itself, and a dialog every POLL_RETRY_MS would be worse than silence.
+        /// role=status so a screen reader says it without taking focus.
         _showListNotice: function () {
             this._hideListNotice();
             const note = document.createElement('div');
@@ -5771,36 +5638,34 @@
         showProfileOverlay: function (profiles) {
             // A list that arrived late makes the note wrong.
             this._hideListNotice();
-            // Always stop the inactivity timer when showing the profile selector
+            // Stop the inactivity timer while the selector shows.
             this.stopInactivityTimer();
 
-            // Warm the account-wide form data now, while the user is still reading the
-            // grid. Opening a profile then costs one request rather than five, which is
-            // the difference between instant and the several-second wait that made
-            // people click a second time.
+            // Warm the account-wide form data while the user reads the grid. Opening a
+            // profile then costs one request instead of five, which was the several-second
+            // wait that made people click twice.
             try {
-                // Only for the master: the forms are the master's, and a profile's own
-                // session would fetch the profile's libraries rather than the household's.
+                // Master only: the forms are the master's, and a profile's own session would
+                // fetch the profile's libraries, not the household's.
                 const warmState = this.readMasterState();
                 if (warmState && warmState.token && this.isSignedInAsMaster(warmState)) {
                     this.fetchSharedFormData(ApiClient, warmState).catch(() => {
-                        // A cold prefetch failing is not an error anyone needs to see;
-                        // the form will retry and report it properly if it still fails.
+                        // A failed prefetch needs no message; the form retries and reports it.
                     });
                 }
             } catch (e) { /* no master state yet — the form will fetch on demand */ }
             this._overlayMountTime = Date.now();
 
-            // Returning to the grid replaces the modal contents, so any document-level
-            // listeners the previous form registered are now bound to detached nodes.
+            // Returning to the grid replaces the modal contents, so listeners the previous
+            // form registered on the document are bound to detached nodes.
             this.clearManagedDocumentListeners();
 
             const skinHeader = document.querySelector('.skinHeader');
             if (skinHeader) skinHeader.style.display = 'none';
 
-            // Do NOT apply filter:blur to #view-home — it triggers a GPU compositing
-            // layer creation which causes a one-frame white flash on first paint.
-            // The overlay's solid-dark background makes the blur redundant anyway.
+            // No filter:blur on #view-home: it creates a GPU compositing layer and causes a
+            // one-frame white flash on first paint. The overlay's solid dark background makes
+            // the blur redundant.
 
             let overlay = document.getElementById('profiles-gate-overlay');
             if (!overlay) {
@@ -5810,8 +5675,8 @@
                 overlay.setAttribute('role', 'dialog');
                 overlay.setAttribute('aria-modal', 'true');
                 overlay.setAttribute('aria-label', 'Bonfire');
-                // Start at opacity 0 so the browser creates the compositing layer
-                // silently.  We fade it in via rAF once it exists in the DOM.
+                // Start at opacity 0 so the browser creates the compositing layer silently; rAF
+                // fades it in once it exists.
                 overlay.style.opacity = '0';
                 document.body.appendChild(overlay);
             }
@@ -5820,45 +5685,42 @@
             document.body.classList.add('profiles-no-scroll');
             document.documentElement.classList.add('profiles-no-scroll');
 
-            // Keep a stable reference to the profiles being shown so that
-            // back-navigation (PIN cancel, master PIN cancel, promptMasterPinEntry)
-            // can re-show the grid without depending on cachedProfiles, which is
-            // intentionally cleared after first use.
+            // A stable reference to the profiles shown, so back-navigation (PIN cancel, master
+            // PIN cancel, promptMasterPinEntry) can re-show the grid without cachedProfiles,
+            // which is cleared after first use.
             this.currentProfiles = profiles;
             this.renderOverlayContent(overlay, profiles);
-            // First-time setup owns the overlay while it runs: the grid it was opened
-            // with, or one drawn late by the gate, is replaced before it is painted.
+            // First-time setup owns the overlay while it runs: the grid it was opened with, or
+            // one drawn late by the gate, is replaced before it is painted.
             if (this._onboarding) {
                 this._onboarding.waiting = false;
                 this.showOnboardingStep();
             }
 
-            // Reveal the page NOW — the overlay covers the home screen so there
-            // is no blank-page flash.  checkRoute() skipped _revealPage() earlier
-            // specifically so we could do it here at the right moment.
+            // Reveal the page now: the overlay covers home, so no blank flash. checkRoute()
+            // skipped _revealPage() so it could happen here.
             this._viewShowFired = true; // overlay is rendered; treat this as view-ready
             this._revealPage();
 
-            // Two rAF calls: first lets the browser paint with opacity:0 (compositing
-            // layer created silently), second begins the CSS opacity transition.
+            // Two rAF calls: the first paints at opacity:0 (compositing layer created
+            // silently), the second starts the CSS opacity transition.
             const fadeIn = () => {
                 overlay.style.opacity = ''; // CSS transition takes over
-                // The startup cover comes down once the fade has finished and the gate is
-                // opaque — dropping it at the start of the fade showed home through a
-                // half-transparent gate, which is the flash again. The cover is the same
-                // colour as the gate, so the fade itself is not lost.
+                // The startup cover comes down once the fade has finished and the gate is opaque.
+                // Dropping it at the start of the fade showed home through a half-transparent gate,
+                // the flash again. The cover is the gate's color, so the fade itself is not lost.
                 if (this._coverUp) {
                     this._coverHeldForGate = true;
                     setTimeout(() => this._dropCover(), this.GATE_FADE_MS);
                 }
             };
             requestAnimationFrame(() => requestAnimationFrame(() => {
-                // The household's theme is an administrator's own and its block has not
-                // arrived (applyTheme is waiting for themes?part=custom): the gate would
-                // fade in wearing Bonfire. Held, still at opacity 0 under the startup cover,
-                // until applyTheme puts the theme on; and after GATE_THEME_WAIT_MS, with
-                // Bonfire, so a request that never answers cannot leave a blank screen.
-                // No custom theme, no wait: _themeDeferred is false.
+                // The household's theme is an administrator's own and its block has not arrived
+                // (applyTheme is waiting for themes?part=custom); the gate would fade in as
+                // Bonfire. Held at opacity 0 under the startup cover until applyTheme puts the
+                // theme on, or after GATE_THEME_WAIT_MS with Bonfire, so a request that never
+                // answers cannot leave a blank screen. No custom theme, no wait (_themeDeferred
+                // is false).
                 if (!this._themeDeferred) { fadeIn(); return; }
                 let done = false;
                 const release = () => { if (done) return; done = true; this._gateThemeHold = null; fadeIn(); };
@@ -5866,24 +5728,16 @@
                 setTimeout(() => { if (!done) this._customThemesSettled(); release(); }, this.GATE_THEME_WAIT_MS);
             }));
 
-            // Auto-focus the first interactive element so TV/keyboard users
-            // don't need to Tab before they can navigate the profile grid.
+            // Focus the first interactive element so TV and keyboard users need not Tab first.
             setTimeout(() => {
                 const first = overlay.querySelector('[tabindex="0"], button, input');
                 if (first) first.focus();
             }, 100);
         },
 
-        /// Builds the per-library artwork controls in the edit form and returns a handle
-        /// whose save() posts whatever changed.
-        ///
-        /// Choices are held in memory until the form is saved, so backing out leaves
-        /// nothing behind — the same contract as every other field on the form.
-        /// Greys the artwork controls on a library this profile cannot see.
-        ///
-        /// Now that the tick and the artwork sit on one row, an enabled Picture
-        /// dropdown next to an unticked library would be offering to style something
-        /// that is not there.
+        /// Greys the artwork controls on a library this profile cannot see. With the tick
+        /// and the artwork on one row, an enabled Picture dropdown next to an unticked
+        /// library would offer to style something that is not there.
         syncLibraryRowState: function (row) {
             if (!row) return;
             const box = row.querySelector('.library-checkbox');
@@ -5901,14 +5755,17 @@
             scope.querySelectorAll('.jpf-libart-row').forEach(r => this.syncLibraryRowState(r));
         },
 
+        /// Builds the per-library artwork controls in the edit form and returns a handle
+        /// whose save() posts whatever changed. Choices are held in memory until the form is
+        /// saved, so backing out leaves nothing behind, like every other field.
         initLibraryArtworkEditor: function (container, profileId) {
             const rows = Array.prototype.slice.call(container.querySelectorAll(".jpf-libart-row"));
             const list = container.querySelector(".jpf-libart-list");
             const artToggle = container.querySelector(".jpf-libart-toggle input");
             const artHint = container.querySelector(".jpf-libart-explainer");
 
-            // Off is the honest default: most profiles never touch artwork, and the
-            // controls meant nothing to anyone who was only picking libraries.
+            // Off by default: most profiles never touch artwork, and the controls meant
+            // nothing to anyone only picking libraries.
             const showArtwork = (on) => {
                 if (list) list.classList.toggle("jpf-show-artwork", on);
                 if (artHint) artHint.hidden = !on;
@@ -5920,8 +5777,8 @@
             const state = {};
             const masterState = this.readMasterState();
 
-            // A value safe to drop into a CSS url(): a data payload or our own endpoint.
-            // Anything else previews as empty rather than as a broken rule.
+            // A value safe in a CSS url(): a data payload or our own endpoint. Anything else
+            // previews as empty, not as a broken rule.
             const previewUrl = (entry) => {
                 if (entry.image && /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(entry.image)) {
                     return entry.image;
@@ -5938,8 +5795,8 @@
 
                 select.value = entry.mode;
                 choose.style.visibility = entry.mode === "custom" ? "visible" : "hidden";
-                // Class, not an inline style: the artwork switch hides these by rule, and an
-                // inline display would outrank it and put the placeholder back.
+                // A class, not an inline style: the artwork switch hides these by rule, and an
+                // inline display would outrank it and bring the placeholder back.
                 row.classList.toggle("jpf-libart-has-art", entry.mode !== "inherit");
 
                 const preview = entry.mode === "custom" ? previewUrl(entry) : "";
@@ -5951,9 +5808,9 @@
                 const id = row.getAttribute("data-lib");
                 state[id] = { mode: "inherit" };
 
-                // What the row was before the last change to Picture, for a picker that is
-                // closed without a choice. Left as "Picture" it would be saved, and the
-                // server answers "Choose a picture first." (R-1191).
+                // What the row was before the last change to Picture, for a picker closed without
+                // a choice. Left as "Picture" it would be saved and the server answers "Choose a
+                // picture first." (R-1191).
                 let before = null;
 
                 row.querySelector(".jpf-libart-mode").addEventListener("change", (e) => {
@@ -5961,8 +5818,8 @@
                     state[id].mode = e.target.value;
                     state[id].dirty = true;
                     paint(row);
-                    // Choosing Picture with nothing picked yet opens the picker, rather
-                    // than leaving a mode the server would refuse to save.
+                    // Choosing Picture with nothing picked opens the picker, not a mode the server
+                    // would refuse to save.
                     if (state[id].mode === "custom" && !state[id].image && !state[id].url) {
                         row.querySelector(".jpf-libart-choose").click();
                     }
@@ -6010,9 +5867,8 @@
                         paint(row);
                     });
 
-                    // A profile that already has artwork set should not have to find the
-                    // switch to see it. Only ever turns the section on, so it cannot fold
-                    // away controls somebody has just opened by hand.
+                    // A profile that already has artwork should not have to find the switch to see it.
+                    // Only turns the section on, so it cannot fold away controls just opened by hand.
                     const anyArt = rows.some(r => (state[r.getAttribute("data-lib")] || {}).mode !== "inherit");
                     if (anyArt && artToggle && !artToggle.checked) {
                         artToggle.checked = true;
@@ -6027,8 +5883,8 @@
                     const changed = rows.filter(r => state[r.getAttribute("data-lib")].dirty);
                     if (!changed.length) return Promise.resolve();
 
-                    // One at a time: each request can carry an image and the server writes
-                    // files, so firing them together buys nothing and risks a partial save.
+                    // One at a time: each request can carry an image and the server writes files, so
+                    // firing them together gains nothing and risks a partial save.
                     return changed.reduce((chain, row) => chain.then(() => {
                         const id = row.getAttribute("data-lib");
                         const entry = state[id];
@@ -6054,17 +5910,16 @@
             };
         },
 
-        /// Opens the picker and crop editor the profile pictures already use, so library
-        /// artwork gets the avatar library, uploads and positioning without a second
-        /// implementation of any of it.
+        /// Opens the picker and crop editor the profile pictures use, so library artwork
+        /// gets the avatar library, uploads and positioning without a second implementation.
         pickLibraryArtwork: function (onPicked, onCancel) {
             const apiClient = ApiClient;
             const masterState = this.readMasterState();
             const token = masterState ? masterState.token : apiClient.accessToken();
 
             this.fetchAvatarLibrary(apiClient, token).then(library => {
-                // Already open: the caller is waiting on one of the two callbacks (it may be
-                // holding a button disabled until it hears), and this call will make neither.
+                // Already open: the caller waits on one of the two callbacks (it may hold a button
+                // disabled until it hears), and this call will make neither.
                 if (document.getElementById("profiles-libart-dialog")) {
                     if (typeof onCancel === 'function') onCancel();
                     return;
@@ -6078,7 +5933,7 @@
                     "background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);" +
                     "display:flex; align-items:center; justify-content:center; z-index:" + DIALOG_Z + ";";
                 dialog.innerHTML =
-                    // Width comes from the shared dialog rule, so a television gets the wider box too.
+                    // Width comes from the shared dialog rule, so a TV gets the wider box too.
                     '<div class="jpf-libart-dialog-content" style="background:var(--jpf-panel); border:1px solid var(--jpf-border-1); border-radius: var(--jpf-r-md);' +
                     ' padding:22px; max-height:86vh; overflow:auto;">' +
                     '<h2 style="margin:0 0 14px 0; color:var(--jpf-text-1); font-size:1.15rem; font-weight:700;">' + t('avatar.libraryArtworkTitle') + '</h2>' +
@@ -6098,8 +5953,8 @@
 
                 // remove() hands focus back to the opener; markDialog wraps it.
                 const close = () => dialog.remove();
-                // Closing without a choice tells the caller, which has changed its form
-                // to "Picture" already and has to put that back (R-1191).
+                // Closing without a choice tells the caller, which already switched its form to
+                // "Picture" and has to put that back (R-1191).
                 const cancel = () => { close(); if (onCancel) onCancel(); };
                 dialog.querySelector("#profiles-libart-cancel").addEventListener("click", cancel);
                 dialog.addEventListener("keydown", (e) => {
@@ -6133,28 +5988,26 @@
         // ─── Library tile artwork (issue #19) ──────────────────────────────────────
         //
         // Jellyfin builds one image per library and caches it on the folder, from a query
-        // with no user attached, so the tile for a mixed library can be drawn from something
-        // the active profile is not allowed to open. There is no per-user image to ask the
-        // server for, so the substitution happens here.
+        // with no user attached, so the tile for a mixed library can come from something
+        // the active profile may not open. There is no per-user image to ask for, so the
+        // substitution happens here.
         //
-        // It is done with a stylesheet rule per library rather than by touching the cards.
-        // jellyfin-web renders `.card[data-id]` containing a `.cardImageContainer` and fills
-        // its background in later from `data-src`, as a plain inline style. A stylesheet rule
-        // marked !important outranks a non-important inline one, so ours wins without having
-        // to race the lazy loader, survives every re-render with no observer, and applies
-        // anywhere a card for that library appears.
+        // A stylesheet rule per library, not touching the cards. jellyfin-web renders
+        // `.card[data-id]` with a `.cardImageContainer` and fills its background later from
+        // `data-src` as a plain inline style. A rule marked !important outranks a
+        // non-important inline style, so ours wins without racing the lazy loader, survives
+        // re-renders with no observer, and applies wherever a card for that library appears.
         //
-        // Honest limit: jellyfin-web preloads the original through `new Image()` before it
-        // sets the style, so the file is still fetched even though it is never displayed.
-        // Stopping that would mean rewriting `data-src` before the loader reads it, which is
-        // the fragile DOM race this approach exists to avoid. Nobody sees the picture; it is
-        // not a claim that the bytes never reach the device.
+        // Limit: jellyfin-web preloads the original through `new Image()` before setting
+        // the style, so the file is still fetched though never displayed. Stopping that
+        // would mean rewriting `data-src` before the loader reads it, the fragile DOM race
+        // this approach avoids. Nobody sees the picture; the bytes still reach the device.
 
         LIBRARY_ART_STYLE_ID: 'profiles-library-art',
 
-        /// Accepts only the shape our own endpoint produces. The value is interpolated into
-        /// a stylesheet, where escapeHtml would be the wrong tool and a stray quote or
-        /// parenthesis would end the rule early.
+        /// Accepts only the shape our own endpoint produces. The value goes into a
+        /// stylesheet, where escapeHtml is the wrong tool and a stray quote or parenthesis
+        /// would end the rule early.
         _libraryArtUrl: function (value) {
             if (!value) return '';
             const raw = String(value).trim();
@@ -6162,15 +6015,14 @@
             return pluginUrl(raw);
         },
 
-        /// Writes the rules for `entries` into a single style element, replacing whatever was
-        /// there. Entries are `{ libraryId, mode, url }`; anything unrecognised is skipped.
+        /// Writes the rules for `entries` into one style element, replacing what was there.
+        /// Entries are `{ libraryId, mode, url }`; anything unrecognized is skipped.
         applyLibraryArtwork: function (entries) {
             let css = '';
 
             (entries || []).forEach(entry => {
-                // Jellyfin serialises GUIDs without dashes, and that is the form it puts
-                // in data-id, so the selector has to use the same one. Both spellings are
-                // accepted coming in; only hex goes out.
+                // Jellyfin writes GUIDs without dashes, and that is the form in data-id, so the
+                // selector uses it too. Both spellings are accepted in; only hex goes out.
                 const id = String(entry.libraryId || entry.LibraryId || '').replace(/-/g, '').toLowerCase();
                 if (!/^[0-9a-f]{32}$/.test(id)) return;
 
@@ -6183,8 +6035,8 @@
                     css += selector + '{background-image:url("' + url + '")!important;' +
                            'background-size:cover!important;background-position:center!important;}';
                 } else if (mode === 'none') {
-                    // Reveals the card padder underneath, which is the icon and name — the
-                    // same thing a library with no artwork shows.
+                    // Reveals the card padder underneath (icon and name), as a library with no
+                    // artwork shows.
                     css += selector + '{background-image:none!important;}';
                 }
             });
@@ -6202,9 +6054,9 @@
             style.textContent = css;
         },
 
-        /// Remembers the rules against the account they belong to, so the next load can apply
-        /// them before any request comes back. Without this every page load would show the
-        /// real artwork until the fetch resolved, which is the whole thing being avoided.
+        /// Remembers the rules against the account they belong to, so the next load applies
+        /// them before any request returns. Otherwise every load would show the real
+        /// artwork until the fetch resolved, which is what this avoids.
         cacheLibraryArtwork: function (userId, entries) {
             try {
                 localStorage.setItem(this.config.libraryArtKey, JSON.stringify({
@@ -6235,9 +6087,9 @@
             if (typeof ApiClient === 'undefined' || !ApiClient || !ApiClient.accessToken()) return;
             const userId = ApiClient.getCurrentUserId();
             if (!userId) return;
-            // checkRoute asks on every tick while the rules have not arrived. Without these
-            // two a route that hangs or fails was asked twice a second and the requests
-            // stacked: one at a time, and longer between tries after each failure.
+            // checkRoute asks every tick while the rules have not arrived. Without these two
+            // a route that hangs or fails was asked twice a second and the requests stacked:
+            // one at a time now, and longer between tries after each failure.
             if (this._libraryArtLoading) return;
             if (Date.now() < (this._libraryArtRetryAt || 0)) return;
             this._libraryArtLoading = true;
@@ -6256,62 +6108,56 @@
                 this.applyLibraryArtwork(list);
             })
             .catch(() => {
-                // Server unreachable, or a server older than this build. Leave whatever the
-                // cache already applied rather than dropping back to Jellyfin's artwork.
+                // Server unreachable, or older than this build. Keep what the cache applied
+                // rather than fall back to Jellyfin's artwork.
                 this._libraryArtLoading = false;
                 this._libraryArtFailures = (this._libraryArtFailures || 0) + 1;
-                // 5 s, 10 s, 20 s ... capped at 5 minutes; still tried again, later.
+                // 5 s, 10 s, 20 s ... capped at 5 minutes, and still retried.
                 const wait = Math.min(300000, 5000 * Math.pow(2, Math.min(this._libraryArtFailures - 1, 6)));
                 this._libraryArtRetryAt = Date.now() + wait;
             });
         },
 
         // ─── D-pad focus trap ─────────────────────────────────────────────────────
-        // Issue #16: on a television our screens cover the page, but Jellyfin's own
-        // navigation is still listening on document and still sees every element behind
-        // them. Pressing a direction moved focus into the home screen underneath, leaving
-        // the remote controlling a page nobody could see.
+        // Issue #16: on a TV our screens cover the page, but Jellyfin's own navigation
+        // still listens on document and sees every element behind them. A direction key
+        // moved focus into the home screen underneath, so the remote controlled a page
+        // nobody could see.
         //
-        // `inert` would be the tidy answer and is not an option — the TV browsers this
-        // has to work on predate it. So directions are taken at the capture phase, before
-        // Jellyfin's handlers run, and resolved against our own elements.
+        // `inert` is not an option: the TV browsers this must work on predate it. So
+        // directions are taken at the capture phase, before Jellyfin's handlers, and
+        // resolved against our own elements.
         //
         // The listeners are bound once and stay bound. They resolve the active surface on
-        // every event and return immediately when there is none, so the trap covers every
-        // Bonfire screen without anyone having to remember to arm it, and stops applying
-        // the instant the last one leaves the DOM. Lifecycle bookkeeping is what leaks.
+        // every event and return at once when there is none, so the trap covers every
+        // Bonfire screen with nothing to arm, and stops applying when the last one leaves
+        // the DOM. Lifecycle bookkeeping is what leaks.
 
         /// Selector for the surfaces we trap focus inside: the gate overlay and any of our
-        /// own dialogs (confirm, alert, crop, panic), all of which sit above the page.
-        /// Every dialog gets this class as it is built. It replaced
-        /// `[id^="profiles-"][id$="-dialog"]`, which is two unqualified attribute
-        /// selectors: the engine cannot use an index for either, so resolving them meant
-        /// walking every element in the document — and this runs on every keydown and
-        /// focusin *in the whole application*, so typing in Jellyfin's own search box
-        /// walked the page once per keystroke.
+        /// dialogs (confirm, alert, crop, panic), all above the page. Every dialog gets
+        /// this class as it is built. It replaced `[id^="profiles-"][id$="-dialog"]`: two
+        /// unqualified attribute selectors the engine cannot index, so each match walked
+        /// every element, and this runs on every keydown and focusin in the whole
+        /// application, so typing in Jellyfin's search box walked the page per keystroke.
         ///
-        /// A class keeps the property that made the id pattern attractive: it travels with
-        /// the element, so removing the dialog removes it from the set with no bookkeeping
-        /// to get wrong. See the note above about lifecycle bookkeeping being what leaks.
+        /// A class also travels with the element, so removing the dialog removes it from
+        /// the set with no bookkeeping to get wrong.
         TRAP_SURFACE_CLASS: 'jpf-trap-surface',
 
         TRAP_SURFACE_SELECTOR: '#profiles-gate-overlay, .jpf-trap-surface',
 
-        /// The surface the remote should currently be confined to, or null when Bonfire
-        /// has nothing on screen. Dialogs render above the gate, and the last one in the
-        /// DOM is the topmost, so document order picks the right one.
+        /// The surface the remote should be confined to, or null when Bonfire has nothing
+        /// on screen. Dialogs render above the gate and the last in the DOM is topmost, so
+        /// document order picks the right one.
         _activeTrapSurface: function () {
-            // Class first, id second. Dialogs render above the gate, so the last dialog in
-            // document order is the topmost surface; with none open, the gate is. On the
-            // far more common path — nothing of ours on screen — this is one class-index
-            // lookup that comes back empty, where it used to be a full document walk on
-            // every keystroke anywhere in the application.
+            // Class first, id second. With nothing of ours on screen, the far more common
+            // case, this is one class-index lookup that comes back empty, where it used to be
+            // a full document walk on every keystroke anywhere in the application.
             //
-            // The answer is identical to the querySelectorAll version it replaces,
-            // including the case that looks like an oversight: a topmost surface that has
-            // already detached disarms the trap rather than falling back to the gate
-            // underneath. That is existing behaviour with a test on it, and this change is
-            // about how the surface is found, not about what counts as one.
+            // The answer matches the querySelectorAll version it replaces, including a case
+            // that looks like an oversight: a topmost surface that has already detached
+            // disarms the trap rather than falling back to the gate underneath. That has a
+            // test on it; this change was about how the surface is found, not what counts as one.
             const dialogs = document.getElementsByClassName(this.TRAP_SURFACE_CLASS);
             const last = dialogs.length
                 ? dialogs[dialogs.length - 1]
@@ -6325,33 +6171,32 @@
         /// Everything inside a surface a remote can land on. Hidden elements are left out:
         /// the overlay swaps between a grid and a form, and the old one lingers.
         ///
-        /// The offsetParent read below was flagged as forcing layout once per element
-        /// inside a focus handler. It does not: layout is invalidated by writes, and this
-        /// filter only reads, so the whole loop costs one layout however many controls a
-        /// surface has. Spatial navigation needs geometry anyway.
+        /// The offsetParent read below was flagged as forcing layout per element inside a
+        /// focus handler. It does not: layout is invalidated by writes, this filter only
+        /// reads, so the loop costs one layout however many controls there are. Spatial
+        /// navigation needs geometry anyway.
         ///
-        /// `checkVisibility()` is the tidy replacement and is **not an option here**. It
-        /// needs Chrome 105; the TVs this has to work on are Chrome 68 (webOS 5) and
-        /// Chrome 76 (Tizen 6.0), so it would throw on exactly the devices the focus trap
-        /// exists for — and a remote is the one input with no way to escape a broken trap.
+        /// `checkVisibility()` is not an option: it needs Chrome 105, and the TVs here are
+        /// Chrome 68 (webOS 5) and 76 (Tizen 6.0), so it would throw on the devices the
+        /// trap exists for, and a remote cannot escape a broken trap.
         ///
         /// A radio in a group is one Tab stop (_roveRadios), so the others carry
-        /// tabindex="-1" and the selector above would skip them: a remote, which has only
-        /// the arrows, could never reach the second choice. They are listed here and left
-        /// out of Tab alone, in _stepOverlayFocus.
+        /// tabindex="-1" and the selector above would skip them, and a remote with only
+        /// arrows could never reach the second choice. They are listed here and left out
+        /// of Tab alone, in _stepOverlayFocus.
         _overlayFocusables: function (root) {
             return Array.prototype.filter.call(
                 root.querySelectorAll('button, input, select, textarea, a[href], [role="radio"], [tabindex]:not([tabindex="-1"])'),
                 el => !el.disabled && el.offsetParent !== null && !this._inClosedFold(el) &&
-                    // a checkbox inside a .jpf-library-check-label: the label is its stop
+                    // A checkbox inside a .jpf-library-check-label: the label is its stop.
                     !(el.type === 'checkbox' && el.getAttribute && el.getAttribute('tabindex') === '-1')
             );
         },
 
-        /// True for a control inside a closed More fold, other than the fold's own summary.
+        /// True for a control inside a closed More fold, other than the fold's summary.
         /// Newer Chromium lays a closed fold's content out (offsetParent is not null) but
-        /// will not focus it, so a control there was the nearest stop and focus() did
-        /// nothing: the arrows stopped on the summary above it, with Back below out of reach.
+        /// will not focus it, so focus() did nothing there: the arrows stopped on the
+        /// summary above it, with Back below out of reach.
         _inClosedFold: function (el) {
             for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
                 if (n.tagName === 'SUMMARY') return false;
@@ -6360,10 +6205,10 @@
             return false;
         },
 
-        /// One Tab stop for a group of radio cards, as a radio group is: the one that has
-        /// focus (or starts checked). The others are reached with the arrows, which the
-        /// trap turns into spatial moves, so a remote loses nothing. Passing a card on the
-        /// way through must not leave it behind as a second stop, so the stop follows focus.
+        /// One Tab stop for a group of radio cards, as a radio group is: the one with focus
+        /// (or starting checked). The others are reached with arrows, which the trap turns
+        /// into spatial moves. Passing a card must not leave it as a second stop, so the
+        /// stop follows focus.
         _roveRadios: function (cards) {
             const list = Array.prototype.slice.call(cards || []);
             list.forEach(card => {
@@ -6374,8 +6219,8 @@
         },
 
         /// True for a control that binds the arrow keys to something other than moving
-        /// between controls — the crop view pans the picture with them. Those keys are left
-        /// alone there; the trap still keeps focus from escaping the surface.
+        /// between controls; the crop view pans the picture with them. Those keys are left
+        /// alone there, and the trap still keeps focus inside the surface.
         _ownsArrowKeys: function (node) {
             if (!node) return false;
             if (node.closest) return !!node.closest('[data-profiles-own-keys="1"]');
@@ -6383,13 +6228,12 @@
         },
 
         /// Steps one screen back from `surface`, or absorbs the press when there is nowhere
-        /// to go. Every sub-screen carries a Back or Cancel control already, so this clicks
-        /// the one it finds rather than duplicating each screen's teardown.
+        /// to go. Every sub-screen already has a Back or Cancel control, so this clicks the
+        /// one it finds rather than duplicating each screen's teardown.
         ///
-        /// Doing nothing is the right answer on the picker when it is the gate: a required
-        /// choice, and on a TV the alternative is closing the whole app mid-selection. A
-        /// picker opened on purpose has a Cancel button (#profiles-resume-btn), so it is
-        /// found above and Back closes it.
+        /// Doing nothing is right on the picker when it is the gate: a required choice,
+        /// and on a TV the alternative is closing the app mid-selection. A picker opened on
+        /// purpose has a Cancel button (#profiles-resume-btn), found above, so Back closes it.
         _dismissSurface: function (surface) {
             const back = surface.querySelector(
                 '#profiles-crop-cancel, #profiles-panic-cancel, #dialog-cancel-btn, #dialog-close-btn, ' +
@@ -6401,13 +6245,13 @@
             if (back) back.click();
         },
 
-        /// Puts focus on the first control of a screen that was just drawn, on a television
-        /// only. A remote has no pointer, so a screen that starts with nothing focused makes
-        /// the person press a key to find out where they are. Not on a phone or a desktop:
-        /// focusing a text box there pops the keyboard before anyone asked for it. A screen
-        /// that knows a better first control focuses it itself, and this leaves that alone:
-        /// the setup steps focus theirs at 50 ms, and this used to land on Next at 100 ms
-        /// over the top of it (the theme step opened on Next, not the checked card).
+        /// Puts focus on the first control of a screen just drawn, on a TV only. A remote
+        /// has no pointer, so a screen with nothing focused makes the person press a key to
+        /// find out where they are. Not on a phone or desktop: focusing a text box there
+        /// pops the keyboard unasked. A screen that knows a better first control focuses it
+        /// itself and this leaves that alone: the setup steps focus theirs at 50 ms, and
+        /// this used to land on Next at 100 ms over it (the theme step opened on Next, not
+        /// the checked card).
         _focusFirstOnTv: function (root, selector) {
             if (!document.documentElement.classList.contains('jpf-tv')) return;
             setTimeout(() => {
@@ -6419,7 +6263,7 @@
         },
 
         /// Moves focus one step through the surface in document order, wrapping at both
-        /// ends. This is what Tab means; geometry is for the direction keys.
+        /// ends. This is Tab; geometry is for the direction keys.
         _stepOverlayFocus: function (root, delta) {
             // Tab visits a radio group once: a radio left out of the tab order stays out.
             const items = this._overlayFocusables(root).filter(el =>
@@ -6432,28 +6276,25 @@
             this._focusVisibly(items[next]);
         },
 
-        /// Focuses a control and brings it into view.
-        ///
-        /// The profile forms are taller than a television screen, so Save and Cancel sit
-        /// below the fold. Focus alone moved to them without scrolling on the TV clients,
-        /// which reads as the remote having stopped responding.
+        /// Focuses a control and brings it into view. The profile forms are taller than a
+        /// TV screen, so Save and Cancel sit below the fold, and focus alone moved there
+        /// without scrolling on the TV clients, which looked like the remote had stopped.
         _focusVisibly: function (el) {
             if (!el) return;
             el.focus();
             try {
                 const r = el.getBoundingClientRect();
                 const h = window.innerHeight || document.documentElement.clientHeight;
-                // Only scroll when it is actually out of the viewport — an unconditional
-                // scrollIntoView jerks the picker around on every arrow press.
-                // The boolean form scrolls like { block: 'nearest' } for an element out of
-                // view on one side; the options object is Chromium 61 and reads as `true`
-                // before that.
+                // Scroll only when it is out of the viewport: an unconditional scrollIntoView
+                // jerks the picker on every arrow press. The boolean form scrolls like
+                // { block: 'nearest' } for an element out of view on one side; the options object
+                // is Chromium 61 and reads as `true` before that.
                 if (r.top < 0 || r.bottom > h) {
                     el.scrollIntoView(r.top < 0);
                 }
-                // The Save bar sticks to the bottom of the profile forms. A field in the
-                // viewport but under it counts as visible above, so a remote landed on
-                // controls it could not see. Scroll the form until the field clears the bar.
+                // The Save bar sticks to the bottom of the profile forms. A field in the viewport
+                // but under it counts as visible above, so a remote landed on controls it could not
+                // see. Scroll the form until the field clears the bar.
                 const bar = document.querySelector('.jpf-profile-dialog-actions');
                 const form = el.closest && el.closest('.jpf-create-profile-container');
                 if (bar && form && !bar.contains(el)) {
@@ -6461,11 +6302,11 @@
                     const r2 = el.getBoundingClientRect();
                     if (b.height > 0 && b.top > r2.top && r2.bottom > b.top) form.scrollTop += r2.bottom - b.top + 16;
                 }
-                // The picker's button row sticks the same way while the households do not fit,
-                // and scrolls the gate itself. A tile that is on screen but under the row has
-                // to come up above it. Only while it is stuck: otherwise the row is in the
-                // flow and covers nothing. The theme step of first-time setup pins its
-                // Next / Skip row the same way (_pinSetupRow), so the class alone names it.
+                // The picker's button row sticks the same way while the households do not fit, and
+                // scrolls the gate itself. A tile on screen but under the row has to come up above
+                // it, only while it is stuck (otherwise it is in the flow and covers nothing). The
+                // theme step of first-time setup pins its Next / Skip row the same way
+                // (_pinSetupRow), so the class alone names it.
                 const pickBar = document.querySelector('.jpf-footer-stuck');
                 const gate = el.closest && el.closest('#profiles-gate-overlay');
                 if (pickBar && gate && !pickBar.contains(el)) {
@@ -6476,7 +6317,7 @@
             } catch (e) { /* no layout information — focus alone will do */ }
         },
 
-        /// Nearest focusable in a direction. Movement across the axis is penalised so a
+        /// Nearest focusable in a direction. Movement across the axis is penalized so a
         /// grid walks along its row instead of cutting diagonally to a closer card.
         _moveOverlayFocus: function (root, dir) {
             let items = this._overlayFocusables(root);
@@ -6491,10 +6332,10 @@
             const fy = from.top + from.height / 2;
             const horizontal = (dir === 'left' || dir === 'right');
 
-            // The picker's button row, while it is stuck to the bottom of the screen, is nearer
-            // than the tiles still below the fold, so Down from a tile skipped them, and with
-            // the row off the end of the page it was never reached. It comes after every
-            // tile: Down from the last row reaches it, Up from it returns to that row.
+            // The picker's button row, while stuck to the bottom of the screen, is nearer than
+            // the tiles below the fold, so Down from a tile skipped them, and with the row off
+            // the end of the page it was never reached. It comes after every tile: Down from
+            // the last row reaches it, Up from it returns to that row.
             const pickBar = (dir === 'up' || dir === 'down') ? root.querySelector('.jpf-footer-stuck') : null;
             if (pickBar) {
                 const panic = root.querySelector('#profiles-panic-link');
@@ -6526,9 +6367,9 @@
                 }
             }
 
-            // The sticky Save bar sits nearer than the last field above it, so Down skipped
-            // that field. The bar comes after every control in the form's own content: Down
-            // reaches it from the last one, Up goes back to the last one.
+            // The sticky Save bar is nearer than the last field above it, so Down skipped that
+            // field. The bar comes after every control in the form: Down reaches it from the
+            // last one, Up goes back to the last one.
             const bar = root.querySelector('.jpf-profile-dialog-actions');
             const inBar = (el) => !!bar && bar.contains(el);
             const content = bar ? items.filter(el => !inBar(el)) : items;
@@ -6563,13 +6404,13 @@
                 if (dir === 'down'  && dy <  1) return;
 
                 const along  = horizontal ? Math.abs(dx) : Math.abs(dy);
-                // Up and Down: a control that spans the column we are in is straight above or
-                // below, however far its centre is. Viewing limits and the More row span the
-                // whole form, and by centre alone Down from the right-hand half skipped the
-                // More row for the tag box under it.
+                // Up and Down: a control spanning the column we are in is straight above or below
+                // however far its center is. Viewing limits and the More row span the whole form,
+                // and by center alone Down from the right half skipped the More row for the tag
+                // box under it.
                 let across = horizontal ? Math.abs(dy) : Math.abs(dx);
                 // The same from the wide one's side: Down from the More row reaches the first
-                // control of either column, nearest first, not only the one nearer its centre.
+                // control of either column, nearest first, not only the one nearer its center.
                 const cx = r.left + r.width / 2;
                 if (!horizontal && ((fx >= r.left && fx <= r.right) || (cx >= from.left && cx <= from.right))) across = 0;
                 const score = along + across * 3;
@@ -6602,13 +6443,13 @@
             const onKeyDown = (e) => {
                 const surface = this._activeTrapSurface();
                 if (!surface) return;
-                // Never swallow a shortcut — Ctrl+Shift+B has to keep working from here.
+                // Never swallow a shortcut: Ctrl+Shift+B has to keep working from here.
                 if (e.ctrlKey || e.altKey || e.metaKey) return;
 
-                // The TV Back/Return key. Samsung sends 10009, LG sends 461, and neither is
-                // a key the page gets a second chance at: unhandled, Tizen puts up its
-                // "exit application?" prompt behind our overlay, where it cannot be read or
-                // dismissed. While a Bonfire screen is up, Back belongs to that screen.
+                // The TV Back/Return key. Samsung sends 10009 and LG sends 461, and the page gets
+                // no second chance at either: unhandled, Tizen shows its "exit application?"
+                // prompt behind our overlay, where it cannot be read or dismissed. While a Bonfire
+                // screen is up, Back belongs to it.
                 if (e.keyCode === 10009 || e.keyCode === 461 || e.key === 'XF86Back') {
                     e.preventDefault();
                     e.stopPropagation();
@@ -6616,39 +6457,35 @@
                     return;
                 }
 
-                // Escape means Back on the full screens. Not on a dialog, which binds it
-                // itself, so it is not stopped here either. Not when the script sent it:
-                // closeUserMenu dispatches one at Jellyfin's own menu. And not with a list
-                // open, where it closes the list.
+                // Escape means Back on the full screens. Not on a dialog, which binds it itself.
+                // Not when the script sent it: closeUserMenu dispatches one at Jellyfin's own
+                // menu. Not with a list open, where it closes the list.
                 if ((isKey(e, 'Escape') || isKey(e, 'Esc')) && surface.id === 'profiles-gate-overlay' && e.isTrusted !== false
                     && !(e.target && e.target.closest && e.target.closest('[aria-expanded="true"]'))) {
                     this._dismissSurface(surface);
                     return;
                 }
 
-                // An event dispatched at `window` has no element target, and contains()
-                // wants a node. Treat it as outside: the direction keys still move, and
-                // _moveOverlayFocus enters at the first control when the active element is
-                // not in the surface, which is the right first press.
+                // An event dispatched at `window` has no element target and contains() wants a
+                // node. Treat it as outside: direction keys still move, and _moveOverlayFocus
+                // enters at the first control when the active element is not in the surface,
+                // which is the right first press.
                 const inside = !!(e.target && e.target.nodeType && surface.contains(e.target));
                 const dir = dirOf(e);
 
                 if (dir) {
-                    // The crop view pans with the arrows. Ownership is declared on that
-                    // element rather than the whole dialog, so the buttons beside it stay
-                    // reachable — a remote has no Tab key to escape with otherwise.
+                    // The crop view pans with the arrows. Ownership is declared on that element, not
+                    // the whole dialog, so the buttons beside it stay reachable (a remote has no Tab).
                     if (inside && this._ownsArrowKeys(e.target)) return;
 
                     const tag = (e.target.tagName || '').toLowerCase();
                     if (inside) {
                         // Left/right belong to the caret while typing a PIN or a name.
                         if ((tag === 'input' || tag === 'textarea') && (dir === 'left' || dir === 'right')) return;
-                        // Up/down change the value of a dropdown with a keyboard. On a
-                        // television Enter opens the list and the keys never reach here
-                        // while it is open, so a press that does reach here is leaving.
-                        // Keeping it for the value left Your account stuck on its time
-                        // zone, with everything below out of reach (Left stays, Right
-                        // jumps back up the form).
+                        // Up/down change a dropdown's value from a keyboard. On a TV, Enter opens the list
+                        // and the keys never reach here while it is open, so a press that does is leaving.
+                        // Keeping it for the value left Your account stuck on its time zone with
+                        // everything below out of reach (Left stays, Right jumps back up the form).
                         if (tag === 'select' && (dir === 'up' || dir === 'down') &&
                             !document.documentElement.classList.contains('jpf-tv')) return;
                     }
@@ -6659,17 +6496,16 @@
                 }
 
                 if (isKey(e, 'Tab') || e.keyCode === 9) {
-                    // Tab follows document order, not geometry. Routing it through the
-                    // spatial search meant it did nothing at all in a stacked form, where
-                    // every candidate is directly above or below rather than beside.
+                    // Tab follows document order, not geometry. Routed through the spatial search it
+                    // did nothing in a stacked form, where every candidate is directly above or below.
                     e.preventDefault();
                     e.stopPropagation();
                     this._stepOverlayFocus(surface, e.shiftKey ? -1 : 1);
                     return;
                 }
 
-                // A select landing on the page behind would act on something invisible.
-                // Inside the surface it is left alone: that is how our own buttons fire.
+                // A select landing on the page behind would act on something invisible. Inside the
+                // surface it is left alone: that is how our own buttons fire.
                 const isSelect = isKey(e, 'Enter') || isKey(e, ' ') || e.keyCode === 13;
                 if (isSelect && !inside) {
                     e.preventDefault();
@@ -6679,20 +6515,19 @@
                 }
             };
 
-            // Second line of defence: whatever moved focus out, take it back. Membership is
-            // tested against any surface rather than the topmost one, so focus returning to
-            // the gate under a dialog that is still fading out is left where it belongs.
+            // Second line of defense: whatever moved focus out, take it back. Membership is
+            // tested against any surface, not the topmost, so focus returning to the gate
+            // under a dialog still fading out is left alone.
             //
-            // Two guards, and both are here because this handler fought another focus trap
-            // to a standstill. MUI's Modal enforces focus back inside itself exactly the
-            // way this does, so with Jellyfin's account menu still open the two handlers
-            // bounced focus between them: 134 focus() calls and a RangeError, our onFocusIn
-            // and MUI's contain() alternating the whole way down the stack. From the
-            // household's side, every text box and dropdown in the profile form was dead
-            // and the page jumped to the top — items[0] being the first field in the form.
+            // Two guards, both from this handler fighting another focus trap to a standstill.
+            // MUI's Modal enforces focus back inside itself the way this does, so with
+            // Jellyfin's account menu still open the two bounced focus between them: 134
+            // focus() calls and a RangeError. In the household's view every text box and
+            // dropdown in the profile form was dead and the page jumped to the top
+            // (items[0] is the first field in the form).
             const onFocusIn = (e) => {
-                // 1. Never re-enter. focus() dispatches focusin synchronously, so without
-                //    this the handler calls itself through its own reclaim.
+                // 1. Never re-enter. focus() dispatches focusin synchronously, so the handler
+                //    would call itself through its own reclaim.
                 if (this._reclaimingFocus) return;
 
                 const surface = this._activeTrapSurface();
@@ -6700,12 +6535,10 @@
                 if (e.target && e.target.closest && e.target.closest(this.TRAP_SURFACE_SELECTOR)) return;
                 if (e.target === document.body || e.target === document.documentElement) return;
 
-                // 2. Stop fighting. A reclaim that is immediately undone means something
-                //    else is also enforcing focus, and whoever gives up last wins nothing —
-                //    the loop only ends in a stack overflow. Standing down leaves focus
-                //    where the other trap wants it, which is at least a usable state, and
-                //    is the correct outcome anyway: the other trap belongs to something
-                //    rendered above us.
+                // 2. Stop fighting. A reclaim that is immediately undone means something else
+                //    also enforces focus, and the loop only ends in a stack overflow. Standing
+                //    down leaves focus where the other trap wants it, which is usable and correct:
+                //    that trap belongs to something rendered above us.
                 const now = Date.now();
                 if (this._focusStandDownUntil && now < this._focusStandDownUntil) return;
 
@@ -6730,28 +6563,26 @@
                 }
             };
 
-            // On `window`, and in the capture phase. Both halves of that matter, and the
-            // second time #16 was reported it was because of the first.
+            // On `window`, in the capture phase. Both matter; the second time #16 was
+            // reported it was because of the first.
             //
-            // jellyfin-web binds its own remote navigation with
-            // `window.addEventListener('keydown', ...)` — no capture — in
-            // scripts/keyboardNavigation.js, and it bails on `e.defaultPrevented`. So for
-            // any key event that travels through the document we are ahead of it either
-            // way. What document-level capture does NOT see is an event dispatched at
-            // `window` itself: its propagation path is `window` alone, so a document
-            // listener is never on it while upstream's window listener is. Television
-            // webviews do dispatch remote keys that way.
+            // jellyfin-web binds its remote navigation with `window.addEventListener('keydown',
+            // ...)`, no capture, in scripts/keyboardNavigation.js, and bails on
+            // `e.defaultPrevented`. For any key event that travels through the document we
+            // are ahead of it either way. Document-level capture does not see an event
+            // dispatched at `window` itself: its path is `window` alone, so a document
+            // listener is never on it while upstream's window listener is. TV webviews do
+            // dispatch remote keys that way.
             //
-            // When that happens the arrows belong to upstream's focusManager, and its
-            // focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable` — it does
-            // not look at [tabindex] at all. A profile card is a div with tabindex="0", so
-            // the grid is invisible to it and our two footer buttons are not: every arrow
-            // press lands on Manage Profiles and no profile can be reached. That is
-            // exactly how it was reported. The cards carry `focusable` now as well, so
-            // both ends of this are covered.
+            // Then the arrows belong to upstream's focusManager, whose focusable set is
+            // INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable` and ignores [tabindex]. A
+            // profile card is a div with tabindex="0", so the grid is invisible to it and our
+            // two footer buttons are not: every arrow press landed on Manage Profiles and no
+            // profile could be reached. The cards carry `focusable` now too, so both ends are
+            // covered.
             //
             // Window capture is first on the path for everything else too, so this is a
-            // superset of what it replaces, not a trade.
+            // superset of what it replaces.
             window.addEventListener('keydown', onKeyDown, true);
             window.addEventListener('focusin', onFocusIn, true);
             this._overlayTrap = { onKeyDown: onKeyDown, onFocusIn: onFocusIn };
@@ -6771,8 +6602,8 @@
             // A picture-position dialog is on the body, not in the overlay (R-1218).
             if (this._cropClose) this._cropClose();
 
-            // Reopening the gate should re-read the server; caching only spans one
-            // session so a library added elsewhere shows up next time.
+            // Reopening the gate should re-read the server; the cache spans one session so a
+            // library added elsewhere shows up next time.
             this.clearSharedFormData();
 
             // Tearing down the overlay must also drop the form listeners it owned.
@@ -6785,14 +6616,13 @@
             const skinHeader = document.querySelector('.skinHeader');
             if (skinHeader) skinHeader.style.display = '';
 
-            // Note: view-home blur no longer applied (removed in v1.0.14)
         },
 
         // ─── Inactivity Lockout Timer ─────────────────────────────────────────────
 
-        // Called on page load when an active profile session already exists.
-        // Fetches /list (using the master token) to find the active profile's
-        // lockout setting, then arms the inactivity timer.
+        // Called on page load when an active profile session exists. Fetches /list with
+        // the master token to find the active profile's lockout setting, then arms the
+        // timer.
         initLockoutTimer: function (retry) {
             if (!this.isProfileSessionActive()) return;
 
@@ -6822,9 +6652,9 @@
             const url = apiClient.getUrl('plugins/profiles/list');
             fetch(url, { headers: this.getAuthHeaders(masterState.token) })
             .then(res => {
-                // A 401 is the master token being dead, not a hiccup: end the session like
-                // every other list caller, and neither fall back to the cached list nor
-                // ask again in 30 s with a token that will be refused again.
+                // A 401 is a dead master token, not a hiccup: end the session like every other
+                // list caller, and do not fall back to the cached list or ask again in 30 s with a
+                // token that will be refused again.
                 if (res.status === 401) { this.handleSessionExpired(); return null; }
                 if (!res.ok) throw new Error('fail');
                 return res.json();
@@ -6850,29 +6680,28 @@
             return false;
         },
 
-        // Arms the inactivity timer. Resets on any user interaction.
-        // Any device event (mouse, keyboard, touch, pointer, scroll) counts as activity,
-        // making this safe for TV remotes, magic remotes, game pads, and touchscreens.
+        // Arms the inactivity timer. Resets on any user interaction. Any device event
+        // (mouse, keyboard, touch, pointer, scroll) counts, so it works for TV remotes,
+        // magic remotes, game pads and touchscreens.
         startInactivityTimer: function (minutes) {
             this.stopInactivityTimer();
             const ms = minutes * 60 * 1000;
             const events = [
                 'mousemove', 'mousedown', 'keydown',
                 'touchstart', 'scroll', 'wheel', 'click',
-                'pointermove', 'pointerdown'  // covers LG Magic Remote and pointer-based TV inputs
+                'pointermove', 'pointerdown'  // LG Magic Remote and pointer-based TV inputs
             ];
 
-            // Activity only writes a timestamp. It used to clear and re-arm a timeout on
-            // every event, about 60 times a second on a magic remote (R-1202). The one
-            // timeout looks at the stamp when it fires and sleeps the rest if the page
-            // was used meanwhile. The stamp is also what a suspended TV or a throttled
-            // tab is judged by when it wakes: a timer only counts time it was running,
-            // so without it the lock came hours late (R-1192).
+            // Activity only writes a timestamp. It used to clear and re-arm a timeout on every
+            // event, about 60 times a second on a magic remote (R-1202). The one timeout checks
+            // the stamp when it fires and sleeps the rest if the page was used meanwhile. The
+            // stamp is also how a suspended TV or throttled tab is judged on waking: a timer
+            // counts only time it ran, so without it the lock came hours late (R-1192).
             let lastActivity = Date.now();
 
             const checkAndLock = () => {
                 if (this.isMediaPlaying()) {
-                    // Defer lockout by 1 minute if media is actively playing
+                    // Defer the lock by 1 minute while media is playing.
                     this.inactivityTimer = setTimeout(checkAndLock, 60 * 1000);
                 } else {
                     this.lockActiveProfile();
