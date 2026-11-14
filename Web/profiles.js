@@ -2139,9 +2139,9 @@
             select.focus();
         },
 
-        /// Title and message are text and escaped here (r2-24-03). A caller whose message is markup
-        /// it built itself passes `asHtml` true and escapes what it interpolates.
-        showConfirmDialog: function (title, message, onConfirm, onCancel, asHtml) {
+        /// Title and message are text and always escaped here (r2-24-03). There was an opt-out for
+        /// markup; nothing used it, so it went (r3-05-02).
+        showConfirmDialog: function (title, message, onConfirm, onCancel) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-confirm-dialog';
             dialog.classList.add('jpf-trap-surface', 'jpf-fade');
@@ -2169,8 +2169,8 @@
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${asHtml ? title : escapeHtml(title)}</h2>
-                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${asHtml ? message : escapeHtml(message)}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
                     <div class="jpf-actions">
                         <button id="dialog-confirm-btn" class="profiles-btn jpf-btn-danger" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.confirm')}</button>
                         <button id="dialog-cancel-btn" class="profiles-btn jpf-btn-secondary" style="padding: 10px 20px; font-weight: 600; min-width: 100px;">${t('common.cancel')}</button>
@@ -2226,10 +2226,10 @@
             });
         },
 
-        /// Escapes title and message like showConfirmDialog; `asHtml` is the same opt-in. The OK
+        /// Escapes title and message like showConfirmDialog. The OK
         /// button answers once: Enter held down or a second click during the fade ran onClose
         /// twice (r2-24-02).
-        showAlert: function (title, message, onClose, asHtml) {
+        showAlert: function (title, message, onClose) {
             const dialog = document.createElement('div');
             dialog.id = 'profiles-alert-dialog';
             dialog.classList.add('jpf-trap-surface', 'jpf-fade');
@@ -2257,8 +2257,8 @@
                     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                     text-align: center;
                 ">
-                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${asHtml ? title : escapeHtml(title)}</h2>
-                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${asHtml ? message : escapeHtml(message)}</p>
+                    <h2 style="margin-top: 0; color: var(--jpf-text-1); font-size: 1.25rem; font-weight: 700; margin-bottom: 12px;">${escapeHtml(title)}</h2>
+                    <p style="color: var(--jpf-text-2); font-size: 0.92rem; line-height: 1.5; margin-bottom: 24px;">${escapeHtml(message)}</p>
                     <div style="display: flex; justify-content: center;">
                         <button id="dialog-close-btn" class="profiles-btn jpf-btn-primary" style="padding: 10px 24px; font-weight: 600; min-width: 120px;">${t('common.ok')}</button>
                     </div>
@@ -12054,7 +12054,7 @@
             if (newCodeBtn) {
                 newCodeBtn.addEventListener('click', () => {
                     this.showConfirmDialog(t('bonfire.newCodeConfirmTitle'), t('bonfire.newCodeConfirmBody'), () => {
-                        fetch(apiClient.getUrl('plugins/profiles/bonfire/generate'), {
+                        fetch(apiClient.getUrl('plugins/profiles/bonfire/generate?regenerate=true'), {
                             method: 'POST',
                             headers: this.manageHeaders(masterToken)
                         })

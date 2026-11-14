@@ -181,6 +181,9 @@ console.log('── the reference page ─────────────�
     // An unpinned CDN URL is a script that can change under the page. The version is exact.
     const m = /cdn\.jsdelivr\.net\/npm\/redoc@(\d+\.\d+\.\d+)\/bundles\/redoc\.standalone\.js/.exec(text);
     ok('it loads ReDoc at an exact version from jsDelivr', !!m, m ? m[1] : '');
+    // An exact version is still a file the CDN can change; the hash is what refuses it (r3-04-03).
+    const tag = (/<script\b[^>]*redoc\.standalone\.js[^>]*>/.exec(text) || [''])[0];
+    ok('and only runs the file whose hash it names', /\bintegrity="sha(384|512)-[A-Za-z0-9+/=]{40,}"/.test(tag) && /\bcrossorigin="anonymous"/.test(tag), tag);
     ok('and points it at openapi.json', /openapi\.json/.test(text));
     const dev = fs.readFileSync(path.join(R.ROOT, 'docs', 'developer-api.md'), 'utf8');
     const readme = fs.readFileSync(path.join(R.ROOT, 'README.md'), 'utf8');

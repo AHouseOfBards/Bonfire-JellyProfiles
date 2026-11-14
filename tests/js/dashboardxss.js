@@ -350,6 +350,24 @@ console.log('\n── The Bonfire panel names other people ───────
         try { realAlert.call(plugin, title, message, onClose, asHtml); } finally { sandbox.document.createElement = was; }
         alerts.push(written);
     };
+    // r3-05-02: the dialogs had an opt-out from escaping that nothing used. A trailing true, the
+    // way it was asked for, must still give text.
+    plugin.showAlert(EVIL, EVIL, null, true);
+    ok('an alert asked for markup still shows text', alerts.length === 1 && !live(alerts[0]) && alerts[0].indexOf('&lt;img') !== -1, alerts[0]);
+    {
+        let written = '';
+        const el = { style: {}, classList: { add() {}, remove() {}, contains: () => false },
+            set innerHTML(v) { written = v; }, get innerHTML() { return written; },
+            addEventListener() {}, setAttribute() {}, getAttribute: () => null, appendChild() {}, remove() {}, focus() {},
+            querySelector: () => ({ addEventListener() {}, focus() {}, setAttribute() {}, getAttribute: () => null, style: {} }),
+            querySelectorAll: () => [] };
+        const was = sandbox.document.createElement;
+        sandbox.document.createElement = () => el;
+        try { plugin.showConfirmDialog(EVIL, EVIL, function () {}, null, true); } catch (e) { /* only what it wrote matters */ }
+        finally { sandbox.document.createElement = was; }
+        ok('a confirm asked for markup still shows text', written !== '' && !live(written) && written.indexOf('&lt;img') !== -1, written.slice(0, 200));
+    }
+    alerts.length = 0;
     plugin._limitsCall = function () { return Promise.reject(new Error(EVIL)); };
     const dialogs = [];
     plugin.showActionsDialog = function (title, body, actions) { dialogs.push(actions); };

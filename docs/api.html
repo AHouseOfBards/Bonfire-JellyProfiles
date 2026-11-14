@@ -9,7 +9,11 @@ nav_order: 10.5
 <div id="redoc"></div>
 <noscript>This page needs JavaScript. The same information is in the <a href="developer-api.html">Developer API</a> page.</noscript>
 
-<script src="https://cdn.jsdelivr.net/npm/redoc@2.5.0/bundles/redoc.standalone.js"></script>
+<!-- The hash pins the exact file: a changed copy on the CDN does not run. Taken from the
+     jsdelivr and unpkg copies, which match. Update it with the version. -->
+<script src="https://cdn.jsdelivr.net/npm/redoc@2.5.0/bundles/redoc.standalone.js"
+        integrity="sha384-4vOjrBu7SuDWXcAw1qFznVLA/sKL+0l4nn+J1HY8w7cpa6twQEYuh4b0Cwuo7CyX"
+        crossorigin="anonymous"></script>
 <script>
     Redoc.init('openapi.json', {
         hideDownloadButton: false,
