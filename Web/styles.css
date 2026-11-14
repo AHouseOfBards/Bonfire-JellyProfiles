@@ -1188,7 +1188,7 @@ body.profiles-no-scroll [id*="spinner"] {
     /* The theme step of first-time setup pins its Next / Skip row the same way (_pinSetupRow). */
     #profiles-gate-overlay .profiles-footer.jpf-footer-stuck,
     #profiles-gate-overlay .jpf-onboarding-actions.jpf-footer-stuck {
-        /* Above the lock and the Bonfires badge on a tile (z-index 10), which would otherwise show on top of the row. */
+        /* Above the lock and the Bonfires badge on a tile (z-index 10), which would otherwise show over the row. */
         position: sticky; z-index: 12;
         box-sizing: border-box;
         /* The gate pads its own bottom (2rem and the safe area), and a sticky box stops at the
@@ -1273,9 +1273,9 @@ body.profiles-no-scroll [id*="spinner"] {
     -webkit-text-security: disc;
 }
 #jpf-profile-pin-input:focus, #jpf-master-pin-input:focus, #jpf-main-pin-new:focus, #jpf-pin-reset-new:focus, #jpf-pin-reset-code:focus {
-    /* One ring. The accent border and glow that were here sat inside the 2px outline that
-       keyboard focus gets below, so a focused box was drawn twice. The outline stays: it
-       is the one a television thickens. */
+    /* One ring. The accent border and glow that were here sat inside the 2px outline keyboard
+       focus gets below, so a focused box was drawn twice. The outline stays because a
+       television thickens it. */
     outline: none;
 }
 
@@ -1283,8 +1283,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .profiles-btn {
     padding: 10px 24px; border: 1.5px solid transparent; border-radius: var(--jpf-btn-radius);
     font-weight: 600; font-size: 1rem; cursor: pointer;
-    /* One case and one spacing per theme, for every button: the theme's secondary buttons
-       used to set these alone, so BACK sat beside a sentence-case Unlock. */
+    /* One case and one spacing per theme, for every button. The theme's secondary buttons used to set these alone, so BACK sat beside a sentence-case Unlock. */
     text-transform: var(--jpf-btn2-case);
     letter-spacing: var(--jpf-btn2-spacing);
     transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
@@ -1320,41 +1319,35 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex; gap: var(--jpf-gap-lg); margin-top: 1rem;
     width: 100%; max-width: var(--jpf-w-narrow);
 }
-/* Every row of buttons that ends a screen. The way out is always last,
-   so it is always bottom right; the action is first, on the left. 1.7.2
-   had it the other way round (way out on the left), after the screens
-   had each chosen differently; the owner's call on 1.9.0.4-beta was the
-   right, as on the "Who's watching?" row. A lone way out sits on the
-   right too (an inline flex-end on its row). tests/js/exitbuttons.js. */
+/* Every row of buttons that ends a screen. The way out is last, bottom right; the action
+   is first, on the left. 1.7.2 had it the other way round after each screen had chosen
+   differently; the owner chose this in 1.9.0.4-beta, as on the "Who's watching?" row.
+   A lone way out sits on the right too (an inline flex-end on its row).
+   tests/js/exitbuttons.js. */
 .jpf-actions {
     display: flex; justify-content: space-between; align-items: center;
     gap: var(--jpf-gap); flex-wrap: wrap;
 }
 
-/* The confirm and alert boxes. Their width was written inline, where no rule here
-   could widen it, so on a 1080p television they were a small card on a big screen. */
+/* The confirm and alert boxes. Their width was written inline, where no rule here could widen it, so on a 1080p TV they were a small card on a big screen. */
 .jpf-confirm-dialog-content, .jpf-alert-dialog-content,
 .jpf-prompt-dialog-content, .jpf-select-dialog-content,
 .jpf-libart-dialog-content {
-    /* border-box, because the 24px padding sat on top of a 90% width and on a 360px phone
-       the box ran edge to edge (P2-510). A 16px gutter either side instead. */
+    /* border-box, because the 24px padding sat on top of a 90% width and on a 360px phone the box ran edge to edge (P2-510). A 16px gutter each side instead. */
     box-sizing: border-box;
     max-width: 420px; width: calc(100% - 32px);
 }
 
 /* Profile Creation Form styles */
-/* A column of sections. Below the breakpoint the two of these simply
-   stack, so the phone order is unchanged: Profile, Security,
-   Libraries, Restrictions. */
+/* A column of sections. Below the breakpoint the two stack, so the phone order is unchanged: Profile, Security, Libraries, Restrictions. */
 .jpf-form-col {
     display: flex; flex-direction: column; gap: 1.5rem;
     min-width: 0;
 }
 
-/* Two columns once there is room for them. Everything Bonfire drew was
-   a phone column whatever the screen — on a desktop this form was a
-   ~440px ribbon with the rest of the window empty, and the Save button
-   several screens below the name field. */
+/* Two columns once there is room. Everything used to be a phone column: on a desktop
+   this form was a ~440px ribbon with the window empty around it and Save several
+   screens below the name field. */
 @media (min-width: 900px) {
     .jpf-create-profile-container.is-two-col {
         max-width: var(--jpf-w-wide);
@@ -1363,17 +1356,16 @@ body.profiles-no-scroll [id*="spinner"] {
         align-items: start;
         max-height: 85vh;
     }
-    /* Everything that is not one of the two columns spans both of them.
-       Naming only .jpf-profile-dialog-actions left the Create form's button row
-       and its error line as half-width grid items under the left column. */
+    /* Everything that is not one of the two columns spans both. Naming only
+       .jpf-profile-dialog-actions left the Create form's button row and error line as
+       half-width grid items under the left column. */
     .jpf-create-profile-container.is-two-col > *:not(.jpf-form-col) {
         grid-column: 1 / -1;
     }
     /* The two columns are rarely the same height (Profile and Security against Libraries),
-       and a short one left a hole beside the card below it. Each column takes the height of
-       its row and shares what its cards do not need between them, so no card has bare form
-       beside it. The same inside More. Viewing limits is outside both columns and spans
-       them. tests/js/viewwide.js. */
+       and a short one left a hole beside the card below. Each column takes its row's height
+       and shares the spare room between its cards. The same inside More. Viewing limits is
+       outside both columns and spans them. tests/js/viewwide.js. */
     .jpf-create-profile-container.is-two-col > .jpf-form-col,
     .jpf-more-body > .jpf-form-col {
         align-self: stretch;
@@ -1389,50 +1381,42 @@ body.profiles-no-scroll [id*="spinner"] {
     display: flex; flex-direction: column; gap: 1.5rem;
     background: var(--jpf-sheet-bg); border: var(--jpf-sheet-border);
     border-radius: var(--jpf-r-lg); box-shadow: var(--jpf-sheet-shadow);
-    /* The padding is a variable because the sticky button row below pulls itself out
-       through it by exactly that much; a short screen changes both in one place. */
+    /* The padding is a variable because the sticky button row below pulls itself out through it by exactly that much. A short screen changes both in one place. */
     --jpf-form-pad: 2rem; padding: var(--jpf-form-pad);
     text-align: left; max-height: 75vh; overflow-y: auto;
 }
-/* Sharing is a card (the accounts one) with the Host and Join sections beside it; a theme
-   with a sheet drew a second frame round all of it. No frame here: the cards inside carry
-   the look. Its blur is left out of the theme's frost rule by this class. */
+/* Sharing is a card (the accounts one) with the Host and Join sections beside it, and a
+   theme with a sheet drew a second frame round all of it. No frame here: the cards
+   carry the look. This class keeps its blur out of the theme's frost rule. */
 .jpf-create-profile-container.jpf-sheet-bare {
     background: transparent; border: 0 solid transparent; box-shadow: none;
 }
 .jpf-profile-dialog-actions {
     margin-top: 1rem; display: flex; justify-content: space-between; width: 100%; gap: var(--jpf-gap);
 }
-/* Save used to scroll out of sight. This form is capped at 75vh and
-   scrolls inside itself, so on a phone — and in the single-column
-   layout — the button row sat below the fold. With a mouse you scroll
-   to it without thinking; with a remote there is nothing to flick, so
-   the form simply could not be finished (RDB-2).
+/* Save used to scroll out of sight. This form is capped at 75vh and scrolls inside
+   itself, so on a phone and in the single-column layout the button row sat below the
+   fold. A mouse scrolls to it; a remote has nothing to flick, so the form could not be
+   finished (RDB-2).
 
-   Scoped to the scrolling container on purpose: sticky positions
-   against the nearest scrolling ancestor, and this row only ever
-   appears inside that one. position: sticky is Chrome 56, so it is ignored
-   on the Chromium 53 floor (webOS 4.x). The fallback there is that the row is the last child of the form,
-   so without sticky it is simply the end of the form: still reachable,
-   because the remote's focus move scrolls the focused control into view
-   (_focusVisibly). It just is not pinned. cssbaseline.js names this.
+   Scoped to the scrolling container on purpose: sticky positions against the nearest
+   scrolling ancestor. position: sticky is Chrome 56, so Chromium 53 (webOS 4.x) ignores
+   it. There the row is the last child of the form: still reachable, because the
+   remote's focus move scrolls the focused control into view (_focusVisibly), just not
+   pinned. cssbaseline.js names this.
 
-   The negative margins pull the bar out through the container's 2rem
-   padding so its backdrop spans the full width, and the backdrop has
-   to be opaque — the container's own background is
-   rgba(255,255,255,0.03), which would let the fields scroll visibly
-   through the buttons. --jpf-panel is each theme's opaque match for
-   its own gate background. */
+   The negative margins pull the bar out through the container's 2rem padding so its
+   backdrop spans the full width. The backdrop must be opaque: the container's own
+   background is rgba(255,255,255,0.03), which would let fields show through the
+   buttons. --jpf-panel is each theme's opaque match for its gate background. */
 .jpf-create-profile-container > .jpf-profile-dialog-actions {
     position: sticky;
-    /* Sticky stops at the container's padding edge, not the border edge, so bottom: 0
-       left the container's own 2rem of padding showing under the bar (P2-503). */
+    /* Sticky stops at the container's padding edge, not the border edge, so bottom: 0 left the container's 2rem of padding showing under the bar (P2-503). */
     bottom: calc(var(--jpf-form-pad) * -1);
     z-index: 2;
     margin: 1rem calc(var(--jpf-form-pad) * -1) calc(var(--jpf-form-pad) * -1);
     padding: 1rem var(--jpf-form-pad);
-    /* Not 100%: with padding and the negative margins that made the bar 4rem wider
-       than the column. Auto stretches it to exactly the column plus the bleed. */
+    /* Not 100%: with padding and the negative margins the bar was 4rem wider than the column. Auto stretches it to the column plus the bleed. */
     width: auto;
     background: var(--jpf-panel);
     border-top: 1px solid var(--jpf-border-1);
@@ -1440,16 +1424,14 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-dialog-action-buttons {
     display: flex; gap: var(--jpf-gap);
 }
-/* A fixed red under white text, on every theme: --jpf-danger is a light coral on the dark
-   themes, and white on it is under 3:1. (colortokens.js lists this as the one filled red.) */
+/* A fixed red under white text on every theme: --jpf-danger is a light coral on the dark themes, and white on it is under 3:1. (colortokens.js lists this as the one filled red.) */
 .jpf-btn-danger {
     background: rgba(230,0,0,0.85); color:#fff; border:none;
 }
-/* The trigger, not the confirmation. Delete Profile and Delete Group sat
-   beside Save as equally solid red buttons, so the destructive option
-   carried the same weight as the safe one. jpf-btn-danger itself stays filled
-   because it is also the Confirm button on the dialog these open, where
-   loud red is correct — that is the moment you mean it. */
+/* The trigger, not the confirmation. Delete Profile and Delete Group sat beside Save as
+   equally solid red buttons, giving the destructive option the weight of the safe one.
+   jpf-btn-danger stays filled because it is also the Confirm button on the dialog these
+   open, where loud red is right. */
 .jpf-btn-danger-quiet {
     background: transparent; color: var(--jpf-danger-quiet);
     border: 1.5px solid var(--jpf-danger-a40);
@@ -1477,12 +1459,9 @@ body.profiles-no-scroll [id*="spinner"] {
         bottom: calc(12px + env(safe-area-inset-bottom));
     }
 }
-/* Wrap Bonfire join row on very small phones so the button
-   doesn't overflow or clip its label. Was 360px; on the one phone breakpoint now,
-   which only wraps it a little earlier. */
+/* Wrap the Bonfire join row on very small phones so the button does not overflow or clip its label. Was 360px; now the one phone breakpoint, which wraps it a little earlier. */
 @media (max-width: 480px) {
-    /* The row is flex with no wrap, so the two 100% items shared it and the field was
-       squeezed to 22px wide. */
+    /* The row is flex with no wrap, so the two 100% items shared it and the field was squeezed to 22px. */
     .bonfire-join-row { flex-wrap: wrap !important; }
     #bonfire-join-input,
     #bonfire-join-btn {
@@ -1507,8 +1486,7 @@ body.profiles-no-scroll [id*="spinner"] {
     .profiles-grid {
         gap: 1.5rem;
     }
-    /* Stacked, the main action goes on top and the way out at the
-       bottom, which is still the same place on every screen. */
+    /* Stacked, the main action is on top and the way out at the bottom, the same place as on every screen. */
     .jpf-profile-dialog-actions {
         flex-direction: column-reverse;
     }
@@ -1520,9 +1498,9 @@ body.profiles-no-scroll [id*="spinner"] {
         width: 100%;
         text-align: center;
     }
-    /* Half the row was too narrow for "Delete Profile" in most themes, so it broke onto
-       two lines and stood taller than Cancel. It takes the room its words need; Cancel
-       has the rest. */
+    /* Half the row was too narrow for "Delete Profile" in most themes, so it broke onto two
+       lines and stood taller than Cancel. It takes the room its words need; Cancel has the
+       rest. */
     #jpf-edit-delete-btn {
         flex: 1 0 auto;
         width: auto;
@@ -1545,10 +1523,10 @@ body.profiles-no-scroll [id*="spinner"] {
     background: var(--jpf-input-bg); border: 1px solid var(--jpf-input-border);
     border-radius: var(--jpf-input-r); padding: 10px; color: var(--jpf-text-1); font-size: 1rem;
 }
-/* A field's placeholder took the browser's grey (#757575) in every theme, 3.4:1 on Bonfire's
-   field. It takes the theme's own quiet text colour instead. Two rules, not one list: a
-   browser that cannot read one pseudo-element drops the whole rule, and Chromium 53 only
-   knows the prefixed one. */
+/* A field's placeholder took the browser's grey (#757575) in every theme, 3.4:1 on
+   Bonfire's field. It takes the theme's quiet text color instead. Two rules, not one
+   list: a browser that cannot read one pseudo-element drops the whole rule, and
+   Chromium 53 only knows the prefixed one. */
 #profiles-gate-overlay input::-webkit-input-placeholder, #profiles-gate-overlay textarea::-webkit-input-placeholder,
 .jpf-trap-surface input::-webkit-input-placeholder, .jpf-trap-surface textarea::-webkit-input-placeholder,
 .jpf-create-profile-container input::-webkit-input-placeholder, .jpf-create-profile-container textarea::-webkit-input-placeholder {
@@ -1595,20 +1573,18 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-color-dot.active {
     border-color: var(--jpf-text-1); transform: scale(1.1);
 }
-/* No max-height, for the same reason as .jpf-libart-list below. Capped at 140px it
-   showed about four libraries of a real server's twenty, in a box that scrolled
-   inside a form that scrolled — so choosing a profile's libraries, the setting that
-   matters most on this form, was the fiddliest thing on it. */
+/* No max-height, for the same reason as .jpf-libart-list below. Capped at 140px it showed
+   about four of a real server's twenty libraries in a box that scrolled inside a form
+   that scrolled, which made the most important setting on this form the fiddliest. */
 .jpf-library-checklist {
     background: var(--jpf-surface-2); border-radius: var(--jpf-r-md);
     padding: 10px; display: flex; flex-direction: column; gap: 0.5rem;
     border: 1px solid var(--jpf-border-1);
 }
 /* Per-library artwork rows in the edit form (issue #19). */
-/* Deliberately no max-height and no overflow. This list used to scroll
-   inside a form that also scrolled, next to a second list that scrolled
-   too — three nested scroll areas, and on a D-pad no way to tell which
-   one the remote had hold of. The dialog is the only scroller now. */
+/* Deliberately no max-height and no overflow. This list scrolled inside a form that
+   also scrolled, next to a second scrolling list: three nested scroll areas, and on a
+   D-pad no way to tell which one the remote had. The dialog is the only scroller now. */
 .jpf-libart-list {
     display: flex;
     flex-direction: column;
@@ -1618,9 +1594,7 @@ body.profiles-no-scroll [id*="spinner"] {
     border-radius: var(--jpf-r-md);
     padding: 8px;
 }
-/* Only there to say what the second column is. Hidden with the controls it
-   labels, and out of the accessibility tree either way — a remote should
-   not have to step through a table header to reach the libraries. */
+/* Only there to say what the second column is. Hidden with the controls it labels and out of the accessibility tree either way, so a remote does not step through a table header. */
 .jpf-libart-head {
     display: none;
     align-items: center;
@@ -1636,8 +1610,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-libart-list.jpf-show-artwork .jpf-libart-head {
     display: flex;
 }
-/* Artwork is opt-in. Without this the row carried an empty picture slot and
-   an unlabelled dropdown for every library on the server. */
+/* Artwork is opt-in. Without this every library on the server carried an empty picture slot and an unlabelled dropdown. */
 .jpf-libart-thumb,
 .jpf-libart-mode,
 .jpf-libart-choose {
@@ -1662,9 +1635,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-libart-row {
     display: flex;
     align-items: center;
-    /* Wrap rather than crush the name. The row is thumb + name + mode,
-       and in a narrow dialog the name was the only flexible part, so it
-       ellipsised down to "3D Movi…" while the select kept its width. */
+    /* Wrap rather than crush the name. The row is thumb + name + mode, and in a narrow
+       dialog the name was the only flexible part and ellipsised to "3D Movi…" while the
+       select kept its width. */
     flex-wrap: wrap;
     gap: var(--jpf-gap);
     padding: 6px 8px;
@@ -1672,9 +1645,9 @@ body.profiles-no-scroll [id*="spinner"] {
     background: var(--jpf-surface-2);
 }
 /* No display here. It is hidden by the grouped rule above and shown by
-   .jpf-libart-list.jpf-show-artwork .jpf-libart-row.jpf-libart-has-art — declaring
-   display:flex in this block would outrank the first (same specificity,
-   later in the sheet) and put the empty slot back on every row. */
+   .jpf-libart-list.jpf-show-artwork .jpf-libart-row.jpf-libart-has-art. Declaring
+   display:flex in this block would outrank the first (same specificity, later in the
+   sheet) and put the empty slot back on every row. */
 .jpf-libart-thumb {
     width: 44px;
     height: 26px;
@@ -1689,9 +1662,9 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 0.8rem;
     color: var(--jpf-text-3);
 }
-/* Wraps the tick, the thumbnail and the name — the part of the row that
-   is one target. initTVCheckboxes binds to .jpf-library-check-label, which is
-   how a remote toggles it: Enter does not tick a native checkbox. */
+/* Wraps the tick, thumbnail and name: the part of the row that is one target.
+   initTVCheckboxes binds to .jpf-library-check-label, which is how a remote toggles it;
+   Enter does not tick a native checkbox. */
 .jpf-libart-check {
     flex: 1 1 220px;
     min-width: 0;
@@ -1788,25 +1761,23 @@ body.profiles-no-scroll [id*="spinner"] {
     flex-direction: column;
     gap: 1.1rem;
 }
-/* Sections already space their children, so the per-field margin that the
-   flat layout relied on would double up here. */
+/* Sections already space their children, so the per-field margin of the flat layout would double up here. */
 .jpf-profile-section-body .jpf-form-group {
     margin-bottom: 0;
 }
 
 /* ── First-time setup (1.7.2) ───────────────────────────────────────
-   Margins, not flex gap: the whole setup runs on televisions first. */
+   Margins, not flex gap: setup runs on televisions first. */
 /* Every step is one centered column: heading, a line of text, the field or choices, the
-   buttons. Welcome and the PIN were centered and the four steps between left-aligned, so
-   the content jumped sideways from one step to the next. Fields and choice cards fill the
-   column. */
+   buttons. Welcome and the PIN were centered and the four steps between left-aligned,
+   so content jumped sideways between steps. Fields and choice cards fill the column. */
 .jpf-onboarding { text-align: center; }
 .jpf-onboarding .bonfire-form-group label { text-align: center; }
 .jpf-onboarding .bonfire-form-group input { text-align: left; }
 .jpf-onboarding .jpf-choice, .jpf-onboarding .jpf-theme-option { text-align: left; }
 .jpf-onboarding .jpf-onboarding-actions { justify-content: center; }
-/* A step taller than the screen (the theme step) is not a sheet that scrolls inside itself:
-   the gate scrolls and the button row sticks to its bottom (_pinSetupRow, .jpf-footer-stuck),
+/* A step taller than the screen (the theme step) does not scroll inside itself. The gate
+   scrolls and the button row sticks to its bottom (_pinSetupRow, .jpf-footer-stuck),
    which a row inside a second scroll box could not do against the screen. */
 .jpf-onboarding.jpf-step-tall { max-height: none; overflow: visible; }
 .jpf-onboarding-actions > * + * { margin-left: var(--jpf-gap); }
@@ -1817,9 +1788,9 @@ body.profiles-no-scroll [id*="spinner"] {
     display: block; margin: 0 auto 0.5rem auto;
     font-size: 3.5rem; color: var(--jpf-accent);
 }
-/* Progress, one dot a step: done is filled, the current one is the wide dot, the rest are
-   rings. Shape as well as color, so a theme with little contrast between them (the
-   high-contrast one) still shows where you are. Margins, not gap: it runs on televisions. */
+/* Progress, one dot a step: done is filled, the current one is wide, the rest are rings.
+   Shape as well as color, so a low-contrast theme (the high-contrast one) still shows
+   where you are. Margins, not gap: it runs on televisions. */
 .jpf-onboarding-dots { display: flex; justify-content: center; margin: 0 0 1.25rem 0; }
 .jpf-onboarding-dot {
     display: block; box-sizing: border-box; width: 10px; height: 10px; margin: 0 4px;
@@ -1866,10 +1837,10 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-onboarding-actions { margin-top: 2rem !important; }
 .jpf-onboarding .profiles-pin-error { margin-top: 1rem; }
 
-/* Email (1.7.2). A text button for the side paths — "Forgot PIN?", "Send a new
-   code" — so they don't compete with the buttons that finish the screen.
-   Its focus ring is a plain :focus: :focus-visible is Chrome 86, and a TV
-   reaches these with the remote (see .jpf-profile-section :focus below). */
+/* Email (1.7.2). A text button for the side paths ("Forgot PIN?", "Send a new code") so
+   they do not compete with the buttons that finish the screen. Its focus ring is a
+   plain :focus because :focus-visible is Chrome 86 and a TV reaches these with the
+   remote (see .jpf-profile-section :focus below). */
 .jpf-text-link {
     background: none; border: 0; padding: 6px 2px; margin: 0;
     color: var(--jpf-accent-text, var(--jpf-accent)); font: inherit; font-size: 0.9rem; font-weight: 600;
@@ -1887,9 +1858,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-email-check input { accent-color: var(--jpf-accent); cursor: pointer; }
 
 /* ── Viewing hours (1.7.2) ──────────────────────────────────────────
-   The tile's line ("45 min left") sits under the name like the
-   signed-in badge, quieter, and turns bold in the name's colour once the
-   profile is out of time (P2-205, below). */
+   The tile's line ("45 min left") sits under the name like the signed-in badge, quieter,
+   and turns bold in the name's color once the profile is out of time (P2-205, below). */
 .jpf-profile-viewing {
     display: block;
     font-size: 0.75rem;
@@ -1897,12 +1867,11 @@ body.profiles-no-scroll [id*="spinner"] {
     opacity: 0.75;
     margin-top: 2px;
 }
-/* Not the warning colour: --jpf-warn is mustard on Jellyfin Light's grey, about 3:1, and
-   this is the line that says why a tile will not open. The name's own colour reads on every
-   theme (themes.js holds that), and the dimmed avatar below carries the "no". */
+/* Not the warning color: --jpf-warn is mustard on Jellyfin Light's grey, about 3:1, and
+   this line says why a tile will not open. The name's own color reads on every theme
+   (themes.js holds that), and the dimmed avatar below carries the "no". */
 .jpf-profile-viewing.is-out { color: var(--jpf-name-color); opacity: 1; font-weight: 700; }
-/* Not on the focused tile: opacity fades the ring with the picture, and the tile the remote
-   is on is the one that has to be found. */
+/* Not on the focused tile: opacity fades the ring with the picture, and the tile the remote is on must be findable. */
 .jpf-profile-card.is-out:not(:focus) .jpf-profile-avatar { opacity: 0.55; }
 .jpf-viewing-days { margin-top: 0.5rem; transition: opacity 0.2s ease; }
 .jpf-viewing-days.is-inert { opacity: 0.45; }
@@ -1911,8 +1880,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-viewing-dayname input { accent-color: var(--jpf-accent); cursor: pointer; }
 .jpf-viewing-day select { flex: 1 1 7rem; min-width: 0; }
 .jpf-viewing-dash { opacity: 0.6; }
-/* On a phone the day, two times and a dash do not fit one line: the end time fell to a line
-   of its own with no day beside it. The day takes a line, the times share the next. */
+/* On a phone the day, two times and a dash do not fit one line, and the end time fell to a line with no day beside it. The day takes a line, the times share the next. */
 @media (max-width: 480px) {
     .jpf-viewing-dayname { flex: 1 1 100%; }
     .jpf-no-flex-gap .jpf-viewing-day > .jpf-viewing-dayname + select { margin-left: 0; }
@@ -1927,9 +1895,8 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-link-name .jpf-form-hint { font-weight: 400; margin-top: 2px; }
 
 /* ── "More settings" under a profile form's Basics (1.7.2) ──────────
-   A <details>: closed until asked for, opened with Enter on a remote.
-   The marker is drawn by us (the caret), so the browser's is hidden in
-   both of the ways Chromium has spelled it. */
+   A <details>: closed until asked for, opened with Enter on a remote. The caret is
+   drawn by us, so the browser's marker is hidden in both ways Chromium spells it. */
 .jpf-more {
     border-top: 1px solid var(--jpf-border-1);
     padding-top: 0.75rem;
@@ -1975,7 +1942,7 @@ body.profiles-no-scroll [id*="spinner"] {
     }
 }
 /* Viewing limits in two halves: the limits and their note, then the times. One column
-   (halves stacked, the phone order) until the form has two; there they sit side by side, in the
+   (halves stacked, the phone order) until the form has two, then side by side, in the
    same grid-with-a-flex-fallback shape as .jpf-more-body. */
 .jpf-viewing-split, .jpf-viewing-side {
     display: flex;
@@ -1997,8 +1964,7 @@ body.profiles-no-scroll [id*="spinner"] {
 @supports not (display: grid) {
     .jpf-no-flex-gap .jpf-viewing-split > * + * { margin-top: 1.1rem; }
 }
-/* A fold on a one-column screen (Your account) stays one column at any width. The class is
-   on the <details>, so this outranks the two-column rule above it. */
+/* A fold on a one-column screen (Your account) stays one column at any width. The class is on the <details>, so this outranks the two-column rule above. */
 .jpf-more.jpf-more-single > .jpf-more-body {
     display: flex;
     flex-direction: column;
@@ -2007,8 +1973,7 @@ body.profiles-no-scroll [id*="spinner"] {
     .jpf-more-caret { transition: none; }
 }
 
-/* Header row that sits inside a section, e.g. "Enabled Libraries | Select all".
-   Wraps rather than squashing the label on narrow phones. */
+/* Header row inside a section, e.g. "Enabled Libraries | Select all". Wraps rather than squashing the label on narrow phones. */
 .jpf-section-inline-header {
     display: flex;
     justify-content: space-between;
@@ -2019,8 +1984,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 .jpf-form-hint-warn {
-    /* Not the warning colour, for the reason given at .jpf-profile-viewing.is-out: mustard is
-       about 2:1 on white. The text colour, bold, reads everywhere. */
+    /* Not the warning color, for the reason at .jpf-profile-viewing.is-out: mustard is about 2:1 on white. The text color, bold, reads everywhere. */
     color: var(--jpf-text-1) !important; font-weight: 600;
 }
 .jpf-form-error {
@@ -2051,8 +2015,7 @@ body.profiles-no-scroll [id*="spinner"] {
     flex-shrink: 0;
 }
 .jpf-image-upload-btn {
-    /* The phone rule below makes it width: 100%, and with the default content-box the
-       padding and border were added on top, so it ran past its panel in every theme. */
+    /* The phone rule below makes it width: 100%, and with the default content-box the padding and border added on top, so it ran past its panel in every theme. */
     box-sizing: border-box;
     cursor: pointer;
     display: inline-flex;
@@ -2075,18 +2038,16 @@ body.profiles-no-scroll [id*="spinner"] {
     background: var(--jpf-danger-a15);
 }
 /* One focus rule. A second one at the same specificity used to win with !important
-   over nothing but its twin. No outline:none: the tint alone is not findable on a
-   television. */
+   over nothing but its twin. No outline:none: the tint alone is not findable on a TV. */
 .jpf-device-delete-btn:focus {
     background: var(--jpf-danger-a25);
     outline: 2px solid var(--jpf-danger);
     outline-offset: 1px;
 }
-/* Rename and merge sit in the same row as Forget and had no rule of any kind, so
-   they rendered as default browser buttons — a bordered grey box in the system
-   font — next to a styled icon. They shipped that way in 1.5.10. Same geometry as
-   Forget; only the colour differs, because only one of the three destroys
-   anything. */
+/* Rename and merge sit in the same row as Forget and had no rule, so they rendered as
+   default browser buttons (a bordered grey box in the system font) beside a styled
+   icon. Shipped that way in 1.5.10. Same geometry as Forget; only the color differs,
+   because only Forget destroys anything. */
 .jpf-device-rename-btn, .jpf-device-merge-btn {
     background: transparent; border: none; color: var(--jpf-text-2);
     cursor: pointer; padding: 6px; border-radius: var(--jpf-r-sm);
@@ -2097,33 +2058,31 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-device-rename-btn:hover, .jpf-device-merge-btn:hover {
     background: var(--jpf-surface-2);
 }
-/* All three were emoji — a pencil, a wastebasket, and a double arrow — and they
-   were the only raw emoji left in the product. A television without a colour
-   emoji font draws those as empty boxes, and the three did not even match each
-   other in weight. material-icons is what the rest of this interface uses, the
-   gate included, so it is loaded before any of this is on screen. Sized here
-   rather than inline, and once for all three, so they cannot drift apart. */
+/* All three were emoji (a pencil, a wastebasket, a double arrow), the only raw emoji
+   left in the product. A TV without a color emoji font draws empty boxes, and the three
+   did not match in weight. material-icons is what the rest of the interface uses and is
+   loaded before any of this is on screen. Sized once here for all three, so they cannot
+   drift apart. */
 .jpf-device-rename-btn .material-icons,
 .jpf-device-merge-btn .material-icons,
 .jpf-device-delete-btn .material-icons {
     font-size: 1.15rem;
     line-height: 1;
 }
-/* Keyboard focus, and it must be visible: these are reached with Tab on a desktop
-   and with a remote on a television, where a background tint alone is not enough.
-   The .jpf-tv block outranks this and puts a thicker ring on. */
+/* Keyboard focus must be visible: these are reached with Tab on a desktop and a remote
+   on a TV, where a background tint alone is not enough. The .jpf-tv block outranks this
+   and adds a thicker ring. */
 .jpf-device-rename-btn:focus, .jpf-device-merge-btn:focus {
     background: var(--jpf-surface-2);
     outline: 2px solid var(--jpf-accent);
     outline-offset: 1px;
 }
 
-/* The dropdown is absolutely positioned so it overlays following fields
-   instead of pushing the form around when it opens.
-   Its colours and max-height are set in the single .jpf-devices-dropdown-list block
-   further down; this one carries only the positioning. Both used to set
-   max-height and overflow-y at the same specificity, so the 240px here never
-   applied. */
+/* The dropdown is absolutely positioned so it overlays the following fields instead of
+   pushing the form around. Its colors and max-height are in the single
+   .jpf-devices-dropdown-list block further down; this one carries only positioning.
+   Both used to set max-height and overflow-y at the same specificity, so the 240px here
+   never applied. */
 .jpf-devices-dropdown-list {
     position: absolute;
     top: 100%; left: 0; right: 0;
@@ -2131,8 +2090,7 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-top: 4px;
 }
 
-/* Phones: reclaim horizontal space and stop the section chrome from
-   eating the width the form fields need. */
+/* Phones: reclaim horizontal space so the section chrome does not eat the width the fields need. */
 @media (max-width: 480px) {
     .jpf-profile-section {
         padding: 0.85rem 0.8rem 0.9rem;
@@ -2145,21 +2103,15 @@ body.profiles-no-scroll [id*="spinner"] {
     .jpf-image-upload-btn { width: 100%; }
 }
 
-/* TV / D-pad: the focus ring must be obvious from across a room, and a
-   focused control inside a scrolling section has to scroll itself into
-   view rather than sitting behind a section header. */
-/* The plan asked only that this rule be standalone so that dropping it
-   is harmless. It is standalone — but dropping it is NOT harmless, and
-   checking the shape rather than the consequence nearly let that
-   through. :focus-visible is Chrome 86, so every television (floor:
-   Chromium 53) discards the whole rule as an unparseable selector. The one rule
-   written for televisions was the one televisions could not see.
+/* TV / D-pad: the focus ring must be obvious across a room, and a focused control in a scrolling section must scroll itself into view, not sit behind a section header. */
+/* This rule must stay standalone, and dropping it is not harmless. :focus-visible is
+   Chrome 86, so every TV (floor: Chromium 53) discards the whole rule as an unparseable
+   selector: the one rule written for televisions was the one they could not see.
 
-   So: a plain :focus carries the ring on old browsers, and the
-   :not(:focus-visible) rule takes it back off for pointer focus on
-   browsers new enough to tell the difference. That second rule is
-   itself dropped by the old parsers, which is exactly what makes the
-   pair safe — each browser reads only the half it understands. */
+   So a plain :focus carries the ring on old browsers, and the :not(:focus-visible) rule
+   takes it back off for pointer focus on browsers new enough to tell the difference.
+   Old parsers drop that second rule, which is what makes the pair safe: each browser
+   reads only the half it understands. */
 .jpf-profile-section :focus {
     outline: 2px solid var(--jpf-accent);
     outline-offset: 2px;
@@ -2187,11 +2139,10 @@ body.profiles-no-scroll [id*="spinner"] {
     max-height: 120px; overflow-y: auto;
     align-content: flex-start;
 }
-/* The label is an attribute, not a string in here. It was the one piece of
-   user-facing copy in the product that could not be translated: CSS content
-   is not reachable from t(), so a Polish household read one English sentence
-   in the middle of a translated form. validate.js now fails on any content:
-   string literal in this file, so a second one cannot appear. */
+/* The label is an attribute, not a string here. It was the one piece of user-facing copy
+   that could not be translated, since CSS content is not reachable from t(): a Polish
+   household read one English sentence in a translated form. validate.js now fails on
+   any content: string literal in this file. */
 .jpf-tag-chip-list[data-empty="true"]::before {
     content: attr(data-empty-label);
     font-size: 0.8rem; color: var(--jpf-text-3);
@@ -2233,9 +2184,9 @@ body.profiles-no-scroll [id*="spinner"] {
     display: block !important;
 }
 /* The block above keeps a theme's absolute or flex rules from pulling a hint over its
-   neighbors (1.0.35), and because it is !important it also beat an inline display:none,
-   so hints the form hid (no days ticked, the artwork explainer) showed all the time.
-   A hint is hidden with the hidden attribute now, and this outranks the block. */
+   neighbors (1.0.35). Being !important it also beat an inline display:none, so hints the
+   form hid (no days ticked, the artwork explainer) showed all the time. A hint is hidden
+   with the hidden attribute now, and this outranks the block. */
 .jpf-form-hint[hidden] {
     display: none !important;
 }
@@ -2248,7 +2199,7 @@ body.profiles-no-scroll [id*="spinner"] {
     opacity: 0 !important;
     pointer-events: none;
 }
-/* Fallback bubble — fade transition (defers all positioning to ID rule above) */
+/* Fallback bubble: fade transition (positioning is left to the ID rule above). */
 .profiles-floating-fallback {
     transition: opacity 0.15s ease;
 }
@@ -2267,10 +2218,9 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* Devices Dropdown Styles */
-/* Allowed Devices is the one hand-built control among native selects, and
-   it sat directly above two of them. It cannot become a <select> — it is
-   multi-select with checkboxes — so it borrows their exact appearance
-   instead, chevron included, rather than carrying a text arrow. */
+/* Allowed Devices is the one hand-built control among native selects, directly above two
+   of them. It is multi-select with checkboxes, so it cannot be a <select>; it borrows
+   their appearance, chevron included, instead of a text arrow. */
 .jpf-devices-dropdown-trigger {
     display: flex;
     justify-content: space-between;
@@ -2293,8 +2243,7 @@ body.profiles-no-scroll [id*="spinner"] {
     border-color: var(--jpf-accent) !important;
     box-shadow: 0 0 10px var(--jpf-accent-a50) !important;
 }
-/* background-color, not background: the shorthand would reset the chevron
-   that now lives in this element's background-image. */
+/* background-color, not background: the shorthand would reset the chevron in this element's background-image. */
 .jpf-devices-dropdown-trigger:hover {
     background-color: var(--jpf-surface-2);
 }
@@ -2309,11 +2258,11 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-device-dropdown-item {
     display: flex;
     align-items: center;
-    /* gap, not margins on the children: in a profile's list this row holds a
-       label alone, and in Settings -> Your account a name and three action
-       buttons (rename, merge, forget). Declared here rather than in a second block for the same selector,
-       which is where it used to live -- see the note on the positioning rule
-       above. A margin fallback for Chromium 53 is in the flex-gap section. */
+    /* gap, not margins on the children: in a profile's list this row holds a label alone,
+       and in Settings -> Your account a name and three action buttons (rename, merge,
+       forget). Declared here, not in a second block for the same selector (see the note on
+       the positioning rule above). The Chromium 53 margin fallback is in the flex-gap
+       section. */
     gap: 8px;
     justify-content: space-between;
     padding: 8px 12px;
@@ -2338,19 +2287,18 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .jpf-device-list .jpf-device-dropdown-item:last-child { border-bottom: 0; }
 /* ── The Chromium 53 floor ────────────────────────────────────────
-   webOS 4.x (2018 and 2019 LG sets) is Chromium 53 and stays there; webOS 5
-   (68) and Tizen 6.0 (76) are above it, so what holds on 53 holds on them.
-   Everything below is here because a declaration the floor cannot parse
-   is dropped silently, and a *rule* it cannot parse is dropped whole.
+   webOS 4.x (2018 and 2019 LG sets) is Chromium 53 and stays there; webOS 5 (68) and
+   Tizen 6.0 (76) are above it, so what holds on 53 holds on them. Everything below is
+   here because a declaration the floor cannot parse is dropped silently, and a rule it
+   cannot parse is dropped whole.
 
-   The pattern is the one the color-mix block at the top already uses:
-   state the old way first, or guard the new way with @supports. Do not
-   reach for a JavaScript check when the cascade can answer it. */
+   The pattern is the one the color-mix block at the top uses: state the old way first,
+   or guard the new way with @supports. Do not reach for a JavaScript check when the
+   cascade can answer it. */
 
-/* aspect-ratio is Chrome 88, and without it these tiles have no height
-   at all — the avatar library collapses to an empty strip. The old
-   padding-top trick needs the image taken out of flow, so it is guarded
-   rather than layered: on a modern browser none of this applies. */
+/* aspect-ratio is Chrome 88, and without it these tiles have no height and the avatar
+   library collapses to an empty strip. The padding-top trick needs the image out of
+   flow, so it is guarded, not layered: a modern browser applies none of it. */
 @supports not (aspect-ratio: 1 / 1) {
     .jpf-avatar-library-item {
         position: relative;
@@ -2367,10 +2315,10 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* The library is a grid, and grid is Chrome 57: on webOS 4.5 (Chromium 53) it was a
-   block of buttons with no size. A wrapping row of fixed 56px tiles instead, spaced
-   with margins because that browser has no flex gap either. The padding-top trick
-   above sizes against the container's width, which a fixed tile must not, so it is
-   undone here. Only where grid is missing: elsewhere the grid draws it. */
+   block of buttons with no size. A wrapping row of fixed 56px tiles instead, spaced with
+   margins because that browser has no flex gap either. The padding-top trick above sizes
+   against the container's width, which a fixed tile must not, so it is undone here.
+   Only where grid is missing. */
 @supports not (display: grid) {
     .jpf-avatar-library-grid {
         display: flex;
@@ -2385,27 +2333,23 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* ── Flex gap, replaced with margins where it does nothing ────────
-   Flex gap is Chrome 84. On both television baselines every gap on a
-   flex container is ignored and the children sit flush against each
-   other — 34 containers of it, which is most of why the gate looked
-   like bars rather than cards.
+   Flex gap is Chrome 84. On both TV baselines every flex gap is ignored and the
+   children sit flush: 34 containers, which is most of why the gate looked like bars
+   rather than cards.
 
-   Gated on a measured class, not on @supports. A feature query for
-   gap answers TRUE on Chromium 68 and later, because grid gap shipped in 66 and
-   the query cannot tell the two layout modes apart — so the obvious
-   guard says yes on exactly the devices where flex gap does nothing.
-   See _supportsFlexGap, which measures a probe instead.
+   Gated on a measured class, not on @supports. A feature query for gap answers TRUE on
+   Chromium 68 and later (grid gap shipped in 66 and the query cannot tell the layout
+   modes apart), so it says yes on exactly the devices where flex gap does nothing.
+   See _supportsFlexGap, which measures a probe.
 
-   Three shapes, and the third is the awkward one:
+   Three shapes, the third being the awkward one:
      column        margin-top on every child but the first
      row           margin-left on every child but the first
      row + wrap    half the gap on both sides of every child
 
-   Wrapping containers get symmetric half-margins rather than a single
-   trailing margin, because .profiles-grid is centred: a trailing margin
-   would push every row off-centre by half a gap. The cost is half a gap
-   of padding at the container edges, which is invisible next to what it
-   replaces. */
+   Wrapping containers get symmetric half-margins, not one trailing margin, because
+   .profiles-grid is centered: a trailing margin would push every row off-center by half
+   a gap. The cost is half a gap of padding at the container edges. */
 .jpf-no-flex-gap .jpf-picture-sources > * + * { margin-top: var(--jpf-gap); }
 .jpf-no-flex-gap .jpf-picture-source-block > * + * { margin-top: 8px; }
 .jpf-no-flex-gap .jpf-profile-name > * + * { margin-top: 4px; }
@@ -2421,9 +2365,9 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .jpf-theme-match > * + * { margin-top: var(--jpf-gap); }
 .jpf-no-flex-gap .jpf-theme-match-actions > * { margin: 0 6px 8px; }
 .jpf-no-flex-gap .jpf-choice > * + * { margin-left: 12px; }
-/* .jpf-actions wraps, so a leading-edge margin on every item but the first indented the
-   second row. Margin on both sides and underneath instead, the way the other wrapping rows
-   below do: 6 + 6 is the 12px gap, and 12px under stands in for the row gap. */
+/* .jpf-actions wraps, so a leading margin on every item but the first indented the second
+   row. Margin on both sides and underneath instead, like the other wrapping rows below:
+   6 + 6 is the 12px gap and 12px under stands in for the row gap. */
 .jpf-no-flex-gap .jpf-actions > * { margin: 0 6px 12px; }
 .jpf-no-flex-gap .jpf-theme-option > * + * { margin-top: 8px; }
 .jpf-no-flex-gap .jpf-theme-option-label > * + * { margin-left: 6px; }
@@ -2440,11 +2384,10 @@ body.profiles-no-scroll [id*="spinner"] {
 @media (max-width: 899px) {
     .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }
 }
-/* The same body is a grid from 900px, and a grid has its own gap, so the rule above
-   stops there. A browser with no grid (Chromium 53, webOS 4.5) ignores that display
-   and stays a flex column with no flex gap, and at television width it is far past
-   900px: the children touched. Only for a browser with no grid, or webOS 5 would get
-   this margin on top of its grid gap. */
+/* The same body is a grid from 900px, and a grid has its own gap, so the rule above stops
+   there. A browser with no grid (Chromium 53, webOS 4.5) stays a flex column with no gap,
+   and at TV width is far past 900px: the children touched. Only for a browser with no
+   grid, or webOS 5 would get this margin on top of its grid gap. */
 @supports not (display: grid) {
     .jpf-no-flex-gap .jpf-more-body > * + * { margin-top: 1.5rem; }
 }
@@ -2481,9 +2424,7 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .jpf-no-flex-gap .jpf-tag-chip-list > * { margin: 0 3px 6px; }
 
-/* Containers whose gap is written inline in the script's markup (R-1227). A style
-   attribute is out of reach of the rules above, so each carries one of these classes
-   as well; the inline gap stays for browsers that have it. */
+/* Containers whose gap is written inline in the script's markup (R-1227). A style attribute is out of reach of the rules above, so each carries one of these classes too; the inline gap stays for browsers that have it. */
 .jpf-no-flex-gap .jpf-row-gap > * + * { margin-left: var(--jpf-gap); }
 .jpf-no-flex-gap .jpf-row-gap-sm > * + * { margin-left: 8px; }
 .jpf-no-flex-gap .jpf-row-gap-em > * + * { margin-left: 0.4em; }
@@ -2494,8 +2435,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap .jpf-profile-image-upload-container > * + * { margin-top: var(--jpf-gap); }
 /* A wrapping, left-aligned row: a margin after every child, as .jpf-inline-row does. */
 .jpf-no-flex-gap .jpf-pin-edit-group > * { margin: 0 var(--jpf-gap) var(--jpf-gap) 0; }
-/* The join row's children carried margin: 0 !important inline, which a stylesheet cannot
-   override. It lives here now so the fallback below can outrank it. */
+/* The join row's children carried margin: 0 !important inline, which a stylesheet cannot override. It lives here now so the fallback below can outrank it. */
 .bonfire-join-row > input,
 .bonfire-join-row > button { margin: 0 !important; }
 .jpf-no-flex-gap .bonfire-join-row > * + * { margin-left: var(--jpf-gap) !important; }
@@ -2503,12 +2443,10 @@ body.profiles-no-scroll [id*="spinner"] {
     .jpf-no-flex-gap .bonfire-join-row > * + * { margin-left: 0 !important; margin-top: var(--jpf-gap) !important; }
 }
 
-/* The two gap values that change inside a media query need their
-   fallbacks changed with them, and .jpf-profile-dialog-actions also turns
-   into a column there — so its margin has to move axis, not just size.
-   Missing this would leave the dialog buttons stacked and touching on a
-   narrow screen, which is the one place the Save button already had to
-   be rescued (see the sticky rule below). */
+/* The two gap values that change inside a media query need their fallbacks changed too,
+   and .jpf-profile-dialog-actions also becomes a column there, so its margin must change
+   axis, not just size. Missing this would leave the dialog buttons stacked and touching
+   on a narrow screen (see the sticky rule above). */
 @media (max-width: 480px) {
     .jpf-no-flex-gap .profiles-grid > * { margin: 0 0.75rem 1.5rem; }
     .jpf-no-flex-gap .jpf-profile-dialog-actions > * + * {
@@ -2521,14 +2459,14 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* ── Short screens ────────────────────────────────────────────────
-   A phone on its side is 360 to 430px tall, and the title (3rem plus 3rem under it), the
-   gate's own padding and the form's 2rem all assume a screen at least twice that: at
-   640x360 the form kept one field above its button row and the row itself ran 14px off the
-   bottom. Height-based on purpose: a short window is just as short at any width. Last
-   before the television block, so it outranks the rules it eases on order, and every
-   selector here is the one the rule it overrides uses (the two-column form is named too,
-   or its 85vh would win on specificity at 900px and wider).
-   Not the 480 / 900 / 1280 width scale: that is for widths, and this is a height. */
+   A phone on its side is 360 to 430px tall. The title (3rem plus 3rem under it), the
+   gate's padding and the form's 2rem assume a screen at least twice that: at 640x360 the
+   form kept one field above its button row and the row ran 14px off the bottom.
+   Height-based on purpose: a short window is as short at any width. Last before the
+   television block, so it outranks the rules it eases on order, and every selector here
+   is the one the rule it overrides uses (the two-column form is named too, or its 85vh
+   would win on specificity at 900px and wider). Not the 480 / 900 / 1280 width scale,
+   which is for widths. */
 @media (max-height: 500px) {
     #profiles-gate-overlay {
         padding-top: 0.75rem;
