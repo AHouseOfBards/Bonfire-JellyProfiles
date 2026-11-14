@@ -1,5 +1,5 @@
 # The documentation site, built by GitHub Pages from the root of main and served at
-# https://ahouseofbards.github.io/Bonfire-JellyProfiles/
+# https://ahouseofbards.github.io/Bonfire/
 #
 # The same Pages site serves manifest.json, which every install polls for updates, and
 # llms.txt. Neither has front matter, so Jekyll copies them byte for byte. Never add
@@ -14,7 +14,7 @@
 title: Bonfire
 description: Profiles for Jellyfin. One account holds several people, each with their own watch history, library access and parental controls.
 url: https://ahouseofbards.github.io
-baseurl: /Bonfire-JellyProfiles
+baseurl: /Bonfire
 
 remote_theme: just-the-docs/just-the-docs@v0.10.0
 plugins:
@@ -47,10 +47,10 @@ callouts:
     color: blue
 
 aux_links:
-  GitHub: https://github.com/AHouseOfBards/Bonfire-JellyProfiles
+  GitHub: https://github.com/AHouseOfBards/Bonfire
 gh_edit_link: true
 gh_edit_link_text: Edit this page on GitHub
-gh_edit_repository: https://github.com/AHouseOfBards/Bonfire-JellyProfiles
+gh_edit_repository: https://github.com/AHouseOfBards/Bonfire
 gh_edit_branch: main
 gh_edit_view_mode: tree
 

@@ -141,7 +141,7 @@ of uploading their own.
 
 ## Reporting a problem
 
-Open an issue at <https://github.com/AHouseOfBards/Bonfire-JellyProfiles/issues> and
+Open an issue at <https://github.com/AHouseOfBards/Bonfire/issues> and
 include:
 
 - the Bonfire version, and whether it's from the stable or beta channel

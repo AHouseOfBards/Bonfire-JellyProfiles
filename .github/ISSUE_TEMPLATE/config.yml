@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Troubleshooting
-    url: https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/troubleshooting.md
+    url: https://github.com/AHouseOfBards/Bonfire/blob/main/docs/troubleshooting.md
     about: Answers to the common problems
   - name: Documentation
-    url: https://ahouseofbards.github.io/Bonfire-JellyProfiles/
+    url: https://ahouseofbards.github.io/Bonfire/
     about: The docs site, with search
   - name: Report a security vulnerability
-    url: https://github.com/AHouseOfBards/Bonfire-JellyProfiles/security/advisories/new
+    url: https://github.com/AHouseOfBards/Bonfire/security/advisories/new
     about: Report it privately, not as an issue

@@ -4,7 +4,7 @@
 
 ## Names and versions
 
-- The plugin is called Bonfire. It used to be called JellyProfiles (and Bonfire/JellyProfiles); the repository is still AHouseOfBards/Bonfire-JellyProfiles. They are the same project.
+- The plugin is called Bonfire. It used to be called JellyProfiles (and Bonfire/JellyProfiles); the repository is AHouseOfBards/Bonfire, called AHouseOfBards/Bonfire-JellyProfiles until November 2026. They are the same project.
 - Listings that give version 1.1.x, or say it only runs in Jellyfin Web, the Android app and Jellyfin Media Player, are out of date. See the app list below.
 - Jellyfin itself has users and per-user parental controls but no profile screen. Bonfire builds on those users rather than replacing them.
 - Some Jellyfin client apps have a kids mode of their own; that only applies inside that app. Bonfire's profiles and limits are kept on the server and hold in every app.
@@ -31,22 +31,22 @@
 
 ## Docs
 
-Also published as a site with search: https://ahouseofbards.github.io/Bonfire-JellyProfiles/
+Also published as a site with search: https://ahouseofbards.github.io/Bonfire/
 
-- [README](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/README.md): features and install
-- [Apps](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/clients.md): what works in each app
-- [Security](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/security.md): what the server enforces and what it doesn't
-- [Using Bonfire](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/profiles.md): switching, adding profiles, PINs and viewing hours, for the household
-- [Admin guide](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/admin-guide.md): every tab of the admin dashboard and its settings
-- [Troubleshooting](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/troubleshooting.md): the switcher not appearing, Docker, Tizen
-- [Limitations](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/limitations.md)
-- [Sharing a Bonfire](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/sharing.md): linking two households
-- [Library artwork](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/library-artwork.md)
+- [README](https://github.com/AHouseOfBards/Bonfire/blob/main/README.md): features and install
+- [Apps](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/clients.md): what works in each app
+- [Security](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/security.md): what the server enforces and what it doesn't
+- [Using Bonfire](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/profiles.md): switching, adding profiles, PINs and viewing hours, for the household
+- [Admin guide](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/admin-guide.md): every tab of the admin dashboard and its settings
+- [Troubleshooting](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/troubleshooting.md): the switcher not appearing, Docker, Tizen
+- [Limitations](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/limitations.md)
+- [Sharing a Bonfire](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/sharing.md): linking two households
+- [Library artwork](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/library-artwork.md)
 
 ## Optional
 
-- [Developer API](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/developer-api.md): every HTTP route
-- [Changelog](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/CHANGELOG.md)
-- [Beta channel](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/docs/beta-channel.md)
-- [Contributing](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/.github/CONTRIBUTING.md)
-- [Translations](https://github.com/AHouseOfBards/Bonfire-JellyProfiles/blob/main/Web/i18n/README.md): adding a language
+- [Developer API](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/developer-api.md): every HTTP route
+- [Changelog](https://github.com/AHouseOfBards/Bonfire/blob/main/CHANGELOG.md)
+- [Beta channel](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/beta-channel.md)
+- [Contributing](https://github.com/AHouseOfBards/Bonfire/blob/main/.github/CONTRIBUTING.md)
+- [Translations](https://github.com/AHouseOfBards/Bonfire/blob/main/Web/i18n/README.md): adding a language

@@ -69,7 +69,7 @@ Details for every app, and what each can do, are in [Apps](docs/clients.md#what-
 
 ## Documentation
 
-Also at [ahouseofbards.github.io/Bonfire-JellyProfiles](https://ahouseofbards.github.io/Bonfire-JellyProfiles/), with search.
+Also at [ahouseofbards.github.io/Bonfire](https://ahouseofbards.github.io/Bonfire/), with search.
 
 - [Using Bonfire](docs/profiles.md)
 - [Admin guide](docs/admin-guide.md)
