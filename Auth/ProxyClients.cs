@@ -23,7 +23,13 @@ namespace Jellyfin.Profiles.Auth
         /// <summary>One app the picker can be served to.</summary>
         public sealed record Entry(string Key, string Name, string ClientPrefix);
 
-        /// <summary>Every app that can be ticked. Moonfin first, because we can test it.</summary>
+        /// <summary>
+        /// Every app that can be ticked. Moonfin first, because we can test it.
+        ///
+        /// <para>A stopgap per app: once an app supports Bonfire's own profile selector, its
+        /// entry is removed here and its checkbox from the dashboard in the same release.
+        /// A server that had it ticked loses the key through <see cref="Normalize"/>.</para>
+        /// </summary>
         public static readonly IReadOnlyList<Entry> Catalogue = new[]
         {
             // Moonfin sends "Moonfin for Android TV", "Moonfin for iOS" and so on.
