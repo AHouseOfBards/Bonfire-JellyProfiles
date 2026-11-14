@@ -6741,14 +6741,10 @@
             }
         },
 
-        // Called when the inactivity timer fires. Clears the active session,
-        // restores master credentials, then shows the profile selector.
-        //
-        // It used to restore the master's credentials here, which made the lock the least
-        // secure moment in the product: the device went from a restricted profile to the
-        // master account, with only the picker drawn over it. The profile's own session is
-        // kept instead; getting back into it — or into anything else — goes through the
-        // gate, and the server asks for the PIN.
+        // Inactivity timer fired: clear the active session and show the picker. The
+        // profile's own session is kept, not swapped for the master's, which made the lock
+        // the weakest moment in the product. Getting back in goes through the gate and
+        // the server asks for the PIN.
         lockActiveProfile: function () {
             this.stopInactivityTimer();
             this.clearProfileSession();
@@ -6756,8 +6752,7 @@
         },
 
         renderOverlayContent: function (overlay, profiles) {
-            // Claims the screen so a form still loading in the background does not
-            // draw itself over the grid when it finally returns.
+            // Claims the screen so a form still loading does not draw over the grid.
             this.beginNavigation();
 
             const title = this.isManageMode ? t('gate.manageProfiles') : t('gate.whosWatching');
@@ -6773,15 +6768,13 @@
             const masterState = this.readMasterState();
             const localMasterId = masterState ? this.normalizeGuid(masterState.masterUserId) : '';
 
-            // Same condition the two settings tiles used, so Settings shows up in exactly
-            // the cases they used to.
+            // Same condition the two settings tiles used.
             const hasLocalMaster = profiles.some(p => p.isMaster && !p.isBonfire);
 
             // Group profiles by masterUserId
             const grouped = {};
             for (const p of profiles) {
-                // An added account sits with the household it was added to, not in a
-                // section of its own: it is one more person on this screen.
+                // An added account sits with the household it was added to.
                 const key = p.isLinked
                     ? localMasterId
                     : this.normalizeGuid(p.masterUserId || (p.isBonfire ? '' : localMasterId));
@@ -6803,18 +6796,12 @@
                 return nameA.localeCompare(nameB);
             });
 
-            // The signed-in Jellyfin user IS the active profile — switching signs in as
-            // that profile's own account. The gate never said which one that was, and the
-            // avatar-colour rings made it look as though it did.
-            //
-            // But ApiClient is not the authority when the picker was opened from the header
-            // bubble. handleBubbleClick puts the *master's* credentials back before listing,
-            // because a sub-profile's token cannot see its siblings — so by the time this
-            // renders, getCurrentUserId() is the master on every platform, and the badge
-            // sat on the master's card however long you had been using a profile. Reported
-            // as "the switcher says I am signed in as my main profile"; it is this, not a
-            // switch that failed. _resumeState is the profile that was active a moment ago
-            // and is what the badge means, so it wins when it is set.
+            // The signed-in Jellyfin user is the active profile. But when the picker opens
+            // from the header bubble, handleBubbleClick has already put the master's
+            // credentials back (a sub-profile's token cannot list its siblings), so
+            // getCurrentUserId() is the master and the badge landed on the master's card.
+            // Reported as "the switcher says I am signed in as my main profile". The
+            // _resumeState user is the profile that was active a moment ago, so it wins.
             const resumed = this._resumeState && !this._resumeState.closeOnly
                 ? this._resumeState.userId
                 : null;
@@ -6824,13 +6811,11 @@
                     ? this.normalizeGuid(ApiClient.getCurrentUserId())
                     : '');
 
-            // `focusable` is jellyfin-web's own hook, not ours — see focusManager.js,
-            // whose focusable set is INPUT/TEXTAREA/SELECT/BUTTON/A plus that class, and
-            // which never looks at [tabindex]. Without it a profile card does not exist as
-            // far as upstream's remote navigation is concerned, so any moment our own trap
-            // does not get the key event leaves the whole grid unreachable and only the
-            // footer buttons focusable. That is issue #16's second report, word for word:
-            // "if I move off the top left one, it goes to manage profiles".
+            // `focusable` is jellyfin-web's own hook (focusManager.js: INPUT/TEXTAREA/SELECT/
+            // BUTTON/A plus that class; it never looks at [tabindex]). Without it a card is
+            // invisible to remote navigation and only the footer buttons can be focused
+            // whenever our trap misses a key. Issue #16: "if I move off the top left one,
+            // it goes to manage profiles".
             const renderCard = (p) => `
                 <div class="jpf-profile-card focusable ${this.isManageMode ? 'jpf-manage-mode' : ''}${
                     signedInId && this.normalizeGuid(p.profileUserId) === signedInId ? ' is-current' : ''
@@ -6896,12 +6881,9 @@
                 let headerTitle = '';
                 let isBonfireIcon = false;
 
-                // Both headers use Bonfire's mark — it was the Bonfire's own section, and a
-                // house icon read as a different concept entirely. The headings say household
-                // now (a main account and its profiles; "Bonfire" is the product, and an
-                // invite-code group), but the mark stays. Your own household keeps the warm
-                // flame colour; linked ones are tinted by .bonfire-icon-color so the two
-                // remain distinguishable at a glance.
+                // Both headers use Bonfire's mark; a house icon read as a different concept.
+                // Your own household keeps the flame colour, linked ones are tinted by
+                // .bonfire-icon-color.
                 if (isLocalGroup) {
                     headerTitle = t('gate.yourBonfire');
                 } else {
@@ -6914,17 +6896,12 @@
                 let cardsHtml = groupProfiles.map(p => renderCard(p)).join('');
 
                 if (isLocalGroup) {
-                    // Settings used to sit here, as two cards in the same row as people.
-                    // They are not profiles: Switcher Style is per-account and Your Bonfire
-                    // is between accounts, and neither belongs to the grid of who can watch.
-                    // They live behind Settings now — which also means the LAN-bypass toggle,
-                    // the one that can hand somebody your admin rights, is somewhere you went
-                    // on purpose rather than somewhere you can land while renaming a profile.
+                    // Settings used to sit here as cards beside the people. They are not
+                    // profiles, and the LAN-bypass toggle (which can hand over your admin
+                    // rights) should be somewhere you go on purpose.
 
-                    // Manage Profiles only. The gate answers one question — who is
-                    // watching — and a card in that grid reads as a person. Adding one is
-                    // administration, and it belongs on the screen named for it, which is
-                    // one button away and already where you go to rename or delete.
+                    // Manage Profiles only: a card in this grid reads as a person, and adding
+                    // one is administration.
                     if (this.isManageMode) {
                         if (!atLimit) {
                             cardsHtml += `
@@ -6956,11 +6933,10 @@
                 `;
             }
 
-            // jpf-one-home: one household on screen, so its heading names nothing the title
-            // has not. Themes without a panel round each household hide it then.
-            // The live region sits outside .profiles-modal-content, which every screen
-            // after this one replaces: it has to be there, empty, before it has anything
-            // to say, or a screen reader does not announce the first change to it.
+            // jpf-one-home: one household on screen, so its heading names nothing new.
+            // The live region sits outside .profiles-modal-content, which later screens
+            // replace; it must exist, empty, before it speaks or a screen reader misses the
+            // first change.
             overlay.innerHTML = `
                 <div id="jpf-switch-live" class="jpf-sr" role="status" aria-live="polite"></div>
                 <div class="profiles-modal-content jpf-picker jpf-anim-fade-in${groupKeys.length === 1 ? ' jpf-one-home' : ''}">
@@ -7003,15 +6979,11 @@
             this.showTimeRequests(overlay, profiles, localMasterId);
         },
 
-        /// Profiles waiting for more time, as a row above the tiles. Only for the main
-        /// account's own household, and only when the list the picker just fetched already
-        /// says someone asked: the picker pays for one more call when there is something to
-        /// show, and nothing otherwise. Fetched when the picker is drawn, never from
-        /// checkRoute. The server decides what is pending and how much of the day's four
-        /// hours is left; this only draws it.
-        ///
-        /// A row is a real button, so Enter opens it and the remote can reach it. Opening it
-        /// asks for the main PIN, the prompt the picker already uses for the main account.
+        /// Profiles waiting for more time, as a row above the tiles. Main account's own
+        /// household only, and only when the fetched list already says someone asked.
+        /// Fetched when the picker is drawn, never from checkRoute. The server decides what
+        /// is pending and how much of the day's four hours is left. A row is a real button;
+        /// opening it asks for the main PIN.
         showTimeRequests: function (overlay, profiles, localMasterId) {
             const box = overlay.querySelector('#profiles-time-requests');
             if (!box || !localMasterId) return;
@@ -7045,8 +7017,8 @@
                     row.addEventListener('click', () => {
                         if (this._switchLock) return;
                         this.withMainPin(profiles, () => {
-                            // The picker comes back behind the dialog, so cancelling it leaves
-                            // the profiles on screen and not the PIN screen.
+                            // The picker returns behind the dialog, so cancel leaves the profiles
+                            // on screen, not the PIN screen.
                             refresh();
                             this.answerTimeRequest(req, refresh);
                         });
@@ -7069,9 +7041,8 @@
                 .catch(() => { /* nothing waiting is the safe reading */ });
         },
 
-        /// How much more time for a request, or no. The main PIN was just entered. Amounts
-        /// stop at what is left of the day's four hours; with none left, no is the only
-        /// answer. The server holds the same line, so a stale screen cannot give past it.
+        /// How much more time for a request, or no. Amounts stop at what is left of the
+        /// day's four hours; the server holds the same line.
         answerTimeRequest: function (req, refresh) {
             const name = req.profileName;
             const left = typeof req.grantMinutesLeft === 'number' ? req.grantMinutesLeft : 0;
@@ -7101,16 +7072,10 @@
 
         /// The administrator's announcements, above the title.
         ///
-        /// Asked for once a minute at most: the gate re-renders on every switch into and
-        /// out of manage mode, and a message that changed thirty seconds ago can wait.
-        /// Never from checkRoute — only when the gate is drawn.
-        ///
-        /// Plain text only. The message is written into textContent, never innerHTML,
-        /// because it reaches every household on the server.
-        ///
-        /// An info announcement can be dismissed on this device. The key is the id and the
-        /// text together, so one the administrator rewrites shows again. Warning and
-        /// critical stay until they end.
+        /// Asked for once a minute at most, and never from checkRoute. Written with
+        /// textContent, never innerHTML: the message reaches every household. An info
+        /// announcement can be dismissed on this device; the key is id plus text, so a
+        /// rewritten one shows again. Warning and critical stay until they end.
         showAnnouncements: function (overlay) {
             const draw = (items) => {
                 const box = overlay.querySelector('#profiles-announcements');
@@ -7149,8 +7114,7 @@
                         close.addEventListener('click', () => {
                             this._dismissAnnouncement(a);
                             draw(items);
-                            // The button that held focus was redrawn away. Next one if there
-                            // is one, otherwise the first control of the screen (R-1198).
+                            // The focused button was redrawn away: next one, else the first control (R-1198).
                             const next = box.querySelector('.profiles-announcement-dismiss')
                                 || overlay.querySelector('.focusable, button');
                             if (next && typeof next.focus === 'function') next.focus();
@@ -7173,8 +7137,8 @@
             this._fetchStartup(token, 60000)
                 .then(body => body && body.announcements)
                 .then(items => {
-                    // A refusal or a body that is not a list is not remembered: cached as
-                    // [] it hid a critical notice for the next minute.
+                    // A refusal or non-list body is not cached: cached as [] it hid a critical
+                    // notice for a minute.
                     if (!Array.isArray(items)) { this._startupHeld = null; return; }
                     const list = items;
                     this._announcementCache = { at: Date.now(), items: list };
@@ -7185,12 +7149,10 @@
 
         /// Closed for maintenance: say so, once per page load.
         ///
-        /// Asked of /info, which needs no token, because the people it is for are the ones
-        /// who cannot sign in. On the sign-in screen and for an administrator it is a strip
-        /// across the top; for anyone else signed in it covers the page, since every request
-        /// they make is refused and the page behind would only show errors.
-        ///
-        /// Written with textContent: the message is the administrator's own words.
+        /// Asked of /info, which needs no token, because the people it is for cannot sign
+        /// in. A strip across the top on the sign-in screen and for an administrator; a
+        /// cover over the page for anyone else, since their requests are all refused.
+        /// Written with textContent.
         checkMaintenance: function () {
             this.serverInfo()
                 .then(info => {
@@ -7201,14 +7163,11 @@
                 .catch(() => { /* unknown: say nothing */ });
         },
 
-        /// How the notice should look to whoever is on this page now: nobody signed in or an
-        /// administrator gets a strip, anyone else a cover. Asked again by the notice's own
-        /// timer, because the page is not reloaded by signing in or out (R-1209).
-        ///
-        /// Someone whose account cannot be read (offline, a bad token) is `unknown` and gets
-        /// the strip, never the cover: the cover locks the page, and locking an administrator
-        /// out of it over a failed request is worse than a notice that is too quiet. The
-        /// server refuses what it should whatever is drawn.
+        /// Strip for nobody signed in or an administrator, cover for anyone else. Asked
+        /// again by the notice's own timer, since signing in or out does not reload the
+        /// page (R-1209). An account that cannot be read (offline, bad token) is `unknown`
+        /// and gets the strip: locking an administrator out over a failed request is worse
+        /// than a quiet notice. The server refuses what it should regardless.
         _maintenanceView: function () {
             const userId = typeof ApiClient.getCurrentUserId === 'function' ? ApiClient.getCurrentUserId() : null;
             if (!userId || typeof ApiClient.getCurrentUser !== 'function') {
@@ -7228,17 +7187,16 @@
             let back = '';
             if (until) {
                 const d = new Date(until);
-                // Only a time still to come: "Back by" an hour ago says the server is late.
+                // Only a future time: "Back by" an hour ago says the server is late.
                 if (!isNaN(d.getTime()) && d.getTime() > Date.now()) back = t('maintenance.backBy', { time: d.toLocaleString(activeLocale || [], { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) });
             }
 
             const box = document.createElement('div');
             box.id = 'profiles-maintenance';
-            // The cover is a trap surface. Without it, the focus trap hands focus back to the
-            // gate underneath, and a remote moves around profiles nobody can see.
+            // The cover is a trap surface; without it focus goes to the gate underneath.
             box.className = blocking ? 'profiles-maintenance is-blocking ' + this.TRAP_SURFACE_CLASS : 'profiles-maintenance';
             box.setAttribute('role', blocking ? 'alertdialog' : 'status');
-            // What it was drawn for, so a re-check can tell when who is looking has changed.
+            // What it was drawn for, so a re-check can see who is looking changed.
             box._maintenanceKey = (blocking ? 'cover' : 'strip') + (admin ? '-admin' : '');
 
             const inner = document.createElement('div');
@@ -7261,9 +7219,7 @@
                 inner.appendChild(when);
             }
 
-            // Asked again while the cover is up, on a timer the cover owns and stops when it
-            // closes. Never on checkRoute: that runs twice a second on every page, and this
-            // is needed only while a notice is showing.
+            // Timer owned by the cover, stopped when it closes. Never checkRoute.
             let status = null;
             if (blocking) {
                 const again = document.createElement('button');
@@ -7306,8 +7262,7 @@
         },
 
         /// Asks /info again, past the one-minute cache. Maintenance over takes the notice
-        /// down; an answer that cannot be read leaves it up, since "unknown" is not "open".
-        /// A cover is followed by a reload: everything behind it was refused while it was up.
+        /// down; an unreadable answer leaves it up. A cover is followed by a reload.
         _recheckMaintenance: function (box, blocking, status) {
             this._serverInfo = null;
             this.serverInfo().then(info => {
@@ -7315,8 +7270,7 @@
                 if (!info) return;
                 const still = info.maintenance || info.Maintenance;
                 if (still) {
-                    // Someone may have signed in or out since it was drawn. Redrawn for who
-                    // is here now, never taken down or downgraded on a failed account read.
+                    // Redrawn for whoever is here now, never taken down on a failed account read.
                     return this._maintenanceView().then(v => {
                         if (document.getElementById('profiles-maintenance') !== box) return;
                         const key = (v.blocking ? 'cover' : 'strip') + (v.admin ? '-admin' : '');
@@ -7357,34 +7311,25 @@
         _dismissAnnouncement: function (a) {
             const list = this._readDismissedAnnouncements();
             list.push(this._announcementKey(a));
-            // Fifty is the server's own limit, so nothing still showing is ever pushed out.
+            // Fifty is the server's own limit.
             try { localStorage.setItem('jpf-dismissed-announcements', JSON.stringify(list.slice(-50))); } catch (e) { /* private mode */ }
         },
 
-        /// Shrinks the profile tiles, only as far as needed, until the whole gate fits on
-        /// the screen without scrolling (issue #31).
+        /// Shrinks the profile tiles only as far as needed until the gate fits on screen
+        /// without scrolling (issue #31). Tiles were a fixed 280px on a television, so
+        /// four profiles on 1080p ran 247px past the bottom.
         ///
-        /// The tiles were a fixed size per device class — 280px on a television — so four
-        /// profiles on a 1080p set ran 247px past the bottom, and a remote had to scroll to
-        /// reach half the household. Two profiles still get the full size; more get smaller.
+        /// Measured, not calculated: tiles per row depend on names, linked sections,
+        /// manage mode and the theme's fonts. The tile size is a custom property; this
+        /// halves the gap between "fits" and "too big" a few times, reading the overlay's
+        /// scroll height. Runs only on draw and resize, never from checkRoute. Below the
+        /// floor it stops and lets the gate scroll.
         ///
-        /// Measured rather than calculated. How many tiles share a row depends on the names
-        /// under them, the sections a linked Bonfire adds, manage mode's extra controls and
-        /// the theme's fonts, and a formula would have to know all of that. Instead the
-        /// tile size is a custom property, and this halves the gap between "fits" and
-        /// "too big" a few times, reading the overlay's scroll height after each try. Only
-        /// ever runs when the gate is drawn or the window is resized — never on the route
-        /// poll, which is why it is not called from checkRoute.
-        ///
-        /// Below the floor it stops shrinking and lets the gate scroll: on a phone with
-        /// nine profiles, scrolling is better than tiles too small to read.
-        /// Evens out the rows of a grid: four tiles on a tablet drew three and then one alone.
-        /// The row length the width allows is read from the layout as it is; if the rows
-        /// that gives would differ by more than one tile, a zero-height break (a <span>, so
-        /// the avatar-ring :nth-of-type counting still sees only cards) is put after each
-        /// row of the even split: 4 = 2+2, 5 = 3+2, 10 = 4+3+3, longer rows first.
-        /// Run from fitGateToScreen, which already runs on every render and resize and
-        /// again for each tile size it tries; never from the route poll.
+        /// Evens out grid rows: four tiles on a tablet drew three and then one. If the
+        /// rows the width allows differ by more than one tile, a zero-height <span> break
+        /// (a span so avatar-ring :nth-of-type counting still sees only cards) goes after
+        /// each row of the even split: 4 = 2+2, 5 = 3+2, 10 = 4+3+3. Run from
+        /// fitGateToScreen.
         balanceGateRows: function (grid) {
             if (!grid || !grid.children || !grid.querySelectorAll) return;
             [].slice.call(grid.querySelectorAll('.jpf-row-break')).forEach((b) => { b.parentNode.removeChild(b); });
@@ -7397,16 +7342,14 @@
             while (per < n && Math.abs(cards[per].getBoundingClientRect().top - top0) < 2) per++;
             if (per >= n) return;
             const rows = Math.ceil(n / per);
-            if (n - (rows - 1) * per >= per - 1) return;       // already within one tile
+            if (n - (rows - 1) * per >= per - 1) return;       // within one tile
             const base = Math.floor(n / rows);
             const extra = n % rows;
-            // The line a break makes sits between two row gaps; one has to be taken back, or
-            // the rows it separates would be a gap further apart than the rest.
             let rowGap = parseFloat(getComputedStyle(grid).rowGap);
             if (!isFinite(rowGap)) rowGap = 0;
-            // A negative margin on the break itself does not work: a flex line cannot be
-            // shorter than nothing, so the rows came out two gaps apart. The tiles after
-            // the break take it instead, which shortens their line by the same amount.
+            // A break's line sits between two row gaps; one gap has to be taken back. A
+            // negative margin on the break fails (a flex line cannot be shorter than
+            // nothing; rows came out two gaps apart), so the tiles after it take it.
             let at = 0;
             for (let r = 0; r < rows - 1; r++) {
                 at += base + (r < extra ? 1 : 0);
@@ -7426,9 +7369,8 @@
             }
         },
 
-        /// A television rotating its UI, a desktop window being resized: fit again. Bound
-        /// once, and finds whatever gate is on screen when it fires: the picker, or the
-        /// setup step whose button row is pinned.
+        /// Fit again when a television rotates its UI or a window resizes. Bound once;
+        /// finds whichever gate is on screen (picker, or a setup step with a pinned row).
         _bindGateResize: function () {
             if (this._gateResizeBound || typeof window === 'undefined' || !window.addEventListener) return;
             this._gateResizeBound = true;
@@ -7445,13 +7387,11 @@
             });
         },
 
-        /// The row of buttons under a setup step that is taller than the screen (the theme
-        /// step: twelve cards) sticks to the bottom of it, drawn as the picker's row is
-        /// (.jpf-footer-stuck). The step's sheet is marked .jpf-step-tall, which lifts the
-        /// sheet's own 75vh cap, so the gate scrolls and not the sheet: a sticky row can only
-        /// stay on screen against the box that scrolls. Measured with the class off, so the
-        /// answer is the layout's and not the row's own padding; a step that fits keeps its
-        /// row in the flow. Run again on a resize and when the fonts are in.
+        /// The button row under a setup step taller than the screen (the twelve-card theme
+        /// step) sticks to the bottom like the picker's (.jpf-footer-stuck). The sheet is
+        /// marked .jpf-step-tall, lifting its 75vh cap so the gate scrolls, since a sticky
+        /// row only stays against the box that scrolls. Measured with the class off so the
+        /// answer is the layout's. Run again on resize and when fonts load.
         _pinSetupRow: function (overlay) {
             if (!overlay || !overlay.querySelector) return;
             this._bindGateResize();
@@ -7472,19 +7412,16 @@
             if (!overlay || !overlay.querySelector) return;
             this._bindGateResize();
 
-            // The class and the size go on the gate's own content, not on the overlay. The
-            // PIN, create and settings screens are drawn into the same overlay and share
-            // .profiles-title; a class left on the overlay would carry over to them. On the
-            // content it is replaced along with the markup it was measured for.
+            // Class and size go on the gate's content, not the overlay: PIN, create and
+            // settings screens share the overlay and .profiles-title.
             const grid = overlay.querySelector('.profiles-grid');
             const content = grid && grid.closest('.profiles-modal-content');
             if (!content) return;
             const fits = () => overlay.scrollHeight <= overlay.clientHeight + 1;
 
-            // Once more when the fonts this gate asked for have loaded: measured before, with
-            // the fallback's metrics, a list of four large profiles was fitted as fitting and
-            // then ran 3px off the screen. Once per drawn gate (the flag is on its content),
-            // and only while that gate is still the one on screen.
+            // Once more when fonts load: measured with fallback metrics, four large profiles
+            // fit and then ran 3px off screen. Once per drawn gate (flag on its content),
+            // and only while it is still on screen.
             if (!content._jpfFontRefit && typeof document !== 'undefined' && document.fonts && document.fonts.ready
                 && typeof document.fonts.ready.then === 'function') {
                 content._jpfFontRefit = true;
@@ -7550,7 +7487,7 @@
             content.classList.add('jpf-fitted');
             let lo = floor;
             let hi = natural;
-            if (!tryTile(lo)) { stick(); return; }             // already at the floor; leave it scrolling
+            if (!tryTile(lo)) { stick(); return; }             // at the floor: leave it scrolling
             for (let i = 0; i < 8 && hi - lo > 2; i++) {
                 const mid = Math.floor((lo + hi) / 2);
                 if (tryTile(mid)) lo = mid; else hi = mid;
@@ -7560,10 +7497,10 @@
         },
 
         attachOverlayInteractions: function (overlay, profiles) {
-            // Support D-pad Enter/Space selection on focused profile cards
+            // D-pad Enter/Space selects a focused profile card
             overlay.addEventListener('keydown', (e) => {
                 if ((isKey(e, 'Enter') || isKey(e, ' ')) && e.target.classList.contains('jpf-profile-card')) {
-                    // Prevent accidental selection from propagated keydown events during login
+                    // Ignore keydown events propagated from login
                     if (Date.now() - (this._overlayMountTime || 0) < 350) {
                         e.preventDefault();
                         return;
@@ -7573,7 +7510,7 @@
                 }
             });
 
-            // Card selection logic
+            // Card selection
             overlay.querySelectorAll('.jpf-profile-card:not(.action-add-profile)').forEach(card => {
                 card.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -7594,8 +7531,8 @@
                     } else if (this.isManageMode) {
                         this.showEditProfileModal(profile);
                     } else if (profile.viewing && !profile.viewing.allowed) {
-                        // Out of time: say so first. Browsing is still allowed, so the
-                        // profile opens anyway if they carry on.
+                        // Out of time: say so first. Browsing is still allowed, so the profile
+                        // opens anyway if they carry on.
                         this.showTimeUp(profile, open);
                     } else {
                         open();
@@ -7603,10 +7540,10 @@
                 });
             });
 
-            // "Add Profile" action. The card only exists in Manage Profiles, which has
-            // already asked for the main PIN. It used to ask again, after reading the
-            // plugin's configuration, which only an administrator may read: for everyone
-            // else that failed and the form opened with no PIN at all.
+            // "Add Profile": the card only exists in Manage Profiles, which has already asked
+            // for the main PIN. It used to ask again after reading the plugin configuration,
+            // which only an administrator may read, so for everyone else it failed and the form
+            // opened with no PIN.
             const addCard = overlay.querySelector('.action-add-profile');
             if (addCard) {
                 addCard.addEventListener('click', () => {
@@ -7615,8 +7552,7 @@
                 });
             }
 
-            // Settings: everything that is not a profile. They are the main account's, so
-            // the main account opens them, with its PIN.
+            // Settings: not profiles. They are the main account's, so it opens them with its PIN.
             const settingsBtn = overlay.querySelector('#profiles-settings-btn');
             if (settingsBtn) {
                 settingsBtn.addEventListener('click', () => {
@@ -7655,9 +7591,9 @@
                 this.applyPanicLinkVisibility();
             }
 
-            // Back out of a switcher the user opened on purpose, returning to the profile
-            // they were already using. Only present when there is something to return to —
-            // the startup gate is a required choice and has no Cancel.
+            // Back out of a switcher the user opened on purpose, returning to the profile they
+            // were using. Only present when there is something to return to; the startup gate
+            // is a required choice and has no Cancel.
             const resumeBtn = overlay.querySelector('#profiles-resume-btn');
             if (resumeBtn) {
                 resumeBtn.addEventListener('click', () => {
@@ -7677,14 +7613,13 @@
                         this.renderOverlayContent(overlay, profiles);
                     } else {
                         const masterProfile = profiles.find(p => p.isMaster && !p.isBonfire);
-                        // isSignedInAsMaster compares against the stored id; without it the
-                        // master was told to open the master.
+                        // isSignedInAsMaster compares against the stored id; without it the master was
+                        // told to open the master.
                         this._syncMasterFromProfiles(masterProfile);
 
-                        // Managing profiles is the master account's to do, and the server
-                        // refuses it from any other. It used to work from a profile only
-                        // because the master's token was kept in the browser; now a profile
-                        // opens the master first, like any other switch.
+                        // Managing profiles is the master account's to do and the server refuses it from
+                        // any other. It worked from a profile only because the master's token was kept in
+                        // the browser; now a profile opens the master first, like any other switch.
                         if (!this.isSignedInAsMaster()) {
                             this.showAlert(t('switcher.manageTitle'),
                                 t('switcher.manageNeedsMaster', { name: masterProfile ? masterProfile.profileName : '' }));
@@ -7700,29 +7635,27 @@
             }
         },
 
-        /// How long the PIN box waits after the last digit before checking what was typed.
+        /// How long the PIN box waits after the last digit before checking.
         PIN_PAUSE_MS: 1500,
 
-        /// Checks a PIN box by itself once the typing stops, so a right PIN opens without
-        /// Enter. Shared by the profile PIN and the main PIN.
+        /// Checks a PIN box once typing stops, so a right PIN opens without Enter. Shared by
+        /// the profile PIN and the main PIN.
         ///
-        /// Both boxes used to POST verify-pin on every keystroke from the fourth digit on.
-        /// The server counts every one of those as a guess — it has to, or a "silent" check
-        /// would be a free way to try PINs — so an eight-digit PIN typed correctly spent four
-        /// wrong prefixes first, and one typo on top of that reached the lockout: a "PIN is
-        /// locked" activity line and a PinLocked email for somebody who knew their PIN, and
-        /// a fifth of the account's twenty guesses a day gone. Now it is one check per pause
-        /// (or at once when the box is full), never the same value twice, and none at all
-        /// after a 429.
+        /// Both boxes used to POST verify-pin on every keystroke from the fourth digit. The
+        /// server counts each as a guess, so an eight-digit PIN typed correctly spent four
+        /// wrong prefixes first, and one typo then reached the lockout: a "PIN is locked"
+        /// activity line and a PinLocked email for someone who knew their PIN. Now it is one
+        /// check per pause (or at once when the box is full), never the same value twice, and
+        /// none after a 429.
         ///
-        /// opts: send(pin) → fetch promise; busy() → true while a switch is underway;
-        /// onRight(pin); onLocked(serverText).
-        /// Returns { input, cancel, hold, takeRefusal(pin) }. takeRefusal hands back the server's
-        /// answer if this exact value was just refused, so Enter can show it rather than
-        /// spend another guess on the same digits; it is used once, so retyping asks again.
-        /// The wait in a 429, in the viewer's language. The server sends the seconds in
-        /// Retry-After and an English sentence in the body; the sentence is not shown,
-        /// because it cannot be translated. Rounded as the server's DescribeWait does.
+        /// opts: send(pin) returns a fetch promise; busy() is true while a switch is underway;
+        /// onRight(pin); onLocked(serverText). Returns { input, cancel, hold, takeRefusal(pin) }.
+        /// takeRefusal hands back the server's answer if this exact value was just refused, so
+        /// Enter shows it instead of spending another guess; used once, so retyping asks again.
+        ///
+        /// The wait in a 429, in the viewer's language. The server sends seconds in Retry-After
+        /// and an English sentence that is not shown, since it cannot be translated. Rounded as
+        /// the server's DescribeWait does.
         _lockedText: function (res) {
             let seconds = 0;
             try { seconds = Math.ceil(Number(res.headers.get('Retry-After'))) || 0; } catch (e) { seconds = 0; }
@@ -7737,15 +7670,13 @@
             let timer = null;
             let stopped = false;
             let pending = null;
-            // The request in flight, as { pin, done }, where done settles after this
-            // function has acted on the answer. Enter waits on it rather than sending the
-            // same digits again: that was a second counted guess at the PIN.
+            // The request in flight, as { pin, done }; done settles after the answer is acted
+            // on. Enter waits on it instead of sending the same digits again (a second counted guess).
             let inflight = null;
-            // The screen this keypad belongs to. Anything that starts a navigation (Forgot
-            // PIN, Back, an expired session, the next screen) moves the ticket on, and the
-            // input leaving the document says the same thing. Either way this keypad is
-            // over: the timer could still fire, spend a guess, and run the switch from a
-            // screen the person had already left.
+            // The screen this keypad belongs to. Anything that starts a navigation moves the
+            // ticket on, and so does the input leaving the document. Either way the keypad is
+            // over: the timer could otherwise spend a guess and run the switch from a screen the
+            // person had left.
             const ticket = this._navTicket;
             const gone = () => stopped || !this.navIsCurrent(ticket) || !document.body.contains(pinInput);
 
@@ -7760,14 +7691,13 @@
                         if (pending === pin) pending = null;
                         if (res.status === 401) { this.handleSessionExpired(); return null; }
                         if (res.ok) {
-                            // Typed on past it while the answer was coming: the box no longer
-                            // holds a right PIN, and Enter will send what it does hold.
+                            // Typed on while the answer was coming: the box no longer holds a right PIN,
+                            // and Enter will send what it does hold.
                             if (!gone() && pinInput.value === pin) opts.onRight(pin);
                             return null;
                         }
                         if (res.status === 429) {
-                            // Locked. Every further check would be refused and counted
-                            // nowhere useful; say so and stop.
+                            // Locked: further checks would all be refused; say so and stop.
                             stopped = true;
                             if (timer) { clearTimeout(timer); timer = null; }
                             opts.onLocked(this._lockedText(res));
@@ -7807,11 +7737,10 @@
                     refused.delete(pin);
                     return body;
                 },
-                // Enter is the person saying they are done: the pending pause has no more
-                // to tell us.
+                // Enter means done: the pending pause has nothing more to tell us.
                 hold: () => { if (timer) { clearTimeout(timer); timer = null; } },
-                // A promise that settles once the check already out for this PIN has been
-                // acted on, or null when none is. Enter waits on it instead of asking again.
+                // Settles once the check already out for this PIN has been acted on, else null.
+                // Enter waits on it instead of asking again.
                 inFlight: (pin) => (inflight && inflight.pin === pin) ? inflight.done : null
             };
         },
@@ -7843,7 +7772,7 @@
                     (pin) => this.executeProfileSwitch(profileId, pin, () => this.promptPinEntry(profileId)));
             }
 
-            // Prevents a second switch from firing if one is already in progress.
+            // No second switch while one is in progress.
             let switchInProgress = false;
 
             const showPinError = (msg) => {
@@ -7866,8 +7795,8 @@
                 errorMsg.textContent = '';
             };
 
-            // Checked once the typing pauses — see _pinAutoCheck for why not per keystroke.
-            // A wrong answer shows nothing yet: the person may still be typing.
+            // Checked once typing pauses (see _pinAutoCheck). A wrong answer shows nothing yet:
+            // the person may still be typing.
             const auto = this._pinAutoCheck(pinInput, {
                 send: (pin) => {
                     const masterState = this.readMasterState();
@@ -7883,10 +7812,8 @@
                     if (switchInProgress || this._switchLock) return;
                     switchInProgress = true;
                     this.executeProfileSwitch(profileId, pin, (msg) => {
-                        // Verify said OK and the switch was refused (limits, device,
-                        // maintenance, a network failure). Say why: the box was just
-                        // cleared by nothing, and the person is typing on a screen that
-                        // is now doing nothing.
+                        // Verify said OK and the switch was refused (limits, device, maintenance, network).
+                        // Say why: otherwise the person types on a screen that is doing nothing.
                         showPinError(msg);
                     });
                 },
@@ -7898,15 +7825,14 @@
                 auto.input();
             });
 
-            // Manual submit — only place where we show an error on wrong PIN
+            // Manual submit: the only place a wrong PIN shows an error
             let submitWaiting = false;
             const submitPin = () => {
                 if (switchInProgress || this._switchLock) return;
                 auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
-                // The same digits are already out for checking: wait for that answer, and
-                // act on it, instead of sending them a second time.
+                // The same digits are already out for checking: wait for that answer instead of resending.
                 const waiting = auto.inFlight(pin);
                 if (waiting) {
                     if (!submitWaiting) {
@@ -7918,8 +7844,7 @@
                     }
                     return;
                 }
-                // Just checked and refused: the same digits again would only spend another
-                // of the account's guesses to hear the same answer.
+                // Just refused: the same digits again would spend another guess to hear the same answer.
                 const refusal = auto.takeRefusal(pin);
                 if (refusal !== undefined) { showPinError(refusal || t('pin.incorrectPin')); return; }
                 switchInProgress = true;
@@ -7949,26 +7874,24 @@
                 .then(res => res.ok ? res.json() : null)
                 .catch(() => null);
             this._serverInfo = { at: now, promise: promise };
-            // Only a read that worked is kept. A failed one cached as null read as "no main
-            // PIN required" in withMainPin for the whole minute.
+            // Only a successful read is kept: a failed one cached as null read as "no main PIN
+            // required" in withMainPin for the whole minute.
             promise.then(info => {
                 if (info === null && this._serverInfo && this._serverInfo.promise === promise) this._serverInfo = null;
             });
             return promise;
         },
 
-        /// Runs then() once the main PIN is known: asks for it if the account has one and
-        /// it hasn't been typed yet. With none set and the administrator requiring one,
-        /// sets one first.
+        /// Runs then() once the main PIN is known: asks for it if the account has one and it
+        /// hasn't been typed yet. With none set and the administrator requiring one, sets one first.
         ///
-        /// Decided by hasPin, never requiresPin. requiresPin answers "does opening the
-        /// account ask", which is false on the home network with the bypass on, or with
-        /// asking turned off; the server still wants the PIN to change anything. Going by
-        /// requiresPin, Manage Profiles opened without asking and every save then failed
-        /// as a wrong PIN.
+        /// Decided by hasPin, never requiresPin. requiresPin is false on the home network with
+        /// the bypass on, or with asking turned off, but the server still wants the PIN to change
+        /// anything. Going by requiresPin, Manage Profiles opened without asking and every save
+        /// failed as a wrong PIN.
         withMainPin: function (profiles, then) {
-            // (A caller that holds the PIN for one act on the gate lets it go with
-            // _dropGatePin, on every way out of that act, not only the one that works.)
+            // A caller holding the PIN for one act lets it go with _dropGatePin on every way out
+            // of that act, not only the one that works.
             const main = (profiles || this.currentProfiles || []).find(p => p.isMaster && !p.isBonfire);
             if (main && main.hasPin) {
                 if (this.masterPin) { then(); return; }
@@ -7983,17 +7906,17 @@
             }, () => then());
         },
 
-        /// Forgets the main PIN typed for a single act on the gate. Manage Profiles keeps it:
-        /// it is open for as long as the parent stays there.
+        /// Forgets the main PIN typed for a single act on the gate. Manage Profiles keeps it
+        /// for as long as the parent stays there.
         _dropGatePin: function () {
             if (!this.isManageMode) this.masterPin = null;
         },
 
-        /// Asks the main account to set a PIN. Required: there is no "Not now", and Cancel
-        /// goes back to the profiles. Offered: "Not now" carries on without one.
+        /// Asks the main account to set a PIN. Required: no "Not now", and Cancel goes back to
+        /// the profiles. Offered: "Not now" carries on without one.
         ///
-        /// `setup` is first-time setup's: `{ onSkip }`, where a null onSkip is a step the
-        /// administrator made required, so there is no button at all.
+        /// `setup` is first-time setup's `{ onSkip }`; a null onSkip means the administrator
+        /// made the step required, so there is no button.
         promptSetMainPin: function (profiles, required, done, setup, noteKey) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
@@ -8027,8 +7950,8 @@
             };
             input.focus();
 
-            // One save at a time: Enter held down, or Enter then the button, sent the
-            // request twice, and a second success ran done() (the next screen) twice.
+            // One save at a time: Enter held down, or Enter then the button, sent the request
+            // twice and ran done() (the next screen) twice.
             const save = () => {
                 if (saving) return;
                 const pin = input.value;
@@ -8087,7 +8010,7 @@
             pinInput.focus();
             this._offerPinReset(content, () => this.promptMasterPinEntry(actionType, callback), () => callback());
 
-            let verified = false; // prevent callback firing more than once
+            let verified = false; // callback fires once
 
             const showPinError = (msg) => {
                 verified = false;
@@ -8108,11 +8031,11 @@
                 errorMsg.textContent = '';
             };
 
-            // Manual submit — only place where we show an error on wrong master PIN
+            // Manual submit: the only place a wrong master PIN shows an error
             let verifyInProgress = false;
 
-            // Checked once the typing pauses, not per keystroke — see _pinAutoCheck. Every
-            // prefix of the main PIN was a counted guess at the account's own PIN.
+            // Checked once typing pauses, not per keystroke (see _pinAutoCheck): every prefix
+            // of the main PIN was a counted guess.
             const auto = this._pinAutoCheck(pinInput, {
                 send: (pin) => {
                     const masterState = this.readMasterState();
@@ -8144,8 +8067,7 @@
                 auto.hold();
                 const pin = pinInput.value;
                 if (!pin) return;
-                // The same digits are already out for checking: wait for that answer
-                // instead of sending them a second time.
+                // The same digits are already out for checking: wait for that answer.
                 const waiting = auto.inFlight(pin);
                 if (waiting) {
                     if (!submitWaiting) {
@@ -8157,8 +8079,7 @@
                     }
                     return;
                 }
-                // Just checked and refused: asking again spends another guess for the
-                // same answer.
+                // Just refused: asking again spends another guess for the same answer.
                 const refusal = auto.takeRefusal(pin);
                 if (refusal !== undefined) { showPinError(refusal || t('pin.incorrectMasterPin')); return; }
                 const masterState = this.readMasterState();
@@ -8202,9 +8123,8 @@
             });
         },
 
-        /// D-pad Enter/Space presses a colour dot. The modal content is one element for the
-        /// whole session and Create and Edit both draw into it, so the listener is added
-        /// once; each visit used to add another.
+        /// D-pad Enter/Space presses a colour dot. Create and Edit draw into one modal content
+        /// element for the whole session, so the listener is added once; each visit used to add another.
         _bindColorDotKeys: function (content) {
             if (content._jpfDotKeys) return;
             content._jpfDotKeys = true;
@@ -8222,11 +8142,9 @@
             return o[k] !== undefined ? o[k] : o[k.charAt(0).toUpperCase() + k.slice(1)];
         },
 
-        /// One call to an /account/email or /account/pin-reset route as the main account.
-        /// No body is a GET. Resolves the reply's JSON ({} when there is none); rejects
-        /// with the server's words.
-        ///
-        /// The language goes with every POST: it is what the mail is written in.
+        /// One call to an /account/email or /account/pin-reset route as the main account. No
+        /// body is a GET. Resolves the reply's JSON ({} when none); rejects with the server's
+        /// words. The language goes with every POST: it is what the mail is written in.
         _emailCall: function (path, body) {
             const masterState = this.readMasterState();
             const token = masterState ? masterState.token : ApiClient.accessToken();
@@ -8248,10 +8166,9 @@
             });
         },
 
-        /// The one /startup answer for a token, shared by everything that needs a part of it:
-        /// the announcements, the first-time setup and who the caller is. Kept for maxAgeMs,
-        /// so the gate, the setup check and the PIN prompt on one page load are one request
-        /// between them. A refusal or a failure is null and is not kept.
+        /// The one /startup answer for a token, shared by the announcements, first-time setup
+        /// and the caller's identity. Kept for maxAgeMs, so one page load is one request. A
+        /// refusal or failure is null and not kept.
         _fetchStartup: function (token, maxAgeMs) {
             const held = this._startupHeld;
             if (held && held.token === token && Date.now() - held.at < maxAgeMs) return held.promise;
@@ -8271,10 +8188,9 @@
         },
 
         /// Shows "Forgot PIN?" on a main-PIN prompt when the server can mail this account a
-        /// code. Read from /startup's `me` once, when the prompt opens.
-        ///
-        /// back() redraws the prompt; done(pin) carries on with the new PIN, so a reset
-        /// lands where the person was going instead of asking for the PIN just set.
+        /// code. Read from /startup's `me` once, when the prompt opens. back() redraws the
+        /// prompt; done(pin) carries on with the new PIN, so a reset lands where the person
+        /// was going.
         _offerPinReset: function (content, back, done) {
             const link = content.querySelector('#pin-forgot');
             const masterState = this.readMasterState();
@@ -8289,8 +8205,8 @@
             .catch(() => { /* no link; the prompt works as before */ });
         },
 
-        /// Forgot PIN: a code to the main account's confirmed address, then a new PIN.
-        /// The code is sent as the screen opens, since sending it is all the screen is for.
+        /// Forgot PIN: a code to the main account's confirmed address, then a new PIN. The
+        /// code is sent as the screen opens.
         showPinReset: function (back, done) {
             this.beginNavigation();
             const content = document.querySelector('.profiles-modal-content');
@@ -8350,11 +8266,8 @@
             send();
         },
 
-        /// The Email section of Your account. Draws nothing until the server says email
-        /// works, so a server without it never shows an empty section.
-        ///
-        /// Every route answers with the whole state, so each action just redraws from the
-        /// reply: the address, a code on its way, or nothing yet.
+        /// The Email section of Your account. Draws nothing until the server says email works.
+        /// Every route answers with the whole state, so each action redraws from the reply.
         _bindAccountEmail: function (slot) {
             if (!slot) return;
             let data = null;
@@ -8366,8 +8279,7 @@
                 status.textContent = text || '';
                 status.style.color = bad ? 'var(--jpf-danger)' : '';
             };
-            // One call at a time: a second tap on Send while the first was in flight sent
-            // a second code email.
+            // One call at a time: a second tap on Send while the first was in flight sent a second code email.
             let busy = false;
             const run = (path, body, done) => {
                 if (busy) return;
@@ -8379,8 +8291,8 @@
 
             const draw = () => {
                 if (!document.body.contains(slot)) return;
-                // Email off on this server: say so and where to turn it on, instead of an
-                // account page with no hint that a forgotten PIN could ever be reset (P2-607).
+                // Email off on this server: say so and where to turn it on, instead of an account
+                // page with no hint that a forgotten PIN could be reset (P2-607).
                 if (field('available') !== true) {
                     slot.innerHTML = this.renderSection('mail', t('accountEmail.title'), t('accountEmail.subtitle'),
                         `<div class="jpf-form-hint" id="account-email-off">${t('account.emailOff')}</div>`);
@@ -8492,14 +8404,12 @@
                 .catch(() => { /* no section; the rest of the page works without it */ });
         },
 
-        /// Puts the picker into "working on it" while a switch is in flight.
-        ///
-        /// The switch is a round trip to the server and then a full page reload. On a phone
-        /// that is a couple of seconds during which nothing on screen changed at all, so the
-        /// only reasonable reading was that the tap had missed — and the reporter kept
-        /// tapping. _switchLock already made the extra taps harmless; it just never said so.
+        /// Puts the picker into "working on it" while a switch is in flight. The switch is a
+        /// round trip and a full page reload; on a phone nothing on screen changed for a couple
+        /// of seconds, so people read the tap as missed and kept tapping. _switchLock made the
+        /// extra taps harmless but never said so.
         setSwitchBusy: function (profileId, busy) {
-            // The spinner is all a sighted person gets; this is the same news in words.
+            // The spinner is for sighted people; this is the same news in words.
             const live = document.getElementById('jpf-switch-live');
             if (live) {
                 const wanted = this.normalizeGuid(profileId);
@@ -8513,8 +8423,7 @@
                 if (busy) overlay.setAttribute('aria-busy', 'true');
                 else overlay.removeAttribute('aria-busy');
 
-                // Matched by normalised id rather than an attribute selector, so a profile
-                // id can never be read as one.
+                // Matched by normalised id, not an attribute selector, so a profile id can never be read as one.
                 const wanted = busy ? this.normalizeGuid(profileId) : null;
                 overlay.querySelectorAll('.jpf-profile-card').forEach(card => {
                     const isTarget = !!wanted
@@ -8523,22 +8432,20 @@
                 });
             }
 
-            // Started from a PIN prompt, the button is what the user is looking at — the
-            // card behind it may not even be on screen.
+            // Started from a PIN prompt, the button is what the user is looking at; the card
+            // behind it may not be on screen.
             ['pin-submit-btn', 'master-pin-submit-btn'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.classList.toggle('is-busy', busy);
             });
         },
 
-        /// fetch() that gives up. A request the person is waiting on locks the picker until
-        /// it settles, and a server that accepts the connection and never answers (a
-        /// restart, a proxy dropping the reply) means only a page reload gets them out.
+        /// fetch() that gives up. A server that accepts the connection and never answers (a
+        /// restart, a proxy dropping the reply) would lock the picker until a page reload.
         ///
-        /// A timer raced against the request, not an AbortController: webOS 4.5 is
-        /// Chromium 53 and has none. The request itself is not cancelled; it is simply
-        /// no longer listened to, so a reply that turns up late changes nothing.
-        /// Rejects with isTimeout set.
+        /// A timer raced against the request, not an AbortController: webOS 4.5 is Chromium 53
+        /// and has none. The request is not cancelled, just no longer listened to. Rejects
+        /// with isTimeout set.
         _fetchTimed: function (url, init, ms) {
             return new Promise((resolve, reject) => {
                 const timer = setTimeout(() => {
@@ -8553,38 +8460,37 @@
             });
         },
 
-        /// What to tell the person about a failed request. The server's own words go
-        /// through as they are; anything the browser raised ("Failed to fetch", "Load
-        /// failed", a JSON parse error) is not for them and not translated, so it is
-        /// replaced. Otherwise "wrong PIN" and "server unreachable" read the same.
+        /// What to tell the person about a failed request. The server's own words go through;
+        /// anything the browser raised ("Failed to fetch", "Load failed", a JSON parse error)
+        /// is replaced, since it is untranslated and makes "wrong PIN" and "server unreachable"
+        /// read the same.
         _failText: function (err, fallback) {
             if (err && err.serverText) return err.serverText;
-            // By name, not instanceof: an error raised in another frame is not an instance
-            // of this one's TypeError.
+            // By name, not instanceof: an error from another frame is not an instance of this one's TypeError.
             if (err && (err.isTimeout || err.name === 'TypeError' || err.name === 'SyntaxError')) {
                 return t('switcher.unreachable');
             }
             return fallback;
         },
 
-        /// The profile saved and its viewing hours did not. Said apart, so it does not read as
-        /// a profile that was lost; the server's reason, when it gave one, follows.
+        /// The profile saved and its viewing hours did not. Said apart so it does not read as
+        /// a lost profile; the server's reason follows when it gave one.
         _hoursFailText: function (err) {
             const why = this._failText(err, '');
             return t('errors.savingHours') + (why ? ' ' + why : '');
         },
 
-        // onError: optional callback(message) invoked on a failed switch.
-        // Callers capture their own DOM references via closure so we never re-query
-        // the DOM inside an async callback (which can race against overlay teardown).
+        // onError: optional callback(message) on a failed switch. Callers capture their own
+        // DOM references via closure so nothing re-queries the DOM inside an async callback
+        // (it can race overlay teardown).
         executeProfileSwitch: function (profileId, pin, onError) {
             if (this._switchLock) return;
 
             const apiClient = ApiClient;
             const masterState = this.readMasterState();
             if (!masterState) {
-                // No household to act for: nothing was sent. Saying nothing left a PIN
-                // screen that took its digits and then did nothing (R-1207).
+                // No household to act for: nothing was sent. Saying nothing left a PIN screen that
+                // took its digits and did nothing (R-1207).
                 if (typeof onError === 'function') onError(t('switcher.failedBody'));
                 else this.showAlert(t('switcher.failedTitle'), t('switcher.failedBody'));
                 return;
@@ -8603,16 +8509,16 @@
                 if (!res.ok) {
                     return res.text().then(text => {
                         const body = (text || '').trim();
-                        // Our own 401 (caller's token rejected) has an empty body. A 401 with a
-                        // message came from something failing further in — the target profile,
-                        // not the caller — so signing the master out would be wrong (issue #15).
+                        // Our own 401 (caller's token rejected) has an empty body. A 401 with a message came
+                        // from further in (the target profile, not the caller), so signing the master out
+                        // would be wrong (issue #15).
                         if (res.status === 401 && !body) {
                             this._switchLock = false;
                             this.handleSessionExpired();
                             throw new Error('Session expired');
                         }
-                        // A 429's sentence is English; the wait is built here, in the viewer's
-                        // language. Any other refusal is said by its code; the body is not shown.
+                        // A 429's sentence is English; the wait is built here in the viewer's language. Any
+                        // other refusal is said by its code; the body is not shown.
                         const shown = res.status === 429 ? this._lockedText(res) : refusalText(res);
                         const refusal = new Error(shown || t('pin.incorrectPin'));
                         refusal.serverText = shown;
@@ -8625,14 +8531,13 @@
                 const activeProfileToken = data.activeProfileToken || data.ActiveProfileToken;
                 const jellyfinUserId = data.jellyfinUserId || data.JellyfinUserId;
 
-                // The session being left, ended once the new one is safely stored below.
+                // The session being left, ended once the new one is stored below.
                 const leavingToken = masterState.token;
 
-                // Before anything else is written, because this is the one write that has
-                // to survive the reload. Without it the token lives only on this page's
-                // ApiClient, and the reload signs back in as whoever was there before —
-                // right name in the header, wrong account underneath. Bail here rather
-                // than leave session keys describing a switch that will not happen.
+                // First write, because it is the one that must survive the reload. Without it the
+                // token lives only on this page's ApiClient and the reload signs back in as whoever
+                // was there before: right name in the header, wrong account underneath. Bail here
+                // rather than leave session keys describing a switch that will not happen.
                 if (!this.updateStoredCredentials(activeProfileToken, jellyfinUserId)) {
                     this._switchLock = false;
                     this.setSwitchBusy(profileId, false);
@@ -8642,17 +8547,15 @@
 
                 this._sessionSet(this.config.activeSessionKey, activeProfileToken);
 
-                // Nothing on this device should go on holding the account it just left —
-                // above all when that was the master. Its token was the thing the switcher
-                // is meant to stand in front of, and a copy kept "for later" is a copy anyone
-                // at this browser can use. Coming back is a /switch like any other.
+                // Nothing on this device keeps the account it just left, above all the master. Its
+                // token is what the switcher stands in front of, and a kept copy is usable by anyone
+                // at this browser. Coming back is a /switch like any other.
                 if (leavingToken && leavingToken !== activeProfileToken) this._endSession(leavingToken);
 
-                // Cached against the profile being switched into, before the reload, so the
-                // next load starts with the right rules already in place.
+                // Cached against the profile being switched into, so the next load starts with the right rules.
                 this.cacheLibraryArtwork(jellyfinUserId, data.libraryArtwork || data.LibraryArtwork || []);
 
-                // A switch has happened; there is no longer an earlier profile to go back to.
+                // A switch has happened; there is no earlier profile to go back to.
                 this._resumeState = null;
 
                 const profile = this.currentProfiles.find(p => this.normalizeGuid(p.profileUserId) === this.normalizeGuid(profileId));
@@ -8668,32 +8571,28 @@
 
                 apiClient.setAuthenticationInfo(activeProfileToken, jellyfinUserId);
 
-                // The overlay is opaque and covers the viewport, so leaving it up is all it
-                // takes to keep the old page out of sight — and it keeps the spinner on
-                // screen for however long the reload costs. Blanking the document instead
-                // meant a phone showed several seconds of black with nothing to say the tap
-                // had registered. Only the background is calmed towards the next page.
+                // The overlay is opaque and covers the viewport, so leaving it up hides the old page
+                // and keeps the spinner on screen through the reload. Blanking the document instead
+                // showed a phone several seconds of black with no sign the tap registered.
                 const leavingBg = this._captureLeavingBackground();
-                // A second layer under the gate, in its colour, for as long as this page
-                // lives. The gate is the cover while it stays up; this is for the moment
-                // it does not — whatever takes it down before the navigation lands, the
-                // old profile's home is not what shows. Only the reload failing takes it
-                // down (_reloadFailed), so there is no backstop timer to race the reload.
+                // A second layer under the gate, in its colour, for the life of this page: if the
+                // gate comes down before the navigation lands, the old profile's home must not show.
+                // Only a failed reload takes it down (_reloadFailed), so no backstop timer races the reload.
                 this._holdCoverForSwitch();
                 const overlay = document.getElementById('profiles-gate-overlay');
                 if (overlay) {
                     overlay.classList.add('jpf-bg-fade');
                     overlay.style.background = leavingBg;
                 } else {
-                    // Menu-mode switch with no gate on screen: nothing is covering the app,
-                    // so the old page does still have to be hidden before it repaints.
+                    // Menu-mode switch with no gate on screen: nothing covers the app, so the old
+                    // page must be hidden before it repaints.
                     document.documentElement.style.cssText =
                         'opacity:0;background:' + leavingBg + ';color-scheme:'
                         + (this._isLightColour(leavingBg) ? 'light' : 'dark');
                 }
                 this._reloading = true;
-                // Guarded like every other use of the key: storage that is full or blocked
-                // threw here, into the catch below, after the switch had already succeeded.
+                // Guarded like every other use of the key: full or blocked storage threw here, into
+                // the catch below, after the switch had already succeeded.
                 try { localStorage.setItem(this.config.switchingKey, '1'); } catch (e) { /* the reload still happens */ }
                 this.reloadAtHome();
             })
@@ -8702,12 +8601,11 @@
                 this.setSwitchBusy(profileId, false);
                 if (err.message === 'Session expired') return;
                 if (typeof onError === 'function') {
-                    // Caller has closed-over references to the DOM — no re-query needed
+                    // Caller holds its own DOM references; no re-query needed
                     onError(this._failText(err, err.message || t('pin.incorrectPin')));
                 } else {
-                    // No PIN screen is shown (a direct tap on a profile with no PIN): put
-                    // the picker back and say why, or the tile just stops responding and
-                    // the person has nothing to retry on but another tap.
+                    // No PIN screen is shown (a direct tap on a profile with no PIN): put the picker
+                    // back and say why, or the tile just stops responding.
                     this.isManageMode = false;
                     this.interceptHomeAndShowProfiles();
                     this.showAlert(t('switcher.failedTitle'),
@@ -8717,23 +8615,19 @@
         },
 
         // ── Avatar images ──────────────────────────────────────────────────────────
-        // Two renderings are produced for every picture: a master used where the avatar is
-        // shown large, and a thumbnail used by grids and switcher cards. Twenty full-size
-        // avatars in a picker would otherwise decode about twenty megabytes of bitmap,
-        // which is enough to stall the TV browsers this plugin supports.
-        //
-        // Both are produced here, in the browser, so the plugin needs no server-side image
-        // library. It also means the accepted input set is "whatever this browser can
-        // decode" while the stored output stays deliberately narrow.
+        // Two renderings per picture: a master for large display and a thumbnail for grids and
+        // switcher cards. Twenty full-size avatars in a picker would decode about twenty
+        // megabytes of bitmap, enough to stall the TV browsers this plugin supports.
+        // Both are made in the browser, so the plugin needs no server-side image library;
+        // the accepted input is whatever this browser can decode, the stored output stays narrow.
 
         IMAGE_MASTER_SIZE: 512,
         IMAGE_THUMB_SIZE: 128,
         IMAGE_JPEG_QUALITY: 0.85,
 
-        /// The sizes to render a picture at, from the server's picture quality setting.
-        /// Anything missing or out of range falls back to the standard sizes above, which
-        /// are what every picture was before the setting existed — and what a server older
-        /// than it expects, since it will refuse anything over 2 MB.
+        /// The sizes to render a picture at, from the server's picture quality setting. Missing
+        /// or out-of-range values fall back to the standard sizes above, which are what every
+        /// picture was before the setting and what an older server expects (it refuses over 2 MB).
         parseImageSpec: function (raw) {
             const pick = (k) => raw ? (raw[k] !== undefined ? raw[k] : raw[k.charAt(0).toUpperCase() + k.slice(1)]) : undefined;
             const size = Number(pick('masterSize'));
@@ -8750,21 +8644,19 @@
             return this._imageSpec || this.parseImageSpec(null);
         },
 
-        /// Formats refused before we even try to decode, each with a reason worth showing.
-        /// Everything else is handed to the browser: if it decodes, we can store it.
+        /// Formats refused before decoding, each with a reason worth showing. Everything else
+        /// goes to the browser: if it decodes, we can store it.
         _rejectImageFile: function (file) {
             const name = (file.name || '').toLowerCase();
             const type = (file.type || '').toLowerCase();
 
-            // The common case by a distance: iPhones shoot HEIC by default, and only Safari
-            // can decode it. Elsewhere the canvas load simply fails, so without this the
-            // user gets silence and no idea why.
+            // The common case: iPhones shoot HEIC and only Safari can decode it. Elsewhere the
+            // canvas load just fails, leaving the user with silence.
             if (type.includes('heic') || type.includes('heif') || /\.hei[cf]$/.test(name)) {
                 return t('errors.heicUnsupported');
             }
 
-            // SVG can carry script, and these files are served back from the server's own
-            // origin. Not worth it for an avatar.
+            // SVG can carry script and these files are served from the server's origin.
             if (type.includes('svg') || /\.svgz?$/.test(name)) {
                 return t('errors.svgUnsupported');
             }
@@ -8776,7 +8668,7 @@
             return null;
         },
 
-        /// Reads a File into a decoded <img>. Rejects with a message fit to show the user.
+        /// Reads a File into a decoded <img>. Rejects with a message fit to show.
         loadImageFromFile: function (file) {
             return new Promise((resolve, reject) => {
                 const reason = this._rejectImageFile(file);
@@ -8793,8 +8685,8 @@
                         }
                         resolve(img);
                     };
-                    // Reached for any format this browser cannot decode — including a HEIC
-                    // that slipped past the check above with an empty MIME type.
+                    // Any format this browser cannot decode, including HEIC that slipped past the check
+                    // above with an empty MIME type.
                     img.onerror = () => reject(new Error(t('errors.imageFormatUnsupported')));
                     img.src = event.target.result;
                 };
@@ -8802,10 +8694,10 @@
             });
         },
 
-        /// Loads a URL into an <img> for cropping. Used when someone picks an avatar from the
-        /// administrator's library. The canvas has to stay untainted or the crop cannot be
-        /// re-encoded, so anything off-origin is requested with CORS — that is the packaged
-        /// clients, where the page origin is the app rather than the server.
+        /// Loads a URL into an <img> for cropping, for avatars picked from the administrator's
+        /// library. The canvas must stay untainted or the crop cannot be re-encoded, so
+        /// off-origin URLs are requested with CORS (the packaged clients, where the page
+        /// origin is the app).
         loadImageFromUrl: function (url) {
             const resolved = pluginUrl(url);
             return new Promise((resolve, reject) => {
@@ -8821,14 +8713,13 @@
             });
         },
 
-        /// Pointer bookkeeping for the picture-position dialog: one finger pans, two
-        /// pinch. pan(dx, dy) and setZoom(z) are the dialog's own; getZoom() reads the
-        /// slider; grab(true/false) flips the cursor. Returns begin/move/end by pointer id.
+        /// Pointer bookkeeping for the picture-position dialog: one finger pans, two pinch.
+        /// pan(dx, dy) and setZoom(z) are the dialog's; getZoom() reads the slider; grab(bool)
+        /// flips the cursor. Returns begin/move/end by pointer id.
         ///
-        /// When one finger of a pinch lifts, the finger left down is measured again from
-        /// where it is now. It was last measured as part of the pinch, so without that the
-        /// first move after the lift was taken from where the drag began and the picture
-        /// jumped (R-1204).
+        /// When one finger of a pinch lifts, the remaining finger is measured again from where
+        /// it is now. Otherwise the first move after the lift was taken from where the drag
+        /// began and the picture jumped (R-1204).
         _cropGesture: function (getZoom, pan, setZoom, grab) {
             let dragging = false, lastX = 0, lastY = 0, pinchStart = 0, pinchZoomStart = 1;
             const active = new Map();
@@ -8876,7 +8767,7 @@
             return Math.max(size / img.width, size / img.height);
         },
 
-        /// Keeps the image covering the viewport, so a crop can never include blank edges.
+        /// Keeps the image covering the viewport, so a crop never has blank edges.
         _clampCrop: function (img, viewport, crop) {
             const w = img.width * crop.zoom;
             const h = img.height * crop.zoom;
@@ -8898,30 +8789,26 @@
             return canvas;
         },
 
-        /// Renders the cropped square at `outSize` and returns it as a data URL.
-        /// PNG is used when the source has transparency — re-encoding a cut-out avatar as
-        /// JPEG would fill the transparent area with black.
+        /// Renders the cropped square at `outSize` as a data URL. PNG when the source has
+        /// transparency: JPEG would fill a cut-out avatar's transparent area with black.
         renderCrop: function (img, viewport, crop, outSize, preferPng) {
             const canvas = this._cropCanvas(img, viewport, crop, outSize);
             return preferPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', this.imageSpec().jpegQuality);
         },
 
-        /// Reads an image's alpha channel at low resolution and answers the two separate
-        /// questions the picker has about it. One decode, two answers.
+        /// Reads an image's alpha channel at low resolution and answers the picker's two
+        /// questions in one decode.
         ///
-        ///   hasAlpha — is any pixel less than fully opaque? Decides PNG over JPEG, where
-        ///              a single soft pixel is enough to matter, because re-encoding a
-        ///              cut-out as JPEG fills the transparent area with black.
+        ///   hasAlpha: is any pixel less than fully opaque? Decides PNG over JPEG; one soft
+        ///             pixel is enough to matter.
         ///
-        ///   cutout   — is this shaped art rather than a rectangular photo? Decides
-        ///              whether to paint the avatar colour behind it (issue #23). This is
-        ///              a much stricter question and deliberately not the same test: an
-        ///              antialiased edge or a soft border makes hasAlpha true, and must
-        ///              not be allowed to switch somebody's background off.
+        ///   cutout:   is this shaped art rather than a rectangular photo? Decides whether to
+        ///             paint the avatar colour behind it (issue #23). Much stricter: an
+        ///             antialiased edge makes hasAlpha true and must not switch somebody's
+        ///             background off.
         ///
-        /// cutout reads the corners, because `object-fit: cover` means the corners are the
-        /// only place the colour is ever visible. A circular avatar has four transparent
-        /// corners; a photograph has none.
+        /// cutout reads the corners, because `object-fit: cover` makes them the only place the
+        /// colour is visible. A circular avatar has four transparent corners; a photo has none.
         _alphaProfile: function (source) {
             const out = { hasAlpha: false, cutout: false };
             try {
@@ -8936,12 +8823,11 @@
                     if (data[i] < 250) { out.hasAlpha = true; break; }
                 }
 
-                // Nothing is transparent at all, so there is no shape to work around and
-                // the corner walk cannot say otherwise.
+                // Nothing is transparent, so there is no shape to work around.
                 if (!out.hasAlpha) return out;
 
-                // A corner counts as cut away only when a whole 4x4 block of it is clear.
-                // One outermost pixel would let a single stray sample decide this.
+                // A corner counts as cut away only when a whole 4x4 block is clear; one outermost
+                // pixel would let a stray sample decide.
                 const BLOCK = 4;
                 const corners = [[0, 0], [s - BLOCK, 0], [0, s - BLOCK], [s - BLOCK, s - BLOCK]];
                 let clearCorners = 0;
@@ -8958,24 +8844,22 @@
                     if (clear) clearCorners++;
                 }
 
-                // Three of four rather than all four: a circle with one stray opaque
-                // sample still counts, a rectangle with one rounded corner still does not.
+                // Three of four, not all: a circle with one stray opaque sample still counts, a
+                // rectangle with one rounded corner still does not.
                 out.cutout = clearCorners >= 3;
             } catch (e) { /* tainted canvas or no context — assume an opaque photo */ }
             return out;
         },
 
-        /// True when any pixel is not fully opaque. Sampled at low resolution — this only
-        /// decides an output format, so an exact answer is not worth the work.
+        /// True when any pixel is not fully opaque. Sampled at low resolution; it only picks
+        /// an output format.
         _hasTransparency: function (img) {
             return this._alphaProfile(img).hasAlpha;
         },
 
-        /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does
-        /// nothing if the user cancels.
-        ///
-        /// Supports all three input modes the supported clients need: mouse drag, touch
-        /// drag, and D-pad (arrows pan, +/- zoom, and the zoom slider is focusable).
+        /// Opens the crop editor. Calls back with { image, thumb } data URLs, or does nothing
+        /// if the user cancels. Supports mouse drag, touch drag and D-pad (arrows pan, +/-
+        /// zoom, the zoom slider is focusable).
         showCropDialog: function (img, onDone) {
             // Two quick picks used to open two dialogs, one on top of the other.
             if (this._cropClose) this._cropClose();
@@ -8985,8 +8869,7 @@
             const minZoom = this._coverZoom(img, VIEW);
             let crop = this._clampCrop(img, VIEW, {
                 zoom: minZoom,
-                // Start centred — the subject of a photo is far more often in the middle
-                // than in a corner.
+                // Start centred: a photo's subject is far more often in the middle.
                 x: (VIEW - img.width * minZoom) / 2,
                 y: (VIEW - img.height * minZoom) / 2
             });
@@ -9046,8 +8929,7 @@
             const setZoom = (multiplier, anchorX, anchorY) => {
                 const next = Math.max(1, Math.min(4, multiplier));
                 const newZoom = minZoom * next;
-                // Zoom about a point so the image does not lurch sideways: keep whatever
-                // was under the anchor in the same place.
+                // Zoom about a point: keep whatever was under the anchor in the same place.
                 const ax = anchorX === undefined ? VIEW / 2 : anchorX;
                 const ay = anchorY === undefined ? VIEW / 2 : anchorY;
                 const ratio = newZoom / crop.zoom;
@@ -9063,11 +8945,10 @@
             zoomInput.addEventListener('input', () => setZoom(parseFloat(zoomInput.value)));
 
             // ── Dragging ──────────────────────────────────────────────────────────
-            // Movement and release are tracked on window, not on the circle. Pointer
-            // capture used to be what kept a gesture alive, and it is not dependable
-            // across the clients this runs on — a throw from setPointerCapture aborted
-            // the handler before dragging was ever set, which is why panning did nothing
-            // while the zoom slider still worked. Capture is now best-effort only.
+            // Movement and release are tracked on window, not the circle. Pointer capture was
+            // unreliable across clients: a throw from setPointerCapture aborted the handler before
+            // dragging was set, so panning did nothing while the zoom slider worked. Capture is
+            // now best-effort.
             const gesture = this._cropGesture(
                 () => parseFloat(zoomInput.value),
                 (dx, dy) => {
@@ -9081,7 +8962,7 @@
             const movePointer = (id, x, y) => gesture.move(id, x, y);
             const endPointer = (id) => gesture.end(id);
 
-            // Tracked so the window-level listeners come off again when the dialog closes.
+            // Tracked so the window-level listeners come off when the dialog closes.
             const bound = [];
             const on = (target, type, fn, opts) => {
                 target.addEventListener(type, fn, opts);
@@ -9090,11 +8971,9 @@
 
             if (window.PointerEvent) {
                 on(view, 'pointerdown', (e) => {
-                    // Stops the browser starting a text selection or image drag instead,
-                    // which on desktop swallows the rest of the gesture.
+                    // Stops the browser starting a text selection or image drag, which on desktop swallows the gesture.
                     e.preventDefault();
-                    // preventDefault also suppresses the focus that a click would give,
-                    // and focus is what the arrow-key panning below needs.
+                    // preventDefault also suppresses the click's focus, which the arrow-key panning needs.
                     view.focus();
                     try { view.setPointerCapture(e.pointerId); } catch (err) { /* best effort */ }
                     beginPointer(e.pointerId, e.clientX, e.clientY);
@@ -9103,7 +8982,7 @@
                 on(window, 'pointerup', (e) => endPointer(e.pointerId));
                 on(window, 'pointercancel', (e) => endPointer(e.pointerId));
             } else {
-                // Older TV browsers have no Pointer Events at all.
+                // Older TV browsers have no Pointer Events.
                 on(view, 'mousedown', (e) => { e.preventDefault(); beginPointer('mouse', e.clientX, e.clientY); });
                 on(window, 'mousemove', (e) => movePointer('mouse', e.clientX, e.clientY));
                 on(window, 'mouseup', () => endPointer('mouse'));
@@ -9123,8 +9002,8 @@
                 on(window, 'touchcancel', endTouch);
             }
 
-            // D-pad / keyboard. A television has no pointer at all, so this is the only way
-            // in on the clients that need the avatar library most.
+            // D-pad / keyboard. A television has no pointer, so this is the only way in on the
+            // clients that need the avatar library most.
             view.addEventListener('keydown', (e) => {
                 const step = 12;
                 let handled = true;
@@ -9135,8 +9014,7 @@
                     case 'ArrowDown':  crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x, y: crop.y - step }); break;
                     case '+': case '=': setZoom(parseFloat(zoomInput.value) + 0.2); break;
                     case '-': case '_': setZoom(parseFloat(zoomInput.value) - 0.2); break;
-                    // The arrows are spent on panning here, so OK is the way onward. A
-                    // remote has nothing else to leave the picture with.
+                    // Arrows are spent on panning, so OK is the way onward; a remote has nothing else to leave with.
                     case 'Enter': case ' ':
                         e.preventDefault();
                         dialog.querySelector('#profiles-crop-save').focus();
@@ -9146,9 +9024,8 @@
                 if (handled) { e.preventDefault(); draw(); }
             });
 
-            // The dialog sits on the body, outside the gate, so tearing the gate down (idle
-            // lock, expiry) used to leave it up with its window listeners (R-1218).
-            // removeProfileOverlay calls this.
+            // The dialog sits on the body, outside the gate, so tearing the gate down (idle lock,
+            // expiry) left it up with its window listeners (R-1218). removeProfileOverlay calls this.
             const close = () => {
                 bound.forEach(([target, type, fn, opts]) => target.removeEventListener(type, fn, opts));
                 bound.length = 0;
@@ -9162,17 +9039,15 @@
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
                 let result;
-                // A canvas tainted by a picture from another origin throws on read-back.
-                // Left uncaught it threw before close(), and the dialog stayed up with
-                // a button that did nothing.
+                // A canvas tainted by a cross-origin picture throws on read-back. Uncaught, it threw
+                // before close() and left a dialog with a dead button.
                 try {
                     const spec = this.imageSpec();
                     const thumbCanvas = this._cropCanvas(img, VIEW, crop, spec.thumbSize);
 
-                    // Read from the cropped result, not the source. Cropping into the opaque
-                    // middle of a cut-out leaves a picture with nothing transparent about it,
-                    // and the background decision has to describe what will actually be shown.
-                    // preferPng stays on the source, where being over-eager costs only bytes.
+                    // Read from the cropped result, not the source: cropping into the opaque middle of a
+                    // cut-out leaves nothing transparent, and the background decision must describe what is
+                    // shown. preferPng stays on the source, where over-eager only costs bytes.
                     const cutout = this._alphaProfile(thumbCanvas).cutout;
 
                     const image = this.renderCrop(img, VIEW, crop, spec.masterSize, preferPng);
@@ -9192,8 +9067,7 @@
             setTimeout(() => view.focus(), 50);
         },
 
-        /// Fetches the administrator's avatar library. Resolves to a safe empty shape on
-        /// failure so a picker can always render.
+        /// Fetches the administrator's avatar library. Resolves to an empty shape on failure so a picker can render.
         fetchAvatarLibrary: function (apiClient, token) {
             return this.fetchFormOptions(apiClient, token)
                 .then(options => this.readAvatarLibrary(this._field(options, 'avatars')))
@@ -9203,8 +9077,7 @@
         /// The avatars part of the form options, in the shape the pickers use.
         readAvatarLibrary: function (data) {
             data = data || {};
-            // The administrator's picture quality rides along with the avatar list,
-            // because every picker that could save a picture has already asked for it.
+            // Picture quality rides along with the avatar list; every picker that can save a picture has asked for it.
             this._imageSpec = this.parseImageSpec(data.image || data.Image);
             return {
                 allowCustomUploads: (data.allowCustomUploads !== undefined ? data.allowCustomUploads : data.AllowCustomUploads) !== false,
@@ -9217,21 +9090,14 @@
             };
         },
 
-        /// Renders the profile-picture block. Shared by the create and edit forms so the two
-        /// cannot drift — they already carried near-identical copies of the old upload UI.
+        /// Renders the profile-picture block, shared by the create and edit forms so they cannot
+        /// drift. `prefix` namespaces the element ids ('create' or 'edit').
         ///
-        /// `prefix` namespaces the element ids ('create' or 'edit').
-        /// The cut-out background choice (issue #23).
-        ///
-        /// Part of the picture picker since 1.7.2, right under the preview and its buttons.
-        /// It sat under the name field for a while, beside the colour swatches it governs;
-        /// the forms now put the swatches straight after the picker, so it is beside them
-        /// either way and it reads as what it is, a property of the picture.
-        /// initAvatarPicker owns the wiring and finds it by id.
-        ///
-        /// Hidden until a picture is set — with no picture the colour is the entire
-        /// background and there is nothing to switch off. The library-artwork dialog passes
-        /// no `transparency`, so its picker never draws this.
+        /// Includes the cut-out background choice (issue #23), right under the preview and its
+        /// buttons since 1.7.2; the forms put the colour swatches straight after the picker, so
+        /// it sits beside them. initAvatarPicker owns the wiring and finds it by id. Hidden
+        /// until a picture is set: with none, the colour is the whole background. The
+        /// library-artwork dialog passes no `transparency`, so it never draws this.
         renderTransparentToggle: function (prefix, currentImage, currentTransparent) {
             return `
                 <div id="${prefix}-transparent-row" class="jpf-form-group jpf-picture-transparent-row"
@@ -9245,10 +9111,9 @@
             `;
         },
 
-        /// `transparency` opts this picker into the cut-out background choice (issue #23):
-        /// null or omitted means the form is not offering it, which is what the
-        /// library-artwork dialog wants — it reuses this picker to choose a tile picture,
-        /// where a transparent avatar background means nothing. Otherwise { enabled: bool }.
+        /// `transparency` opts this picker into the cut-out background choice (issue #23). Null
+        /// or omitted means the form does not offer it (the library-artwork dialog reuses this
+        /// picker for a tile picture, where a transparent background means nothing). Otherwise { enabled: bool }.
         renderAvatarPicker: function (prefix, library, currentImage, currentColor, transparency) {
             const supportsTransparent = !!transparency;
             const currentTransparent = supportsTransparent && !!transparency.enabled;
@@ -9271,8 +9136,8 @@
                 </div>
             ` : '';
 
-            // The upload control disappears entirely when the administrator has locked
-            // avatars to the library — a disabled button people cannot use is just noise.
+            // The upload control disappears when the administrator has locked avatars to the
+            // library; a disabled button is noise.
             const uploadHtml = library.allowCustomUploads ? `
                 <div class="jpf-picture-source-block">
                     <div class="jpf-picture-source-title">${t('avatar.fromThisDevice')}</div>
@@ -9289,20 +9154,16 @@
                 </div>
             `;
 
-            // A pasted URL was the odd one out among the ways of setting a picture: it
-            // could not be cropped, nothing was copied onto the server, and the avatar
-            // broke the day the far end went away — with no sign here that it had. Every
-            // other path ends in a file this server owns.
+            // A pasted URL was the odd one out: it could not be cropped, nothing was copied to
+            // the server, and the avatar broke when the far end went away. Every other path ends
+            // in a file this server owns.
 
-            // Closed, always (P2-104). It was open on a new profile because choosing a
-            // picture is the task there, but on a phone that put the whole library grid
-            // between the name and the rating, the Create button a screen further down. The
-            // colour swatches are the default; the button is one tap.
+            // Closed, always (P2-104). Open on a new profile it put the whole library grid between
+            // the name and the rating on a phone. The colour swatches are the default; the button is one tap.
             const sourcesOpen = false;
 
-            // Remove is rendered here rather than by the edit form, so the two actions are
-            // the same size and sit together. It was a third-height button hanging under
-            // the row, which read as belonging to whatever came next.
+            // Remove is rendered here so the two actions are the same size and sit together; it
+            // was a third-height button that read as belonging to whatever came next.
             return `
                 <div class="jpf-form-group">
                     <label id="${prefix}-picture-label">${t('avatar.profilePicture')}</label>
@@ -9338,20 +9199,17 @@
             `;
         },
 
-        /// Wires the picker up. Returns an accessor for the chosen image so the caller can
-        /// read it at save time without tracking the state itself.
-        /// `transparency` must match what was passed to renderAvatarPicker — see there.
+        /// Wires the picker up. Returns an accessor for the chosen image so the caller reads
+        /// it at save time. `transparency` must match renderAvatarPicker.
         initAvatarPicker: function (container, prefix, library, initialImage, onPreviewChange, transparency) {
             const initialTransparent = !!transparency && !!transparency.enabled;
-            // libraryId is set instead of image/thumb when the picture comes from the
-            // library on a locked-down server: the server copies the file itself, which is
-            // the only form of the choice it can actually verify.
+            // libraryId is set instead of image/thumb when the picture comes from the library on a
+            // locked-down server: the server copies the file itself, the only form of the choice it can verify.
             const state = {
                 image: initialImage || null,
                 thumb: null,
                 libraryId: null,
-                // Only meaningful while a picture is set. With no picture the colour is
-                // the entire background, so there is nothing to make transparent.
+                // Only meaningful while a picture is set; with none the colour is the whole background.
                 transparent: !!(initialImage && initialTransparent)
             };
 
@@ -9369,25 +9227,22 @@
                 errEl.style.display = message ? 'block' : 'none';
             };
 
-            /// The colour currently chosen on the form. Read from the DOM rather than
-            /// passed in: the two forms already keep `.active` on exactly one dot, so
-            /// this cannot drift out of step with what will be saved.
+            /// The colour chosen on the form, read from the DOM: the two forms keep `.active` on
+            /// exactly one dot, so this cannot drift from what will be saved.
             const currentColor = () => {
                 const active = container.querySelector('.jpf-color-dot.active');
                 return active ? safeColor(active.getAttribute('data-color')) : DEFAULT_AVATAR_COLOR;
             };
 
-            /// Whether the colour swatches can still affect the avatar. Owned here rather
-            /// than by the two forms, because it depends on both facts this function
-            /// holds — a picture being set, and its background being switched off — and
-            /// two writers would race each other.
+            /// Whether the colour swatches can still affect the avatar. Owned here, not by the two
+            /// forms, because it depends on both a picture being set and its background being
+            /// switched off; two writers would race.
             const syncColorGroup = () => {
                 this.setColorGroupInert(prefix, !!state.image, state.transparent);
             };
 
-            /// Paints the preview to match state.transparent and keeps the checkbox in
-            /// step. Called both when detection decides and when the user overrides, so
-            /// the two can never disagree about what is stored.
+            /// Paints the preview to match state.transparent and keeps the checkbox in step. Called
+            /// on detection and on user override, so the two cannot disagree about what is stored.
             const applyTransparency = () => {
                 if (transparentInput) transparentInput.checked = state.transparent;
                 syncColorGroup();
@@ -9400,12 +9255,10 @@
                 if (!previewEl) return;
                 previewEl.style.position = 'relative';
                 previewEl.innerHTML = src ? avatarInner(src, '+', /* useThumb */ true) : '+';
-                // Removing is only an option while there is something to remove. Driven
-                // from here so it is right on the first paint too — setPreview runs once
-                // at init.
+                // Removing is only an option while there is something to remove. Driven from here so
+                // it is right on the first paint (setPreview runs once at init).
                 if (removeBtn) removeBtn.style.display = src ? 'inline-flex' : 'none';
-                // Same for the transparency choice: it describes a picture, so it has
-                // nothing to say when there is not one.
+                // Same for the transparency choice: it describes a picture.
                 if (transparentRow) transparentRow.style.display = src ? 'block' : 'none';
                 syncColorGroup();
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
@@ -9414,17 +9267,15 @@
             applyTransparency();
 
             if (transparentInput) {
-                // The user's answer always beats detection's. Detection only ever writes
-                // this value when a new picture arrives.
+                // The user's answer beats detection; detection only writes this when a new picture arrives.
                 transparentInput.addEventListener('change', () => {
                     state.transparent = transparentInput.checked;
                     applyTransparency();
                 });
             }
 
-            // The ways of choosing a picture are collapsed behind one button. Every id
-            // the handlers below bind to still exists — they have only moved inside the
-            // panel — so nothing else in this function changes.
+            // The ways of choosing a picture are collapsed behind one button. Every id the
+            // handlers bind to still exists, just inside the panel.
             const sourcesEl = container.querySelector(`#${prefix}-picture-sources`);
             const changeBtn = container.querySelector(`#${prefix}-change-picture`);
             if (sourcesEl && changeBtn) {
@@ -9439,16 +9290,15 @@
                 state.thumb = result.thumb;
                 state.libraryId = null;
                 setPreview(result.image);
-                // A new picture re-answers the question, so detection wins here even if
-                // the user had overridden it for the previous one — the override was
-                // about a picture that is no longer set.
+                // A new picture re-answers the question: detection wins even over an override, which
+                // was about the previous picture.
                 state.transparent = !!result.cutout;
                 applyTransparency();
                 showError('');
                 if (fileInput) fileInput.value = '';
             };
 
-            // Label doubles as the file trigger so it can be focused by D-pad.
+            // Label doubles as the file trigger so the D-pad can focus it.
             if (fileLabel && fileInput) {
                 fileLabel.addEventListener('keydown', (e) => {
                     if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); fileInput.click(); }
@@ -9473,25 +9323,21 @@
                 const pick = () => {
                     showError('');
 
-                    // On a locked-down server the crop step is skipped and the id is sent
-                    // instead. Cropping would produce a data payload indistinguishable from
-                    // an upload, which is exactly what that server has chosen to refuse.
+                    // On a locked-down server the crop step is skipped and the id is sent: a crop would
+                    // produce a data payload indistinguishable from the upload that server refuses.
                     if (!library.allowCustomUploads) {
                         state.image = btn.getAttribute('data-url');
                         state.thumb = null;
                         state.libraryId = btn.getAttribute('data-id');
                         setPreview(state.image);
 
-                        // No crop step on this path, so there is no cropped canvas to read
-                        // and the source has to be fetched again to be sampled. Same
-                        // origin — it is our own avatar endpoint — so the canvas is not
-                        // tainted. Detection is best-effort: a failure just leaves the
-                        // colour painted, which is the old behaviour.
+                        // No crop step here, so no cropped canvas to read; the source is fetched again to be
+                        // sampled. Same origin (our own avatar endpoint), so the canvas is not tainted.
+                        // Detection is best-effort: failure leaves the colour painted, the old behavior.
                         const pickedUrl = state.image;
                         this.loadImageFromUrl(pickedUrl)
                             .then(img => {
-                                // The user may have picked something else while this was
-                                // in flight; a late answer must not overwrite it.
+                                // The user may have picked something else meanwhile; a late answer must not overwrite it.
                                 if (state.image !== pickedUrl) return;
                                 state.transparent = this._alphaProfile(img).cutout;
                                 applyTransparency();
@@ -9500,8 +9346,7 @@
                         return;
                     }
 
-                    // Full size, not the thumbnail — this is about to be re-cropped, and
-                    // cropping a 128px source would produce a soft avatar.
+                    // Full size, not the thumbnail: cropping a 128px source would produce a soft avatar.
                     this.loadImageFromUrl(btn.getAttribute('data-url'))
                         .then(img => this.showCropDialog(img, applyCropped))
                         .catch(err => showError(err.message));
@@ -9512,14 +9357,12 @@
                 });
             });
 
-            // Empty string, not null: the server reads that as "delete the picture",
-            // whereas null means "leave it alone".
+            // Empty string, not null: the server reads '' as "delete the picture", null as "leave it alone".
             const clearPicture = () => {
                 state.image = '';
                 state.thumb = null;
                 state.libraryId = null;
-                // With no picture the colour is the whole background. Leaving this set
-                // would save a profile whose avatar is a transparent square.
+                // With no picture the colour is the whole background; leaving this set would save a transparent square.
                 state.transparent = false;
                 setPreview(null);
                 applyTransparency();
@@ -9540,13 +9383,11 @@
             };
         },
 
-        /// The profile the person at this screen is using, when it is one of the household's
-        /// sub-profiles and the picker was opened from inside it (P2-713). Null for the main
-        /// account, a linked account, a startup gate with nobody in yet, and Manage Profiles:
-        /// the main account has /update and its PIN for all of those.
-        ///
-        /// _resumeState carries the profile that was in use when the picker was opened, which
-        /// is the one /me would change; the list alone cannot say who is signed in.
+        /// The profile the person at this screen is using, when it is a sub-profile and the
+        /// picker was opened from inside it (P2-713). Null for the main account, a linked
+        /// account, a startup gate with nobody in, and Manage Profiles (the main account has
+        /// /update and its PIN for those). _resumeState carries the profile in use when the
+        /// picker opened, which is the one /me would change; the list cannot say who is signed in.
         ownProfileOf: function (profiles) {
             const prior = this._resumeState;
             if (this.isManageMode || !prior || prior.closeOnly || !prior.token || !prior.userId) return null;
@@ -9557,12 +9398,10 @@
 
         /// A profile's own name and picture, changed without the main PIN (P2-713). Saves
         /// through POST /me, which takes the caller to be the profile and has no field for
-        /// anything else about it.
-        ///
-        /// The picture is the same picker as the main account's forms, so a server limited
-        /// to its avatar library gets the library and no upload button, and a choice from
-        /// it is sent as an id the server copies from — the route checks the same rule, so
-        /// this is presentation and that is the rule.
+        /// anything else. The picture uses the same picker as the main account's forms: a
+        /// server limited to its avatar library gets the library and no upload button, and a
+        /// choice is sent as an id the server copies from. The route checks the same rule;
+        /// this is presentation.
         showOwnProfileForm: function (profile) {
             const content = document.querySelector('.profiles-modal-content');
             const prior = this._resumeState;
@@ -9665,8 +9504,7 @@
                         if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                     })
                     .then(() => {
-                        // The header marker is rebuilt from the fresh list, which is read
-                        // below; the one remembered for the profile being resumed is stale.
+                        // The header marker is rebuilt from the fresh list read below; the remembered one for the resumed profile is stale.
                         if (this._resumeState) this._resumeState.info = null;
                         const known = this.readMasterState();
                         this.fetchAndRenderProfiles(ApiClient, known ? known.masterUserId : ApiClient.getCurrentUserId(),
@@ -9690,8 +9528,7 @@
 
             const ticket = this.beginNavigation();
 
-            // Everything this form needs is account-wide, so it is usually already
-            // cached from the prefetch that ran when the overlay opened.
+            // Everything here is account-wide, so it is usually cached from the prefetch when the overlay opened.
             this.fetchSharedFormData(apiClient, masterState)
             .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
             .then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => {
@@ -9701,12 +9538,11 @@
                     name: lib.name || lib.Name,
                     collectionType: lib.collectionType || lib.CollectionType
                 }));
-                // Re-rendering the modal orphans any listeners the previous form owned.
+                // Re-rendering the modal orphans the previous form's listeners.
                 this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
-                // Basics, then a closed "More settings" (1.7.2). Basics is what nearly every
-                // profile is made of: who it is, its PIN, what it may watch. The rest is
-                // there when wanted and out of the way when not.
+                // Basics, then a closed "More settings" (1.7.2). Basics is what nearly every profile
+                // is made of: who it is, its PIN, what it may watch.
 
                 // ── Basics: who this profile is ─────────────────────────────────
                 const startColor = this.nextAvatarColor();
@@ -9748,8 +9584,8 @@
                 `;
 
                 // ── Basics: what this profile can watch ─────────────────────────
-                // The Kids preset only fills in the rating; it is not a kind of profile,
-                // and nothing remembers that it was ticked.
+                // The Kids preset only fills in the rating; it is not a kind of profile and nothing
+                // remembers it was ticked.
                 const createLibraries = `
                     <div class="jpf-form-group">
                         <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
@@ -9781,8 +9617,8 @@
                 `;
 
                 // ── More: tags on top of the libraries ──────────────────────────
-                // Devices are above, with what the profile can watch: keeping a child to
-                // one television is the common parental task, not a rare one (P2-605).
+                // Devices are above, with what the profile can watch: keeping a child to one
+                // television is the common parental task (P2-605).
                 const createRestrictions = `
                     ${this.renderTagSection('create', libraryTags, null)}
                 `;
@@ -9829,13 +9665,11 @@
                     });
                 });
 
-                // The colour group is dimmed by the picker itself now — it depends on the
-                // transparency choice as well as on whether a picture is set.
+                // The picker dims the colour group itself: it depends on the transparency choice as well.
                 const avatarPicker = this.initAvatarPicker(
                     content, 'create', avatarLibrary, null, null, { enabled: false });
 
-                // With no picture chosen, the preview shows the profile's initial — so it
-                // has to follow what is being typed into the name field.
+                // With no picture the preview shows the initial, so it follows the name field.
                 const previewDiv = document.getElementById('create-image-upload-preview');
                 const nameInput = document.getElementById('create-name-input');
                 if (nameInput && previewDiv) {
@@ -9871,8 +9705,7 @@
                 const createTrigger = document.getElementById('create-devices-dropdown-trigger');
                 const createList = document.getElementById('create-devices-dropdown-list');
                 if (createTrigger && createList) {
-                    // Keep aria-expanded in step with the visual state so screen readers and
-                    // TV remotes report the dropdown correctly.
+                    // Keep aria-expanded in step so screen readers and TV remotes report the dropdown correctly.
                     const setCreateOpen = (open) => {
                         createList.style.display = open ? 'block' : 'none';
                         createTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -9934,8 +9767,8 @@
                     
                     const checkedLibs = [];
                     content.querySelectorAll('.library-checkbox:checked').forEach(cb => {
-                        // Only an id. A library listed without one gave its checkbox the
-                        // value "undefined", and that one entry failed the whole create (#33).
+                        // Only an id. A library listed without one gave its checkbox the value "undefined"
+                        // and that one entry failed the whole create (#33).
                         if (isGuidLike(cb.value)) checkedLibs.push(cb.value);
                     });
 
@@ -9967,10 +9800,10 @@
                             profileName: name,
                             pin: pin,
                             avatarColor: selectedColor,
-                            // "" is no limit of its own — the same word /update uses (R-1144).
+                            // "" is no limit of its own, the same word /update uses (R-1144).
                             maxParentalRating: rating,
-                            // No box ticked means every library. Said explicitly, as /update
-                            // needs it to be: there, a left-out list now keeps what it was.
+                            // No box ticked means every library, said explicitly as /update needs it: a
+                            // left-out list there now keeps what it was.
                             enabledFolders: checkedLibs.length > 0 ? checkedLibs : null,
                             allLibraries: checkedLibs.length > 0 ? null : true,
                             blockedTags: this.getTagEditorValues(content, 'create-blocked-tags'),
@@ -9993,22 +9826,21 @@
                     })
                     .then(created => {
                         const refresh = () => this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token, /* forceRefresh */ true);
-                        // The profile exists now, so its viewing rules can be saved against
-                        // its id. A failure here must not look like a failed create.
+                        // The profile exists now, so its viewing rules can be saved against its id. A
+                        // failure here must not look like a failed create.
                         const id = created && (created.profileUserId || created.ProfileUserId);
                         const saveLimits = () => viewingEditor.save(id).catch(err => {
                             this.showAlert(t('errors.error'), this._hoursFailText(err));
                         });
-                        // The first profile is when a main PIN starts to matter: from now on
-                        // the main account is the way past that profile's restrictions.
+                        // The first profile is when a main PIN starts to matter: from now on the main account
+                        // is the way past that profile's restrictions.
                         const people = this.currentProfiles || [];
                         const main = people.find(x => x.isMaster && !x.isBonfire);
                         const first = !people.some(x => !x.isMaster && !x.isBonfire);
                         const needsPin = !!main && !main.hasPin;
                         if (needsPin && viewingEditor.pending()) {
-                            // The server will not switch limits on with no main PIN to switch
-                            // them off again, so the PIN comes first and the limits after it.
-                            // Saving them first lost them, with an error (P2-712).
+                            // The server will not switch limits on with no main PIN to switch them off, so the
+                            // PIN comes first. Saving limits first lost them, with an error (P2-712).
                             this.promptSetMainPin(people, false, () => {
                                 if (main.hasPin) saveLimits().then(refresh);
                                 else this.showAlert(t('errors.error'), t('mainPin.limitsOff'), refresh);
@@ -10035,8 +9867,7 @@
                 this.initTagEditors(content);
             })
             .catch(err => {
-                // As Edit does: a failed read of the lists the form is built from used to
-                // leave the Add button doing nothing at all (R-1215).
+                // As Edit does: a failed read of the form's lists used to leave Add doing nothing (R-1215).
                 if (!this.navIsCurrent(ticket)) return;
                 this.showAlert(t('errors.error'), this._failText(err, t('errors.loadProfileDetails')));
                 this.fetchAndRenderProfiles(apiClient, masterState.masterUserId, masterState.token);
@@ -10050,15 +9881,14 @@
 
             const ticket = this.beginNavigation();
 
-            // Users/{id} is the only one of the five that is about the profile you
-            // clicked. The rest come from the account-wide cache.
+            // Users/{id} is the only one of the five about the profile you clicked; the rest come from the account-wide cache.
             const userUrl = apiClient.getUrl(`Users/${profile.profileUserId}`);
 
             Promise.all([
                 this.fetchSharedFormData(apiClient, masterState),
                 fetch(userUrl, { headers: this.getAuthHeaders(masterState.token) }).then(res => {
-                    // A refusal has no Policy: read as {} it ticked every library and the
-                    // next save wrote them as a fixed list (R-1222).
+                    // A refusal has no Policy: read as {} it ticked every library and the next save
+                    // wrote them as a fixed list (R-1222).
                     if (res.status === 401) { this.handleSessionExpired(); return Promise.reject({ handled: true }); }
                     if (!res.ok) return Promise.reject(new Error('Users/' + res.status));
                     return res.json();
@@ -10078,13 +9908,13 @@
                 const maxRating = policy.MaxParentalRating !== undefined ? policy.MaxParentalRating : (policy.maxParentalRating !== undefined ? policy.maxParentalRating : null);
                 const currentLockout = profile.lockoutMinutes !== undefined ? profile.lockoutMinutes : 5;
 
-                // Re-rendering the modal orphans any listeners the previous form owned.
+                // Re-rendering the modal orphans the previous form's listeners.
                 this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
 
                 const isSub = !profile.isMaster;
 
-                // Basics, then a closed "More settings" — see the create form.
+                // Basics, then a closed "More settings"; see the create form.
 
                 // ── Basics: who this profile is ─────────────────────────────────
                 const appearanceBody = `
@@ -10102,9 +9932,8 @@
                 `;
 
                 // ── Basics: its PIN ─────────────────────────────────────────────
-                // The main account's PIN, home-network skip and auto-lock are in Settings →
-                // Your account (1.7.2), which saves each one alone through /account. They are
-                // not repeated here: two places to set one PIN is how they drift.
+                // The main account's PIN, home-network skip and auto-lock are in Settings → Your
+                // account (1.7.2), each saved alone through /account. Two places to set one PIN is how they drift.
                 const securityBody = !isSub ? `
                     <div class="jpf-form-hint">${t('profileForm.mainSecurityMoved')}</div>
                 ` : `
@@ -10161,9 +9990,8 @@
                             ${normalizedLibs.map(lib => {
                                 const storedFolders = profile.enabledFolders;
                                 let isChecked;
-                                // "Every library" is saved as nothing ticked, so it is shown
-                                // that way. Drawn with every box ticked, the next save would
-                                // send them all and turn it into a fixed list.
+                                // "Every library" is saved as nothing ticked, so it is shown that way. Drawn with
+                                // every box ticked, the next save would send them all as a fixed list.
                                 if (profile.allLibraries) {
                                     isChecked = false;
                                 } else if (storedFolders !== null && storedFolders !== undefined) {
@@ -10192,11 +10020,9 @@
                     ${this.renderDeviceDropdown('edit', devices, profile)}
                 `;
 
-                // The artwork switch lives under More. The per-library controls it reveals
-                // stay on the library rows; initLibraryArtworkEditor finds both by class
-                // inside the form, so the two need not sit together.
-                // It sat bare between the Theme and Tags cards, the one control on the form
-                // outside a titled card (P2-1010).
+                // The artwork switch lives under More; the per-library controls it reveals stay on the
+                // library rows, and initLibraryArtworkEditor finds both by class. It used to sit bare
+                // between the Theme and Tags cards, outside any titled card (P2-1010).
                 const artworkSwitch = this.renderSection('image', t('profileForm.artworkHeader'), '', `
                     <div class="jpf-form-group">
                         <label class="jpf-library-check-label jpf-libart-toggle">
@@ -10214,8 +10040,8 @@
                     ${this.renderTagSection('edit', libraryTags, profile)}
                 `;
 
-                // The main account has no More: its sign-in settings are in Your account and
-                // it has no limits to set, so all that is left of it is the theme.
+                // The main account has no More: its sign-in settings are in Your account and it has
+                // no limits, so only the theme is left.
                 content.innerHTML = `
                     <h1 class="profiles-title">${t('profileForm.editTitle')}</h1>
                     <div class="jpf-create-profile-container${isSub ? ' is-two-col' : ''}">
@@ -10271,13 +10097,12 @@
                     });
                 });
 
-                // Remove now lives inside the picker, next to Change picture, and shows
-                // itself from setPreview — so there is nothing left to wire here.
+                // Remove lives inside the picker next to Change picture and shows itself from
+                // setPreview; nothing to wire here.
                 const avatarPicker = this.initAvatarPicker(
                     content, 'edit', avatarLibrary, profile.profileImage,
                     (src) => {
-                        // Colour dimming is the picker's own business now; this callback
-                        // is only here to put the initial back when the picture goes.
+                        // The picker dims the colour itself; this callback only puts the initial back when the picture goes.
                         const preview = document.getElementById('edit-image-upload-preview');
                         if (preview && !src) preview.innerHTML = escapeHtml(profile.avatarInitial);
                     },
@@ -10309,15 +10134,14 @@
                     });
                 }
 
-                // The tick and the artwork controls share a row now, so the artwork half
-                // has to start out matching the tick rather than waiting for a change.
+                // The tick and artwork controls share a row, so the artwork half starts out matching the tick.
                 this.syncAllLibraryRows(content);
 
                 // Devices dropdown logic for edit
                 const editTrigger = document.getElementById('devices-dropdown-trigger');
                 const editList = document.getElementById('devices-dropdown-list');
                 if (editTrigger && editList) {
-                    // Keep aria-expanded in step with the visual state — see the create form.
+                    // Keep aria-expanded in step; see the create form.
                     const setEditOpen = (open) => {
                         editList.style.display = open ? 'block' : 'none';
                         editTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -10384,8 +10208,7 @@
                 // Save handler
                 document.getElementById('edit-submit-btn').addEventListener('click', () => {
                     const name = document.getElementById('edit-name-input').value.trim();
-                    // The main account's form has none of these (see Section 2): null
-                    // leaves each as it is on the server.
+                    // The main account's form has none of these (see Section 2): null leaves each as it is.
                     const pinField = document.getElementById('jpf-edit-pin-input');
                     const pinVal = pinField ? pinField.value : '';
                     const bypassBox = document.getElementById('edit-local-bypass-checkbox');
@@ -10394,8 +10217,7 @@
                     let rating = null;
                     let checkedLibs = null;
                     let checkedDevices = null;
-                    // Null for the master profile, which has no tag editor — the server reads
-                    // null as "leave unchanged".
+                    // Null for the master profile, which has no tag editor; the server reads null as "leave unchanged".
                     let blockedTags = null;
                     let allowedTags = null;
                     if (!profile.isMaster) {
@@ -10407,14 +10229,12 @@
                             // Same guard as the create form (#33).
                             if (isGuidLike(cb.value)) rawLibs.push(cb.value);
                         });
-                        // No box ticked means every library, and that is sent as
-                        // allLibraries: true. It used to be enabledFolders: null, which the
-                        // server also read as "every library" — so any client that simply
-                        // left the field out lifted a child's library limits (R-1144). Null
-                        // now keeps the list, and "all" has to be said.
+                        // No box ticked means every library, sent as allLibraries: true. It used to be
+                        // enabledFolders: null, which the server also read as "every library", so any client
+                        // that left the field out lifted a child's library limits (R-1144). Null now keeps
+                        // the list and "all" has to be said.
                         checkedLibs = rawLibs.length > 0 ? rawLibs : null;
-                        // Null leaves the list as it is. With no device list to draw there
-                        // are no boxes, and [] would mean "any device".
+                        // Null leaves the list as it is. With no device list drawn there are no boxes, and [] would mean "any device".
                         if (devices !== null) {
                             checkedDevices = [];
                             content.querySelectorAll('.device-checkbox:checked').forEach(cb => {
@@ -10425,9 +10245,8 @@
                     const lockoutSel = document.getElementById('edit-lockout-select');
                     const lockoutMinutes = lockoutSel ? parseInt(lockoutSel.value, 10) : undefined;
 
-                    // Report validation failures inline next to the offending field as well as
-                    // in a dialog. A dialog alone is fragile — when it was rendering behind the
-                    // overlay this button looked completely dead on an invalid PIN.
+                    // Report validation failures inline next to the field as well as in a dialog. A
+                    // dialog alone made this button look dead on an invalid PIN when it rendered behind the overlay.
                     const pinError = document.getElementById('edit-pin-error');
                     const showPinError = (msg) => {
                         if (pinError) {
@@ -10449,11 +10268,10 @@
                         return;
                     }
 
-                    // What is typed in the box comes first. "Clear PIN" empties the field
-                    // but leaves it on screen, and the clear used to be checked first: a
-                    // parent who cleared and then typed a new PIN saved an unprotected
-                    // profile and was told it had worked (R-1214). Clear means "no PIN"
-                    // only while the box is still empty.
+                    // What is typed in the box comes first. "Clear PIN" empties the field but leaves it
+                    // on screen, and clear used to win: a parent who cleared and then typed a new PIN saved
+                    // an unprotected profile and was told it worked (R-1214). Clear means "no PIN" only
+                    // while the box is empty.
                     let pin = null;
                     if (pinVal) {
                         if (!/^\d+$/.test(pinVal)) {
@@ -10478,8 +10296,8 @@
                             profileName: name,
                             pin: pin,
                             avatarColor: selectedColor,
-                            // "" is "no limit of its own"; null (the main account) keeps it.
-                            // Null used to be both, so this sent null for "no limit" (R-1144).
+                            // "" is "no limit of its own"; null (the main account) keeps it. Null used to be
+                            // both, so "no limit" sent null (R-1144).
                             maxParentalRating: rating,
                             enabledFolders: checkedLibs,
                             allLibraries: !profile.isMaster && checkedLibs === null ? true : null,
@@ -10499,11 +10317,9 @@
                     .then(res => {
                         this.checked(res);
                         if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
-                        // Artwork is stored per library, so it is saved after the profile
-                        // itself rather than folded into that one request.
-                        // The account on screen changed its own theme: put it on now rather
-                        // than on the next load. Any other profile's theme shows when it is
-                        // opened.
+                        // Artwork is stored per library, so it is saved after the profile, not folded into
+                        // that request. If the account on screen changed its own theme, apply it now; any
+                        // other profile's theme shows when it is opened.
                         const savedTheme = this.readThemePicker('edit');
                         if (savedTheme !== undefined && this._themeSettings
                             && this.normalizeGuid(profile.profileUserId) === this.normalizeGuid(ApiClient.getCurrentUserId())) {
@@ -10514,9 +10330,8 @@
                             });
                         }
                         return artworkEditor.save(profile.profileUserId)
-                            // The profile is saved by now, so a failure in the artwork is said
-                            // as that and the hours and the refresh still run. Uncaught, it
-                            // fell to the outer catch, which says the profile did not save.
+                            // The profile is saved by now, so an artwork failure is said as that and the hours
+                            // and refresh still run. Uncaught, it fell to the outer catch, which says the profile did not save.
                             .catch(err => {
                                 this.showAlert(t('errors.error'), this._failText(err, t('errors.couldNotSaveArtwork')));
                             })
