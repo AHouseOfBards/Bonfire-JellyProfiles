@@ -3,11 +3,11 @@
  * The way out of every Bonfire screen is in the same place: bottom right.
  *
  * Reported as: "make sure exit buttons line up in similar spots — the Done button on one
- * of our screens is on the opposite end of the UI from the Cancel button on others." It
- * was, and 1.7.2 put the way out first, bottom left. Reported again on 1.9.0.4-beta: on
- * "Who's watching?" the row was Manage profiles, Cancel (going back on the right) and on
- * "Manage profiles" it was Done, Settings (going back on the left). The owner's rule is
- * the first of those: the button that leaves is on the right, the action on the left.
+ * of our screens is on the opposite end of the UI from the Cancel button on others." 1.7.2
+ * put the way out first, bottom left. Reported again on 1.9.0.4-beta: "Who's watching?" had
+ * Manage profiles, Cancel (back on the right) while "Manage profiles" had Done, Settings
+ * (back on the left). The owner's rule is the first: the button that leaves is on the
+ * right, the action on the left.
  *
  * The rule, checked one button at a time rather than as a count: each exit button sits in
  * a row of buttons (.jpf-actions, an inline .jpf-row-gap, or the gate's .profiles-footer),

@@ -4,9 +4,9 @@
  *
  * "Cannot afford" is found by capability, not by a user-agent list: a television browser
  * that does not know backdrop-filter is Chromium 75 or older (webOS 4.5 is 53, webOS 5 is
- * 68), and that is the class whose software compositor chokes on a blurred drop-shadow
- * across a screen of profile tiles. On a television that DOES parse it, and on anything
- * that is not a television, nothing changes. html gets `jpf-flat` and the stylesheet's
+ * 68), and its software compositor chokes on a blurred drop-shadow across a screen of
+ * profile tiles. A television that parses it, and anything that is not a television, is
+ * unchanged. html gets `jpf-flat` and the stylesheet's `.jpf-flat` block does the rest.
  * `.jpf-flat` block does the rest.
  *
  * Two halves, because either alone is a restatement:
@@ -15,11 +15,10 @@
  *      out once and not on the route tick.
  *   2. The stylesheet, ENUMERATED. Every declaration in styles.css that costs a blur or a
  *      loop (a blurred box-shadow / text-shadow / drop-shadow, a backdrop-filter, an
- *      animation that is not the spinner) is found by parsing, and each one is paired with
- *      the `.jpf-flat` rule that replaces it and resolved through the cascade: same
- *      element, flat value, outranks it. A count of "there are some flat rules" would pass
- *      with one of twenty-six missing, and a rule that is present and outranked is the way
- *      this sheet has shipped dead overrides before.
+ *      animation that is not the spinner) is found by parsing and paired with the
+ *      `.jpf-flat` rule that replaces it, resolved through the cascade: same element, flat
+ *      value, outranks it. A count of flat rules would pass with one of twenty-six missing,
+ *      and a present rule that is outranked is how this sheet has shipped dead overrides.
  *
  *     node tests/js/flatlook.js /path/to/old/profiles.js
  */
@@ -323,9 +322,9 @@ declarations(themeBare).forEach(r => {
 const blur = themeCostly.filter(c => /backdrop-filter/.test(c.why) || c.why === 'blurred filter');
 ok('the generator writes some effects, so the next two checks have something to read (' + themeCostly.length + ')',
     themeCostly.length > 0);
-// Frost: costOf already passes a backdrop-filter that sits inside @supports for it, which is
-// the capability test itself — a browser that cannot blur never sees it. What is left
-// here must be none.
+// Frost: costOf already passes a backdrop-filter inside @supports for it, which is the
+// capability test itself (a browser that cannot blur never sees it). What is left here
+// must be none.
 ok('every backdrop-filter is behind @supports backdrop-filter, so a browser that cannot blur never gets one',
     blur.filter(c => /backdrop-filter/.test(c.why)).length === 0);
 const drift = themeCostly.filter(c => c.why === 'animation');

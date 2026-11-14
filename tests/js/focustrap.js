@@ -26,9 +26,9 @@ function makeStorage() {
 
 const noopEl = { style: {}, classList: { add() {}, remove() {}, contains: () => false }, appendChild() {}, addEventListener() {} };
 
-// Captures what profiles.js binds, so the trap handlers can be invoked. The trap moved
-// from document to window in 1.5.13 and both are recorded, so this file can still be
-// pointed at an earlier client and reach the assertions that discriminate.
+// Captures what profiles.js binds, so the trap handlers can be invoked. The trap moved from
+// document to window in 1.5.13 and both are recorded, so an earlier client still reaches the
+// assertions that discriminate.
 const documentListeners = [];
 const windowListeners = [];
 
@@ -162,11 +162,10 @@ PP._moveOverlayFocus(mixedRoot, 'right');
 check('hidden and disabled controls are skipped', focused, 'vis2');
 
 // â”€â”€ The gate as a television actually lays it out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// The fixture above is six identical squares in a row with nothing else on screen. The
-// gate is not that shape: the cards are half again as tall as they are wide, four of them
-// wrap to 2x2 inside a 900px modal, and a row of footer buttons sits below the grid. The
-// footer is what #16 reported landing on, so the footer has to be in the fixture — a grid
-// with nothing to lose to cannot show that nothing is lost to it.
+// The fixture above is six identical squares in a row. The gate is not that shape: the
+// cards are half again as tall as wide, four wrap to 2x2 inside a 900px modal, and a row of
+// footer buttons sits below the grid. The footer is what #16 reported landing on, so it has
+// to be in the fixture.
 //
 // Every number here is read off Web/styles.css for .jpf-tv on a 1920x1080 set.
 console.log('\nThe television gate, to scale');
@@ -221,10 +220,10 @@ check('up from the bottom row returns to the grid', tvMove(2, 'up'), 'card1');
 check('the footer is reached from the bottom row, and only from there', tvMove(2, 'down'), 'manage');
 
 // The other half of the same fault. Upstream's focusManager (components/focusManager.js)
-// builds its focusable set from INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable`, and
-// never consults [tabindex] — so a profile card, which is a div, is invisible to it while
-// our footer buttons are not. Any moment the trap does not get the key event therefore
-// leaves the grid unreachable and Manage Profiles the only place focus can go.
+// builds its focusable set from INPUT/TEXTAREA/SELECT/BUTTON/A plus `.focusable` and never
+// consults [tabindex], so a profile card (a div) is invisible to it while our footer buttons
+// are not. Whenever the trap misses the key event, the grid is unreachable and Manage
+// Profiles is the only place focus can go.
 const cardMarkup = L.readProfiles().match(/<div class="jpf-profile-card[^"]*"/g) || [];
 check('every profile card is focusable to upstream as well',
     cardMarkup.length > 0 && cardMarkup.every(m => /\bfocusable\b/.test(m)), true);
@@ -233,10 +232,9 @@ check('every profile card is focusable to upstream as well',
 console.log('\nActive surface');
 console.log('--------------');
 
-// The trap no longer resolves surfaces with one querySelectorAll: dialogs are found by
-// class and the gate by id, so a full document walk on every keystroke became two index
-// lookups. Modelled the same way here, in document order, so this still exercises the
-// real lookup rather than a shape it no longer has.
+// The trap resolves surfaces without one querySelectorAll: dialogs by class and the gate by
+// id, so a full document walk on every keystroke became two index lookups. Modelled the same
+// way here, in document order, so this exercises the real lookup.
 function withSurfaces(list) {
     const dialogs = list.filter(el => el.id !== 'profiles-gate-overlay');
     const gate = list.find(el => el.id === 'profiles-gate-overlay') || null;
@@ -280,14 +278,13 @@ windowListeners.length = 0;
 PP._bindOverlayFocusTrap();
 
 // On window, not document. jellyfin-web binds its remote navigation with
-// window.addEventListener('keydown') and no capture, so document-level capture is ahead
-// of it for anything that travels through the document — but an event dispatched AT
-// window has only window on its path, and television webviews do that. The trap saw
-// nothing; upstream's focusManager, which cannot see a div with tabindex, moved focus to
-// the only thing in the gate it can see. Reported on #16 as "it goes to manage profiles".
+// window.addEventListener('keydown') and no capture, so document-level capture runs ahead of
+// it for anything travelling through the document. An event dispatched AT window has only
+// window on its path, and television webviews do that. The trap saw nothing, and upstream's
+// focusManager (which cannot see a div with tabindex) moved focus to the one thing in the
+// gate it can see. Reported on #16 as "it goes to manage profiles".
 const onWindow = l => l.type === 'keydown' && l.capture;
-// Falls back to the document binding so an older client still reaches the rest of the
-// file. The four assertions here have already recorded which one it found.
+// Falls back to the document binding so an older client still reaches the rest of the file.
 const keyHandler = windowListeners.find(onWindow) || documentListeners.find(onWindow);
 check('trap binds keydown on window, in the capture phase', !!windowListeners.find(onWindow), true);
 check('trap binds focusin on window, in the capture phase',
@@ -419,9 +416,9 @@ sandbox.document.activeElement = null;
 r = press('Tab', other('DIV'));
 check('crop: Tab still moves between its buttons', r.focused, 'a');
 
-// A remote key dispatched at window itself. Its propagation path is window alone, so a
-// document listener is never on it — and upstream's window listener is. The trap has to
-// act on it, and with no element target the first press enters at the first control.
+// A remote key dispatched at window itself. Its path is window alone, so a document listener
+// is never on it, but upstream's window listener is. The trap has to act on it, and with no
+// element target the first press enters at the first control.
 withSurfaces([gateSurface]);
 sandbox.document.activeElement = null;
 r = press('ArrowRight', sandbox.window);
@@ -437,14 +434,13 @@ check('a window-dispatched arrow still moves by geometry', r.focused, 'b');
 
 // ── Two focus traps must not fight ─────────────────────────────────────────────
 //
-// MUI's Modal enforces focus back inside itself exactly the way this handler does. With
-// Jellyfin's account menu still open — its Escape never reached it, see closeUserMenu —
-// the two bounced focus between them until the stack overflowed: 134 focus() calls and a
-// RangeError, our onFocusIn and MUI's contain() alternating all the way down. From the
-// household's side, every text box and dropdown in the profile form was dead and the page
-// jumped to the top, items[0] being the first field.
+// MUI's Modal enforces focus back inside itself the way this handler does. With Jellyfin's
+// account menu still open (its Escape never reached it, see closeUserMenu) the two bounced
+// focus between them until the stack overflowed: 134 focus() calls and a RangeError. Every
+// text box and dropdown in the profile form was dead and the page jumped to the top,
+// items[0] being the first field.
 //
-// Modelled as a rival that reclaims focus every time ours lands, which is what MUI does.
+// Modelled as a rival that reclaims focus every time ours lands, as MUI does.
 console.log('\nAgainst a rival focus trap');
 console.log('--------------------------');
 {
@@ -463,9 +459,8 @@ console.log('--------------------------');
         };
         withSurfaces([trapSurface]);
 
-        // The rival: every time our handler focuses something, it drags focus straight
-        // back out, and that re-fires focusin. A handler with no guard recurses here
-        // until the stack gives out.
+        // The rival drags focus straight back out every time our handler focuses something,
+        // which re-fires focusin. A handler with no guard recurses until the stack gives out.
         let ours = 0;
         let depth = 0;
         let maxDepth = 0;
@@ -498,10 +493,10 @@ console.log('--------------------------');
         // A couple of attempts is fine. Hundreds is the bug.
         check('it gives up rather than trading focus forever (' + ours + ' reclaims)',
             ours <= 5, true);
-        // The rival above re-fires inside our own focus() call, which the re-entrancy
-        // guard alone is enough to stop. The real one does not: MUI's handler runs after
-        // ours has returned, so each bounce is a fresh event and the guard is clear again.
-        // That is the shape that produced 134 calls, and only standing down ends it.
+        // The rival above re-fires inside our own focus() call, which the re-entrancy guard
+        // alone stops. MUI's handler runs after ours has returned, so each bounce is a fresh
+        // event and the guard is clear again. That produced the 134 calls, and only standing
+        // down ends it.
         items.forEach(it => { it.focus = function () { ours++; focused = this.id; }; });
         PP._reclaimingFocus = false;
         PP._focusReclaims = 0;
@@ -517,8 +512,7 @@ console.log('--------------------------');
             typeof PP._focusStandDownUntil === 'number' && PP._focusStandDownUntil > Date.now(),
             true);
 
-        // Standing down is temporary — a page where the rival has gone away must work
-        // again rather than leaving the trap permanently disarmed.
+        // Standing down is temporary: a page where the rival has gone away must work again.
         PP._focusStandDownUntil = 0;
         PP._focusReclaims = 0;
         PP._focusReclaimAt = 0;
@@ -529,10 +523,9 @@ console.log('--------------------------');
     }
 }
 
-// closeUserMenu has to dispatch Escape somewhere MUI can see it. MUI's Modal handles
-// Escape with an onKeyDown on its own root element, so an event dispatched on `document`
-// — whose propagation path is [window, document] — never reaches it. That line had never
-// closed anything.
+// closeUserMenu has to dispatch Escape somewhere MUI can see it. MUI's Modal handles Escape
+// with an onKeyDown on its own root element, so an event dispatched on `document` (path
+// [window, document]) never reaches it. That line had never closed anything.
 console.log('\nClosing the account menu');
 console.log('------------------------');
 {
@@ -581,12 +574,11 @@ PP.loadImageFromUrl('/plugins/profiles/image/abc');
 check('no ApiClient -> the relative path is still used', requested, '/plugins/profiles/image/abc');
 
 // ── Active-profile session storage ──────────────────────────────────────────
-// Moved to session.js. The tests here simulated a reload by clearing sessionStorage
-// on the SAME plugin object, which stopped being a faithful reload once the storage
-// helpers gained an in-memory tier — a real reload builds a new object. session.js
-// re-evaluates the file per page load instead, and covers the mirror, the switching
-// flag, sign-out and the revert-loop backstop against the runtimes that actually
-// misbehave. Keeping a weaker second copy here is how a false green gets built.
+// Moved to session.js. The tests here simulated a reload by clearing sessionStorage on the
+// SAME plugin object, which stopped being faithful once the storage helpers gained an
+// in-memory tier; a real reload builds a new object. session.js re-evaluates the file per
+// page load and covers the mirror, the switching flag, sign-out and the revert-loop
+// backstop. A weaker second copy here is how a false green gets built.
 
 // ── TV Back key ──────────────────────────────────────────────────────────────
 console.log('\nTV Back key');
@@ -698,11 +690,10 @@ check('resume does not re-remove the overlay', overlayRemoved.length, 1);
 
 // ── What it costs when Bonfire is not on screen ─────────────────────────────
 //
-// The trap binds once and stays bound, resolving the surface on every keydown and
-// focusin *in the whole application*. That is a deliberate design — lifecycle
-// bookkeeping is what leaks — but it means the cost of "nothing of ours is open" is
-// paid on every keystroke a person makes anywhere in Jellyfin, including typing in the
-// search box.
+// The trap binds once and stays bound, resolving the surface on every keydown and focusin
+// in the whole application. That is deliberate (lifecycle bookkeeping is what leaks), but
+// "nothing of ours is open" is then paid on every keystroke anywhere in Jellyfin, including
+// the search box.
 //
 // It used to resolve '#profiles-gate-overlay, [id^="profiles-"][id$="-dialog"]'. Two
 // unqualified attribute selectors: the engine cannot index either, so every keystroke
@@ -727,9 +718,8 @@ check('50 keystrokes run no document-wide query'
 check('they are index lookups instead (class)', classLookups, 50);
 check('and the gate by id when no dialog is open', idLookups, 50);
 
-// The selector must stay index-friendly. An attribute-substring selector creeping back
-// in would restore the walk without changing any of the counts above, because those are
-// measured through stubs.
+// The selector must stay index-friendly. An attribute-substring selector creeping back in
+// would restore the walk without changing the counts above, which are measured through stubs.
 check('the surface selector uses no unindexable attribute match',
     /\[[a-z-]+\s*[*^$~|]?=/.test(PP.TRAP_SURFACE_SELECTOR), false);
 check('and every dialog is marked with the class it looks for',
