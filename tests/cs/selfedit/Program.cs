@@ -329,6 +329,32 @@ Console.WriteLine("── /me: the row is re-checked under the lock before the p
     Set(kidRow, "ProfileImage", imageStart);
 }
 
+// ── r3-03-01: a delete after the checks and before the save ──────────────────
+// The checks passed and the picture is written; the profile is deleted while the account is
+// being renamed. The save finds no row, and the picture it wrote must go with the profile.
+{
+    var diskStart = OnDisk();
+    var imageStart = Image(kidRow);
+    var nameStart = Name(kidRow);
+    var userStart = world.Users[KID].Username;
+    var hit = false;
+    world.OnUpdateUser = u =>
+    {
+        if (u.Id != KID || hit) return;
+        hit = true;
+        mappings.Remove(kidRow);
+    };
+    var late = Call("UpdateOwnProfile", "{\"profileName\":\"Latecomer\",\"profileImage\":\"" + Png(333) + "\"}", KID);
+    world.OnUpdateUser = null;
+    Ok("the row went missing during the rename (the setup took)", hit);
+    Ok("the call is a 404", late.status == 404, late.status + " " + late.message);
+    Ok("and the picture it wrote is taken back", OnDisk() == "", diskStart + " -> " + OnDisk());
+    mappings.Add(kidRow);
+    Set(kidRow, "ProfileImage", imageStart);
+    Set(kidRow, "ProfileName", nameStart);
+    world.Users[KID].Username = userStart;
+}
+
 // ── P2-705: a new PIN ends the lock the old one was guessed into ─────────────
 Console.WriteLine();
 Console.WriteLine("── /update: a new PIN starts the guess count again (P2-705) ──────");
@@ -359,6 +385,7 @@ public class World
     public Dictionary<Guid, UserPolicy> Policies = new();
     public List<Guid> Libraries = new();
     public Action<Guid> OnGetUserById;
+    public Action<User> OnUpdateUser;
 
     public void Add(Guid id, string name, UserPolicy policy)
     {
@@ -405,6 +432,9 @@ public class WorldProxy : DispatchProxy
             case "GetUserById":
                 W.OnGetUserById?.Invoke((Guid)args[0]);
                 return W.Users.TryGetValue((Guid)args[0], out var u) ? u : null;
+            case "UpdateUserAsync":
+                W.OnUpdateUser?.Invoke((User)args[0]);
+                return Task.CompletedTask;
             case "GetUserByName":
                 return W.Users.Values.FirstOrDefault(x => string.Equals(x.Username, (string)args[0], StringComparison.OrdinalIgnoreCase));
             case "get_Users":

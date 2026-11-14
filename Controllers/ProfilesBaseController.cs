@@ -2720,6 +2720,33 @@ namespace Jellyfin.Profiles.Controllers
             => target + "." + Guid.NewGuid().ToString("N") + ".tmp";
 
         /// <summary>
+        /// Removes staged files a write never moved into place. Every writer deletes its own on a
+        /// failure, so these are only left when the process stops mid-write, and before this nothing
+        /// ever removed them (r3-02-01). Only names <see cref="UniqueTempName"/> makes, and only ones
+        /// older than <paramref name="olderThan"/>, so a write in flight is never touched.
+        /// </summary>
+        internal static int SweepStagedFiles(string folder, TimeSpan olderThan)
+        {
+            if (!Directory.Exists(folder)) return 0;
+            var cutoff = DateTime.UtcNow - olderThan;
+            var removed = 0;
+            foreach (var file in Directory.EnumerateFiles(folder, "*.tmp", SearchOption.AllDirectories))
+            {
+                var name = Path.GetFileNameWithoutExtension(file);
+                var dot = name.LastIndexOf('.');
+                if (dot < 0 || !Guid.TryParseExact(name.Substring(dot + 1), "N", out _)) continue;
+                try
+                {
+                    if (System.IO.File.GetLastWriteTimeUtc(file) >= cutoff) continue;
+                    System.IO.File.Delete(file);
+                    removed++;
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { }
+            }
+            return removed;
+        }
+
+        /// <summary>
         /// Moves a staged file over its target. Windows refuses a replace while another replace of the
         /// same name is in flight, so a second save of the same picture gets a few tries.
         /// </summary>

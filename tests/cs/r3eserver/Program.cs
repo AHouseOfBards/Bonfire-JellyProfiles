@@ -202,6 +202,25 @@ Ok("and its account is not renamed", world.Users[KID].Username == "home_Kid", wo
 Ok("and the picture it saved is taken back", FilesIn(imageFolder, KID + ".*").Length == 0, string.Join(",", FilesIn(imageFolder, KID + ".*")));
 mappings.Add(kidRow);
 
+// r3-03-02: the other ways out after the picture is written. Each must take it back too.
+// The name is free at the first look and taken at the second: another account made with it
+// in between.
+var RIVAL = Guid.NewGuid();
+world.AfterUsers = () => world.Add(RIVAL, "home_Rival", new UserPolicy());
+r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Rival\",\"masterPin\":\"{PIN}\",\"profileImage\":\"{PNG}\"}}");
+world.AfterUsers = null;
+Ok("a name taken while the save runs is refused", r.status == 400, r.status + " " + r.message);
+Ok("and the picture it saved is taken back", FilesIn(imageFolder, KID + ".*").Length == 0, string.Join(",", FilesIn(imageFolder, KID + ".*")));
+world.Users.Remove(RIVAL);
+world.Policies.Remove(RIVAL);
+
+world.FailLibraries = true;
+r = Call("UpdateProfile", $"{{\"profileId\":\"{KID}\",\"profileName\":\"Kid\",\"masterPin\":\"{PIN}\",\"profileImage\":\"{PNG}\",\"enabledFolders\":[\"{L1:N}\"]}}");
+world.FailLibraries = false;
+Ok("a save whose library lookup fails is reported as failed", r.status == -500, r.status + " " + r.message);
+Ok("and the picture it saved is taken back", FilesIn(imageFolder, KID + ".*").Length == 0, string.Join(",", FilesIn(imageFolder, KID + ".*")));
+Ok("and the mapping still has no picture", mapType.GetProperty("ProfileImage").GetValue(kidRow) == null);
+
 // ── r2-13-01, r2-13-03: /library-artwork ─────────────────────────────────────
 Console.WriteLine();
 Console.WriteLine("── /library-artwork (r2-13-01, r2-13-03) ────────────────────────");
@@ -311,6 +330,43 @@ using (var hold = new FileStream(Path.Combine(artFolder, ArtBase(L1) + ".png.tmp
     Ok("a library avatar is copied though the fixed staging name is taken", r.status == 200, r.status + " " + r.message);
 }
 
+// ── r3-02-01: staged files a stopped process left are swept at start-up ─────────
+Console.WriteLine();
+Console.WriteLine("── unfinished writes are swept at start-up (r3-02-01) ───────────");
+{
+    var sweep = baseType.GetMethod("SweepStagedFiles", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+    Ok("there is a sweep", sweep != null);
+    var root = Path.Combine(tempDir, "sweep");
+    var sub = Path.Combine(root, "libraryart");
+    Directory.CreateDirectory(sub);
+    string Put(string dir, string name, double hoursOld)
+    {
+        var p = Path.Combine(dir, name);
+        File.WriteAllText(p, "x");
+        File.SetLastWriteTimeUtc(p, DateTime.UtcNow.AddHours(-hoursOld));
+        return p;
+    }
+    var g = Guid.NewGuid().ToString("N");
+    var oldTop = Put(root, "audit_log.json." + g + ".tmp", 3);
+    var oldSub = Put(sub, "kid_lib.png." + Guid.NewGuid().ToString("N") + ".tmp", 3);
+    var fresh = Put(root, "proxy_picker.json." + Guid.NewGuid().ToString("N") + ".tmp", 0.1);
+    var notOurs = Put(root, "someone-else.tmp", 3);
+    var notOursDot = Put(root, "backup.2026.tmp", 3);
+    var real = Put(root, "audit_log.json", 3);
+    var n = sweep == null ? -1 : (int)sweep.Invoke(null, new object[] { root, TimeSpan.FromHours(1) });
+    Ok("an old staged file is removed, in the folder and below it", !File.Exists(oldTop) && !File.Exists(oldSub), n + " removed");
+    Ok("one written in the last hour is kept", File.Exists(fresh));
+    Ok("a .tmp file whose name we did not make is kept", File.Exists(notOurs) && File.Exists(notOursDot));
+    Ok("and the file it staged for is kept", File.Exists(real));
+    Ok("it reports what it removed", n == 2, n.ToString());
+    Ok("a folder that is not there is nothing to sweep", sweep == null ? false : (int)sweep.Invoke(null, new object[] { Path.Combine(root, "none"), TimeSpan.FromHours(1) }) == 0);
+    // Start-up runs it, over the plugin's data folder.
+    var boot = File.ReadAllText(Path.Combine(RepoRoot(), "Injection", "ProfilesBootstrapTask.cs"));
+    var startAt = boot.IndexOf("public Task StartAsync(", StringComparison.Ordinal);
+    var startBody = startAt < 0 ? "" : boot.Substring(startAt, Math.Min(1500, boot.Length - startAt));
+    Ok("start-up sweeps the plugin's data folder", startBody.Contains("SweepStagedFiles(") && startBody.Contains("\"ProfilesManagement\""));
+}
+
 // ── r2-14-05: release removes the original picture ───────────────────────────
 Console.WriteLine();
 Console.WriteLine("── making a profile its own account (r2-14-05) ──────────────────");
@@ -349,6 +405,10 @@ public class World
     public Dictionary<Guid, UserPolicy> Policies = new();
     public List<Guid> Libraries = new();
     public bool FailPolicyWrite;
+    public bool FailLibraries;
+    // Runs once, after the next read of the user list has been answered: another request
+    // creating an account between the route's two looks at the names.
+    public Action AfterUsers;
 
     public void Add(Guid id, string name, UserPolicy policy)
     {
@@ -397,7 +457,11 @@ public class WorldProxy : DispatchProxy
             case "get_Sessions":
                 return new List<SessionInfo>();
             case "get_Users":
-                return W.Users.Values.ToList();
+                var list = W.Users.Values.ToList();
+                var after = W.AfterUsers;
+                W.AfterUsers = null;
+                after?.Invoke();
+                return list;
             case "GetUserDto":
                 var user = (User)args[0];
                 return new UserDto
@@ -412,6 +476,7 @@ public class WorldProxy : DispatchProxy
                 W.Policies[(Guid)args[0]] = World.Copy((UserPolicy)args[1]);
                 return Task.CompletedTask;
             case "GetVirtualFolders":
+                if (W.FailLibraries) throw new InvalidOperationException("library lookup failed");
                 return W.Libraries.Select(id => new MediaBrowser.Model.Entities.VirtualFolderInfo { ItemId = id.ToString("N"), Name = "lib" }).ToList();
         }
 

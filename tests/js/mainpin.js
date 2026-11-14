@@ -182,6 +182,12 @@ const info = (required) => () => json({ features: { requireMainPin: required } }
     const newCodeCall = newCodeAt === -1 ? '' : raw.slice(newCodeAt, newCodeAt + 600);
     ok('the new-code button posts to bonfire/generate and sends the PIN',
        /plugins\/profiles\/bonfire\/generate/.test(newCodeCall) && /headers: this\.manageHeaders\(masterToken/.test(newCodeCall));
+    // Only that button asks for a new code. Without the flag the route hands back the code
+    // there is, so a stale "Generate" button cannot kill one already given out (r3-03-03).
+    ok('the new-code button asks for a new code', /bonfire\/generate\?regenerate=true'/.test(newCodeCall));
+    const genAt = raw.indexOf("addEventListener('click'", raw.indexOf("querySelector('#bonfire-generate-btn')"));
+    const genCall = genAt === -1 ? '' : raw.slice(genAt, genAt + 900);
+    ok('the generate button does not', /plugins\/profiles\/bonfire\/generate'/.test(genCall) && !/regenerate/.test(genCall));
     const prefsAt = raw.indexOf("return fetch(apiClient.getUrl('plugins/profiles/preferences'), {");
     ok('saving switcher settings sends the PIN',
        prefsAt !== -1 && /headers: this\.manageHeaders\(/.test(raw.slice(prefsAt, prefsAt + 200)));

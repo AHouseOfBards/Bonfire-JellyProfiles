@@ -448,8 +448,8 @@ you.
 - `GET /library-artwork/{profileId}`: send `profileId` as a query to
   [`GET /library-artwork`](#get-pluginsprofileslibrary-artwork).
 - `POST /bonfire/regenerate-code`: call
-  [`POST /bonfire/generate`](#post-pluginsprofilesbonfiregenerate), which changes the code when
-  the caller already has a Bonfire. The answer carries `bonfireCode`, as before.
+  [`POST /bonfire/generate?regenerate=true`](#post-pluginsprofilesbonfiregenerate). The answer
+  carries `bonfireCode`, as before.
 - `POST /theme`: send `theme` to [`POST /update`](#post-pluginsprofilesupdate).
 - `POST /update` now refuses a `theme` with `403` while the server doesn't let profiles
   choose, where it used to ignore it, and answers `{ profileId, theme, stored }`.
@@ -1266,8 +1266,9 @@ Each entry of `members` is `{ "userId": "a90f11cb-…", "username": "FriendMaste
 as in `ownedMembers` of [`GET /bonfire/status`](#get-pluginsprofilesbonfirestatus).
 `username` is `Unknown User` for an account that no longer exists. A new Bonfire has none.
 
-If the caller already has a Bonfire, this changes its code instead and removes no one; the old
-code stops working. The answer has the same shape, with the new `bonfireCode`.
+If the caller already has a Bonfire, this returns its code. With `?regenerate=true` it changes
+the code instead and removes no one; the old code stops working. The answer has the same shape,
+with the new `bonfireCode`.
 
 ### `POST /plugins/profiles/bonfire/join`
 

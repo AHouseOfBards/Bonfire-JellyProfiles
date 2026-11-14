@@ -320,7 +320,15 @@ Ok("a signed-in account the server cannot find is refused as /list refuses it, w
     var memberIds = (IList)groupType.GetProperty("MemberUserIds").GetValue(grp);
     memberIds.Add(OTHER);
 
-    var again = Call("GenerateBonfireCode", UserPrincipal(MAIN), null, pinHdr);
+    // Without regenerate it is a create, and a create of what is already there hands back the
+    // code that is there. A stale page still showing "Generate", or a retry after a timeout,
+    // used to kill a code the owner had just given out (r3-03-03).
+    var plain = Call("GenerateBonfireCode", UserPrincipal(MAIN), new object[] { false }, pinHdr);
+    Ok("generate without regenerate on an existing Bonfire keeps its code",
+       plain.status == 200 && Prop(plain.value, "BonfireCode") as string == firstCode && CodeOf(MAIN) == firstCode,
+       plain.status + " " + Json(plain.value) + " stored " + CodeOf(MAIN));
+
+    var again = Call("GenerateBonfireCode", UserPrincipal(MAIN), new object[] { true }, pinHdr);
     var newCode = Prop(again.value, "BonfireCode") as string;
     Ok("generate on an existing Bonfire answers 200 with a BonfireCode field", again.status == 200 && !string.IsNullOrEmpty(newCode), again.status + " " + Json(again.value));
     Ok("the code is a new one, and it is the one stored", newCode != firstCode && CodeOf(MAIN) == newCode, firstCode + " -> " + newCode);
@@ -348,7 +356,7 @@ Ok("a signed-in account the server cannot find is refused as /list refuses it, w
     var theirCode = Prop(theirCall.value, "BonfireCode") as string;
     Ok("another household gets a Bonfire of its own and leaves this one alone",
        theirCall.status == 200 && !string.IsNullOrEmpty(theirCode) && theirCode != newCode && CodeOf(MAIN) == newCode, theirCall.status + " " + Json(theirCall.value));
-    var theirAgain = Prop(Call("GenerateBonfireCode", UserPrincipal(OTHER), null, theirHdr).value, "BonfireCode") as string;
+    var theirAgain = Prop(Call("GenerateBonfireCode", UserPrincipal(OTHER), new object[] { true }, theirHdr).value, "BonfireCode") as string;
     Ok("and changing its code leaves this one alone", theirAgain != theirCode && CodeOf(OTHER) == theirAgain && CodeOf(MAIN) == newCode);
 
     Ok("POST /bonfire/regenerate-code is gone", ctrlType.GetMethod("RegenerateBonfireCode") == null

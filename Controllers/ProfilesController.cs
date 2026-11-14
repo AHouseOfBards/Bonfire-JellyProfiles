@@ -2292,9 +2292,12 @@ namespace Jellyfin.Profiles.Controllers
                 string systemUsername = $"{masterUser.Username}_{request.ProfileName.Trim().Replace(" ", "")}";
                 if (!string.Equals(targetUser.Username, systemUsername, StringComparison.OrdinalIgnoreCase))
                 {
+                    // Free at the first look, above, and taken now: another account was made with
+                    // this name meanwhile. The picture is already written (r3-03-02).
                     var existingUser = GetAllUsers().FirstOrDefault(u => string.Equals(u.Username, systemUsername, StringComparison.OrdinalIgnoreCase));
                     if (existingUser != null)
                     {
+                        DiscardNewImage(request.ProfileId, imageWritten);
                         return BadRequest("A profile with this name already exists.");
                     }
                     newUsername = systemUsername;
@@ -2304,9 +2307,18 @@ namespace Jellyfin.Profiles.Controllers
             // Update policy for sub-profiles. The policy sync (every sign-in) reads the
             // profile and writes its account and mapping back; the gate stops this save
             // landing between that read and write and being undone (R-1046). Held to the end.
-            using var syncGate = request.ProfileId != masterUserId
-                ? await Auth.ProfilePolicySync.HoldAsync().ConfigureAwait(false)
-                : null;
+            IDisposable? heldGate = null;
+            try
+            {
+                if (request.ProfileId != masterUserId)
+                    heldGate = await Auth.ProfilePolicySync.HoldAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+                DiscardNewImage(request.ProfileId, imageWritten);
+                throw;
+            }
+            using var syncGate = heldGate;
 
             // The profile is looked at again now that the gate is held. The first look was
             // before the picture was saved and before this wait, and the profile could have
@@ -2371,16 +2383,25 @@ namespace Jellyfin.Profiles.Controllers
                 // allLibraries: true is every library, a list is that list, and neither leaves
                 // the libraries as they are. A left-out list used to mean every library, so a
                 // client sending only a new name opened every library to a child.
-                if (request.AllLibraries != true && request.EnabledFolders != null)
+                // Both ask the library manager, which can throw; the picture is already written.
+                try
                 {
-                    // A library another plugin manages is not on the form, so it is never in the list:
-                    // what the account already has of one is kept.
-                    validatedFolders = ApplyListedFolders(
-                        _libraryManager, masterPolicy, ParseFolderIds(request.EnabledFolders) ?? new List<Guid>(), targetPolicy, keepOwned: true);
+                    if (request.AllLibraries != true && request.EnabledFolders != null)
+                    {
+                        // A library another plugin manages is not on the form, so it is never in the list:
+                        // what the account already has of one is kept.
+                        validatedFolders = ApplyListedFolders(
+                            _libraryManager, masterPolicy, ParseFolderIds(request.EnabledFolders) ?? new List<Guid>(), targetPolicy, keepOwned: true);
+                    }
+                    else if (request.AllLibraries == true)
+                    {
+                        validatedFolders = ApplyInheritedFolders(_libraryManager, masterPolicy, targetPolicy, keepOwned: true);
+                    }
                 }
-                else if (request.AllLibraries == true)
+                catch
                 {
-                    validatedFolders = ApplyInheritedFolders(_libraryManager, masterPolicy, targetPolicy, keepOwned: true);
+                    DiscardNewImage(request.ProfileId, imageWritten);
+                    throw;
                 }
 
                 // Everything above only worked the policy out. The account is written now: the
@@ -3049,7 +3070,7 @@ namespace Jellyfin.Profiles.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<object> GenerateBonfireCode()
+        public ActionResult<object> GenerateBonfireCode([FromQuery] bool regenerate = false)
         {
             var config = Plugin.Instance?.Configuration;
             if (config == null) return BadRequest("Plugin configuration missing.");
@@ -3081,11 +3102,13 @@ namespace Jellyfin.Profiles.Controllers
                     };
                     config.BonfireGroups.Add(group);
                 }
-                else
+                else if (regenerate)
                 {
-                    // Already has a Bonfire: this changes its code. Members stay in and the old code
-                    // stops working, for a code shared further than intended. Until 2.0 this was a
-                    // route of its own.
+                    // ?regenerate=true on a Bonfire that exists changes its code. Members stay in and
+                    // the old code stops working, for a code shared further than intended. Until 2.0
+                    // this was a route of its own. Without the flag the existing code comes back: a
+                    // stale page still showing "Generate", or a retry after a timeout, used to kill a
+                    // code the owner had just handed out (r3-03-03).
                     if (string.IsNullOrEmpty(group.GroupId))
                         group.GroupId = Guid.NewGuid().ToString("N").Substring(0, 8);
                     group.BonfireCode = GenerateSecureCode();

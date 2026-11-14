@@ -59,68 +59,97 @@ namespace Jellyfin.Profiles.Controllers
                 newUsername = $"{mainUser.Username}_{newName.Replace(" ", "")}";
             }
 
-            // The row and the free-name checks are read under the lock before the rename or picture is
-            // written; outside it, a delete or rename by someone else in between left this call writing
-            // over their result.
+            // The row is read again under the lock, for its current name and picture. The account
+            // lookups stay outside it: they are database reads, and the lock is the whole plugin's
+            // (r2-11-05). This narrows the window for a delete or rename by someone else; it does not
+            // close it, so the write below looks again and takes back a picture it wrote for a profile
+            // that is gone (r3-03-01).
+            string? currentName;
+            string? currentImage;
             lock (ConfigLock)
             {
                 var current = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);
                 if (current == null) return NotFound("Profile not found.");
-                if (newName != null)
+                currentName = current.ProfileName;
+                currentImage = current.ProfileImage;
+            }
+            if (newName != null)
+            {
+                if (!string.Equals(currentName, newName, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!string.Equals(current.ProfileName, newName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var takenError = ValidateProfileNameFree(_userManager, newName, callerId.Value);
-                        if (takenError != null) return BadRequest(takenError);
-                    }
+                    var takenError = ValidateProfileNameFree(_userManager, newName, callerId.Value);
+                    if (takenError != null) return BadRequest(takenError);
+                }
 
-                    if (!string.Equals(user.Username, newUsername, StringComparison.OrdinalIgnoreCase)
-                        && GetAllUsers().Any(u => u.Id != user.Id && string.Equals(u.Username, newUsername, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        return BadRequest("A profile with this name already exists.");
-                    }
+                if (!string.Equals(user.Username, newUsername, StringComparison.OrdinalIgnoreCase)
+                    && GetAllUsers().Any(u => u.Id != user.Id && string.Equals(u.Username, newUsername, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return BadRequest("A profile with this name already exists.");
                 }
             }
 
             string? newImageUrl = null;
             var imageChanged = false;
+            // As in UpdateProfile: a file written under this profile's name by this request.
+            var imageWritten = false;
             if (!string.IsNullOrEmpty(request.AvatarLibraryId))
             {
                 var copied = CopyLibraryAvatarToProfile(callerId.Value, request.AvatarLibraryId);
                 if (copied.Error != null) return BadRequest(copied.Error);
                 newImageUrl = copied.Url;
                 imageChanged = true;
+                imageWritten = true;
             }
             else if (request.ProfileImage != null)
             {
-                var saved = SaveProfileImage(callerId.Value, request.ProfileImage, request.ProfileImageThumb, mapping.ProfileImage);
+                var saved = SaveProfileImage(callerId.Value, request.ProfileImage, request.ProfileImageThumb, currentImage);
                 if (saved.Error != null) return BadRequest(saved.Error);
                 newImageUrl = saved.Url;
                 imageChanged = true;
+                imageWritten = request.ProfileImage.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) && newImageUrl != null;
             }
 
             if (newUsername != null && !string.Equals(user.Username, newUsername, StringComparison.OrdinalIgnoreCase))
             {
                 user.Username = newUsername;
-                await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+                try
+                {
+                    await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+                }
+                catch
+                {
+                    DiscardNewImage(callerId.Value, imageWritten);
+                    throw;
+                }
             }
 
             string? renamedTo = null;
             var householdOf = Guid.Empty;
+            var gone = false;
             lock (ConfigLock)
             {
                 var row = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);
-                if (row == null) return NotFound("Profile not found.");
-                householdOf = row.MasterUserId;
-                if (newName != null)
+                gone = row == null;
+                if (row != null)
                 {
-                    if (!string.Equals(row.ProfileName, newName, StringComparison.Ordinal)) renamedTo = newName;
-                    row.ProfileName = newName;
+                    householdOf = row.MasterUserId;
+                    if (newName != null)
+                    {
+                        if (!string.Equals(row.ProfileName, newName, StringComparison.Ordinal)) renamedTo = newName;
+                        row.ProfileName = newName;
+                    }
+                    if (request.AvatarColor != null) row.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
+                    if (request.TransparentAvatar.HasValue) row.TransparentAvatar = request.TransparentAvatar.Value;
+                    if (imageChanged) row.ProfileImage = newImageUrl;
+                    Plugin.Instance?.SaveConfiguration();
                 }
-                if (request.AvatarColor != null) row.AvatarColor = SanitizeAvatarColor(request.AvatarColor);
-                if (request.TransparentAvatar.HasValue) row.TransparentAvatar = request.TransparentAvatar.Value;
-                if (imageChanged) row.ProfileImage = newImageUrl;
-                Plugin.Instance?.SaveConfiguration();
+            }
+            if (gone)
+            {
+                // Deleted while this ran. Its picture went with it, so the one just written would be a
+                // file nothing points to.
+                DiscardNewImage(callerId.Value, imageWritten);
+                return NotFound("Profile not found.");
             }
 
             if (renamedTo != null) BonfireCampground.RaiseRenamed(householdOf, callerId.Value, renamedTo);

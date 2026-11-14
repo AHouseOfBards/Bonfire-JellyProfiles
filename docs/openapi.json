@@ -1862,7 +1862,7 @@
         ],
         "summary": "Start a Bonfire, or change the code of the one you have",
         "operationId": "postBonfireGenerate",
-        "description": "Starts a Bonfire. If the caller already has one, this changes its code instead and removes no one; the old code stops working.",
+        "description": "Starts a Bonfire. If the caller already has one, this returns its code; with regenerate=true it changes the code instead and removes no one, and the old code stops working.",
         "x-bonfire-auth": "user",
         "security": [
           {
@@ -1872,6 +1872,15 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/MasterPin"
+          },
+          {
+            "name": "regenerate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {

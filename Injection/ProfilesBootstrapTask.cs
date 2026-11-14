@@ -382,8 +382,9 @@ namespace Jellyfin.Profiles
                 // Never an administrator: if Bonfire is removed or fails to load, a bound account's real
                 // password stops working, and an administrator locked out that way cannot repair anyone
                 // else. An administrator already bound is put back.
+                var isAdmin = IsAdministrator(masterId);
                 var qualifies = enabled
-                    && !IsAdministrator(masterId)
+                    && !isAdmin
                     && rows.Any(m => m.ProfileUserId == masterId && m.MasterUserId == masterId
                                      && !string.IsNullOrEmpty(m.PinHash))
                     && rows.Any(m => m.MasterUserId == masterId && m.ProfileUserId != masterId);
@@ -399,6 +400,10 @@ namespace Jellyfin.Profiles
                             : null;
                     }
 
+                    // An administrator moved back loses the main PIN on a TV's sign-in screen; say so,
+                    // once, as it happens (r3-04-02).
+                    if (boundHere && isAdmin)
+                        _logger.LogInformation("ProfilesPlugin: {User} is an administrator, so it signs in with its password again, not its PIN.", masterId);
                     return boundHere ? DefaultProviderIdFallback : null;
                 });
             }
@@ -455,9 +460,11 @@ namespace Jellyfin.Profiles
                     && Jellyfin.Data.UserEntityExtensions.HasPermission(user,
                         Jellyfin.Database.Implementations.Enums.PermissionKind.IsAdministrator);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Cannot tell: leave it unbound, the safe side.
+                // Cannot tell: leave it unbound, the safe side. Said, because it stops the account's
+                // PIN sign-in on TVs and nothing else would show why (r3-04-02).
+                _logger.LogWarning(ex, "ProfilesPlugin: could not tell whether {User} is an administrator, so its PIN sign-in is off until the next start.", userId);
                 return true;
             }
         }
@@ -508,6 +515,19 @@ namespace Jellyfin.Profiles
         public Task StartAsync(CancellationToken cancellationToken)
         {
             CleanupOldDlls();
+
+            // Staged files from writes the last run never finished. An hour, though nothing writes
+            // before start-up is done, so a clock that jumped cannot take one in flight.
+            try
+            {
+                var swept = Controllers.ProfilesBaseController.SweepStagedFiles(
+                    Path.Combine(_appPaths.DataPath, "plugins", "ProfilesManagement"), TimeSpan.FromHours(1));
+                if (swept > 0) _logger.LogInformation("ProfilesPlugin: removed {Count} unfinished file writes left by the last run.", swept);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "ProfilesPlugin: could not look for unfinished file writes.");
+            }
 
             // Before the reconciliation, which binds accounts by what the configuration lists: a restored
             // configuration puts them back where they were (R-1127, R-1318).
