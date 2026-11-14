@@ -2,15 +2,14 @@
 /*
  * The README and the translation guide each list the languages Bonfire speaks.
  *
- * Adding a language is meant to be one file in Web/i18n and nothing else — the build, the
- * server and the client all discover it. These two lists are the exception: they are
- * prose, written for people, and nothing derives them. So they are checked instead, both
- * ways: every translation file is named in each list, and each list names nothing that
- * has no file. A contributor adding de.json gets told here, rather than a reader finding
- * out from a list that is one language short.
+ * Adding a language is meant to be one file in Web/i18n and nothing else; the build, server
+ * and client all discover it. These two lists are prose and nothing derives them, so they
+ * are checked both ways: every translation file is named in each list, and each list names
+ * nothing that has no file. A contributor adding de.json is told here, not left with a
+ * list one language short.
  *
  * Names are English names from Intl.DisplayNames, so 'pt-BR' must be written
- * "Portuguese (Brazil)" — the same thing a reader would look for.
+ * "Portuguese (Brazil)", which is what a reader would look for.
  *
  * Usage: node tests/js/languagelist.js [README.md] [Web/i18n/README.md]
  */

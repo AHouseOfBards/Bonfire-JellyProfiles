@@ -1,17 +1,15 @@
 /*
- * The JavaScript baseline, which nothing checked until now.
+ * The JavaScript baseline.
  *
  * `tests/js/cssbaseline.js` covers the stylesheet against Chromium 68, because a
- * declaration those browsers cannot parse is dropped in silence. The script has the
- * harsher failure mode and had no check at all: one token of syntax newer than the
- * engine and the *entire file* fails to parse, so Bonfire does not run — no gate, no
- * switcher, no message. That is the shape of the defect that made 1.5.2 and 1.5.3
- * dead on arrival, arriving by a different door.
+ * declaration those browsers cannot parse is dropped in silence. The script fails harder:
+ * one token of syntax newer than the engine and the entire file fails to parse, so Bonfire
+ * does not run (no gate, no switcher, no message). That is how 1.5.2 and 1.5.3 were dead
+ * on arrival.
  *
- * The floor is Chromium 53: webOS 4.5, the 2019 LG sets. webOS 5 (the LG set in
- * issue #16) is 68, Tizen 6.0 is 76.
- * `node --check` cannot answer this: it runs today's V8, where every one of these
- * parses perfectly.
+ * The floor is Chromium 53: webOS 4.5, the 2019 LG sets. webOS 5 (the LG set in issue #16)
+ * is 68, Tizen 6.0 is 76. `node --check` cannot answer this: it runs today's V8, where all
+ * of these parse.
  *
  *     node tests/js/jsbaseline.js                     # the working tree
  *     node tests/js/jsbaseline.js path/to/other.js    # any other client build
@@ -44,16 +42,15 @@ function regexAllowedAfter(out) {
         return /^(return|typeof|case|in|of|delete|void|throw|else|do|new)$/.test(out.slice(b + 1, k + 1));
     }
     if (ch === ')' || ch === ']') return false;
-    // `i++ / 2` is a division. Taken for a regex it swallowed the rest of the line, and
-    // whatever syntax was on it went unscanned.
+    // `i++ / 2` is a division. Read as a regex it swallowed the rest of the line unscanned.
     if ((ch === '+' || ch === '-') && out[k - 1] === ch) return false;
     if (ch === '"' && out.slice(k - 3, k + 1) === ' "" ') return false;
     return true;
 }
 
-/// Comments and string bodies come out first. Prose says "you can use ?. here" and a
-/// template literal carries a stylesheet; both have produced false positives in every
-/// hand-rolled scan of this file. `${...}` is kept, because that is real code.
+/// Comments and string bodies come out first: prose says "you can use ?. here" and a
+/// template literal carries a stylesheet, and both gave false positives in every hand-rolled
+/// scan of this file. `${...}` is kept because it is real code.
 function stripCommentsAndStrings(s) {
     let out = '';
     let i = 0;
@@ -68,9 +65,9 @@ function stripCommentsAndStrings(s) {
             continue;
         }
         if (c === '/' && regexAllowedAfter(out)) {
-            // A regex literal. /"/g and /'/g are all it takes to open a string that never
-            // closes and hide hundreds of lines (R-1277). Only a lookbehind or a named
-            // group is kept from the body, because those are real features.
+            // A regex literal. /"/g and /'/g are enough to open a string that never closes and
+            // hide hundreds of lines (R-1277). Only a lookbehind or a named group is kept from
+            // the body, because those are real features.
             let j = i + 1;
             let inClass = false;
             while (j < n && s[j] !== '\n' && (inClass || s[j] !== '/')) {
@@ -115,17 +112,17 @@ function stripCommentsAndStrings(s) {
 }
 
 /// [name, pattern, first Chromium that parses or provides it].
-/// Syntax first — those take the whole file down. Then the library and DOM calls,
-/// which only throw where they are reached.
+/// Syntax first, since those take the whole file down; then library and DOM calls, which
+/// only throw where they are reached.
 const FEATURES = [
     // Syntax. One of these anywhere and nothing in the file runs.
     ['optional chaining  ?.',        /[\w)\]]\?\./g,                 80],
     ['nullish coalescing  ??',       /\?\?[^=]/g,                    80],
     ['logical assignment  ||= &&=',  /(\|\|=|&&=|\?\?=)/g,           85],
     ['numeric separators  1_000',    /\b\d+_\d/g,                    75],
-    // Class fields are checked separately, below. The obvious pattern for them matches
-    // every ordinary assignment at the start of a line, and this file is one IIFE full of
-    // object literals: 74 false positives, which is how a check gets ignored.
+    // Class fields are checked separately, below. The obvious pattern for them matches every
+    // ordinary assignment at the start of a line, and this file is one IIFE of object
+    // literals: 74 false positives, which is how a check gets ignored.
     ['private class members  #x',    /this\.#\w/g,                   74],
     ['exponent assignment  **=',     /\*\*=/g,                       52],
     ['async functions',              /\basync\s+(function\b|\(|[\w$]+\s*(=>|\())/g, 55],
@@ -133,8 +130,8 @@ const FEATURES = [
     ['trailing comma in a call  f(a,)', /,\s*\)/g,                     58],
     ['regex lookbehind  (?<=',       /\(\?<[=!]/g,                   62],
     ['regex named groups  (?<x>',    /\(\?<[A-Za-z]/g,               64],
-    // Object spread and rest are counted separately, below: `...` is also array and call
-    // spread, which are Chromium 46, and only the enclosing bracket tells them apart.
+    // Object spread and rest are counted below: `...` is also array and call spread
+    // (Chromium 46), and only the enclosing bracket tells them apart.
 
     // Library and DOM. These throw where they are called.
     ['Object.entries / values',      /Object\.(entries|values)\b/g,  54],
@@ -170,10 +167,9 @@ const FEATURES = [
     ['Symbol.asyncIterator',         /Symbol\.asyncIterator/g,       63],
 ];
 
-/// One line of code that really uses each feature newer than the floor, so the table
-/// below can prove every pattern in it matches something. A pattern that never matches is
-/// indistinguishable from a clean client, and until the audit only three of thirty-odd
-/// were ever shown to match anything.
+/// One line of code that really uses each feature newer than the floor, so the table below
+/// can prove every pattern matches something. A pattern that never matches looks the same as
+/// a clean client; before the audit only three of thirty-odd were ever shown to match.
 const BAIT = {
     'optional chaining  ?.': 'var a = b?.c; var d = e?.[0]; f?.();',
     'nullish coalescing  ??': 'var a = b ?? c;',
@@ -235,14 +231,13 @@ function objectSpreads(code) {
 /// 1. Bracket calls. `a["flat"]()` is the same call as `a.flat()` and, with the string
 ///    blanked, looks like `a[ "" ]()`. The names are the method names above that are newer
 ///    than the floor. This pass reads the raw text, so a comment that quotes such a call
-///    would trip it; none does, and a false alarm is a cheap thing to be told about.
-/// 2. `.append(`. Element.append / ParentNode.append is Chromium 54, a version over the
-///    floor, but FormData, URLSearchParams and Headers have had `.append` far longer and
-///    this client uses them. The receiver decides, and a static read can only see its name,
-///    so: a receiver is fine if the file assigns that same name `new FormData(`,
-///    `new URLSearchParams(` or `new Headers(`, or is such a `new` expression itself. Any
-///    other receiver is reported; use appendChild, or give the object a name that shows
-///    what it is.
+///    would trip it; none does, and a false alarm is cheap.
+/// 2. `.append(`. Element.append / ParentNode.append is Chromium 54, over the floor, but
+///    FormData, URLSearchParams and Headers have had `.append` far longer and this client
+///    uses them. A static read sees only the receiver's name, so a receiver is fine if the
+///    file assigns that name `new FormData(`, `new URLSearchParams(` or `new Headers(`, or
+///    is such a `new` expression itself. Any other receiver is reported; use appendChild,
+///    or name the object for what it is.
 const NEWER_METHODS = ['flat', 'flatMap', 'replaceAll', 'at', 'padStart', 'padEnd', 'finally',
     'matchAll', 'replaceChildren', 'toggleAttribute', 'checkVisibility', 'trimStart', 'trimEnd',
     'prepend', 'replaceWith', 'append', 'entries', 'values', 'fromEntries', 'hasOwn', 'allSettled', 'any'];
@@ -284,9 +279,9 @@ function newerCalls(raw) {
 
 
 // ── the detector has to be able to go red ──────────────────────────────────
-// A baseline check that only ever runs over clean source is indistinguishable from one
-// that matches nothing at all. Three of the patterns, and the object spread count, are
-// put to a file that really carries the feature, with the same stripper in front of them.
+// A baseline check that only ever runs over clean source looks the same as one that matches
+// nothing. Three of the patterns, and the object spread count, are put to a file that
+// really carries the feature, with the same stripper in front of them.
 console.log();
 console.log('── The detector itself ────────────────────────────────────────');
 {
@@ -392,7 +387,7 @@ console.log('        in use, and old enough: ' + (used.join('; ') || 'nothing no
 // Since 2.0 the shared coordinator inlines Campground.Shared/web/campground.js into every
 // index.html, ahead of everything of ours, so it reaches every television profiles.js does.
 // It is a separate inline <script>, so a token Chromium 53 cannot parse takes down only that
-// script — but window.Campground is gone with it, for every Campground plugin. Same floor.
+// script, but window.Campground goes with it, for every Campground plugin. Same floor.
 // Missing is a failure: the plugin embeds it, so the build has lost its copy.
 //
 //     node tests/js/jsbaseline.js "" path/to/campground.js
@@ -420,9 +415,8 @@ if (!fs.existsSync(RUNTIME)) {
         rtOver.length === 0, rtOver.join('\n          '));
 }
 
-// The dashboard is administrator-only and runs in a desktop browser, so it is held to
-// no floor — but it is scanned, because "the admin page is fine" should be a fact
-// rather than an assumption.
+// The dashboard is administrator-only and runs in a desktop browser, so it is held to no
+// floor, but it is scanned so that "the admin page is fine" is a fact, not an assumption.
 const dash = 'Web/profilesDashboard.html';
 if (fs.existsSync(dash)) {
     const dashCode = stripCommentsAndStrings(fs.readFileSync(dash, 'utf8'));

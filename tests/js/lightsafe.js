@@ -4,14 +4,14 @@
  * Until Jellyfin Light every theme was dark, so a title written as color:#fff, a border as
  * rgba(255,255,255,.1) or a dialog as background:#181818 looked right everywhere, and a
  * dozen of each built up in styles.css and in profiles.js's inline styles. On a light theme
- * each is white text on a white page, or a black box on one. Nothing errors; it is only
- * seen by somebody who picks that theme.
+ * each is white text on a white page, or a black box on one. Nothing errors; only someone
+ * who picks that theme sees it.
  *
- * So every declaration that paints with a literal white, or with the old #181818 dialog
- * card, is listed one at a time, and each must either be gone or be in ALLOWED below with
- * the reason the fill under it is not the theme's (a profile's own colour, a darkened
- * picture, the red of a delete button). An allowed entry that no longer exists fails too,
- * so the list cannot keep cover for something that has gone.
+ * So every declaration that paints a literal white, or the old #181818 dialog card, is
+ * listed one at a time, and each must be gone or be in ALLOWED below with the reason the
+ * fill under it is not the theme's (a profile's own color, a darkened picture, the red of
+ * a delete button). An allowed entry that no longer exists fails too, so the list cannot
+ * keep cover for something that has gone.
  *
  *   node tests/js/lightsafe.js [path/to/styles.css] [path/to/profiles.js]
  */
@@ -61,7 +61,7 @@ const ALLOWED = {
         'aria-hidden="true" style="font-size: 1.15rem; color: #fff;">link</span>': "the link badge on a profile's own colour",
         "bonfireMark('jpf-badge-mark', 'font-size: 1.15rem; color: #fff;')": "the Bonfire badge on a profile's own colour",
         'class="bonfire-kick-btn"': 'white on the red fill of a remove button',
-        // The initial's own colour is computed now (onAvatarColor); what is left white here
+        // The initial's own color is computed now (onAvatarColor); what is left white here
         // is the hairline ring round the header avatar.
         'border: 1.5px solid rgba(255,255,255,0.25)': "a hairline ring on a member's own colour"
     }

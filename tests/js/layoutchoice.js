@@ -1,14 +1,14 @@
 /*
  * The layout switch: Automatic (the default), TV layout, Standard layout, chosen per device.
  *
- * Detection (tvmode.js) stays as it was and is still what "Automatic" means. This is the
- * answer for the two sets it gets wrong: a television whose browser does not say so (a
- * Fire TV, a projector on a laptop) and a TV-class browser on a screen close enough to read
- * the ordinary layout. It lives on the device only, in localStorage, because the same
+ * Detection (tvmode.js) is unchanged and is what "Automatic" means. This is the answer for
+ * the two sets it gets wrong: a television whose browser does not say so (a Fire TV, a
+ * projector on a laptop) and a TV-class browser on a screen close enough to read the
+ * ordinary layout. It is stored on the device only, in localStorage, because the same
  * account is signed in on a phone and a television and they want different answers.
  *
- * It is read where the device classes are applied — once, then cached — and never on the
- * route tick: checkRoute is checked below for any mention of it.
+ * It is read where the device classes are applied, once and then cached, never on the route
+ * tick: checkRoute is checked below for any mention of it.
  *
  *     node tests/js/layoutchoice.js /path/to/old/profiles.js     (red: no such setting)
  */
