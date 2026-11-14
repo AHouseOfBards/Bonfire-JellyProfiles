@@ -71,6 +71,7 @@ exclude:
   - Web/styles.css
   - Web/profilesDashboard.html
   - tests/
+  - tools/
   - bin/
   - obj/
   - dist/

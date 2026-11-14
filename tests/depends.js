@@ -36,9 +36,9 @@ const HEADER = [
 
 // Everything the plugin DLL is built from: every top-level directory that is not tests,
 // documentation or tooling, and the project files at the top.
-// release-notes/ is read by the release workflow only. Only directories git tracks count:
+// release-notes/ is read by the release workflow only, and tools/ is the kit's binchk. Only directories git tracks count:
 // an untracked build folder (dist/) made the record look stale on one machine only.
-const NOT_PRODUCT = new Set(['tests', 'docs', 'images', '_includes', '.git', '.github', 'node_modules', 'scratch', 'bin', 'obj', 'release-notes']);
+const NOT_PRODUCT = new Set(['tests', 'docs', 'images', '_includes', '.git', '.github', 'node_modules', 'scratch', 'bin', 'obj', 'release-notes', 'tools']);
 function trackedTop(root) {
     try {
         const out = require('child_process').execFileSync('git', ['ls-files'], { cwd: root || ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

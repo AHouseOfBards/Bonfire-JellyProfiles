@@ -8,7 +8,7 @@ on:
 jobs:
   # The suite is not run again here. ci.yml already ran it on the push of this commit, and
   # this job requires that run's "CI passed" check to have succeeded on the tagged commit.
-  # A tag cut from a commit CI never saw, or one whose run was red or cancelled, is refused.
+  # A tag cut from a commit CI never saw, or one whose run was red or canceled, is refused.
   # Until 2.0 this job called ci.yml and ran the whole suite a second time per release.
   # So: push the branch, wait for CI passed, then tag. If CI is still running, this waits.
   # tests/js/buildtargets.js and tests/js/workflows.js fail if this job goes missing, stops
