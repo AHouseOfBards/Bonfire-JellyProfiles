@@ -193,7 +193,7 @@ js/listhang 0.1 parallel
 js/listnoticeonce 0.1 parallel
 js/lockout 0.2 parallel
 js/lockoutmail 0.1 parallel
-js/logobacking 211.3 serial
+js/logobacking 81.0 serial
 js/logobackphoto 0.1 parallel
 js/logocorner 98.0 serial
 js/mainpin 0.2 parallel
@@ -220,7 +220,7 @@ js/pagessite 0.2 parallel
 js/panicprompt 0.2 parallel
 js/panicshortcutgate 0.1 parallel
 js/patternupload 0.5 parallel
-js/pickerbar 235.2 serial
+js/pickerbar 36.0 serial
 js/pickerlook 0.2 parallel
 js/pinbox 109.4 serial
 js/pinhint 0.2 parallel
@@ -250,7 +250,7 @@ js/selectors.test 0.3 parallel
 js/serverinfo 0.1 serial
 js/session 0.2 parallel
 js/setupfocus 19.0 serial
-js/setuplook 295.7 serial
+js/setuplook 51.0 serial
 js/shards 46.0 parallel
 js/sharedcopy 5.7 serial
 js/shortscreens 28.8 serial
@@ -270,9 +270,9 @@ js/themefonts 0.1 parallel
 js/themegrid 4.5 serial
 js/themelayout 337.3 serial
 js/themelists 5.6 serial
-js/themephoto 233.5 serial
+js/themephoto 43.0 serial
 js/themes 1.2 parallel
-js/themestep 188.4 serial
+js/themestep 34.0 serial
 js/themetest 0.2 parallel
 js/themetokens 0.1 parallel
 js/timerequests 0.2 parallel
