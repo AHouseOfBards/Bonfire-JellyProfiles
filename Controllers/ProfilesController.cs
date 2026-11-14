@@ -2797,7 +2797,7 @@ namespace Jellyfin.Profiles.Controllers
         /// a quote, backslash, newline or backtick in the CSS is data, not syntax. The
         /// default encoder also escapes every non-ASCII character to <c>\uXXXX</c>, which
         /// removes U+2028 and U+2029: legal in a JavaScript string only since ES2019, and
-        /// a syntax error on the Chromium 68 televisions this has to run on.
+        /// a syntax error before Chromium 66; the oldest televisions run Chromium 53.
         /// </para>
         /// <para>
         /// Same shape as <see cref="PublishLocales"/>: a plain replace on an exact
