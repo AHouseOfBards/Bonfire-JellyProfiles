@@ -101,6 +101,8 @@ const EVERYTHING = new Set(['tests/depends.txt', 'tests/run.sh', 'tests/js/_lib.
     'tests/screens/chrome.js', 'tests/record-reads.js', 'tests/depends.js']);
 
 function select(m, changed, labels) {
+    // Nothing changed: nothing to run, not even the harnesses that always run.
+    if (!changed.length) return labels.map(label => ({ label, run: false }));
     const forcing = changed.filter(f => EVERYTHING.has(f));
     return labels.map(label => {
         if (forcing.length) return { label, run: true, reason: 'everything runs: ' + forcing.join(', ') + ' changed' };

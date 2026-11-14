@@ -116,6 +116,7 @@ function observe(label, script, args, env) {
     ok('a new file directly in a listed directory picks that harness', pick(['docs/new.md']) === 'js/b,js/c,js/new', pick(['docs/new.md']));
     ok('a file below a listed directory (not directly in it) does not', pick(['docs/sub/x.md']) === 'js/c,js/new', pick(['docs/sub/x.md']));
     ok('a file nothing reads picks only the unrecorded', pick(['README.md']) === 'js/c,js/new', pick(['README.md']));
+    ok('no change picks nothing', pick([]) === '', pick([]));
     for (const f of Array.from(D.EVERYTHING)) {
         ok('a change to ' + f + ' picks every harness', pick([f]) === labels.join(','), pick([f]));
     }
