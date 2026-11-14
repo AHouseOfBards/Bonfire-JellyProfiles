@@ -1,11 +1,11 @@
 /*
  * Issue #31: the profile gate did not fit on the screen.
  *
- * The tiles were one fixed size per device class (280px on a television) and the gate's
- * content was capped at 900px on every screen. On a 1920x1080 set that meant two tiles to a
- * row, so four profiles became two rows that ran 247px off the bottom and six ran 662px, and
- * the household had to scroll with a remote to find themselves. Measured in Chromium with the
- * real script and stylesheet before the fix:
+ * Tiles were one fixed size per device class (280px on a television) and the gate's content
+ * was capped at 900px everywhere. On a 1920x1080 set that gave two tiles to a row, so four
+ * profiles ran 247px off the bottom and six ran 662px, and the household had to scroll with
+ * a remote to find themselves. Measured in Chromium with the real script and stylesheet
+ * before the fix:
  *
  *     1920x1080 tv  4 profiles  overflow 247px
  *     1280x720  tv  2 profiles  overflow 192px
@@ -17,12 +17,11 @@
  * Two halves, because either alone is a restatement:
  *
  *   1. The routine, driven against a modelled overlay whose scroll height follows from the
- *      tile size the routine sets (tiles wrap to rows by the available width, as flex-wrap
- *      does), so "it fits" is answered by the layout and not by the routine.
+ *      tile size the routine sets (tiles wrap to rows by available width, as flex-wrap
+ *      does), so the layout answers "does it fit", not the routine.
  *   2. The stylesheet: every property the fitted rules set must win the cascade over every
- *      other rule that sets it on the same element. Resolved pairwise (specificity, then
- *      order), not string-matched. A present but outranked rule is how this sheet has
- *      shipped a dead override before.
+ *      other rule that sets it on the same element, resolved pairwise (specificity, then
+ *      order). A present but outranked rule is how this sheet has shipped a dead override.
  *
  * Point it at an older client to see it fail:
  *     node tests/js/gatefit.js /path/to/old/profiles.js
@@ -72,9 +71,8 @@ function makeStyle() {
 
 // screen: the overlay's visible height and the row width the grid gets.
 // natural: the tile size the stylesheet gives without the fitted rules.
-// chrome: everything that is not tiles — title, section header, footer, padding.
-// When fitted, the stylesheet also tightens the title and footer margins; modelled
-// as a fixed saving so the routine sees what the browser would.
+// chrome: everything that is not tiles (title, section header, footer, padding).
+// Fitting also tightens the title and footer margins; modelled as a fixed saving.
 function makeGate(opts) {
     const content = { classList: makeClassList(), style: makeStyle() };
     const overlay = { classList: makeClassList(), style: makeStyle() };
@@ -96,9 +94,9 @@ function makeGate(opts) {
     const sample = { getBoundingClientRect: () => ({ width: tile(), height: tile() }) };
     const grid = {
         querySelector: s => (/jpf-profile-avatar-container/.test(s) ? sample : null),
-        // The routine reads the name's and the status lines' font sizes to set how far a
-        // name may shrink on a television. This model has neither, so the routine takes its
-        // written-down floor; the tile search below is what this harness is about.
+        // The routine reads the name's and status lines' font sizes to limit how far a name may
+        // shrink on a television. This model has neither, so it takes its written-down floor; the
+        // tile search is what this harness is about.
         querySelectorAll: () => [],
         closest: s => (s === '.profiles-modal-content' ? content : null)
     };
@@ -149,8 +147,8 @@ const P = tv.P;
 ok('there is a routine that fits the gate', !!P && typeof P.fitGateToScreen === 'function');
 
 if (P && typeof P.fitGateToScreen === 'function') {
-    // The reported case: a 1080p television, four profiles, 280px tiles. 1640px of row
-    // width is what the widened TV content gives on a 1920 screen.
+    // The reported case: a 1080p television, four profiles, 280px tiles. 1640px of row width
+    // is what the widened TV content gives on a 1920 screen.
     const TV1080 = { screen: 1080, width: 1640, natural: 280, naturalGap: 64, chrome: 560, fittedSaving: 120 };
 
     const two = makeGate(Object.assign({ profiles: 2 }, TV1080));
@@ -166,8 +164,8 @@ if (P && typeof P.fitGateToScreen === 'function') {
         const t = g.tile();
         ok(n + ' profiles on a 1080p television: ' + Math.round(before) + 'px tall before, fits after (tile ' + t + 'px)',
             g.height() <= 1080 + 1);
-        // Largest that fits, not merely one that fits: shrinking every gate to the floor
-        // would also "fit", and would make every television look like a phone.
+        // Largest that fits, not merely one that fits: shrinking every gate to the floor would also
+        // fit and make every television look like a phone.
         if (fitted && t < 280) {
             g.content.style.setProperty('--jpf-tile', (t + 3) + 'px');
             ok('  and the tiles are only as small as they have to be', g.height() > 1080 + 1);
@@ -222,9 +220,9 @@ console.log('── the fitted sizes win the cascade, property by property ─�
 const css = L.extractCss(raw);
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
 
-// Every rule, with media blocks flattened. Specificity is decided per selector; position in
-// the sheet breaks ties. A rule inside a media query competes on the same terms when the
-// query matches, so it is included — the worst case is that it applies.
+// Every rule, media blocks flattened. Specificity decides per selector; position breaks
+// ties. A rule inside a media query competes when the query matches, so it is included:
+// the worst case is that it applies.
 function rules() {
     const out = [];
     const re = /([^{}]+)\{([^{}]*)\}/g;
@@ -268,10 +266,10 @@ const fitted = all.filter(r => /\.jpf-fitted/.test(r.selector) && !/^\s*--jpf-ti
 const fallback = all.find(r => /\.jpf-fitted$/.test(r.selector) && /--jpf-tile\s*:\s*\d+px/.test(r.body));
 ok('the tile size has a declared default, so no fitted rule can resolve to nothing', !!fallback);
 ok('the fitted rules are in the stylesheet', fitted.length >= 6);
-// The routine sets three properties: --jpf-tile, --jpf-name-fit for how far a name may
-// shrink on a television, and --jpf-line-fit for the lines under it. A fitted rule that sizes anything must use one of them. The one
-// exemption is a rule that sizes nothing: the long-name ellipsis sets only the properties
-// listed here, and anything else in such a rule makes it a sizing rule again.
+// The routine sets --jpf-tile, --jpf-name-fit (how far a name may shrink on a television)
+// and --jpf-line-fit (the lines under it). A fitted rule that sizes anything must use one
+// of them. The exception is a rule that sizes nothing: the long-name ellipsis sets only
+// the properties listed here, and anything else in it makes it a sizing rule again.
 const ROUTINE = /var\(--jpf-(tile|name-fit|line-fit)\b/;
 const NOT_SIZING = ['white-space', 'overflow', 'text-overflow'];
 const sizesNothing = body => {
@@ -306,8 +304,8 @@ ok('every fitted property outranks every rule that sets it on the same element (
     + pairs + ' pairs resolved)', pairs > 0 && lost.length === 0);
 lost.forEach(l => console.log('        ' + l));
 
-// The television rules are the ones this has to beat, and the reason the issue was filed;
-// name them so a selector rename cannot quietly drop them from the pairs above.
+// The television rules are what this has to beat, and why the issue was filed; naming them
+// stops a selector rename from quietly dropping them from the pairs above.
 [['.jpf-tv .jpf-profile-avatar-container', 'width'],
  ['.jpf-tv .jpf-profile-card', 'width'],
  ['.jpf-tv .profiles-grid', 'gap'],
