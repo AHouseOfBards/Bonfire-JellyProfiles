@@ -30,7 +30,8 @@ ok('there are write sites', sites >= 2);
 
 // The reader's fields, taken from the reader.
 const rd = src.indexOf('getCachedActiveProfile: function');
-const body = src.slice(rd, src.indexOf('Ultimate fallback', rd));
+// Ends at the no-list fallback. Anchored on code, not on its comment, which was reworded.
+const body = src.slice(rd, src.indexOf('const apiClient = haveClient ? ApiClient : null;', rd));
 const readerFields = {};
 body.replace(/\bprofile\.(\w+)/g, function (_, f) { readerFields[f] = true; return ''; });
 readerFields.profileUserId = true;

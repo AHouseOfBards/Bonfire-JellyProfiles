@@ -5,13 +5,12 @@
 #   tests/live/smoke.sh --plugin DIR --image jellyfin/jellyfin@sha256:...   # Docker (Linux)
 #   tests/live/smoke.sh --plugin DIR --server DIR                           # an unpacked Jellyfin
 #
-# DIR for --plugin is the folder holding Jellyfin.Profiles.dll, as it is shipped
-# (bin/Release/net9.0). Only net9.0 ships, and the point of this script is that the one
-# artefact loads on every server and platform, so CI runs it against 10.11.x (.NET 9) and
-# 12.x (.NET 10), on Docker and on Windows.
+# DIR for --plugin is the folder holding Jellyfin.Profiles.dll as shipped
+# (bin/Release/net9.0). Only net9.0 ships and it must load on every server and platform,
+# so CI runs this against 10.11.x (.NET 9) and 12.x (.NET 10), on Docker and on Windows.
 #
 # Everything the server writes goes into a new directory (--work, default a fresh one under
-# tests/live/.work), on a port of its own (--port, default 18096), so a Jellyfin already
+# tests/live/.work) on a port of its own (--port, default 18096), so a Jellyfin already
 # running on 8096 is never touched. Only the process or container started here is stopped.
 #
 # What it checks, in order, each of which has shipped broken at some point:
@@ -60,10 +59,12 @@ pass() { PASSES=$((PASSES+1)); echo "  PASS  $1"; }
 fail() { FAILS=$((FAILS+1)); echo "  FAIL  $1"; }
 check() { if [ "$2" = "0" ]; then pass "$1"; else fail "$1${3:+  -- $3}"; fi; }
 
-# Docker mounts /config (config and data live under it) and /cache. A native server is given
+# Docker mounts /config (config and data live under it) and /cache. A native server gets
 # every directory on its command line, so nothing lands in a profile or ProgramData.
 if [ -n "$IMAGE" ]; then
-  PLUGINS_DIR="$WORK/config/data/plugins"; LOG_DIR="$WORK/config/log"
+  # The image sets JELLYFIN_DATA_DIR=/config and JELLYFIN_CONFIG_DIR=/config/config, so plugins
+  # sit at /config/plugins. config/data/plugins was a guess, and the first CI run loaded nothing.
+  PLUGINS_DIR="$WORK/config/plugins"; LOG_DIR="$WORK/config/log"
 else
   PLUGINS_DIR="$WORK/data/plugins"; LOG_DIR="$WORK/log"
 fi
@@ -107,8 +108,8 @@ install_plugin() {
 
 start_server() {
   if [ -n "$IMAGE" ]; then
-    # network.xml goes where this image reads it. -p maps our port to the image's 8096, so the
-    # file's port must stay 8096 inside.
+    # network.xml goes where this image reads it. -p maps our port to the image's 8096, so
+    # the file's port must stay 8096 inside.
     sed -i "s:<InternalHttpPort>$PORT<:<InternalHttpPort>8096<:;s:<PublicHttpPort>$PORT<:<PublicHttpPort>8096<:" "$WORK/config/network.xml" "$WORK/config/config/network.xml"
     docker run -d --name "$CONTAINER" -p "127.0.0.1:$PORT:8096" \
       -v "$WORK/config:/config" -v "$WORK/cache:/cache" "$IMAGE" >/dev/null
@@ -133,8 +134,8 @@ server_log() {
 wait_up() {
   local i=0 code
   while [ $i -lt "$WAIT" ]; do
-    # While it starts, Jellyfin answers every URL with a 200 or 503 HTML page. The server is up
-    # once /System/Info/Public is JSON that names its version.
+    # While it starts, Jellyfin answers every URL with a 200 or 503 HTML page. It is up once
+    # /System/Info/Public is JSON that names its version.
     code="$(curl -s -m 3 "$BASE/System/Info/Public" 2>/dev/null | jget Version)"
     [ -n "$code" ] && return 0
     if [ -n "$IMAGE" ] && ! docker ps -q --filter "name=$CONTAINER" | grep -q .; then return 1; fi
@@ -162,8 +163,8 @@ run_checks() {
   log="$(server_log)"
   echo "$log" | grep -qE "Loaded plugin.*Bonfire.*${VERSION//./\\.}|Bonfire.*${VERSION//./\\.}.*Loaded|Loaded assembly.*Jellyfin\.Profiles.*Version=${VERSION//./\\.}"
   check "$round: the log says Bonfire $VERSION was loaded" $? "no 'Loaded plugin' line for it"
-  # An assembly that failed to load logs a line naming it; that is not a line "from" the
-  # plugin's own logger, so it is checked as well.
+  # An assembly that failed to load logs a line naming it, not one from the plugin's own
+  # logger, so check for that too.
   echo "$log" | grep -E "\[(ERR|FTL)\]" | grep -E "Jellyfin\.Profiles|Bonfire" > "$out/errors.txt"
   check "$round: no [ERR] or [FTL] line from Jellyfin.Profiles" "$([ -s "$out/errors.txt" ] && echo 1 || echo 0)" "$(head -c 300 "$out/errors.txt")"
   echo "$log" | grep -E "Failed to load assembly.*Jellyfin\.Profiles|Error loading plugin.*Bonfire|Plugin.*Bonfire.*(disabled|malfunction|NotSupported)" > "$out/loadfail.txt"
@@ -182,8 +183,8 @@ run_checks() {
     -d '{"Username":"smoke","Pw":"smoke-pass-1"}' "$BASE/Users/AuthenticateByName" > "$out/auth.json"
   local tok; tok="$(jget AccessToken < "$out/auth.json")"
   [ -n "$tok" ]; check "$round: the admin user signs in" $? "$(head -c 200 "$out/auth.json")"
-  # A new install has Bonfire off, and an off Bonfire keeps its tags out of index.html (Plugin.IsOff),
-  # so it is turned on the way an administrator does before the page is looked at.
+  # A new install has Bonfire off, and an off Bonfire keeps its tags out of index.html
+  # (Plugin.IsOff), so turn it on as an administrator would before looking at the page.
   code="$(curl -s -m 20 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
     -H "Authorization: MediaBrowser Token=\"$tok\"" -d '{"bonfireOn":true}' "$BASE/plugins/profiles/admin/settings")"
   check "$round: an administrator can turn Bonfire on (POST /admin/settings)" "$([ "$code" = 200 ] && echo 0 || echo 1)" "HTTP $code"

@@ -5355,7 +5355,7 @@
                 }
             }
 
-            // Last resort (e.g. before any profile list has loaded).
+            // Last resort, before any profile list has loaded.
             const apiClient = haveClient ? ApiClient : null;
             // Empty, not English: the one caller that shows the name falls back through t()
             // when it is empty, so a translated page never says 'Profiles'.
@@ -6900,7 +6900,7 @@
                     // profiles, and the LAN-bypass toggle (which can hand over your admin
                     // rights) should be somewhere you go on purpose.
 
-                    // Manage Profiles only: a card in this grid reads as a person, and adding
+                    // Manage Profiles only. A card in this grid reads as a person, and adding
                     // one is administration.
                     if (this.isManageMode) {
                         if (!atLimit) {

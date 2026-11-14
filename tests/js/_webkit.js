@@ -30,7 +30,7 @@ function skip(why) {
         console.log('FAIL  WebKit is required here and is not usable: ' + why);
         process.exit(1);
     }
-    console.log('SKIP  ' + why + ' (run: cd tests/webkit && npm ci && npx playwright-core install webkit)');
+    console.log('SKIPPED  ' + why + ' (run: cd tests/webkit && npm ci && npx playwright-core install webkit)');
     process.exit(0);
 }
 
