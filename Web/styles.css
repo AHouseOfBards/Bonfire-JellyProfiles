@@ -2507,24 +2507,22 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 
 /* ── Television ───────────────────────────────────────────────────
-   Applied when <html> carries jpf-tv; see applyDeviceClasses for how
-   that is decided. The largest breakpoint in this sheet is
-   min-width: 900px, so before this a 1920px television at three metres
-   was handed exactly the layout of a monitor at sixty centimetres.
+   Applied when <html> carries jpf-tv (see applyDeviceClasses). The largest breakpoint
+   in this sheet is min-width: 900px, so a 1920px television at three meters got the
+   layout of a monitor at sixty centimeters.
 
-   Plain pixel values, deliberately. This block exists for Chromium 53
-   and every other television browser below 79, which drop clamp() — sizing the television with the one
-   feature the television cannot parse would be the same mistake twice.
+   Plain pixel values on purpose. This block exists for Chromium 53 and every other TV
+   browser below 79, which drop clamp(). Sizing the TV with the one feature it cannot
+   parse would be the same mistake twice.
 
-   Every selector here carries .jpf-tv and comes after the rules it overrides,
-   so it outranks them on both specificity and order. The one exception is the
-   keyboard focus ring further down, which has no .jpf-tv and wins by order
-   alone. A rule that is present but outranked has shipped here before. */
+   Every selector here carries .jpf-tv and comes after the rules it overrides, so it
+   outranks them on specificity and order. The exception is the keyboard focus ring
+   further down, which has no .jpf-tv and wins by order alone. A rule that is present but
+   outranked has shipped here before. */
 .jpf-tv, .jpf-tv body {
-    /* Declared on body too, because the base tokens at the top of this
-       sheet are set on the selector list :root, body — and a
-       declaration on body beats one on html for everything inside it.
-       Setting these on html alone would change nothing at all. */
+    /* Declared on body too, because the base tokens at the top are set on :root, body, and a
+       declaration on body beats one on html for everything inside it. On html alone these
+       would change nothing. */
     --jpf-gap: 20px;
     --jpf-gap-lg: 2rem;
 }
@@ -2539,10 +2537,9 @@ body.profiles-no-scroll [id*="spinner"] {
     gap: 4rem;
     max-width: none;
 }
-/* The gate's content was capped at 900px on every screen, so a 1920px
-   television fitted two 300px tiles to a row and four profiles became two
-   rows that ran off the bottom (issue #31). Wider rows first; the tiles
-   only shrink if that is still not enough (fitGateToScreen). */
+/* The gate's content was capped at 900px on every screen, so a 1920px TV fitted two
+   300px tiles to a row and four profiles became two rows that ran off the bottom (issue
+   #31). Wider rows first; tiles shrink only if that is not enough (fitGateToScreen). */
 .jpf-tv .profiles-modal-content {
     max-width: 1640px;
     width: 92%;
@@ -2565,11 +2562,11 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: calc(1.75rem * var(--jpf-name-scale));
     margin-top: 1.5rem;
 }
-/* The lines under a name were 0.7 and 0.75rem: 20px at 1080p and 15px at 720p, read from a
-   sofa. The lock badge was 32px on a 280px tile, a dot. And the focused tile drew the same
-   ring as the signed-in one, so the one the remote was on looked like the one already
-   signed in: focus doubles the ring (a border, so it needs no flat twin, and no outline,
-   which Chromium 53 would draw as a rectangle round a round avatar). */
+/* The lines under a name were 0.7 and 0.75rem: 20px at 1080p and 15px at 720p, read from
+   a sofa. The lock badge was 32px on a 280px tile, a dot. And the focused tile drew the
+   same ring as the signed-in one, so the one the remote was on looked signed in. Focus
+   doubles the ring (a border, so it needs no flat twin, and no outline, which Chromium
+   53 draws as a rectangle round a round avatar). */
 .jpf-tv .jpf-profile-viewing,
 .jpf-tv .jpf-profile-current-badge {
     font-size: 1.1rem;
@@ -2591,18 +2588,17 @@ body.profiles-no-scroll [id*="spinner"] {
     font-size: 1.5rem;
     padding: 16px 36px;
 }
-/* The widths are pixels, sized for a monitor at sixty centimetres: a form was 960px of a
-   1920px screen and Settings 560px, a narrow column in the middle of a lot of black. In rem
-   they follow jellyfin-web's root (20px at 720p, 27px at 1080p). Set on body as well,
-   because the base rule above sets them there and a variable set on body beats one
-   inherited from html. The PIN width stays as it is: those keys are sized for a short
-   row and .jpf-pin-actions scales it itself. */
+/* The widths were pixels sized for a monitor at sixty centimeters: a form was 960px of a
+   1920px screen and Settings 560px, a narrow column in a lot of black. In rem they follow
+   jellyfin-web's root (20px at 720p, 27px at 1080p). Set on body as well, because the
+   base rule above sets them there and a variable on body beats one inherited from html.
+   The PIN width stays: those keys are sized for a short row and .jpf-pin-actions scales
+   it itself. */
 .jpf-tv, .jpf-tv body {
     --jpf-w-form: 36rem;
     --jpf-w-wide: 56rem;
 }
-/* The picture buttons wrapped to three lines at 1.5rem and the Save bar was 16% of a 720p
-   screen. They are still large, and the bar still thick enough to hit with a remote. */
+/* The picture buttons wrapped to three lines at 1.5rem and the Save bar was 16% of a 720p screen. They are still large, and the bar still thick enough to hit with a remote. */
 .jpf-tv .jpf-image-upload-btn {
     font-size: 1.25rem;
     padding: 10px 24px;
@@ -2617,9 +2613,9 @@ body.profiles-no-scroll [id*="spinner"] {
     padding-bottom: 0.5rem;
 }
 /* The PIN screens' button row is capped at --jpf-w-narrow (420px), sized for 1rem
-   buttons. A television's are 1.5rem with 36px of padding, two of them plus the gap
-   come to more than 420px at 1080p, and the row wrapped: Cancel over Submit, hard
-   left. 720p and desktop fit, which is why it was only seen on the big screen. */
+   buttons. A TV's are 1.5rem with 36px of padding, so two of them plus the gap exceed
+   420px at 1080p and the row wrapped: Cancel over Submit, hard left. 720p and desktop
+   fit, which is why it was only seen on the big screen. */
 .jpf-tv .jpf-pin-actions {
     max-width: calc(var(--jpf-w-narrow) * 1.6);
 }
@@ -2634,27 +2630,26 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-tv .jpf-profile-section {
     padding: 1.6rem 1.5rem;
 }
-/* The form is capped at 75vh, or 85vh in two columns, and sits under a 4rem title with 4rem
+/* The form is capped at 75vh (85vh in two columns) and sits under a 4rem title with 4rem
    below it. At jellyfin-web's 27px root on a 1080p set that is more than the screen: the
-   Save row started 70px below it. Capped by what is left once the title and the gate's
-   padding are paid for instead, in rem so it follows the root size (20px at 720p). No
-   overscan margin of Bonfire's own: jellyfin-web adds none on a television either
-   (padded-left and padded-right are 3.3%), and the gate's own 2rem is already 5% of the
-   height. Named with the two-column class too, which would otherwise win on specificity. */
+   Save row started 70px below it. Capped instead by what is left after the title and the
+   gate's padding, in rem so it follows the root size (20px at 720p). No overscan margin
+   of Bonfire's own: jellyfin-web adds none on a TV either (padded-left and padded-right
+   are 3.3%), and the gate's 2rem is already 5% of the height. The two-column class is
+   named too, or it would win on specificity. */
 .jpf-tv .jpf-create-profile-container,
 .jpf-tv .jpf-create-profile-container.is-two-col {
     max-height: calc(100vh - 14rem);
 }
-/* The setup step that is not capped (.jpf-step-tall, above) is also not capped here. */
+/* The setup step that is not capped (.jpf-step-tall, above) is not capped here either. */
 .jpf-tv .jpf-onboarding.jpf-step-tall { max-height: none; }
 /* A ring on focus, for a keyboard on a desktop or a phone. Most of these controls said
-   "outline: none" and showed focus as a change of fill, which for the primary button is
-   #ffb347 to #ffc773: the same as hovering, and not a mark anyone can find. After every
-   rule that removes the outline, with the same specificity or more, so it wins by
-   order; the television list below is higher still and thickens it. The pill's
-   selector carries its id and class because its own focus rule does. The tag
-   chip's remove button is here for the same reason: its own :focus rule says
-   outline: none. */
+   "outline: none" and showed focus as a change of fill, for the primary button #ffb347
+   to #ffc773: the same as hovering, and not findable. After every rule that removes the
+   outline, with the same or higher specificity, so it wins by order; the television list
+   below is higher still and thickens it. The pill's selector carries its id and class
+   because its own focus rule does. The tag chip's remove button is here for the same
+   reason: its :focus rule says outline: none. */
 .jpf-tag-chip-remove:focus,
 .profiles-btn:focus,
 .jpf-color-dot:focus,
@@ -2666,11 +2661,11 @@ body.profiles-no-scroll [id*="spinner"] {
     outline: 2px solid var(--jpf-accent);
     outline-offset: 2px;
 }
-/* Thicker and further out. At three metres a 2px outline sitting 2px
-   from the control is not findable, and finding the focused control is
-   the entire navigation model on a remote. Not the profile card: an outline is a
-   rectangle in Chromium 53 whatever the border-radius, so it boxed a round avatar
-   and its name, and the avatar already carries the ring, glow and scale. */
+/* Thicker and further out. At three meters a 2px outline 2px from the control is not
+   findable, and finding the focused control is the whole navigation model on a remote.
+   Not the profile card: an outline is a rectangle in Chromium 53 whatever the
+   border-radius, so it boxed a round avatar and its name, and the avatar already carries
+   the ring, glow and scale. */
 .jpf-tv .jpf-color-dot:focus,
 .jpf-tv .jpf-avatar-library-item:focus,
 .jpf-tv .jpf-library-check-label:focus,
@@ -2688,31 +2683,26 @@ body.profiles-no-scroll [id*="spinner"] {
     outline: 4px solid var(--jpf-accent);
     outline-offset: 4px;
 }
-/* Kept in a rule of its own, and this is not tidiness. One unparseable
-   selector invalidates the entire comma-separated list — there is no
-   forgiveness before :is() — so folding this into the list above would
-   have deleted the thick television focus ring on precisely the two
-   television browsers it was written for, while looking correct
-   everywhere it was tested. The plan warned about this in P4-11 and I
-   still wrote it the wrong way first; cssbaseline.js now fails on it. */
+/* A rule of its own, and that matters. One unparseable selector invalidates the whole
+   comma-separated list (no forgiveness before :is()), so folding this into the list
+   above deleted the thick TV focus ring on the two TV browsers it was written for, while
+   looking correct everywhere it was tested (P4-11). cssbaseline.js now fails on it. */
 .jpf-tv .jpf-profile-section :focus-visible {
     outline: 4px solid var(--jpf-accent);
     outline-offset: 4px;
 }
-/* The announcement's dismiss button sits on the gate and the home page, outside every
-   .jpf-profile-section above, and its own focus rule says outline: none with a 2px shadow. */
+/* The announcement's dismiss button sits on the gate and the home page, outside every .jpf-profile-section above, and its own focus rule says outline: none with a 2px shadow. */
 .jpf-tv .profiles-announcement-dismiss:focus {
     outline: 4px solid var(--jpf-accent);
     outline-offset: 2px;
 }
 
 /* ── The gate, fitted to the screen (issue #31) ───────────────────
-   fitGateToScreen sets --jpf-tile and .jpf-fitted on the gate's content only
-   when the gate would otherwise scroll. Every other screen in the overlay is
-   new markup without the class, so none of them is resized by it. var() and calc() are both Chromium
-   49+, so these hold on the Chromium 53 floor the .jpf-tv block is for. */
-/* The routine sets the real size inline; this is what the class means without
-   one, so a var() here can never be left with nothing to resolve to. */
+   fitGateToScreen sets --jpf-tile and .jpf-fitted on the gate's content only when the
+   gate would otherwise scroll. Every other screen in the overlay is new markup without
+   the class, so none is resized by it. var() and calc() are both Chromium 49+, so these
+   hold on the Chromium 53 floor the .jpf-tv block is for. */
+/* The routine sets the real size inline. This is what the class means without one, so a var() here is never left with nothing to resolve to. */
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted {
     --jpf-tile: 140px;
 }
@@ -2726,9 +2716,9 @@ body.profiles-no-scroll [id*="spinner"] {
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid .jpf-profile-avatar {
     font-size: calc(var(--jpf-tile) / 2.6);
 }
-/* The lock badge is a fixed 32px (52px on a television), which on a tile fitted down to 88px
-   sat over the first letter (P2-514). It follows the tile like the letter does: about a
-   quarter of it, tucked into the corner, so the centred letter stays clear. */
+/* The lock badge is a fixed 32px (52px on a TV), which on a tile fitted down to 88px sat
+   over the first letter (P2-514). It follows the tile like the letter does: about a
+   quarter of it, in the corner, so the centered letter stays clear. */
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-lock-indicator {
     width: calc(var(--jpf-tile) * 0.25);
     height: calc(var(--jpf-tile) * 0.25);
@@ -2742,21 +2732,21 @@ body.profiles-no-scroll [id*="spinner"] {
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid {
     gap: calc(var(--jpf-tile) / 5);
 }
-/* On a television the tile could shrink to 120px while the name stayed at 1.75rem (47px at
+/* On a TV the tile could shrink to 120px while the name stayed at 1.75rem (47px at
    1080p), so a 20-profile household had names wider than their tiles. The name shrinks
    with the tile, down to the size of the lines under it (--jpf-name-fit, set beside
-   --jpf-tile), and a name still too long is cut to one line with an ellipsis: about eight
-   letters fit a 140px tile at that size. The ellipsis was chosen over smaller text and over
-   a word broken in two. The whole name stays in the markup, so a screen reader says all
-   of it. Not on a phone: there the grid scrolls before it shrinks far, and names wrap. */
+   --jpf-tile), and a name still too long is cut to one line with an ellipsis: about
+   eight letters fit a 140px tile at that size. Ellipsis was chosen over smaller text and
+   over a word broken in two. The whole name stays in the markup, so a screen reader says
+   all of it. Not on a phone: there the grid scrolls before it shrinks far, and names wrap. */
 .jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-name {
     font-size: calc(1.75rem * var(--jpf-name-scale) * var(--jpf-name-fit, 1));
 }
 /* The lines under the name shrink a little with the tile too (--jpf-line-fit, set beside
    --jpf-name-fit, never below 0.8). At a fixed 1.1rem, "Signed in" was 156px in a 140px
-   tile and broke into "Signed" / "in" when two households shared the screen; "45 min left"
-   and "Time's up" wrapped the same way. Whatever still does not fit is cut with an
-   ellipsis, so a longer translation cannot wrap into a second line either. */
+   tile and broke into "Signed" / "in" when two households shared the screen; "45 min
+   left" and "Time's up" wrapped the same way. What still does not fit is cut with an
+   ellipsis, so a longer translation cannot wrap to a second line. */
 .jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-viewing,
 .jpf-tv #profiles-gate-overlay .profiles-modal-content.jpf-fitted .jpf-profile-current-badge {
     font-size: calc(1.1rem * var(--jpf-line-fit, 1));
@@ -2772,9 +2762,7 @@ body.profiles-no-scroll [id*="spinner"] {
 .jpf-no-flex-gap #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-grid > * {
     margin: 0 calc(var(--jpf-tile) / 10) calc(var(--jpf-tile) / 5);
 }
-/* Fitted means space is short, so the gaps around the grid give some back
-   before the tiles have to. 4rem above and below them on a television is
-   170px of a 720px screen. */
+/* Fitted means space is short, so the gaps around the grid give some back before the tiles do. 4rem above and below on a TV is 170px of a 720px screen. */
 #profiles-gate-overlay .profiles-modal-content.jpf-fitted .profiles-title {
     margin-top: 0;
     margin-bottom: calc(var(--jpf-tile) / 6);
@@ -2783,19 +2771,20 @@ body.profiles-no-scroll [id*="spinner"] {
     margin-top: calc(var(--jpf-tile) / 6);
 }
 
-/* The fades the script used to write inline (a style attribute cannot be overridden by a
-   media query, so the reduced-motion block below could not reach them). Dialogs fade in
-   and out on opacity; the page fades in after a switch; the gate calms towards the next
-   page's colour. Each is skipped below for anyone who asked for less motion. */
+/* The fades the script used to write inline (a style attribute cannot be overridden by
+   a media query, so the reduced-motion block below could not reach them). Dialogs fade
+   on opacity; the page fades in after a switch; the gate calms toward the next page's
+   color. Each is skipped below for anyone who asked for less motion. */
 .jpf-fade { transition: opacity 0.15s ease-out; }
 html.jpf-fading { transition: opacity 0.18s ease; }
 #profiles-gate-overlay.jpf-bg-fade { transition: background 0.2s ease; }
-/* The cross-fade between two themes (fadeThemeFrom in profiles.js; THEME_FADE_MS there is
-   this duration, so change the two together). The veil is a copy of the old look, above
-   the new background and under the content (z-index -1, like the pattern layer, and after
-   it in the tree), and fades out. Opacity only. Skipped for anyone who asked for less
-   motion, and the script does not draw it. The content is not animated: giving
-   .profiles-modal-content an animation here replayed .jpf-anim-fade-in when this one ended. */
+/* The cross-fade between two themes (fadeThemeFrom in profiles.js; THEME_FADE_MS there
+   is this duration, so change the two together). The veil is a copy of the old look,
+   above the new background and under the content (z-index -1, like the pattern layer,
+   after it in the tree), and fades out. Opacity only. Skipped for anyone who asked for
+   less motion, and the script does not draw it. The content is not animated: an
+   animation on .profiles-modal-content here replayed .jpf-anim-fade-in when this one
+   ended. */
 .jpf-theme-veil {
     position: fixed;
     top: 0; right: 0; bottom: 0; left: 0;
@@ -2814,25 +2803,25 @@ html.jpf-fading { transition: opacity 0.18s ease; }
     .jpf-theme-veil { display: none; }
 }
 /* ── The flat look ────────────────────────────────────────────────
-   On a television that cannot afford it (jpf-flat: a television browser with no
-   backdrop-filter, so Chromium 75 and older; see _canBlur) the blur and the moving
-   decoration are swapped for flat equivalents. Every feature is still there: the same
-   tiles, the same focus cue, the same screens. What goes is the blurred shadow behind
-   each of them, which the software compositor repaints on every focus move.
+   On a TV that cannot afford it (jpf-flat: a TV browser with no backdrop-filter, so
+   Chromium 75 and older; see _canBlur) the blur and the moving decoration are swapped for
+   flat equivalents. Every feature stays: the same tiles, focus cue and screens. What goes
+   is the blurred shadow behind each, which the software compositor repaints on every
+   focus move.
 
-   Each rule is the selector of the one it replaces with .jpf-flat in front, so it is the
-   same element in the same state, one class heavier, and later in the sheet. They are
-   written in the order of the originals, because a state that comes later in the original
-   (current, then hover, then focus) has to come later here too. tests/js/flatlook.js
-   finds every blur and loop in this sheet by parsing, and fails on any that has no rule
-   here, any that is outranked, and any rule here that answers to nothing.
+   Each rule is the selector of the one it replaces with .jpf-flat in front: the same
+   element in the same state, one class heavier, and later in the sheet. They follow the
+   order of the originals, because a state that comes later in the original (current,
+   then hover, then focus) must come later here too. tests/js/flatlook.js finds every blur
+   and loop in this sheet by parsing, and fails on any with no rule here, any outranked,
+   and any rule here that answers to nothing.
 
-   What the shadow said is said another way. A focused tile keeps its scale and its ring
-   border; a cut-out picture keeps the four sharp strokes that outline it and loses only
-   the soft pass (filter: blur is the expensive part, a hard-edged offset is not);
-   focus on a control keeps its border and, on a television, the 4px outline above.
-   Frost is not here: it is inside @supports (backdrop-filter), which these browsers do
-   not satisfy, and a theme's drifting pattern is held off every television already. */
+   What the shadow said is said another way. A focused tile keeps its scale and ring
+   border; a cut-out picture keeps the four sharp strokes and loses only the soft pass
+   (filter: blur is the expensive part, a hard-edged offset is not); focus on a control
+   keeps its border and, on a TV, the 4px outline above. Frost is not here: it is inside
+   @supports (backdrop-filter), which these browsers do not satisfy, and a theme's
+   drifting pattern is already held off every TV. */
 .jpf-flat .jpf-theme-preview-tile,
 .jpf-flat .profiles-home-section,
 .jpf-flat .jpf-profile-avatar,
@@ -2868,8 +2857,8 @@ html.jpf-fading { transition: opacity 0.18s ease; }
 .jpf-flat .jpf-devices-dropdown-trigger:focus {
     box-shadow: none !important;
 }
-/* The preview swatch's shadow goes, and the theme's focus frame on its first tile, which
-   is a hard ring and not a shadow, is put back: the rule above would otherwise tie with
+/* The preview swatch's shadow goes, and the theme's focus frame on its first tile (a hard
+   ring, not a shadow) is put back: the rule above would otherwise tie with
    .jpf-theme-preview-tile:first-child on specificity and win on order. */
 .jpf-flat .jpf-theme-preview-tile:first-child {
     box-shadow: 0 0 0 var(--jpf-ring-w) var(--jpf-ring);
@@ -2917,9 +2906,9 @@ html.jpf-fading { transition: opacity 0.18s ease; }
     transition: none;
 }
 
-/* Phones: a thumb is about 44px (P2-510, P2-511). Buttons and fields were 40px, checkbox rows
-   26px with an 18px box, the colour dots 36px. After the rules they correct, so equal
-   specificity resolves here, and the checkbox rule is !important because the base one is. */
+/* Phones: a thumb is about 44px (P2-510, P2-511). Buttons and fields were 40px, checkbox
+   rows 26px with an 18px box, the color dots 36px. After the rules they correct, so equal
+   specificity resolves here; the checkbox rule is !important because the base one is. */
 @media (max-width: 480px) {
     .profiles-btn,
     .jpf-form-group input[type="text"],
@@ -2945,15 +2934,15 @@ html.jpf-fading { transition: opacity 0.18s ease; }
     .jpf-color-dot { width: 44px; height: 44px; }
     .jpf-avatar-color-picker { gap: 4px; }
 }
-/* The same floor off a phone: on a desktop window the signed-in and time-left lines under a
-   tile were 10.4 and 11.2px (0.75rem of a 13.9px root). A television sets its own size above. */
+/* The same floor off a phone: on a desktop window the signed-in and time-left lines under
+   a tile were 10.4 and 11.2px (0.75rem of a 13.9px root). A TV sets its own size above. */
 .jpf-profile-viewing,
 .jpf-profile-current-badge {
     font-size: 12px;
 }
-/* Phones: nothing a person has to read is under 12px. Hints and section subtitles were 10.8
-   and 11.2px, the signed-in, PIN and time-left lines under a tile 10.1 and 10.8px, because
-   each was a fraction of a root that is itself small on a phone. 0.85rem is 12.2px at
+/* Phones: nothing a person has to read is under 12px. Hints and section subtitles were
+   10.8 and 11.2px, the signed-in, PIN and time-left lines under a tile 10.1 and 10.8px,
+   each a fraction of a root that is itself small on a phone. 0.85rem is 12.2px at
    jellyfin-web's phone root. The theme picker's miniature of the switcher is a picture
    of a screen and is left alone. */
 @media (max-width: 480px) {
@@ -2970,11 +2959,11 @@ html.jpf-fading { transition: opacity 0.18s ease; }
     }
 }
 
-/* Reduced motion (2.0). Short fades and a gentle focus scale are the default; a person who
-asked for less gets none of them. Focus stays findable by its ring and border. The
-spinner is kept on purpose: it is the only sign that a tap registered. Last in the
-sheet, and !important on transform because the hover and focus scale come from theme
-blocks written after this sheet. */
+/* Reduced motion (2.0). Short fades and a gentle focus scale are the default; a person
+   who asked for less gets none. Focus stays findable by its ring and border. The spinner
+   stays on purpose: it is the only sign that a tap registered. Last in the sheet, and
+   !important on transform because the hover and focus scale come from theme blocks
+   written after this sheet. */
 @media (prefers-reduced-motion: reduce) {
     .jpf-anim-fade-in { animation: none; }
     .jpf-profile-card .jpf-profile-avatar, .jpf-color-dot, .jpf-avatar-library-item, .profiles-btn,
