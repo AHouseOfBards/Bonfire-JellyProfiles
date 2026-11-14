@@ -9,6 +9,27 @@ See [docs/beta-channel.md](docs/beta-channel.md).
 
 ---
 
+## 1.9.0.6-beta  — 2026-11-14
+
+**Fixed**
+
+- Pressing Generate on a second screen no longer replaces a Bonfire code you already shared.
+- A second TV of the same model gets its new-device email once it plays something.
+- Bonfire still starts on a TV or server page that takes more than a minute to load.
+- Library artwork no longer waits forever when the server doesn't answer.
+- Device names in an imported backup show correctly.
+- A profile save that fails no longer leaves its new image behind.
+- On the admin page, buttons line up with the fields beside them, and theme images no longer disappear when the server is busy.
+- Undo in the theme editor no longer joins later edits onto an interrupted drag.
+- Security fixes.
+
+**Changed**
+
+- Deleting an account in Dashboard → Users also removes its Bonfire records and profile image.
+- Administrator accounts sign in on TVs with their password, not the main PIN.
+- The admin page opens Setup right after Status.
+- French, Spanish, Catalan, Polish and Turkish are retranslated from the current English.
+
 ## 1.9.0.5-beta  — 2026-11-14
 
 **Fixed**
