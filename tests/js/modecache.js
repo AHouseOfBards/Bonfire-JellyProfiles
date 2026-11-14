@@ -148,11 +148,11 @@ check('ask+menu is reachable (issue #14)', [PP.shouldAskOnStartup(), PP.isMenuLo
 
 // ── One answer per account ───────────────────────────────────────────────────────
 //
-// 1.6–1.7.1 had "Use the same answer on all my devices": unticked, a device kept its own
-// answer to the startup question in localStorage and that answer outranked the account's.
-// 1.7.2 cut it — ask-on-startup is one answer per account, on every device. A TV upgraded
-// from 1.7.1 still carries the old entry, so what matters now is that nothing honours it,
-// that it is cleared, and that the dialog has no way left to make one.
+// 1.6 to 1.7.1 had "Use the same answer on all my devices": unticked, a device kept its own
+// answer to the startup question in localStorage, outranking the account's. 1.7.2 cut it:
+// ask-on-startup is one answer per account. A TV upgraded from 1.7.1 still carries the old
+// entry, so nothing may honour it, it must be cleared, and the dialog must offer no way to
+// make one.
 //
 // Every case below is red against 1.7.1, where the entry decided.
 
@@ -182,9 +182,8 @@ console.log('');
 console.log('The leftover is cleared, once');
 console.log('-----------------------------');
 
-// Read from the source because init does far more than this harness can stand up. The
-// key must be cleared at startup and must not be touched by the route poll, which runs
-// twice a second for the life of the page.
+// Read from the source because init does more than this harness can stand up. The key must
+// be cleared at startup and not touched by the route poll, which runs twice a second forever.
 {
     const s = L.readProfiles();
     const initAt = s.indexOf('        init: function ()');
@@ -201,9 +200,8 @@ console.log('-----------------------------');
     console.log('The dialog');
     console.log('----------');
 
-    // Nothing else in the suite runs showSwitcherModeModal, and "it parses" is not "it
-    // runs" — that distinction shipped 1.5.2 and 1.5.3-beta dead on arrival. Render it for
-    // real and read the markup back.
+    // Nothing else in the suite runs showSwitcherModeModal, and "it parses" is not "it runs"
+    // (1.5.2 and 1.5.3-beta shipped dead that way). Render it and read the markup back.
     const boxChecked = (html, id) => new RegExp('id="' + id + '"\\s+checked\\s').test(html);
     const posts = [];
 

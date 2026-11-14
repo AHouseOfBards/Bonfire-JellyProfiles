@@ -1,10 +1,9 @@
-// Exercises the 1.4.2 navigation work: the ticket that stops a slow form drawing
-// itself over the screen you actually asked for, and the cache that stops four of
-// every five requests being made at all.
+// Exercises the 1.4.2 navigation work: the ticket that stops a slow form drawing itself
+// over the screen you asked for, and the cache that stops four of every five requests.
 //
-// This is a race, so most of it is about interleaving: the assertions below run
-// the *reported* sequence — click one screen, click another before the first has
-// returned, then let the first return — and check the second one survives.
+// This is a race, so the assertions run the reported sequence: click one screen, click
+// another before the first has returned, then let the first return, and check the second
+// survives.
 
 const fs = require('fs');
 const vm = require('vm');
@@ -96,8 +95,8 @@ console.log('── A ticket is claimed by every screen change ─────�
     check('later ticket wins', PP.navIsCurrent(b), true);
     check('earlier ticket is stale', PP.navIsCurrent(a), false);
 
-    // The synchronous renders are the ones a slow form loses the race to, so they
-    // must claim the screen too — that is the whole reported bug.
+    // The synchronous renders are the ones a slow form loses the race to, so they must claim
+    // the screen too; that is the whole reported bug.
     const before = PP._navTicket;
     PP.renderOverlayContent({
         innerHTML: '',

@@ -1,10 +1,11 @@
 /*
- * A profile whose stored avatar colour is not one of the palette's 18 (made by another app, or an
- * older palette). The edit form had no swatch selected and drew the preview in the default blue
- * instead of the profile's own colour. The fixture's Rosalind is #81b29a, which is off the palette.
+ * A profile whose stored avatar color is not one of the palette's 18 (made by another app
+ * or an older palette). The edit form had no swatch selected and drew the preview in the
+ * default blue instead of the profile's own color. The fixture's Rosalind is #81b29a, off
+ * the palette.
  *
- * Asked of the edit screen on its own: is exactly one swatch selected and is it the stored colour,
- * and is the preview painted in the stored colour.
+ * Asked of the edit screen on its own: is exactly one swatch selected and is it the stored
+ * color, and is the preview painted in it.
  *
  * Needs Chrome and the Material Icons font, like formfactors.js, and says it was skipped,
  * exiting 0, without them.

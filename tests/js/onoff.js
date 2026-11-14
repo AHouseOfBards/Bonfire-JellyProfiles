@@ -1,9 +1,8 @@
 // Bonfire turned off from the Status tab (2.0).
 //
 // Off, the server serves the same script with one line rewritten (PublishOff in
-// ProfilesController), not the emergency code's inert script: the settings page's theme
-// preview runs on window.BonfireThemePreview from this script, and must keep working.
-// Checked here:
+// ProfilesController), not the emergency code's inert script, because the settings page's
+// theme preview runs on window.BonfireThemePreview from this script. Checked here:
 //
 //  - the line the server rewrites is in profiles.js, exactly as PublishOff spells it;
 //  - off, init() tears down and stops: no events bound, no styles, no preferences

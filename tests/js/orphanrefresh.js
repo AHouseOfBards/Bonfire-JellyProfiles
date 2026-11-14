@@ -45,10 +45,10 @@ const bad = run('fail');
 ok('a failed cleanup changes neither', bad.status === 0 && bad.mappings === 0, JSON.stringify(bad));
 
 // Unused background images (2.0) are part of the same scan. The button said "Remove this
-// record" when the only thing found was an image, the confirmation never mentioned
-// images though the server reports them, and the Status tab left them out of its count,
-// so the two tabs disagreed. Run with the page's real English, since the question is
-// what an administrator reads.
+// record" when only an image was found, the confirmation never mentioned images though the
+// server reports them, and the Status tab left them out of its count, so the two tabs
+// disagreed. Run with the page's real English, since the question is what an administrator
+// reads.
 const english = L.dashboardI18n(script);
 const statusSrc = L.extractFunction(script, 'loadOrphanStatus');
 

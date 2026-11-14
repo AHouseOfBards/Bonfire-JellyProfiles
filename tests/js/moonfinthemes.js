@@ -122,7 +122,7 @@ if (!api || typeof api.moonfinExport !== 'function') {
     process.exit(1);
 }
 
-// The checker has to be able to go red: a file with one bad colour and one missing key.
+// The checker has to be able to go red: a file with one bad color and one missing key.
 (function () {
     const t = JSON.parse(fs.readFileSync(path.join(themesDir, 'bonfire.json'), 'utf8'));
     const good = api.moonfinExport(t, 'Bonfire');
@@ -254,7 +254,7 @@ delete noGlow.textGlow;
 const ng = importAs(noGlow);
 ok('no glow in the file is none in the draft', !!ng && at(ng.draft, 'focus.glow') === null && at(ng.draft, 'depth.title') === null);
 
-// Bonfire -> Moonfin -> Bonfire keeps a colour whose alpha is not ff.
+// Bonfire -> Moonfin -> Bonfire keeps a color whose alpha is not ff.
 const back = api.moonfinImport(api.moonfinExport(mine, 'My test'), builtIn('bonfire'), fonts);
 const bd = back && back.draft;
 [['colors.text1', '#e0e8f0cc'], ['parts.button2.fill', '#aabbcc33'], ['parts.button2.border.color', '#445566aa'], ['focus.glow.color', '#10a0f040'],
@@ -264,7 +264,7 @@ const bd = back && back.draft;
 ok('round trip keeps the font, the ring width and the title shadow', !!bd && at(bd, 'type.font.family') === 'Lora' && at(bd, 'shape.ringWidth') === 4 &&
     at(bd, 'depth.title.blur') === 9 && at(bd, 'depth.title.color') === '#050a1080' && at(bd, 'depth.title.opacity') === undefined);
 
-// A bad colour refuses the whole file.
+// A bad color refuses the whole file.
 [['colors.accent', '#12345'], ['colors.onAccent', '#GG0000'], ['colors.scrim', '#FFB347FF00'], ['colors.background', 'red'], ['colors.surface', 16777215],
     ['semantic.statusPending', '#FFF'], ['book.placeholderPalette', ['#112233', 'nope']], ['borders.cardBorder.color', '#1234567'], ['borders.chipBackground', ''],
     ['borders.focusGlow.0.color', '#xyz'], ['textGlow.0.color', '80000000']].forEach(function (p) {

@@ -24,8 +24,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const ED = `document.getElementById('profilesConfigurationPage')._themeEditor`;
 const AT = p => `(function(){ var o = ${ED}.draft; ${JSON.stringify(p)}.split('.').forEach(function(k){ o = o == null ? o : o[k]; }); return o; })()`;
 
-// A Moonfin file as Moonfin writes it: colours alpha first. The title glow is blue at
-// alpha 0x80, which Bonfire's base theme does not use anywhere.
+// A Moonfin file as Moonfin writes it: colors alpha first. The title glow is blue at alpha
+// 0x80, which Bonfire's base theme does not use anywhere.
 function handFile(extra) {
     const f = {
         schemaVersion: 1, id: 'hand-made', displayName: 'Hand made',

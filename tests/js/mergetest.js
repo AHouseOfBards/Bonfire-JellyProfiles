@@ -1,10 +1,9 @@
 // Guards the merged library list in the edit form.
 //
-// The risk here is not that it looks wrong — it is that the save path and the
-// artwork editor query the two halves by class (.library-checkbox and
-// .jpf-libart-row). Merging them into one row is only safe while both classes stay
-// exactly where those queries expect them, and nothing in the build would fail
-// if they stopped: the form would simply save no libraries.
+// The risk is not that it looks wrong. The save path and the artwork editor query the two
+// halves by class (.library-checkbox and .jpf-libart-row), so merging them into one row is
+// only safe while both classes stay where those queries expect. Nothing in the build would
+// fail if they moved; the form would simply save no libraries.
 
 const fs = require('fs');
 const vm = require('vm');
@@ -26,9 +25,9 @@ check('the artwork list still exists', SRC.includes('id="edit-library-artwork"')
 check('only the create form still has a separate checklist',
     (SRC.match(/<div class="jpf-library-checklist">/g) || []).length, 1);
 check('and its heading with it', /<label>Library Artwork<\/label>/.test(SRC), false);
-// Translated since 1.5.3, so the literal is gone from the markup — but the wording it
-// resolves to is the thing that was decided, and still has to hold. Both forms say
-// "Libraries" (phase 3, 2.0: "Enabled Libraries" was dropped on Add too).
+// Translated since 1.5.3, so the literal is gone from the markup; the wording it resolves
+// to still has to hold. Both forms say "Libraries" (phase 3, 2.0: "Enabled Libraries" was
+// dropped on Add too).
 check('the edit section label is just "Libraries"',
     /<label style="margin: 0;">\$\{t\('profileForm\.libraries'\)\}<\/label>/.test(SRC)
     && /'profileForm\.libraries':\s*'Libraries'/.test(SRC), true);
@@ -60,9 +59,9 @@ check('the label names the checkbox, not a duplicate aria-label',
 
 console.log();
 console.log('── The row is still reachable from a remote ──────────────────');
-// initTVCheckboxes binds ONLY to .jpf-library-check-label. A native checkbox does not
-// toggle on Enter, and a TV remote's OK arrives as Enter, so losing this wrapper
-// silently makes libraries unsettable on webOS and Tizen — with no error anywhere.
+// initTVCheckboxes binds only to .jpf-library-check-label. A native checkbox does not
+// toggle on Enter, and a TV remote's OK arrives as Enter, so losing this wrapper makes
+// libraries unsettable on webOS and Tizen with no error anywhere.
 check('the tick sits inside a jpf-library-check-label',
     /<label class="jpf-library-check-label jpf-libart-check">[\s\S]{0,200}class="library-checkbox"/.test(row), true);
 check('the name is inside that label too, so it is a click target',

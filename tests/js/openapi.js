@@ -1,12 +1,11 @@
 /*
  * docs/openapi.json has to still describe the API.
  *
- * The file is written by hand, because Jellyfin's own Swagger reads XML docs only from
- * its own folder and many of these routes build their JSON by hand. That makes it a second
- * description of every route, next to docs/developer-api.md, and a second description
- * rots exactly as the first one did before apidocs.js. This matches it to the controller
- * pairwise, route by route. Not counts: a count stays green while one route is swapped
- * for another.
+ * The file is written by hand, because Jellyfin's Swagger reads XML docs only from its own
+ * folder and many of these routes build their JSON by hand. That makes it a second
+ * description of every route, next to docs/developer-api.md, and it rots as the first did
+ * before apidocs.js. This matches it to the controller pairwise, route by route; a count
+ * stays green while one route is swapped for another.
  *
  * It fails on:
  *   - a route in code that the file lacks, and a path in the file with no route;
@@ -148,10 +147,9 @@ if (spec) {
 
     console.log();
     console.log('── no shape is left as a bare object ──────────────────────────');
-    // A schema that says `type: object` and nothing else tells a client nothing, and it is
-    // what a shape looks like before anyone reads the code that builds it. A shape that is
-    // too internal to promise says so with x-bonfire-not-api and a description that ends in
-    // "Not part of the API.", which is a decision written down and not a gap.
+    // A schema that says `type: object` and nothing else tells a client nothing; it is what a
+    // shape looks like before anyone reads the code that builds it. One too internal to
+    // promise says so with x-bonfire-not-api and a description ending "Not part of the API.".
     // UNTYPED lists schema paths that may stay bare, and is empty: a new one is a gap.
     const UNTYPED = [];
     const bare = [], badNotApi = [];
