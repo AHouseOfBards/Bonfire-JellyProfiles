@@ -1,8 +1,8 @@
 // Issues #22, #23 and #24, against the real profiles.js.
 //
-// Run against the shipped 1.5.0 file first: every assertion here must FAIL there, or it
-// is not testing the fix. Same technique as busy.js and session.js — evaluate the file
-// with init() swapped for an export, so these are the methods that ship.
+// Run against the shipped 1.5.0 file first: every assertion must FAIL there. Same technique
+// as busy.js and session.js: evaluate the file with init() swapped for an export, so these
+// are the methods that ship.
 //
 //   node issues151.js                 # the working tree
 //   node issues151.js path/to/old.js  # a checkout of 1.5.0, expected to fail
@@ -120,9 +120,8 @@ function at(loc) {
     return calls;
 }
 
-// The reason #22 could not simply reuse the old test: on a path-routed 10.11 build the
-// hash is empty on every page, and `hash === ''` was the first clause — so checkRoute
-// believed every page was home there.
+// Why #22 could not reuse the old test: on a path-routed 10.11 build the hash is empty on
+// every page, and `hash === ''` was the first clause, so checkRoute believed every page was home.
 if (typeof P.isHomeRoute === 'function') {
     at({ pathname: '/web/mypreferencesmenu' });
     ok('a path route that is not home is not home', P.isHomeRoute() === false);
@@ -317,8 +316,8 @@ ok('the libart dialog does not get the row',
     src.indexOf('renderTransparentToggle') !== -1
     && src.indexOf('host.innerHTML = this.renderAvatarPicker("libart"') !== -1);
 
-// Follow-up on #23: the toggle governs the avatar COLOUR, so it belongs beside the
-// swatches, not below the picture panel with the whole picture row in between.
+// Follow-up on #23: the toggle governs the avatar color, so it belongs beside the swatches,
+// not below the picture panel with the whole picture row in between.
 console.log();
 console.log('── #23  Follow-up: placement, wording, rings ──────────────────');
 
@@ -335,11 +334,10 @@ function orderIn(haystack, a, b) {
     const ia = haystack.indexOf(a), ib = haystack.indexOf(b);
     return ia !== -1 && ib !== -1 && ia < ib;
 }
-// 1.7.2 moved it into the picture picker (decided in the settings review): it is a
-// property of the picture. It still sits beside the swatches, because both forms now put
-// the swatches straight after the picker. So the order to hold is name, picture (with
-// the toggle), colour — and the library-artwork picker, which passes no transparency,
-// must still never draw it.
+// 1.7.2 moved it into the picture picker (settings review): it is a property of the
+// picture. It still sits beside the swatches, since both forms put the swatches straight
+// after the picker. So the order is name, picture (with the toggle), color, and the
+// library-artwork picker, which passes no transparency, must never draw it.
 const createForm = src.slice(src.indexOf('const createAppearance = `'), src.indexOf('const createSecurity'));
 ok('create: name, then the picture with its toggle, then the colour swatches',
     orderIn(createForm, 'create-name-input', "renderAvatarPicker('create'")
@@ -362,12 +360,11 @@ ok('edit: same order',
         P.renderAvatarPicker('libart', lib, null, '#123456').indexOf('transparent-row') === -1);
 }
 
-// The header avatar and the gate badge read who-is-active from two different places. This
-// used to check that the revert-to-master path cleared the cached active profile before
-// reloading, so the header stopped naming the profile being left. There is no revert any
-// more: the session in use stays in use (tests/js/mastertoken.js). What remains of the
-// concern is the lock and the switcher button, which both drop the marker before the gate
-// opens so nothing on screen claims a profile is still active.
+// The header avatar and the gate badge read who-is-active from two places. This used to
+// check that the revert-to-master path cleared the cached active profile before reloading.
+// There is no revert any more: the session in use stays in use (tests/js/mastertoken.js).
+// What remains is the lock and the switcher button, which both drop the marker before the
+// gate opens so nothing on screen claims a profile is still active.
 (function () {
     function bodyOf(name) {
         const at = src.indexOf(name + ': function');
@@ -388,20 +385,16 @@ ok('the gate card can go transparent',
 ok('and stops clipping so the outline can show',
     /p\.profileImage && p\.transparentAvatar \? 'visible' : 'hidden'/.test(src));
 
-// The CSS lives in one big template string. Resolve the cascade the way the browser
-// would rather than merely asserting a rule is present — uitest.js was green for
-// three releases on rules that were being overridden.
+// Resolve the cascade as the browser would instead of asserting a rule is present;
+// uitest.js was green for three releases on rules that were being overridden.
 function ruleBody(selector) {
-    // Anchored on a line start plus any indentation, rather than on exactly sixteen
-    // spaces. The stylesheet used to live inside a template literal, so every rule
-    // carried the indentation of the JavaScript around it; it is Web/styles.css now
-    // and carries none. A locator that encodes formatting stops working the moment
-    // the formatting moves, and it fails by finding nothing — which reads as "the
-    // rule is missing" rather than "the locator is wrong".
+    // Anchored on a line start plus any indentation, not exactly sixteen spaces. The
+    // stylesheet used to sit in a template literal, so every rule carried the JavaScript's
+    // indentation; it is Web/styles.css now with none. A locator that encodes formatting
+    // fails by finding nothing, which reads as "the rule is missing", not "the locator is wrong".
     //
-    // It also reads the CSS itself rather than `src`. In the bundle the stylesheet is
-    // a JSON-encoded string, so its newlines are the two characters backslash-n and a
-    // search for a real line break finds nothing. A CSS lookup belongs in the CSS.
+    // It also reads the CSS itself, not `src`: in the bundle the stylesheet is a JSON-encoded
+    // string whose newlines are backslash-n, so a search for a real line break finds nothing.
     const css = L.extractCss(src);
     const needle = '\n' + selector + ' {';
     let i = css.indexOf(needle);
@@ -437,13 +430,11 @@ ok('the current-profile ring follows the silhouette',
 
 // The bug the first pass missed: `.jpf-profile-card.is-current .jpf-profile-avatar` is three
 // classes and `.jpf-profile-avatar.is-transparent` is two, so the accent border won and drew
-// a rounded square around a circular picture while the silhouette drew a second ring
-// inside it. Checking the hover override alone did not catch it, so resolve the cascade
-// for every state that touches border-color or box-shadow on .jpf-profile-avatar.
-// A guard has to answer the SAME state. An earlier version of this check only compared
-// specificity totals, so the high-specificity hover guard counted as cover for the
-// is-current rule and the check passed against the build that actually had the bug —
-// the exact false green this file is supposed to make impossible.
+// a rounded square around a circular picture while the silhouette drew a second ring inside
+// it. Checking the hover override alone missed it, so resolve the cascade for every state
+// that touches border-color or box-shadow on .jpf-profile-avatar. A guard has to answer the
+// SAME state: an earlier version compared specificity totals, so the high-specificity hover
+// guard counted as cover for the is-current rule and passed against the build with the bug.
 function selectorsTouching(prop) {
     const out = [];
     const re = /\n {16}([^\n{]+)\{([^}]*)\}/g;
@@ -487,14 +478,14 @@ ok('manage mode does not drop a square scrim on a cut-out',
 // invalid at computed-value time and silently does nothing.
 const used = new Set((src.match(/var\((--jpf-[a-z0-9-]+)\)/g) || [])
     .map(m => m.replace(/^var\(|\)$/g, '')));
-// Declared in the bundle, or in what themeCss writes from the theme files when the
-// script runs, which since 1.7.2 is where every theme token is. Taken from running the
-// generator, not from its source, so a token it stops writing is undeclared here.
+// Declared in the bundle, or in what themeCss writes from the theme files when the script
+// runs, which since 1.7.2 is where every theme token is. Taken from running the generator,
+// not its source, so a token it stops writing is undeclared here.
 const CSS_ALL = L.extractCss(fs.readFileSync(SRC_PATH, 'utf8'));
 // No built-in theme has a second pattern or an opacity under 1, so the tokens those write
 // (--jpf-deco2, --jpf-deco2-size, --jpf-deco2-opacity) would never be seen above. Run the
-// generator on a theme that has both. Taken from the generator's output, not allowlisted:
-// remove the vars.push that writes them and the tokens are undeclared again.
+// generator on a theme that has both. Taken from its output, not allowlisted: remove the
+// vars.push that writes them and the tokens are undeclared again.
 let SECOND_PATTERN_CSS = '';
 {
     const gen = L.themeGenerator(fs.readFileSync(SRC_PATH, 'utf8'));
@@ -625,10 +616,9 @@ const badgeRule = (() => {
 ok('the PIN badge is bounded by the card too', /max-width:\s*100%/.test(badgeRule));
 
 // Manage mode: taking the scrim away also took away what the white pencil was legible
-// against. On a pale cut-out it would otherwise vanish.
-// Resolved, not spelled: P6 moved that literal onto --jpf-scrim, and matching the
-// spelling would fail for a token holding exactly the right colour while passing for
-// one redefined to transparent. What has to be true is that the backing is dark and
+// against; on a pale cut-out it would vanish. Resolved, not spelled: P6 moved that literal
+// onto --jpf-scrim, and matching the spelling would fail for a token holding the right
+// color and pass for one redefined to transparent. The backing has to be dark and
 // substantially opaque, whatever it is written as.
 ok('the jpf-manage-mode pencil keeps a backing it can be seen against', (() => {
     const m = /\.jpf-profile-avatar\.is-transparent \.jpf-profile-avatar-overlay-svg \{([^}]*)\}/.exec(src);

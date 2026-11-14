@@ -1,10 +1,9 @@
 // "Skip the PIN on my home network" is only offered where it can apply.
 //
-// "Local" is the server's own network as Jellyfin sees it. A household that watches on
-// this server from its own house is never local, so for it the option does nothing while
-// the screen offers it as if it might. The server remembers which households have been
-// seen on its network (seenOnLocalNetwork in /list); the screens draw the option only
-// for those, or where it is already on, so it can still be turned off.
+// "Local" is the server's own network as Jellyfin sees it. A household that watches from
+// its own house is never local, so for it the option does nothing. The server remembers
+// which households have been seen on its network (seenOnLocalNetwork in /list); the
+// screens draw the option only for those, or where it is already on so it can be turned off.
 //
 // Runs the real showAccountSettings, showEditProfileModal and showAddProfileModal against
 // a stub DOM and asks each case on its own, never as a total:
@@ -14,9 +13,9 @@
 //   seen, off         -> shown
 //   seen, on          -> shown
 //
-// for Your account and for a profile's form, and for the create form (always off) in the
-// two states that can differ. Red against 2fb341b, which drew the option for everyone.
-// Also checks the forms still save with the option absent, and that a household with the
+// for Your account and a profile's form, and for the create form (always off) in the two
+// states that can differ. Red against 2fb341b, which drew the option for everyone. Also
+// checks the forms still save with the option absent, and that a household with the
 // option drawn still sends its choice.
 //
 //   node tests/js/homeskip.js [path/to/profiles.js]

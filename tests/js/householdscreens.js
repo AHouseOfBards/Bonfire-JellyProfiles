@@ -1,8 +1,7 @@
 // The household screens, reworked (P2-101 to 113, P2-602 to 607).
 //
 // Each section is one finding, drawn by the real render code against a stub DOM and read
-// back from the markup. Every section was run against the build before its fix and is red
-// there; the fix commit says by how much.
+// back from the markup. Each was red against the build before its fix.
 //
 //   node tests/js/householdscreens.js [path/to/profiles.js]
 

@@ -2,11 +2,9 @@
  * Pictures are rendered at the size the administrator chose.
  *
  * Every resize happens in the browser, on a canvas. The server's picture quality setting
- * (standard, high, maximum) is only worth anything if the browser actually renders at the
- * size it names — otherwise "high" stores the same 512-pixel picture under a bigger limit.
- * The setting reaches the client with the avatar list, which every picker has already
- * fetched by the time anybody can save a picture.
- *
+ * (standard, high, maximum) only matters if the browser renders at the size it names;
+ * otherwise "high" stores the same 512-pixel picture under a bigger limit. The setting
+ * reaches the client with the avatar list, fetched before anyone can save a picture.
  * Runs the shipped file with init() swapped for an export:
  *
  *     node tests/js/imagequality.js /path/to/old/profiles.js
@@ -115,10 +113,9 @@ console.log();
 console.log('── The dashboard: four levels, stored ids unchanged ────────────');
 
 // The stored ids are values in saved configs. "high" has always meant 1024 px and "maximum"
-// 2048 px; the words an administrator reads (Low, Medium, High, Maximum) moved up one place
-// when a fourth level was added, and renaming the ids to match would silently change what a
-// server saved. So this pins each id to the size it has always had, and each label to the size
-// its id really has.
+// 2048 px; the labels (Low, Medium, High, Maximum) moved up one place when a fourth level
+// was added, and renaming the ids would silently change what a server saved. So this pins
+// each id to the size it has always had, and each label to the size its id really has.
 const PINNED = {
     standard: { px: 512, mb: 2, word: 'Low', key: 'qualityStandard' },
     high: { px: 1024, mb: 4, word: 'Medium', key: 'qualityHigh' },

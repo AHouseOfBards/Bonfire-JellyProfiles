@@ -1,10 +1,10 @@
 /*
  * init() waits for jellyfin-web's ApiClient, and keeps waiting (r3-05-01).
  *
- * It used to wait forever at 100 ms. A cap of 600 tries made it give up after about a minute,
- * and nothing started it again: a page that took longer to get an ApiClient (a select-server
- * page, a slow TV) never got Bonfire until a reload. After the first minute it now asks less
- * often, and never stops.
+ * It used to give up after 600 tries at 100 ms, about a minute, and nothing started it
+ * again: a page that took longer to get an ApiClient (a select-server page, a slow TV)
+ * never got Bonfire until a reload. After the first minute it now asks less often, and
+ * never stops.
  *
  * Runs the real init() with ApiClient undefined and a fake setTimeout.
  *

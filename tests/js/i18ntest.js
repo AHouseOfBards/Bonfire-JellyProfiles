@@ -1,9 +1,9 @@
 // The client half of translations, against the real profiles.js.
 //
-// Same technique as busy.js: evaluate the shipped file with the init() call swapped for
-// an export. Here the export also reaches the i18n closure — t, detectLocale, loadLocale
-// and the SUPPORTED_LOCALES binding — none of which hang off ProfilesPlugin, and all of
-// which decide whether a translation is ever loaded at all.
+// Same technique as busy.js: evaluate the shipped file with the init() call swapped for an
+// export. The export also reaches the i18n closure (t, detectLocale, loadLocale and the
+// SUPPORTED_LOCALES binding), which hangs off nothing else and decides whether a
+// translation is ever loaded.
 const fs = require('fs');
 const vm = require('vm');
 const L = require('./_lib');
@@ -27,8 +27,8 @@ const runnable = src.replace(INIT,
     'globalThis.__PROFILES = ProfilesPlugin;' +
     'globalThis.__I18N = {' +
     '  t: t, detectLocale: detectLocale, loadLocale: loadLocale,' +
-    // typeof, so the harness still runs against a build from before the watcher and
-    // reports it missing rather than dying on a ReferenceError.
+    // typeof, so the harness still runs against a build from before the watcher and reports
+    // it missing, not a ReferenceError.
     '  watch: typeof watchJellyfinLanguage === "function" ? watchJellyfinLanguage : function () {},' +
     '  en: EN_STRINGS,' +
     '  setLocales: function (l) { SUPPORTED_LOCALES = l; },' +
@@ -190,8 +190,8 @@ ok('a regional setting falls back to its base language',
 ok('an unsupported language stays on English', detectWith('es', ['fr']) === null);
 ok('an empty list stays on English', detectWith('fr', []) === null);
 
-// The two-character slice this started as could not tell pt-BR from pt-PT, and would
-// have handed a Brazilian reader a European file neither of them chose.
+// The two-character slice this started as could not tell pt-BR from pt-PT and would hand a
+// Brazilian reader a European file.
 ok('a regional file is preferred over its base language',
     detectWith('pt-BR', ['pt', 'pt-BR']) === 'pt-BR');
 ok('and the base is still used when there is no regional file',
@@ -265,8 +265,8 @@ checks.push(loadWith('fr', ['fr'],
 
 // ── Changing the Display language without a reload ──────────────────────────
 // jellyfin-web applies a new Display language in place: it stores it and rewrites
-// <html lang>. Bonfire has to follow it there, and back to English, which until now it
-// never had to do because nothing ever changed after startup.
+// <html lang>. Bonfire has to follow, including back to English; nothing changed after
+// startup before this.
 const FILES = {
     fr: { 'common.cancel': 'Annuler' },
     pl: { 'common.cancel': 'Anuluj' }
@@ -353,10 +353,10 @@ Promise.all(checks).then(() => {
         ok(f + ' is valid JSON', data !== null && typeof data === 'object');
         if (!data) return;
 
-        // The household's half: exactly what the server hands this script (everything but
-        // admin.*, email.* and notice.*, see ReadLocalePart). The settings page's half is checked
-        // against its own catalogue by Web/i18n/validate.js and tests/js/admini18n.js; the
-        // mail's, against Mail/EmailText.cs by validate.js.
+        // The household's half: what the server hands this script (all but admin.*, email.*
+        // and notice.*, see ReadLocalePart). The settings page's half is checked by
+        // Web/i18n/validate.js and tests/js/admini18n.js; the mail's, against
+        // Mail/EmailText.cs by validate.js.
         data = Object.keys(data).filter(k => k.indexOf('admin.') !== 0 && k.indexOf('email.') !== 0 && k.indexOf('notice.') !== 0)
             .reduce((o, k) => { o[k] = data[k]; return o; }, {});
 

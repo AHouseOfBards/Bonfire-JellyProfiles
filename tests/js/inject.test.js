@@ -1,19 +1,17 @@
 /*
  * Does the client script actually start up?
  *
- * Written against the defect that shipped in 1.5.2 and 1.5.3-beta: two unescaped
- * backticks inside injectStyles' CSS template literal ended the literal early. The file
- * stayed valid JavaScript — `node --check` passed and the release went out — but at
- * runtime the expression became a tagged template on an undeclared identifier and threw
- * ReferenceError. injectStyles is the third call in init(), so the nine steps after it
- * never ran.
+ * Written against the defect that shipped in 1.5.2 and 1.5.3-beta: two unescaped backticks
+ * inside injectStyles' CSS template literal ended the literal early. The file stayed valid
+ * JavaScript (`node --check` passed), but at runtime the expression became a tagged
+ * template on an undeclared identifier and threw ReferenceError. injectStyles is the third
+ * call in init(), so the nine steps after it never ran.
  *
- * The lesson this file exists to enforce: "does it parse" is not "does it run". Every
- * assertion below executes the shipped code rather than inspecting its text.
+ * "Does it parse" is not "does it run": every assertion here executes the shipped code.
  *
- * init() now wraps each step in _step(), which catches. That is right for production and
- * wrong for a test, so this calls every step DIRECTLY and unwrapped — otherwise the guard
- * we just added would hide the very failure we are checking for.
+ * init() wraps each step in _step(), which catches. That is right for production and wrong
+ * for a test, so this calls every step DIRECTLY, or the guard would hide the failure being
+ * checked.
  *
  *   node tests/js/inject.test.js                 # checks Web/profiles.js
  *   node tests/js/inject.test.js <path>          # or any other checkout, to prove it fails there
@@ -114,9 +112,9 @@ function installDom() {
         setAuthenticationInfo() {},
         getPluginConfiguration: () => Promise.resolve({})
     };
-    // bindEvents() installs the 500ms route poll. Left on the real timers the process
-    // never exits, so the run hangs rather than reporting. Record instead of schedule —
-    // the counts are worth asserting on later (see P3, the tick work).
+    // bindEvents() installs the 500ms route poll. On real timers the process never exits and
+    // the run hangs, so record instead of schedule; the counts are asserted later (see P3,
+    // the tick work).
     global.__timers = { intervals: 0, timeouts: 0 };
     global.setInterval = () => { global.__timers.intervals++; return 0; };
     global.setTimeout = () => { global.__timers.timeouts++; return 0; };
@@ -144,10 +142,9 @@ function loadPlugin(source) {
 
 // ── run ─────────────────────────────────────────────────────────────────────
 //
-// The bundle, exactly as the server sends it: profiles.js with Web/styles.css spliced
-// into BONFIRE_STYLES. This harness EXECUTES the startup path, so it has to run what a
-// browser runs — the file on its own now carries an empty stylesheet by design, and
-// asserting against that would test a script nobody is served.
+// The bundle, exactly as the server sends it: profiles.js with Web/styles.css spliced into
+// BONFIRE_STYLES. This harness executes the startup path, so it runs what a browser runs;
+// the file alone carries an empty stylesheet by design and would test a script nobody is served.
 const source = require('./_lib').readClientBundle(fs.readFileSync(SRC, 'utf8'));
 installDom();
 
@@ -177,19 +174,17 @@ if (P) {
     if (sheet) {
         const css = sheet.textContent || sheet.innerHTML || '';
         sheetText = css;
-        // A floor, and the reason for it has changed. It used to guard against a literal
-        // cut off at the first stray backtick — the defect that shipped 1.5.2 dead — and
-        // 60,000 sat just under the inline sheet's ~68,500. The stylesheet is a real .css
-        // file now and cannot be truncated that way, and de-indenting it out of the
-        // JavaScript took ~25,000 characters of leading whitespace off, so the true size
-        // is ~58,700. What the floor still catches is the splice failing: the marker
-        // edited away, styles.css missing from the build, an empty resource. All of those
-        // leave a sheet of a few hundred characters at most.
+        // A floor. It once guarded against a literal cut off at a stray backtick (the 1.5.2
+        // defect), with 60,000 just under the inline sheet's ~68,500. The stylesheet is a
+        // real .css file now and cannot be truncated that way; de-indenting it out of the
+        // JavaScript brought it to ~58,700. What the floor still catches is the splice
+        // failing (marker edited away, styles.css missing, an empty resource), which leaves
+        // a sheet of a few hundred characters at most.
         ok(css.length > 40000, 'the stylesheet is a full sheet, not an empty splice',
             'got ' + css.length + ' characters, expected > 40000');
-        // The length floor above cannot tell the stylesheet from the themes: the themes
-        // alone are over 40,000 characters and carry the same sentinel selectors, so
-        // dropping BONFIRE_STYLES from the sheet stayed green. Ask for the file itself.
+        // The length floor cannot tell the stylesheet from the themes: the themes alone are
+        // over 40,000 characters and carry the same sentinel selectors, so dropping
+        // BONFIRE_STYLES stayed green. Ask for the file itself.
         if (source.indexOf('let BONFIRE_STYLES = "') !== -1) {
             ok(css.indexOf(require('./_lib').stylesOnly()) !== -1,
                 'the sheet contains Web/styles.css whole, not only the themes');
@@ -226,12 +221,11 @@ if (P) {
     ok(steps.length >= 10, 'init() routes its startup calls through _step()',
         'found ' + steps.length + ' _step() calls, expected at least 10');
 
-    // Library artwork (issue #19) has never been seen working by anybody, and its two
-    // startup calls were among the nine the 1.5.2 backtick killed — so for two releases
-    // the feature could not have run at all, whatever its own harness said about rule
-    // generation. tests/js/libartest.js calls those functions directly and so cannot
-    // notice if init() stops reaching them; a count of steps would not notice either.
-    // These name them.
+    // Library artwork (issue #19) has never been seen working by anybody, and its two startup
+    // calls were among the nine the 1.5.2 backtick killed, so for two releases it could not
+    // have run whatever its own harness said. tests/js/libartest.js calls those functions
+    // directly and cannot notice if init() stops reaching them; a count of steps would not
+    // either. These name them.
     ['applyCachedLibraryArtwork', 'loadLibraryArtwork'].forEach(name => {
         ok(steps.includes(name),
             'init() still runs ' + name + '() — library artwork reaches the page',
@@ -270,13 +264,12 @@ if (P) {
             stepErr ? stepErr.message : '');
     }
 
-    // 6. Run init() itself. Everything above calls the steps one by one, which cannot
-    //    notice init() no longer reaching one, reaching it unwrapped, or stopping early:
-    //    the step count only has to stay >= 10 and the names are read from init's own
-    //    text, so deleting a step deleted its test with it. Spy on the methods, run
-    //    init(), and require every step of this list to have been called by it. The list
-    //    is pinned on purpose: removing a startup step has to be a decision made here.
-    //    A step added to init() is still covered by item 3.
+    // 6. Run init() itself. The steps above are called one by one, which cannot notice init()
+    //    no longer reaching one, reaching it unwrapped, or stopping early: the step count only
+    //    has to stay >= 10 and the names come from init's own text, so deleting a step deleted
+    //    its test too. Spy on the methods, run init(), and require every step of this list to
+    //    have been called. The list is pinned on purpose: removing a startup step is a
+    //    decision made here. A step added to init() is still covered by item 3.
     const REQUIRED_STEPS = [
         'bindEvents', 'applyDeviceClasses', 'restoreCustomThemes', 'applyCachedTheme',
         'injectStyles', 'loadCustomThemes', '_adoptCover', 'applyCachedLibraryArtwork',
@@ -286,8 +279,8 @@ if (P) {
         'checkMaintenance', 'validateSessionState'
     ];
     const order = [];
-    // Item 3 already ran the steps by hand, and one of them started the once-per-load page
-    // checks; init() would then skip them. Put the guard back as a fresh page has it.
+    // Item 3 already ran the steps by hand, and one started the once-per-load page checks, so
+    // init() would skip them. Put the guard back as a fresh page has it.
     P._pageChecksStarted = false;
     // Likewise something in that loop left the plugin in its emergency-disabled state,
     // which makes init() return before the page checks.
@@ -340,14 +333,14 @@ if (at !== -1) {
 
 // 5b. What a stray character in Web/styles.css can still break.
 //
-// Assertion 5 above is dead code since the stylesheet left the script: PublishStyles splices
-// it in as a JSON string, so no character in the CSS can end a JavaScript literal, and the
-// `injectStyles: function` / backtick search finds nothing to examine. The splice is total in
-// JS terms. What is left is CSS's own grammar, and it fails silently in the browser: an
-// unterminated /* comment, an unterminated string, or one unbalanced brace makes the parser
-// swallow everything after it. The sheet injected is styles.css + '\n' + the themes' CSS, so
-// that is the themes (every screen's colours) and every rule below the defect. Nothing throws,
-// nothing logs, and injectStyles() reports success.
+// Assertion 5 is dead code since the stylesheet left the script: PublishStyles splices it
+// in as a JSON string, so no CSS character can end a JavaScript literal, and the
+// `injectStyles: function` / backtick search finds nothing. What is left is CSS's own
+// grammar, which fails silently in the browser: an unterminated /* comment, an
+// unterminated string, or one unbalanced brace makes the parser swallow everything after
+// it. The sheet injected is styles.css + '\n' + the themes' CSS, so that means the themes
+// (every screen's colors) and every rule below the defect. Nothing throws or logs, and
+// injectStyles() reports success.
 function cssDefects(css) {
     const out = [];
     const stack = [];
