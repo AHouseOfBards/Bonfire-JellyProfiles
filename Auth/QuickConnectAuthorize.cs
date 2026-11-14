@@ -13,24 +13,24 @@ namespace Jellyfin.Profiles.Auth
     ///
     /// <para><b>The hole.</b> <c>POST /QuickConnect/Authorize</c> makes Jellyfin's
     /// <c>QuickConnectManager</c> create the session itself, with <c>AuthenticateDirect</c>, for
-    /// the device that asked for the code. That never goes through
+    /// the device that asked for the code. That skips
     /// <see cref="BonfirePinAuthenticationProvider"/>, so a profile's device list and the apps
-    /// that only get the picker were both skipped: a profile on an allowed device could
+    /// that only get the picker were not enforced: a profile on an allowed device could
     /// authorize a code from one that was not.</para>
     ///
-    /// <para><b>Which device.</b> The one that asked for the code, not the one authorizing
-    /// it. The authorize request names only the code, so the code is matched to its device
-    /// from the Initiate answer, which passes through the middleware
-    /// (<see cref="Remember"/>). Jellyfin keeps its own table private. A code the middleware
-    /// never saw, after a restart or from before this plugin loaded, cannot be judged, so a
-    /// profile is refused it only where a rule could have refused it (a device list, or an
-    /// app ticked for the picker): ten minutes is as long as a code lives anyway.</para>
+    /// <para><b>Which device.</b> The one that asked for the code, not the one authorizing it.
+    /// The authorize request names only the code, so it is matched to its device from the
+    /// Initiate answer, which passes through the middleware (<see cref="Remember"/>); Jellyfin
+    /// keeps its own table private. A code the middleware never saw (after a restart, or from
+    /// before the plugin loaded) cannot be judged, so a profile is refused it only where a rule
+    /// could have refused it (a device list, or an app ticked for the picker). Codes live ten
+    /// minutes anyway.</para>
     ///
-    /// <para><b>Not applied.</b> The household-has-signed-in-here rule. It stops a stranger
-    /// who guesses a profile's name; here the profile is already signed in and is the one
-    /// choosing. And a main account is never judged: it is a real account that owns its own
-    /// devices. Android TV asks for a code with a random device id, so a profile with a device
-    /// list cannot authorize one, which is the list doing its job.</para>
+    /// <para><b>Not applied.</b> The household-has-signed-in-here rule, which stops a stranger
+    /// who guesses a profile's name; here the profile is already signed in and is choosing. A
+    /// main account is never judged: it is a real account that owns its devices. Android TV asks
+    /// for a code with a random device id, so a profile with a device list cannot authorize one,
+    /// which is the list doing its job.</para>
     /// </summary>
     public static class QuickConnectAuthorize
     {
@@ -42,7 +42,7 @@ namespace Jellyfin.Profiles.Auth
         private const int MaxRemembered = 1000;
 
         /// <summary>
-        /// Initiate is anonymous, so one address can ask for a thousand codes and push everyone
+        /// Initiate is anonymous, so one address could ask for a thousand codes and push everyone
         /// else's out of the table. Past this many live codes an address loses its own oldest
         /// first. Far above what a household's TVs ask for in ten minutes.
         /// </summary>
@@ -60,7 +60,7 @@ namespace Jellyfin.Profiles.Auth
 
         /// <summary>
         /// Reads Jellyfin's answer to Initiate and remembers which device asked for which code.
-        /// Anything unreadable is ignored: that code is then refused to a profile, never allowed.
+        /// Anything unreadable is ignored, so that code is refused to a profile, never allowed.
         /// </summary>
         public static void Remember(byte[] answer, string? origin = null)
         {
@@ -138,10 +138,10 @@ namespace Jellyfin.Profiles.Auth
                 || !Codes.TryGetValue(code, out var asked)
                 || asked.Until <= Now())
             {
-                // Its device is unknown. Refused only where some rule could have refused it:
-                // a profile with a device list, or any app ticked for the picker. Otherwise
-                // nothing here applies, and refusing would break an ordinary household's
-                // Quick Connect for the ten minutes after a restart.
+                // Its device is unknown. Refused only where a rule could have refused it: a
+                // profile with a device list, or any app ticked for the picker. Otherwise
+                // refusing would break an ordinary household's Quick Connect for the ten
+                // minutes after a restart.
                 var unjudged = Controllers.ProfilesBaseController.EvaluateDeviceRestriction(
                     mapping, null, config.KnownDevices, config.Mappings);
                 return unjudged != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted || ProxyClients.AnyEnabled(config)
