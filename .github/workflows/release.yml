@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The default token; `permissions: contents: write` above is what lets it push
           # the manifest commit. Not a request for a separate token.
@@ -37,14 +37,14 @@ jobs:
       # output is packaged below; net10.0 is built so that it cannot rot unnoticed
       # between the day it is needed and now.
       - name: Setup .NET 9 and 10
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: |
             9.0.x
             10.0.x
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
 
@@ -227,7 +227,7 @@ jobs:
       # left a manifest naming a checksum for a release that then failed to publish. Now a
       # failure here pushes nothing, and nobody is offered a version that cannot be installed.
       - name: Create or update GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           files: dist/Jellyfin.Profiles.zip
           body_path: ${{ runner.temp }}/release-notes.md
