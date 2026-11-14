@@ -186,6 +186,19 @@ Every change since 1.7.5 is in the [changelog](https://github.com/AHouseOfBards/
 - Profile tiles, More options and the avatar library looked wrong on older TVs.
 - Security and privacy fixes. Updating is recommended.
 
+## 1.7.5  — 2026-11-09
+
+**Fixed**
+
+- If the settings page failed to load, Save could overwrite your settings with the defaults. Save now waits until they load, and the page offers Try again.
+
+## 1.7.4  — 2026-11-09
+
+**Fixed**
+
+- A second household's PIN was refused on a device two households share.
+- Security and privacy fixes. Updating is recommended.
+
 ## 1.7.3.1-beta  — 2026-11-08
 
 **Fixed**
@@ -197,6 +210,14 @@ Every change since 1.7.5 is in the [changelog](https://github.com/AHouseOfBards/
 **Changed**
 
 - On Swiftfin, Roku and other apps, the refusal when viewing time runs out or the server is closed now says what to do.
+
+## 1.7.3  — 2026-11-08
+
+**Fixed**
+
+- Wholphin and Android TV couldn't load the profile list. (#43)
+- OK did nothing on Reset PIN, signing a device out, or importing a backup. (#44)
+- Changing the main PIN in Manage Profiles made later saves fail as an incorrect PIN. (#44)
 
 ## 1.7.2.1-beta  — 2026-11-07
 
@@ -219,6 +240,24 @@ Every change since 1.7.5 is in the [changelog](https://github.com/AHouseOfBards/
 - Making an account into a profile now asks whether deleting the profile later keeps the account.
 - A profile can't be named after a real account.
 - Versions 1.6.1.2 and 1.6.1.3 are no longer offered: they could break sign-in for the whole server.
+
+## 1.7.2  — 2026-11-07
+
+**Fixed**
+
+- Picking a profile after restarting the app failed at the session limit and looped back to the picker. (#41)
+- A Roku opened a profile without asking for its PIN. (#40)
+- Bonfire did nothing on servers with a Base URL, or behind an HTTPS proxy with "Require HTTPS" on.
+- A configuration file that couldn't be read wiped every household.
+- Typing a long PIN used up its tries before it was finished.
+- A PIN typed after "Clear PIN" was dropped.
+- A rejected profile picture deleted the one the profile had.
+- A library removed from a profile in Dashboard → Users came back at its next sign-in.
+- Security and privacy fixes. Updating is recommended.
+
+**Changed**
+
+- On other apps, PIN sign-in is limited to devices your household uses.
 
 ## 1.7.1.2-beta  — 2026-11-04
 
