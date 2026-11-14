@@ -144,15 +144,23 @@ async function main() {
     const c = await chrome.launch();
     const url = (theme, scene, device) => 'http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=' + scene + '&device=' + device;
     try {
+        // Every theme, logo and size is its own page, independent of the others, so they are
+        // measured several at a time (chrome.js checks()), in the order a serial loop would give.
+        // `c` inside each callback is that scene's own tab.
         const share = {};
+        const grid = [];
         for (const theme of themes()) {
             for (const scene of ['logowhite', 'logodark', 'logoorange']) {
-                for (const device of ['tablet', 'tv720', 'tv']) {
+                for (const device of ['tablet', 'tv720', 'tv']) grid.push({ theme, scene, device });
+            }
+        }
+        const ratios = [];
+        const results = await c.checks(grid, async (c, { theme, scene, device }, ok, i) => {
                     const where = theme + ' ' + scene + ' ' + device;
                     const r = await c.open(url(theme, scene, device), device);
-                    if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
+                    if (r.error) { ok(where + ': the screen draws', false, r.error); return; }
                     const s = await look(c, chrome.DEVICES[device].scale || 1);
-                    if (!s) { ok(where + ': the logo is drawn', false, 'no picture'); continue; }
+                    if (!s) { ok(where + ': the logo is drawn', false, 'no picture'); return; }
                     const d = 'bars ' + s.bar + ', gaps ' + s.gap + ', outside ' + s.out + '; ' + s.seen.toFixed(2) + ':1 seen, ' + s.bare.toFixed(2) + ':1 bare, backed ' + s.m.backed;
                     ok(where + ': the logo can be seen (3:1 against what shows through it)', s.seen >= 3, d);
                     // Within a hair of 3:1 either answer is right: the client decides from the
@@ -160,39 +168,44 @@ async function main() {
                     // and the screen shows that glow already fading (3.14:1). Outside the band
                     // the answer must match the screen; and the first check holds everywhere.
                     if (s.bare < 2.8 || s.bare > 3.3) ok(where + ': ' + (s.bare < 3 ? 'it needs a backing and has one' : 'it reads on the background and has no backing'), s.m.backed === (s.bare < 3), d);
-                    if (/^tv/.test(device)) (share[theme + scene] = share[theme + scene] || []).push(s.m.img.h / s.m.vh);
-                }
-            }
-        }
+                    if (/^tv/.test(device)) ratios[i] = s.m.img.h / s.m.vh;
+        });
+        results.forEach(a => ok(a[0], a[1], a[2]));
+        // Gathered in grid order, as the serial loop pushed them.
+        grid.forEach((g, i) => { if (ratios[i] !== undefined) (share[g.theme + g.scene] = share[g.theme + g.scene] || []).push(ratios[i]); });
         Object.keys(share).forEach(k => {
             const v = share[k];
             ok(k + ': on a TV the picture is the same share of the screen at 720p and 1080p', v.length === 2 && Math.abs(v[0] - v[1]) < 0.005, v.map(x => (x * 100).toFixed(1) + '%').join(' vs '));
         });
 
         // With the gate open, a theme change puts the backing on or takes it off.
+        const swaps = [];
         for (const pair of [['bonfire', 'jellyfin-light'], ['jellyfin-light', 'bonfire']]) {
-            for (const scene of ['logowhite', 'logodark']) {
+            for (const scene of ['logowhite', 'logodark']) swaps.push({ pair, scene });
+        }
+        const swapped = await c.checks(swaps, async (c, { pair, scene }, ok) => {
                 const where = scene + ' ' + pair[0] + ' then ' + pair[1];
                 const r = await c.open(url(pair[0], scene, 'tablet'), 'tablet');
-                if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
+                if (r.error) { ok(where + ': the screen draws', false, r.error); return; }
                 await c.evaluate(WAIT);
                 await c.evaluate('window.__bonfire.applyTheme(' + JSON.stringify(pair[1]) + ')');
                 const s = await look(c, chrome.DEVICES.tablet.scale || 1);
-                if (!s) { ok(where + ': the logo is drawn', false, 'no picture'); continue; }
+                if (!s) { ok(where + ': the logo is drawn', false, 'no picture'); return; }
                 const d = s.seen.toFixed(2) + ':1 seen, ' + s.bare.toFixed(2) + ':1 bare, backed ' + s.m.backed;
                 ok(where + ': the logo can be seen', s.seen >= 3, d);
                 ok(where + ': backed exactly when it needs it', s.m.backed === (s.bare < 3), d);
-            }
-        }
+        });
+        swapped.forEach(a => ok(a[0], a[1], a[2]));
 
         // A solid picture brings its own background.
-        for (const theme of themes()) {
+        const solid = await c.checks(themes(), async (c, theme, ok) => {
             const r = await c.open(url(theme, 'logo', 'tablet'), 'tablet');
-            if (r.error) { ok(theme + ' logo: the screen draws', false, r.error); continue; }
+            if (r.error) { ok(theme + ' logo: the screen draws', false, r.error); return; }
             await c.evaluate(WAIT);
             const m = await c.evaluate(MEASURE);
             ok(theme + ' logo (solid JPEG): no backing', !!m && !m.backed, m ? 'backed ' + m.backed : 'no picture');
-        }
+        });
+        solid.forEach(a => ok(a[0], a[1], a[2]));
     } finally {
         await c.close();
         await server.close();

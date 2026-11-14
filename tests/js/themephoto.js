@@ -195,18 +195,22 @@ async function main() {
     const given = process.argv[2];
     const server = await fixture.start(0, { materialIcons: ICONS, source: given ? fs.readFileSync(given, 'utf8') : undefined });
     const c = await chrome.launch();
-    let DIM = 0;
-    const url = (theme, device, photo) => 'http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=picker&device=' + device
-        + (photo ? '&photo=' + photo + '&dim=' + DIM : '');
     try {
-        for (const theme of themes()) {
-            DIM = startingDim(theme);
+        // Every theme and size is its own set of pages, independent of the others, so they are
+        // measured several at a time (chrome.js checks()), in the order a serial loop would give.
+        // `c` inside the callback is that scene's own tab.
+        const grid = [];
+        for (const theme of themes()) for (const device of ['tablet', 'tv']) grid.push({ theme, device });
+        const results = await c.checks(grid, async (c, { theme, device }, ok) => {
+            const DIM = startingDim(theme);
+            const url = (th, dv, photo) => 'http://127.0.0.1:' + server.port + '/?theme=' + th + '&scene=picker&device=' + dv
+                + (photo ? '&photo=' + photo + '&dim=' + DIM : '');
             const light = theme.scheme === 'light';
             const fill = [1, 3, 5].map(i => parseInt(theme.background.fill.slice(i, i + 2), 16));
             const worst = light ? BLACK : WHITE;
             const end = light ? 0 : 255;
             const expect = fill.map(x => Math.round(x * DIM + end * (1 - DIM)));
-            for (const device of ['tablet', 'tv']) {
+            {
                 const at = theme.id + ' ' + device;
                 await c.open(url(theme.id, device, worst), device);
                 const seen = await c.evaluate(LOOK);
@@ -288,7 +292,8 @@ async function main() {
                 ok(at + ': a picture that fails leaves the background exactly as with none', !brokenSeen.marked && diff === 0,
                     'marked ' + brokenSeen.marked + ', ' + diff + ' channel values differ');
             }
-        }
+        });
+        results.forEach(a => ok(a[0], a[1], a[2]));
     } finally {
         await c.close();
         await server.close();

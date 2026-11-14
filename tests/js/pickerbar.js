@@ -165,18 +165,24 @@ async function main() {
     const c = await chrome.launch();
     const seen = {};
     try {
+        // Every theme, size and case is its own page, independent of the others, so they are
+        // measured several at a time (chrome.js checks()), in the order a serial loop would give.
+        // `c` inside the callback is that scene's own tab.
+        const grid = [];
         for (const theme of themes()) {
-            console.log('\n── ' + theme + ' ──');
             for (const device of DEVICES) {
-                for (const k of CASES) {
+                for (const k of CASES) grid.push({ theme, device, k });
+            }
+        }
+        const results = await c.checks(grid, async (c, { theme, device, k }, ok) => {
                     const url = 'http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=picker&device=' + device
                         + '&count=' + k.count + (k.bonfire ? '&bonfire=yes' : '');
                     const where = theme + ' ' + device + ' ' + k.name;
                     const r = await c.open(url, device);
-                    if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
+                    if (r.error) { ok(where + ': the screen draws', false, r.error); return; }
                     await c.evaluate('new Promise(function (r) { setTimeout(r, 250); })');
                     const m = await c.evaluate(MEASURE);
-                    if (m.missing) { ok(where + ': the screen draws', false, 'no gate, row or plugin'); continue; }
+                    if (m.missing) { ok(where + ': the screen draws', false, 'no gate, row or plugin'); return; }
                     seen[device + (m.overflow ? ' overflow' : ' fit')] = true;
                     if (m.overflow) {
                         const w = where + ' (overflows)';
@@ -198,9 +204,14 @@ async function main() {
                         ok(w + ': the row is below the last household', m.bar.top >= m.lastGridBottom - 0.5, 'row top ' + Math.round(m.bar.top) + ', grid bottom ' + Math.round(m.lastGridBottom));
                         ok(w + ': Down still reaches the row', m.reached, 'after ' + m.steps + ' steps');
                     }
-                }
-            }
-        }
+        });
+        // The theme headings, printed as the results reach each theme.
+        let heading = null;
+        results.forEach(a => {
+            const theme = a[0].split(' ')[0];
+            if (theme !== heading) { heading = theme; console.log('\n── ' + theme + ' ──'); }
+            ok(a[0], a[1], a[2]);
+        });
         DEVICES.forEach(d => {
             ok(d + ': at least one case overflows, so the sticky checks asked something', !!seen[d + ' overflow']);
             ok(d + ': at least one case fits, so the flow checks asked something', !!seen[d + ' fit']);
