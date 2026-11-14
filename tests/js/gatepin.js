@@ -1,8 +1,7 @@
 // r2-24-01: the main PIN typed on the gate for one act (more time for a profile) must not
-// stay cached when that act is cancelled or refused, or the next person at the screen
-// skips the PIN. Runs the real chooseMoreTime and answerTimeRequest and reads back
-// whether masterPin survived each way out. Against the build before the fix, cancel and
-// failure leave it set.
+// stay cached when the act is cancelled or refused, or the next person at the screen skips
+// the PIN. Runs the real chooseMoreTime and answerTimeRequest and reads back whether
+// masterPin survived each way out. Before the fix, cancel and failure leave it set.
 //
 //   node tests/js/gatepin.js [path/to/profiles.js]
 

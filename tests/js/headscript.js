@@ -1,19 +1,17 @@
 /*
  * The inline <head> script, executed.
  *
- * It is the only part of the plugin that runs before anything else on a page load, and
- * it is the part that hides the whole document. Two things were wrong with it:
+ * It runs before anything else on a page load and hides the whole document. Two defects:
  *
- *  - it painted #101010 with color-scheme:dark unconditionally. Jellyfin ships light
- *    themes, so on any of them a profile switch flashed a full-screen black rectangle —
- *    the exact flash this script exists to prevent, in the other direction — and forced
- *    dark scrollbars and form controls while it did.
- *  - if the reveal never came, it held the page hidden for four seconds. On a television
- *    four seconds of nothing is indistinguishable from a crash.
+ *  - It painted #101010 with color-scheme:dark unconditionally. On Jellyfin's light themes
+ *    a profile switch flashed a full-screen black rectangle, the flash it exists to
+ *    prevent, and forced dark scrollbars and form controls.
+ *  - If the reveal never came, it held the page hidden for four seconds, which on a
+ *    television looks like a crash.
  *
  * The script lives in a C# const, so it is reassembled from the string literals in
- * WebInjection.cs and run here. That is worth the trouble: this script is never covered
- * by node --check, never linted, and a mistake in it blanks the entire web interface.
+ * WebInjection.cs and run here. node --check and linting never cover it, and a mistake in
+ * it blanks the entire web interface.
  *
  *     node tests/js/headscript.js "" "" /path/to/old/WebInjection.cs
  */
@@ -60,15 +58,14 @@ const tag = headScript();
 
 console.log('\n── The constant reassembles into a real script tag ─────────────');
 
-// If the reassembly is wrong every assertion below is about the wrong text, so this is
-// checked first and loudly rather than left to produce quiet nonsense.
+// A wrong reassembly makes every assertion below about the wrong text, so check it first.
 ok('it opens with the tag the injector looks for', tag.indexOf('<script id="jpf-eh">') === 0);
 ok('and closes', /<\/script>$/.test(tag));
 ok('with a body of a plausible size (' + tag.length + ' chars)', tag.length > 300);
 
-// The script is written into index.html between <script> tags. The first </script> inside
-// it ends the tag there, wherever the text came from, and the parse check below cannot see
-// it because it runs on the body alone. An HTML comment opener does the same in old engines.
+// The script goes into index.html between <script> tags. The first </script> inside it ends
+// the tag whatever its source, and the parse check below runs on the body alone and cannot
+// see it. An HTML comment opener does the same in old engines.
 ok('the only </script> in it is the closing tag', tag.indexOf('</script>') === tag.length - '</script>'.length,
     'found one at ' + tag.indexOf('</script>') + ' of ' + tag.length);
 ok('and it contains no <!-- that an HTML parser would treat as a comment', tag.indexOf('<!--') === -1);
@@ -146,8 +143,8 @@ const noBg = run({ 'jpf-sw': '1' });
 ok('no stored colour falls back to the old default', noBg.style.background === '#101010');
 ok('and to dark', noBg.style.colorScheme === 'dark');
 
-// A value that is not a colour would paint nothing, leaving the page hidden until a
-// failsafe fired — worse than the flash this whole script exists to avoid.
+// A value that is not a color would paint nothing and leave the page hidden until the
+// failsafe fired, worse than the flash.
 [
     ['url(javascript:0)', 'a url()'],
     ['red;position:fixed', 'a second declaration'],
@@ -159,11 +156,10 @@ ok('and to dark', noBg.style.colorScheme === 'dark');
        r.style.background === '#101010');
 });
 
-// The list above refuses what is plainly not a colour. The regex has four ways to be wrong
-// that none of those four inputs reach - an edge anchor dropped, a character class that
-// gains a bracket, a hex length that stops being bounded, rgba no longer accepted - so
-// the colours it must take and the near-misses it must refuse are both named. Every
-// refused value below fails the pattern in exactly one way.
+// The list above refuses what is plainly not a color. The regex can still be wrong in four
+// ways none of those inputs reach (an edge anchor dropped, a character class gaining a
+// bracket, an unbounded hex length, rgba no longer accepted), so the colors it must take
+// and the near-misses it must refuse are named below. Each refused value fails one way.
 [
     ['#fff', 'a short hex'], ['#ffffff', 'a long hex'], ['#ffffffff', 'a hex with alpha'],
     ['rgb(0, 0, 0)', 'rgb with spaces'], ['rgba(0,0,0,.5)', 'rgba'],
@@ -224,9 +220,8 @@ ok('and the failsafe stays armed as the backstop', alive.timeouts[0].cancelled !
 console.log('\n── the head script against Chromium 53 (R-1278) ───────────────');
 
 // It runs on every page of every client, and a token Chromium 53 (webOS 4.5) cannot parse
-// blanks the document it exists to reveal. Everything above runs it under today's V8, which
-// parses all of these happily. The same syntax floor as jsbaseline.js, applied to this
-// script, which is not in profiles.js and so is not covered there.
+// blanks the document it exists to reveal. The runs above use today's V8, which parses all
+// of these. Same syntax floor as jsbaseline.js, which does not cover this script.
 const C53_TOKENS = [
     ['optional chaining ?.', /[\w)\]]\?\./],
     ['nullish coalescing ??', /\?\?/],
@@ -257,9 +252,9 @@ ok('it records the colour it is leaving', /_captureLeavingBackground/.test(js));
 ok('and stores it under the key the head script reads',
    /backgroundKey:\s*'jpf-bg'/.test(js));
 
-// The point of all of the above: no remaining path paints a fixed dark colour.
-// Matched at the assignment rather than anywhere in the file — the comment explaining
-// why this changed says "#101010" too, and counting that reported a bug in the prose.
+// No remaining path paints a fixed dark color. Matched at the assignment, not anywhere in
+// the file: the comment explaining the change also says "#101010", and counting it
+// reported a bug in prose.
 const hardcoded = js.match(/style\.(?:cssText|background)\s*=\s*'[^']*#101010/g) || [];
 ok('no switch path still hardcodes the dark background ('
    + (hardcoded.length ? hardcoded.join(' / ') : 'none') + ')',

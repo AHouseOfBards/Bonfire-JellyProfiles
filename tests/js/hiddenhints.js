@@ -1,21 +1,19 @@
 /*
  * A hint that is hidden stays hidden. `.jpf-form-hint` carries `display: block !important`
- * (it was added in 1.0.35 so a theme's absolute or flex rules cannot pull a hint out of the
- * flow and over its neighbours), and that beat the inline `display: none` two hints used to
- * hide themselves: "No days checked, so no time is allowed." showed on every profile form,
- * and the library artwork explainer showed with its switch off.
+ * (added in 1.0.35 so a theme's absolute or flex rules cannot pull a hint out of the flow),
+ * and that beat the inline `display: none` two hints used to hide themselves: "No days
+ * checked, so no time is allowed." showed on every profile form, and the library artwork
+ * explainer showed with its switch off.
  *
- * Judged from the cascade in a real Chrome (getComputedStyle), not from how the rule or the
- * script is spelled:
+ * Judged from the cascade in a real Chrome (getComputedStyle), not from how the rule or
+ * the script is spelled:
  *
- *   - Every hint the form marks as hidden (the hidden attribute or an inline display:none)
- *     computes to display:none. Enumerated over every hint on the Create and Edit forms, so
- *     a third hint hidden the same way fails here too.
+ *   - Every hint the form marks hidden (hidden attribute or inline display:none) computes
+ *     to display:none, enumerated over every hint on the Create and Edit forms.
  *   - The no-days hint follows the form: off with "Only at these times" unticked, off with
- *     Mon-Fri ticked, on with the box ticked and every day cleared, off again when one day
- *     is ticked.
+ *     Mon-Fri ticked, on with the box ticked and every day cleared, off when one day is ticked.
  *   - The artwork explainer follows its switch.
- *   - What the old rule protected still holds: a shown hint is display:block, position:relative.
+ *   - A shown hint is still display:block, position:relative.
  *
  * Needs Chrome; skips (exit 0) without it.
  *

@@ -1,8 +1,8 @@
 /*
- * The PIN box was 180px wide for a field that takes up to eight digits (maxlength 8), so
- * from the fifth digit the typed number scrolled inside it (R-1274). Eight digits must fit
- * without the field scrolling sideways, in every theme and on small screens.
- * (The maintenance cover half of this sweep, R-1273, was fixed in 1011d98.)
+ * The PIN box was 180px wide for a field that takes up to eight digits, so from the fifth
+ * digit the number scrolled inside it (R-1274). Eight digits must fit without scrolling
+ * sideways, in every theme and on small screens. (The maintenance cover half, R-1273, was
+ * fixed in 1011d98.)
  *
  * Needs Chrome and the Material Icons font; skips (exit 0) without them.
  *

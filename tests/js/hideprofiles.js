@@ -1,9 +1,8 @@
 /*
  * Profile accounts stay off Jellyfin's Dashboard -> Users page, and an administrator can
- * still reach one from Bonfire's own Households tab.
- *
- * Owner decision: a profile account is Bonfire's, not the administrator's to list beside
- * real people. Main accounts and accounts outside Bonfire still appear.
+ * still reach one from Bonfire's own Households tab. A profile account is Bonfire's, not
+ * the administrator's to list beside real people; main accounts and accounts outside
+ * Bonfire still appear.
  *
  * What the page renders is read from jellyfin-web, not remembered:
  *
@@ -14,10 +13,10 @@
  *                    (routes/_asyncRoutes.ts: 'users/:userId/:tab'). The card div keeps
  *                    data-userid, which is why the rule keys on that and not on the link.
  *
- * The mechanism is a stylesheet rule per profile id, so there is no observer and no DOM
- * query on the 500 ms poll. The list comes from /Profiles/admin/mappings, which the server
- * answers only for an administrator: for anyone else nothing is fetched into the page and
- * nothing is written, so the ids cannot leak.
+ * The mechanism is a stylesheet rule per profile id: no observer and no DOM query on the
+ * 500 ms poll. The list comes from /Profiles/admin/mappings, which the server answers only
+ * for an administrator, so for anyone else nothing is fetched or written and the ids
+ * cannot leak.
  *
  * The CSS is judged by matching its selectors against the card markup, not by looking for
  * a string: a rule that is present and matches nothing proves nothing.
@@ -166,8 +165,8 @@ function build(opts) {
         JSON: JSON,
         document: {
             addEventListener() {}, removeEventListener() {},
-            // The old code walked the document for cards; answer it truthfully so the
-            // old build is judged by what it really does to this page.
+            // The old code walked the document for cards; answer truthfully so the old build
+            // is judged by what it really does.
             elementFromPoint: () => null,
             querySelector: () => { counts.qs++; return null; },
             querySelectorAll: sel => {
@@ -241,8 +240,8 @@ async function main() {
             ok(tag + '100 unchanged ticks fetch nothing', env.counts.fetches === 0, env.counts.fetches + ' fetches');
             ok(tag + '100 unchanged ticks query no cards', env.counts.qsa === 0, env.counts.qsa + ' querySelectorAll calls');
 
-            // The cards are rendered by React after the route settles and again whenever the
-            // list reloads; the rule must not depend on when they appeared.
+            // React renders the cards after the route settles and again on each list reload;
+            // the rule must not depend on when they appeared.
             const late = usersPage(version);
             env.page = late;
             ok(tag + 'cards rendered after the fetch are hidden too', isHidden(env, late.cards[PROFILE_A]) && !isHidden(env, late.cards[MAIN]));
