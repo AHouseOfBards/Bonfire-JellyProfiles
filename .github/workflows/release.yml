@@ -211,12 +211,25 @@ jobs:
             exit 1
           fi
 
-          # The branch must have an entry to copy targetAbi from.
-          ABI=$(git show "origin/${BRANCH}:manifest.json" | jq -r \
-            '.[0].versions | sort_by(.version | split(".") | map(tonumber)) | last | .targetAbi // empty')
-          if [ -z "$ABI" ]; then
+          # The branch must have an entry to copy targetAbi from. Only checked here; the step
+          # that writes the entry reads it again from the branch as it is then.
+          if [ -z "$(git show "origin/${BRANCH}:manifest.json" | jq -r \
+                '.[0].versions | sort_by(.version | split(".") | map(tonumber)) | last | .targetAbi // empty')" ]; then
             echo "::error::The manifest on '${BRANCH}' has no entry to take targetAbi from."
             exit 1
+          fi
+
+          # The beta feed keeps the newest three. A version with three newer ones already
+          # there would be pruned straight back out, after its GitHub release was published
+          # (r3-13-02). Refused here, before anything is published.
+          if [ "$BRANCH" = "beta" ]; then
+            NEWER=$(git show "origin/${BRANCH}:manifest.json" | jq --arg v "$V" \
+              '($v | split(".") | map(tonumber)) as $mine | [.[0].versions[].version | split(".") | map(tonumber) | select(. > $mine)] | length')
+            if [ "$NEWER" -ge 3 ]; then
+              echo "::error::${V} is older than the three betas already in the feed, so it would be pruned at once."
+              echo "::error::Tag a version above them, or release it as a stable fix from main."
+              exit 1
+            fi
           fi
 
       # The release, asset included, goes out BEFORE the manifest entry exists. The other

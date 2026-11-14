@@ -80,6 +80,36 @@ function check(ok, msg) { if (ok) pass++; else { bad++; console.log('FAIL ' + ms
         }
     }
 
+    // ── matchControlHeights (r3-09-02) ──────────────────────────────────
+    // A fixed height clipped a translated label that wrapped, and a button that stopped being
+    // beside a control kept the height it was given. It is a minimum now, and taken back.
+    {
+        const ROW_CONTROLS = 'select'; // eslint-disable-line no-unused-vars
+        const match = eval('(' + fn('matchControlHeights') + ')');
+        let besideNow = true;
+        const button = { style: {}, classList: { contains: () => false }, parentNode: null,
+            getBoundingClientRect: () => ({ left: 210, right: 300, top: 0, bottom: 30, width: 90, height: 30 }) };
+        const control = { closest: () => null,
+            getBoundingClientRect: () => ({ left: 0, right: 200, top: 0, bottom: 40, width: 200, height: 40 }) };
+        const row = { querySelectorAll: () => (besideNow ? [control] : []), parentNode: null };
+        button.parentNode = row;
+        const page = { querySelectorAll: () => [button] };
+        match(page);
+        check(button.style.minHeight === '40px', 'a button beside a control gets its height as a minimum (' + button.style.minHeight + ')');
+        check(!button.style.height, 'and not as a fixed height, which clips a label that wraps (' + button.style.height + ')');
+        besideNow = false;
+        match(page);
+        check(!button.style.minHeight, 'a button no longer beside a control loses it (' + button.style.minHeight + ')');
+    }
+
+    // ── the bug report's emergency-code line (r3-09-05) ─────────────────
+    // Read before the status had loaded, it said "not set" for a code that is set.
+    {
+        const line = (/'Emergency code: ' \+ ([^\n]*)/.exec(src) || [, ''])[1];
+        check(/_panicConfigured\s*===?\s*undefined|typeof page\._panicConfigured/.test(line) && /unknown/.test(line),
+              'the report says unknown when the emergency code status has not loaded (' + line.trim() + ')');
+    }
+
     console.log(bad ? bad + ' failed' : 'ok: dashboard round 3 fixes (' + pass + ' passed, 0 failed)');
     process.exit(bad ? 1 : 0);
 })();

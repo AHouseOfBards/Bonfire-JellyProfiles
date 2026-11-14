@@ -41,7 +41,37 @@ function decodeEscapes(s) {
     });
 }
 
+// Comments blanked to spaces, strings left alone, so every index still lines up. A comment
+// that quoted a key with a colon after it was read as an entry and failed the run
+// (r3-05-03). A // inside a string (a URL) is not a comment.
+function blankComments(src) {
+    let out = '';
+    for (let i = 0; i < src.length; i++) {
+        const c = src[i];
+        if (c === "'" || c === '"' || c === '`') {
+            let j = i + 1;
+            while (j < src.length && src[j] !== c) j += src[j] === '\\' ? 2 : 1;
+            out += src.slice(i, j + 1);
+            i = j;
+        } else if (c === '/' && src[i + 1] === '/') {
+            let j = i;
+            while (j < src.length && src[j] !== '\n') j++;
+            out += ' '.repeat(j - i);
+            i = j - 1;
+        } else if (c === '/' && src[i + 1] === '*') {
+            const end = src.indexOf('*/', i + 2);
+            const j = end < 0 ? src.length : end + 2;
+            out += src.slice(i, j).replace(/[^\n]/g, ' ');
+            i = j - 1;
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
 function readEntries(body, label) {
+    body = blankComments(body);
     const out = {};
     const keyRe = /'([^']+)':\s*/g;
     let m;

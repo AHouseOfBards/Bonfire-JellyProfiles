@@ -83,6 +83,17 @@ ok('and only when the channel is beta', pruneAt !== -1 && guarded,
 ok('the released version is confirmed to still be in the manifest afterwards',
    /select\(\.version == \$v\)/.test(upd.slice(pruneAt)));
 
+// r3-13-02: a beta that sorts below the three newest is pruned straight back out, and the
+// run used to find that out only after the GitHub release was published. The check step,
+// which runs before anything is published, refuses it on the beta channel.
+const check = steps.find(s => /^name: Check the release notes and the channel manifest/.test(s.trim())) || '';
+const publishAt = steps.findIndex(s => /action-gh-release/.test(s));
+const checkAt = steps.indexOf(check);
+ok('the check step runs before the release is published', checkAt !== -1 && publishAt !== -1 && checkAt < publishAt);
+ok('and refuses, on beta, a version with three newer ones already in the feed',
+   /"\$BRANCH"\s*=\s*"beta"/.test(check) && /select\(\.\s*>\s*\$mine\)/.test(check) && /-ge\s+3/.test(check),
+   'no out-of-order guard in the check step');
+
 console.log('');
 if (fails.length) {
     fails.forEach(x => console.log('   - ' + x));

@@ -9277,7 +9277,7 @@
                         'Theme: ' + (c.DefaultTheme || 'bonfire') + ', profiles choose: ' + on(c.AllowProfileThemes !== false)
                             + ', richer motion: ' + on(c.RichThemeMotion),
                         'Maintenance: ' + ((page._status && (page._status.maintenance || []).length) ? 'closed' : 'open'),
-                        'Emergency code: ' + (page._panicConfigured ? 'set' : 'not set'),
+                        'Emergency code: ' + (page._panicConfigured === undefined ? 'unknown' : page._panicConfigured ? 'set' : 'not set'),
                     ];
                     return lines.join('\n');
                 });
@@ -9621,9 +9621,11 @@
             const ROW_CONTROLS = 'select, input[type=text], input[type=number], input[type=email], input[type=password], input[type=url], input[type=search], input:not([type])';
             function matchControlHeights(page) {
                 const writes = [];
+                const cleared = [];
                 Array.prototype.forEach.call(page.querySelectorAll('button'), function (b) {
                     const br = b.getBoundingClientRect();
                     if (!(br.width > 0 && br.height > 0)) return;
+                    const had = !!b.style.minHeight;
                     for (let p = b.parentNode, depth = 0; p && p !== page && depth < 3; p = p.parentNode, depth++) {
                         const beside = Array.prototype.filter.call(p.querySelectorAll(ROW_CONTROLS), function (c) {
                             if (c.closest('button')) return false;
@@ -9632,14 +9634,22 @@
                             const apart = br.left >= cr.right - 1 ? br.left - cr.right : cr.left >= br.right - 1 ? cr.left - br.right : -1;
                             return apart >= 0 && apart < 48 && br.top < cr.bottom && br.bottom > cr.top;
                         });
-                        if (beside.length) { writes.push([b, beside[0].getBoundingClientRect().height]); break; }
+                        if (beside.length) { writes.push([b, beside[0].getBoundingClientRect().height]); return; }
                     }
+                    if (had) cleared.push(b);
                 });
-                // Every read is done before the first write, so no write moves a later read.
+                // Every read is done before the first write, so no write moves a later read. A
+                // minimum, not a height: a translated label that wraps grows the button instead of
+                // being clipped. One that is no longer beside a control is given back its own
+                // (r3-09-02).
                 writes.forEach(function (w) {
                     w[0].style.boxSizing = 'border-box';
-                    w[0].style.height = w[1] + 'px';
+                    w[0].style.minHeight = w[1] + 'px';
                     if (w[0].classList.contains('jpf-te-sw')) w[0].style.width = w[1] + 'px';
+                });
+                cleared.forEach(function (b) {
+                    b.style.minHeight = '';
+                    if (b.classList.contains('jpf-te-sw')) b.style.width = '';
                 });
             }
 

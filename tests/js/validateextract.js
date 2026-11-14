@@ -87,5 +87,11 @@ ok('\\n and \\u escapes are decoded', esc.code === 0, esc.out.trim().split('\n')
 const tag = run(BASE + "        'x.tag': '\\u003cb>Hi\\u003c/b>',\n", Object.assign({ 'x.tag': 'Salut' }, FR));
 ok('an escaped tag is seen (a translation dropping it is reported)', tag.code !== 0, 'exit ' + tag.code);
 
+// r3-05-03: a comment in the catalogue is not an entry. One that quoted a key with a colon
+// after it failed the run as "not a string literal". A URL in a value is not a comment.
+const cmt = run(BASE + "        // 'x.base': was 'Basic' before 2.0\n        /* 'x.gone': removed */\n        'x.url': 'See https://example.org/a',\n",
+    Object.assign({ 'x.url': 'Voir https://example.org/a' }, FR));
+ok('a key quoted in a comment is not read as an entry', cmt.code === 0, cmt.out.trim().split('\n').slice(-3).join(' | '));
+
 console.log('\n' + pass + ' passed, ' + fails.length + ' failed');
 process.exit(fails.length ? 1 : 0);
