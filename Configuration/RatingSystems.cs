@@ -17,24 +17,21 @@ namespace Jellyfin.Profiles
     }
 
     /// <summary>
-    /// The rating system of the server's Preferred metadata country, read from Jellyfin's
-    /// own tables, so the profile form offers that country's ratings and no others.
+    /// The rating system of the server's Preferred metadata country, read from Jellyfin's own
+    /// tables, so the profile form offers that country's ratings and no others.
     /// <para>
-    /// <b>Why not GET /Localization/ParentalRatings.</b> That route answers with the same
-    /// country, but LocalizationManager.GetParentalRatings first pads it with generic
-    /// entries ("Approved", "10", "13", "14", "21", "XXX", "Banned") for any age the country
-    /// lacks, so its own dropdown always has them. A padded "10" cannot be told from a real
-    /// one — France has a rating named "10" at age 10 — so filtering that list either drops
-    /// a country's own rating or offers ages it does not have. The tables themselves have
-    /// no padding.
+    /// <b>Why not GET /Localization/ParentalRatings.</b> It answers with the same country, but
+    /// LocalizationManager.GetParentalRatings first pads it with generic entries ("Approved", "10",
+    /// "13", "14", "21", "XXX", "Banned") for any age the country lacks. A padded "10" cannot be told
+    /// from a real one (France has a rating named "10" at age 10), so filtering that list either
+    /// drops a country's own rating or offers ages it does not have. The tables have no padding.
     /// </para>
     /// <para>
-    /// They are embedded resources in Jellyfin's Emby.Server.Implementations assembly,
-    /// named <c>Emby.Server.Implementations.Localization.Ratings.{cc}.json</c>, with the same
-    /// prefix and format in 10.11 and 12.0 (verified in both branches'
-    /// LocalizationManager.LoadAll). If a future server renames them, nothing is found and
-    /// the form falls back to the US list it always had — the limit itself still works,
-    /// because it is a score.
+    /// They are embedded resources in Jellyfin's Emby.Server.Implementations assembly, named
+    /// <c>Emby.Server.Implementations.Localization.Ratings.{cc}.json</c>, with the same prefix and
+    /// format in 10.11 and 12.0 (verified in both branches' LocalizationManager.LoadAll). If a future
+    /// server renames them, nothing is found and the form falls back to the US list it always had.
+    /// The limit itself still works, because it is a score.
     /// </para>
     /// </summary>
     public static class RatingSystems
@@ -45,11 +42,11 @@ namespace Jellyfin.Profiles
         private static readonly ConcurrentDictionary<string, List<RatingChoice>> Cache = new();
 
         /// <summary>
-        /// One choice per age in a Jellyfin rating table, in order, or null if the text is
-        /// not one. Adult and banned (1000 and up) are left out: "No restrictions" already
-        /// covers them. Names that only add a content descriptor — the US TV-PG-D, TV-PG-L
-        /// and thirteen more, which carry a sub-score — are left off the label when the age
-        /// has a plain name, so 10 reads "PG / TV-PG" rather than seventeen codes.
+        /// One choice per age in a Jellyfin rating table, in order, or null if the text is not one.
+        /// Adult and banned (1000 and up) are left out: "No restrictions" covers them. Names that only
+        /// add a content descriptor (the US TV-PG-D, TV-PG-L and thirteen more, which carry a
+        /// sub-score) are left off the label when the age has a plain name, so 10 reads "PG / TV-PG"
+        /// rather than seventeen codes.
         /// </summary>
         internal static List<RatingChoice>? Parse(string json, out string? countryCode)
         {

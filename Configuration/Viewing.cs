@@ -7,15 +7,15 @@ using System.Xml.Serialization;
 namespace Jellyfin.Profiles.Configuration
 {
     /// <summary>
-    /// When a profile may watch, and for how long each day (1.7.2). Stored on the profile's
-    /// own mapping, never a main account's: a main account is the parent. Null or nothing
-    /// switched on means no limits, which is the default.
+    /// When a profile may watch, and for how long each day (1.7.2). Stored on the profile's own
+    /// mapping, never a main account's: a main account is the parent. Null or nothing switched on
+    /// means no limits, the default.
     ///
-    /// <para><b>Times are local, in the household's zone</b> (<see cref="HouseholdTime"/>),
-    /// written "HH:mm". Never UTC offsets: bedtime is 20:00 on both sides of a clock change.</para>
+    /// <para><b>Times are local, in the household's zone</b> (<see cref="HouseholdTime"/>), written
+    /// "HH:mm". Never UTC offsets: bedtime is 20:00 on both sides of a clock change.</para>
     ///
-    /// <para><b>Video only.</b> Music and audiobooks are not counted or refused; "viewing
-    /// hours" is what households asked for, and stopping a bedtime story at the limit is not.</para>
+    /// <para><b>Video only.</b> Music and audiobooks are not counted or refused. Households asked
+    /// for viewing hours, and stopping a bedtime story at the limit is not that.</para>
     /// </summary>
     public class ViewingRules
     {
@@ -166,9 +166,9 @@ namespace Jellyfin.Profiles.Configuration
     }
 
     /// <summary>
-    /// The arithmetic, with no clock or storage of its own, so a test can put it on either
-    /// side of a clock change. Walls are compared in local time and only turned into UTC to
-    /// report them, which is what keeps 20:00 at 20:00 through daylight saving.
+    /// The arithmetic, with no clock or storage of its own, so a test can put it on either side
+    /// of a clock change. Walls are compared in local time and only turned into UTC to report them,
+    /// which keeps 20:00 at 20:00 through daylight saving.
     /// </summary>
     public static class ViewingClock
     {
@@ -208,9 +208,9 @@ namespace Jellyfin.Profiles.Configuration
             if (windows != null)
             {
                 hoursEnd = RunEnd(windows, local);
-                // The clock goes back and an hour of the wall happens twice. A window ends at
-                // the first time the wall reaches its end; once that has passed, the second
-                // 01:10 is not inside a window that ended at 01:30.
+                // The clock goes back and an hour of the wall happens twice. A window ends at the first
+                // time the wall reaches its end; after that, the second 01:10 is not inside a window that
+                // ended at 01:30.
                 if (hoursEnd != null && zone.IsAmbiguousTime(hoursEnd.Value) && FirstUtc(zone, hoursEnd.Value) <= nowUtc)
                     hoursEnd = null;
                 hoursOk = hoursEnd != null;

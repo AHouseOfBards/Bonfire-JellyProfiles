@@ -1,10 +1,9 @@
 namespace Jellyfin.Profiles.Models
 {
     /// <summary>
-    /// What a profile may change about itself: its name and its picture, and nothing else.
-    /// There is deliberately no profile id here (the caller is the profile), and no field
-    /// for a rating, PIN, library, limit or device. A body carrying any of those is read
-    /// without them.
+    /// What a profile may change about itself: its name and its picture, nothing else. There is
+    /// no profile id (the caller is the profile) and no field for a rating, PIN, library, limit or
+    /// device. A body carrying any of those is read without them.
     /// </summary>
     public class UpdateOwnProfileRequest
     {

@@ -7,25 +7,24 @@ namespace Jellyfin.Profiles.Configuration
 {
     /// <summary>
     /// The pictures every server offers until its administrator turns them off: thirty Fluent
-    /// Emoji by Microsoft, MIT-licensed, embedded in the plugin (Web/starter-avatars, with
-    /// the licence beside them).
+    /// Emoji by Microsoft, MIT-licensed, embedded in the plugin (Web/starter-avatars, with the
+    /// license beside them).
     /// <para>
-    /// Asked for in GitHub issue #32. The avatar library starts empty, and an empty library
-    /// is the whole picker on a television, where there is no file browser to upload from.
+    /// Asked for in GitHub issue #32. The avatar library starts empty, and an empty library is the
+    /// whole picker on a television, where there is no file browser to upload from.
     /// </para>
     /// <para>
-    /// Kept out of <see cref="PluginConfiguration.AvatarLibrary"/> and off disk on purpose.
-    /// Copying them into the library on first run would make them the administrator's
-    /// files: a Remove would be undone by the next install, a restore of an older
-    /// configuration would resurrect or orphan them, and turning the set off would mean
-    /// deleting things the administrator might have chosen to keep. As a fixed list served
-    /// from the assembly, they are one switch, <see cref="PluginConfiguration.EnableStarterAvatars"/>,
-    /// and nothing else to keep in step.
+    /// Kept out of <see cref="PluginConfiguration.AvatarLibrary"/> and off disk on purpose. Copied
+    /// into the library on first run, they would become the administrator's files: a Remove would be
+    /// undone by the next install, a restore of an older configuration would resurrect or orphan
+    /// them, and turning the set off would delete things the administrator might want to keep. As a
+    /// fixed list served from the assembly they are one switch,
+    /// <see cref="PluginConfiguration.EnableStarterAvatars"/>, with nothing else to keep in step.
     /// </para>
     /// <para>
-    /// Ids are <c>starter-&lt;slug&gt;</c>. The administrator's own ids are twelve hex
-    /// characters, so the two can never collide. A slug is only ever looked up in
-    /// <see cref="All"/>, never joined to a path or a resource name unchecked.
+    /// Ids are <c>starter-&lt;slug&gt;</c>. The administrator's own ids are twelve hex characters,
+    /// so the two cannot collide. A slug is only looked up in <see cref="All"/>, never joined to a
+    /// path or resource name unchecked.
     /// </para>
     /// </summary>
     public static class StarterAvatars

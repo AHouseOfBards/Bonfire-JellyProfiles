@@ -6,24 +6,22 @@ namespace Jellyfin.Profiles.Configuration
 {
     /// <summary>
     /// Another real Jellyfin account shown as a tile in a household's switcher (issue #39).
-    /// Opening the tile signs into that account itself, so there is one watch history and
-    /// nothing to keep in step. Bonfire never changes the account: not its policy, its PIN
-    /// or its libraries.
+    /// Opening the tile signs into that account itself, so there is one watch history and nothing
+    /// to keep in step. Bonfire never changes the account: not its policy, its PIN or its libraries.
     ///
-    /// <para><b>Not a Bonfire.</b> A Bonfire joins two households both ways and shows each
-    /// one's profiles to the other. A link is one account, shown in one household, one
-    /// way: the household sees the account, the account sees nothing of the household.
-    /// The account's own profiles are not shown either.</para>
+    /// <para><b>Not a Bonfire.</b> A Bonfire joins two households both ways and shows each one's
+    /// profiles to the other. A link is one account shown in one household, one way: the account
+    /// sees nothing of the household, and its own profiles are not shown either.</para>
     ///
-    /// <para><b>Consent.</b> Made by the household's main account typing the account's
-    /// password once, or by an administrator. Either the household or the account can
-    /// remove it, and one account can be shown in several households.</para>
+    /// <para><b>Consent.</b> Made by the household's main account typing the account's password
+    /// once, or by an administrator. Either side can remove it, and one account can be shown in
+    /// several households.</para>
     ///
-    /// <para><b>Opening it.</b> With the account's own Bonfire PIN if it has one, or the
-    /// LAN consent its owner already gives Bonfires (<see cref="ProfileMapping.AllowHouseholdLanBypass"/>);
-    /// with nothing if it has no PIN, which is what Logan asked for: the password was the
-    /// consent. An administrator account is the exception: it opens only with its PIN,
-    /// on any network, and can't be added without one.</para>
+    /// <para><b>Opening it.</b> With the account's own Bonfire PIN if it has one, or the LAN consent
+    /// its owner already gives Bonfires (<see cref="ProfileMapping.AllowHouseholdLanBypass"/>); with
+    /// nothing if it has no PIN, which is what Logan asked for: the password was the consent. An
+    /// administrator account opens only with its PIN, on any network, and cannot be added without
+    /// one.</para>
     /// </summary>
     public class LinkedAccount
     {

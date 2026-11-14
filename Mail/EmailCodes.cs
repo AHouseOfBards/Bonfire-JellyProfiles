@@ -12,20 +12,20 @@ namespace Jellyfin.Profiles.Mail
     /// in the phone's browser, a long way from the TV that asked; six digits read off the
     /// phone and typed with a remote work everywhere.</para>
     ///
-    /// <para><b>Kept in memory.</b> A code lives fifteen minutes, so a restart costs at
-    /// most a second request, and nothing secret or unconfirmed is ever written to the
-    /// configuration file. Only the hash is held, compared in fixed time.</para>
+    /// <para><b>Kept in memory.</b> A code lives fifteen minutes, so a restart costs at most a
+    /// second request, and nothing secret or unconfirmed is written to the configuration file.
+    /// Only the hash is held, compared in fixed time.</para>
     ///
     /// <para>Five wrong tries spend the code: a million possibilities against five
     /// guesses per code, and sending a new code is rate-limited separately.</para>
     ///
-    /// <para><b>The worst case, written down (R-1064).</b> A signed-in main account that
-    /// knows its own PIN can send five codes an hour and try five guesses on each: 25 guesses
-    /// an hour, about 220,000 a year, which is roughly a 22% chance of hitting one code if
-    /// someone guessed nonstop for twelve months from a signed-in session. The owner is
-    /// mailed whenever the PIN is reset or the address changes, so it would not go unseen.
-    /// Accepted rather than tightened: eight digits are harder to read off a phone and type
-    /// with a remote, and a lower send limit would lock out a real typo or two.</para>
+    /// <para><b>The worst case (R-1064).</b> A signed-in main account that knows its own PIN
+    /// can send five codes an hour and try five guesses on each: 25 an hour, about 220,000 a
+    /// year, roughly a 22% chance of hitting one code if someone guessed nonstop for twelve
+    /// months from a signed-in session. The owner is mailed whenever the PIN is reset or the
+    /// address changes, so it would not go unseen. Accepted rather than tightened: eight digits
+    /// are harder to read off a phone and type with a remote, and a lower send limit would lock
+    /// out a real typo or two.</para>
     /// </summary>
     internal static class EmailCodes
     {
