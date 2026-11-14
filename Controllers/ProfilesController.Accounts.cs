@@ -68,13 +68,13 @@ namespace Jellyfin.Profiles.Controllers
             var username = (request.Username ?? string.Empty).Trim();
             if (username.Length == 0 || string.IsNullOrEmpty(request.Password)) return BadRequest(CredentialsWrongMessage);
 
-            // Counted before the password is tried, like a PIN, so guesses sent together can't
-            // all get through.
+            // Counted before the password is tried, like a PIN, so guesses sent together can't all get
+            // through.
             var address = "link:" + (HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
-            // Not BeginPinAttempt: that spends the household's own PIN allowance (PinBudget)
-            // and raises the "PIN locked" log and email, so ten wrong passwords typed for
-            // somebody else's account locked the household's own switcher PIN (R-1071). A
-            // password guessed here has an allowance of its own and never touches the PIN's.
+            // Not BeginPinAttempt: that spends the household's own PIN allowance (PinBudget) and raises
+            // the "PIN locked" log and email, so ten wrong passwords typed for someone else's account
+            // locked the household's own switcher PIN (R-1071). A password guessed here has its own
+            // allowance.
             if (!RateLimiter.Pin.TryBegin(address))
                 return TooManyAttempts(RateLimiter.Pin, address, "Too many failed attempts.");
             var accountKey = "link:" + username.ToUpperInvariant();
@@ -83,19 +83,17 @@ namespace Jellyfin.Profiles.Controllers
             if (!RateLimiter.LinkPerAccountDaily.TryBegin(accountKey))
                 return TooManyAttempts(RateLimiter.LinkPerAccountDaily, accountKey, "Too many failed attempts.");
 
-            // The password is checked by Jellyfin's own provider, not UserManager.AuthenticateUser.
-            // That one counts a wrong password towards the account's lockout, and an account
-            // with a lockout set is turned off after three: anyone in a household could get
-            // somebody else's account disabled by typing wrong passwords on purpose. The rate
-            // limit above is what stops guessing here.
+            // The password is checked by Jellyfin's own provider, not UserManager.AuthenticateUser,
+            // which counts a wrong password toward the account's lockout; with a lockout set the account
+            // is turned off after three, so anyone in a household could get another's account disabled
+            // by typing wrong passwords on purpose. The rate limit above stops guessing here.
             var account = _userManager.GetUserByName(username);
 
-            // An unknown name, an account turned off and one whose password lives in LDAP or
-            // SSO (which Bonfire can't ask without going through the lockout) all answer in
-            // the same words as a wrong password, so a name can't be probed (R-1069). They
-            // also hash a password first, so they take as long as a wrong one: answering at
-            // once told them apart by the clock (r2-10-04). An administrator can still add
-            // an LDAP account from the dashboard.
+            // An unknown name, a disabled account and one whose password lives in LDAP or SSO (which
+            // Bonfire can't ask without the lockout) all answer like a wrong password, so a name can't be
+            // probed (R-1069). They hash a password first so they take as long as a wrong one; answering
+            // at once told them apart by the clock (r2-10-04). An administrator can still add an LDAP
+            // account from the dashboard.
             if (account == null
                 || !PasswordChecksHere(account)
                 || (_userManager.GetUserDto(account, string.Empty).Policy?.IsDisabled ?? false))
@@ -105,9 +103,8 @@ namespace Jellyfin.Profiles.Controllers
             }
             if (!await PasswordMatchesAsync(account, request.Password!).ConfigureAwait(false))
             {
-                // Jellyfin's own lockout is bypassed above, so nothing else records this: the
-                // account's owner could be guessed at for weeks without anyone seeing it
-                // (r2-10-01). The same words go back to the caller.
+                // Jellyfin's lockout is bypassed above, so nothing else records this; the owner could be
+                // guessed at for weeks unseen (r2-10-01). The caller gets the same words.
                 var guesser = _userManager.GetUserById(household)?.Username ?? household.ToString();
                 LogActivity(guesser + " typed a wrong password for " + account.Username + " when adding it to their switcher",
                     "AccountLinkGuess", account.Id,
@@ -125,9 +122,9 @@ namespace Jellyfin.Profiles.Controllers
                 Plugin.Instance?.SaveConfiguration();
             }
 
-            // Only once something was actually added. Cleared straight after the password
-            // matched, an account already on the switcher was a free reset between guesses
-            // at any other account's password (R-1068). LinkPerAccount is never cleared.
+            // Only once something was added. Cleared right after the password matched, an account
+            // already on the switcher was a free reset between guesses at any other account's password
+            // (R-1068). LinkPerAccount is never cleared.
             RateLimiter.Pin.Reset(address);
 
             var householdName = _userManager.GetUserById(household)?.Username ?? household.ToString();
@@ -409,21 +406,16 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// Makes an existing account a profile of a household: the reverse of
-        /// <see cref="MakeStandalone"/>. Same user, so its watch history, favourites and
-        /// resume points stay.
-        ///
-        /// <para><b>It keeps what it can watch, made no wider.</b> Its libraries and tags
-        /// become the profile's own, and from then on the household's are applied over them,
-        /// as for any profile, so it can never see more than the household does.</para>
-        ///
-        /// <para><b>Its password stops working.</b> It is signed out everywhere and given a
-        /// random password, on Jellyfin's own provider: a profile is opened from the switcher
-        /// or with its PIN, and a password nobody knows is what every profile has. A Bonfire
-        /// PIN it had as a main account becomes the profile's PIN.</para>
-        ///
-        /// <para>Administrator only, like the reverse: it takes a sign-in away. Refused for an
-        /// administrator, for an account with profiles of its own, and for one in a Bonfire,
-        /// where the account's own household would be left behind.</para>
+        /// <see cref="MakeStandalone"/>. Same user, so watch history, favorites and resume points stay.
+        /// <para><b>It keeps what it can watch, made no wider.</b> Its libraries and tags become the
+        /// profile's own, and the household's are then applied over them as for any profile.</para>
+        /// <para><b>Its password stops working.</b> It is signed out everywhere and given a random
+        /// password on Jellyfin's own provider: a profile is opened from the switcher or with its PIN,
+        /// and a password nobody knows is what every profile has. A Bonfire PIN it had as a main
+        /// account becomes the profile's PIN.</para>
+        /// <para>Administrator only, like the reverse, since it takes a sign-in away. Refused for an
+        /// administrator, an account with profiles of its own, and one in a Bonfire, where its own
+        /// household would be left behind.</para>
         /// </summary>
         [HttpPost("admin/make-profile")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -465,11 +457,10 @@ namespace Jellyfin.Profiles.Controllers
 
                 var householdPolicy = _userManager.GetUserDto(householdUser, string.Empty).Policy;
 
-                // Sign-out is step 3, after the password. It used to come first, with the hiding
-                // below: when the password change then threw, the account was left hidden from
-                // the sign-in screen, signed out, and with no Bonfire row to explain why
-                // (R-1070). Everything before the password is put back if it fails; a session
-                // that has been revoked cannot be.
+                // Sign-out is step 3, after the password. It used to come first with the hiding below: when
+                // the password change then threw, the account was left hidden, signed out and with no Bonfire
+                // row to explain why (R-1070). Everything before the password is put back on failure; a
+                // revoked session cannot be.
 
                 // 1. Hidden from the sign-in screen, like every profile, and on Jellyfin's own
                 //    provider. Jellyfin's UpdatePolicyAsync writes the policy's provider onto
@@ -527,11 +518,10 @@ namespace Jellyfin.Profiles.Controllers
                         "Its password couldn't be changed, so it wasn't made a profile. See the server log.");
                 }
 
-                // 3. Out of every session its old password gave it. This is what keeps an old
-                //    token from skipping the profile's PIN, so it was carried on past when it
-                //    threw (r2-10-03): the account became a profile with its old sessions alive.
-                //    Tried twice, and if it still fails the account is put back as in step 2
-                //    (its password stays replaced) and the request fails, before any row is written.
+                // 3. Out of every session its old password gave it. This keeps an old token from skipping the
+                // profile's PIN, and it used to be carried past a throw (r2-10-03), leaving a profile with
+                // its old sessions alive. Tried twice; if it still fails the account is put back as in step 2
+                // (its password stays replaced) and the request fails before any row is written.
                 var signedOut = false;
                 for (var attempt = 0; attempt < 2 && !signedOut; attempt++)
                 {
@@ -553,12 +543,10 @@ namespace Jellyfin.Profiles.Controllers
                 }
 
                 // 4. A profile. Its main-account row goes, with what only a main account has.
-                //    MakeProfileRefusal is not asked again here (R-1074). Everything that adds a
-                //    profile, and so moves the limit or gives this account profiles, goes through
-                //    CreateGate, which is held. What is left is an administrator editing a group
-                //    in the same moments, and by now the account is on Jellyfin's own provider
-                //    with a password nobody knows: refusing here would strand it half-converted,
-                //    which is worse than the one row the group edit would have left behind.
+                // MakeProfileRefusal is not asked again (R-1074). Everything that adds a profile goes through
+                // CreateGate, which is held. What is left is an administrator editing a group at the same
+                // moment, and by now the account is on Jellyfin's provider with a password nobody knows, so
+                // refusing would strand it half-converted, which is worse than one leftover group row.
                 lock (ConfigLock)
                 {
                     config.Mappings.RemoveAll(m => m.ProfileUserId == request.UserId);

@@ -10,12 +10,12 @@ namespace Jellyfin.Profiles.Controllers
 {
     /// <summary>
     /// Themes for other apps (1.7.2): the theme files and the pictures they name. A partial of
-    /// <see cref="ProfilesController"/>, so tests/js/apidocs.js reads these routes with the
-    /// rest. The web client does not use them; its themes are spliced into profiles.js.
+    /// <see cref="ProfilesController"/>, so tests/js/apidocs.js reads these routes with the rest.
+    /// The web client does not use them; its themes are spliced into profiles.js.
     /// <para>
-    /// Both are anonymous, deliberately (Logan, beta 8): an app draws its switcher before
-    /// anyone has signed in, and nothing here belongs to a household. The server's default
-    /// theme and whether profiles may choose are the only settings they show.
+    /// Both are anonymous on purpose (beta 8): an app draws its switcher before anyone signs in,
+    /// and nothing here belongs to a household. Only the server's default theme and whether
+    /// profiles may choose are shown.
     /// </para>
     /// </summary>
     public partial class ProfilesController
@@ -30,8 +30,8 @@ namespace Jellyfin.Profiles.Controllers
 
             var etag = ThemeCatalog.ETagFor(payload);
             Response.Headers["ETag"] = etag;
-            // Revalidated every time: the default theme can change at any moment, and an
-            // unchanged answer costs a 304.
+            // Revalidated every time: the default theme can change at any moment, and an unchanged
+            // answer costs a 304.
             Response.Headers["Cache-Control"] = "public, no-cache";
             if (IfNoneMatchHas(etag))
             {
@@ -47,10 +47,9 @@ namespace Jellyfin.Profiles.Controllers
         /// </summary>
         private string? BuildThemesPayload(bool customOnly)
         {
-            // Copied under the lock, built outside it. The payload reads the custom theme and
-            // font lists, which a save can change underneath it, but on a cache miss it
-            // re-checks every custom theme, and an anonymous caller must not make an
-            // administrator's save wait for that.
+            // Copied under the lock, built outside it. The payload reads the custom theme and font
+            // lists, which a save can change, and a cache miss re-checks every custom theme; an anonymous
+            // caller must not make an administrator's save wait for that.
             PluginConfiguration snapshot;
             lock (ConfigLock)
             {
@@ -81,9 +80,9 @@ namespace Jellyfin.Profiles.Controllers
 
                 if (snapshot != null)
                 {
-                    // Named by contents, so the ETag is the name: a browser that has it is
-                    // answered before the file is opened (built-ins are cached; these were
-                    // read from disk on every request, 304s included).
+                    // Named by contents, so the ETag is the name and a browser that has it is answered before
+                    // the file is opened (built-ins are cached; these were read from disk on every request,
+                    // 304s included).
                     var tag = ThemeCatalog.CustomFontETag(file);
                     if (IfNoneMatchHas(tag))
                     {
@@ -100,11 +99,11 @@ namespace Jellyfin.Profiles.Controllers
             if (found == null) return NotFound();
 
             Response.Headers["X-Content-Type-Options"] = "nosniff";
-            // A different plugin build can carry a different file under the same name, so a
-            // day and a revalidation rather than forever.
+            // A different plugin build can carry a different file under the same name, so a day plus
+            // revalidation, not forever.
             Response.Headers["Cache-Control"] = "public, max-age=86400";
-            // A font is fetched cross-origin by a packaged client (Tizen, whose page is the
-            // app), and browsers refuse a font without this.
+            // A packaged client (Tizen, whose page is the app) fetches fonts cross-origin, and browsers
+            // refuse a font without this.
             Response.Headers["Access-Control-Allow-Origin"] = "*";
             Response.Headers["ETag"] = found.Value.ETag;
             if (IfNoneMatchHas(found.Value.ETag))
@@ -119,8 +118,8 @@ namespace Jellyfin.Profiles.Controllers
         [HttpGet("themes/logo/{file}")]
         public ActionResult GetThemeLogo(string file)
         {
-            // Only the current logo, by a name that can only be a hash and an extension, so
-            // the join below cannot leave the folder and an old logo is not served on.
+            // Only the current logo, by a name that can only be a hash and an extension, so the join
+            // below cannot leave the folder and an old logo is not served.
             bool current;
             lock (ConfigLock)
             {
@@ -146,9 +145,9 @@ namespace Jellyfin.Profiles.Controllers
         [HttpGet("themes/backgrounds/{file}")]
         public ActionResult GetThemeBackground(string file)
         {
-            // Only a name that can be a hash and an extension, so the join below cannot leave
-            // the folder, and only a file Bonfire's upload wrote there. Not only the ones a
-            // saved theme names: the editor shows a picture before the theme is saved.
+            // Only a name that can be a hash and an extension, so the join below cannot leave the
+            // folder, and only a file Bonfire's upload wrote there, not just ones a saved theme names:
+            // the editor shows a picture before the theme is saved.
             if (!ThemeLogo.IsFileName(file)) return NotFound();
             var path = Path.Combine(ThemeBackground.Folder, file);
             if (!System.IO.File.Exists(path)) return NotFound();
@@ -164,9 +163,9 @@ namespace Jellyfin.Profiles.Controllers
 
         /// <summary>
         /// A pattern picture an administrator uploaded, by the name a theme's pattern gives.
-        /// Anonymous, as the background image is: the picker draws before anyone signs in. A
-        /// route of its own, not a branch of <see cref="GetThemePattern"/>, which joins no
-        /// path from its name and is held to that by tests/cs/themes.
+        /// Anonymous like the background image, since the picker draws before sign-in. A route of its
+        /// own, not a branch of <see cref="GetThemePattern"/>, which joins no path from its name and
+        /// is held to that by tests/cs/themes.
         /// </summary>
         [HttpGet("themes/pattern-files/{file}")]
         public ActionResult GetThemePatternFile(string file)
@@ -193,9 +192,8 @@ namespace Jellyfin.Profiles.Controllers
             // Looked up, never joined to a path: the name arrives from the URL.
             if (string.IsNullOrEmpty(name) || !ThemeCatalog.Patterns.TryGetValue(name, out var svg)) return NotFound();
 
-            // Built-in files, but SVG is a document that can carry script if it is opened on
-            // its own. Nothing of ours does; this keeps it that way should one ever be added
-            // without looking.
+            // Built-in files, but SVG can carry script if opened on its own. Nothing of ours does; this
+            // keeps it that way if one is added unnoticed.
             Response.Headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'";
             Response.Headers["X-Content-Type-Options"] = "nosniff";
             Response.Headers["Cache-Control"] = "public, max-age=86400";

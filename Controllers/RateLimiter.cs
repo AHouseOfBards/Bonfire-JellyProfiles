@@ -5,42 +5,37 @@ using System.Collections.Concurrent;
 namespace Jellyfin.Profiles.Controllers
 {
     /// <summary>
-    /// Thread-safe IP-based rate limiter. Instantiate one per logical gate
-    /// (e.g. PIN attempts, Bonfire code attempts) with the appropriate threshold.
-    ///
-    /// Replaces the old duplicated BonfireRateLimiter / PinRateLimiter static classes.
+    /// Thread-safe IP-based rate limiter. Make one per gate (PIN attempts, Bonfire code attempts)
+    /// with its own threshold. Replaces the old BonfireRateLimiter / PinRateLimiter classes.
     /// </summary>
     internal sealed class RateLimiter
     {
         // ── Two pre-configured singleton instances used by the controller ─────────
-        /// <summary>3 attempts per 15 minutes — used for Bonfire invite-code guessing.</summary>
+        /// <summary>3 attempts per 15 minutes, for Bonfire invite-code guessing.</summary>
         internal static readonly RateLimiter Bonfire = new(maxAttempts: 3, windowMinutes: 15);
 
-        /// <summary>5 attempts per 15 minutes — used for profile PIN entry.</summary>
+        /// <summary>5 attempts per 15 minutes, for profile PIN entry.</summary>
         internal static readonly RateLimiter Pin = new(maxAttempts: 5, windowMinutes: 15);
 
         /// <summary>
-        /// 5 attempts per hour — the emergency disable code. Far tighter than the others
-        /// because the code is submitted without any accompanying authentication, so this
-        /// limiter is the only thing standing between it and an offline-speed guess. A real
-        /// administrator needs one attempt, and the code is long enough to be worth typing
-        /// carefully; an attacker gets 120 guesses a day against it.
+        /// 5 attempts per hour, for the emergency disable code. Tighter than the others because the
+        /// code is submitted with no authentication, so this limiter is all that stands between it and
+        /// offline-speed guessing. A real administrator needs one attempt; an attacker gets 120 a day.
         /// </summary>
         internal static readonly RateLimiter Panic = new(maxAttempts: 5, windowMinutes: 60);
 
         /// <summary>
-        /// All callers of the emergency code together, 200 an hour. The per-address limit
-        /// above is walked around by anyone with many addresses, and each guess costs a
-        /// PBKDF2 derivation and a map entry that lives for an hour. This bounds both. The
-        /// price is that a flood can hold the code shut for the hour; the answer to that is
-        /// the same as to a forgotten code, restart Jellyfin.
+        /// All callers of the emergency code together, 200 an hour. Anyone with many addresses walks
+        /// around the per-address limit, and each guess costs a PBKDF2 derivation and a map entry
+        /// that lives an hour; this bounds both. A flood can hold the code shut for the hour; the
+        /// answer is the same as for a forgotten code: restart Jellyfin.
         /// </summary>
         internal static readonly RateLimiter PanicAll = new(maxAttempts: 200, windowMinutes: 60);
 
         /// <summary>
-        /// The key to count an address under: an IPv6 address as its /64, because a single
-        /// subscriber is routinely handed the whole of one and can use any address in it.
-        /// An IPv4 address, or anything that does not parse, is returned as it is.
+        /// The key to count an address under: an IPv6 address as its /64, since one subscriber is
+        /// routinely given a whole /64 and can use any address in it. IPv4, or anything that does not
+        /// parse, is returned as is.
         /// </summary>
         internal static string AddressKey(string ip)
         {
@@ -57,36 +52,33 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Per account, across every address and every door: the quarter-hour half of
-        /// <see cref="PinBudget"/>. Keyed on the account, not the address, because a caller
-        /// with more than one address (any IPv6 host has billions) walks around an address
-        /// key.
+        /// Per account, across every address and door: the quarter-hour half of
+        /// <see cref="PinBudget"/>. Keyed on the account because a caller with many addresses (any
+        /// IPv6 host) walks around an address key.
         /// </summary>
         internal static readonly RateLimiter AccountPin = new(maxAttempts: 5, windowMinutes: 15);
 
         /// <summary>
-        /// The same accounts, over a day: the other half of <see cref="PinBudget"/>. Five
-        /// every fifteen minutes is still 480 a day, which gets through a four-digit PIN in
-        /// about three weeks; twenty a day makes it most of a year.
+        /// The same accounts over a day: the other half of <see cref="PinBudget"/>. Five every
+        /// fifteen minutes is still 480 a day, which gets through four digits in about three weeks;
+        /// twenty a day makes it most of a year.
         /// </summary>
         internal static readonly RateLimiter AccountPinDaily = new(maxAttempts: PinBudget.DailyLimit, windowMinutes: 24 * 60);
 
         /// <summary>
-        /// Per account, for its password typed into another household's "add an account".
-        /// Never reset by a success. The per-address and per-household limits in front of it
-        /// were each cleared by any right password, and a caller always has one to hand (its
-        /// own account, or one already on its switcher), so together they limited nothing
-        /// (R-1068). Addresses and households are cheap to change; the account being guessed
-        /// is the one thing every guess shares. Keyed on the name typed, so a name that
-        /// doesn't exist is counted the same and can't be told apart by the 429.
+        /// Per account, for its password typed into another household's "add an account". Never reset
+        /// by a success. The per-address and per-household limits before it were each cleared by any
+        /// right password, which a caller always has (its own account, or one on its switcher), so
+        /// together they limited nothing (R-1068). Addresses and households are cheap to change; the
+        /// account being guessed is what every guess shares. Keyed on the name typed, so a missing name
+        /// counts the same and the 429 does not reveal it.
         /// </summary>
         internal static readonly RateLimiter LinkPerAccount = new(maxAttempts: 10, windowMinutes: 60);
 
         /// <summary>
-        /// The same account over a day, the other half of <see cref="LinkPerAccount"/>. Ten
-        /// an hour is 240 guesses a day at one account, from a caller who only has to be
-        /// signed in; twenty a day is a fixed limit, not a setting, because no household
-        /// wants more guesses at somebody else's password (r2-10-01).
+        /// The same account over a day, the other half of <see cref="LinkPerAccount"/>. Ten an hour is
+        /// 240 a day at one account from a caller who only has to be signed in. Twenty a day is a
+        /// fixed limit: no household wants more guesses at someone else's password (r2-10-01).
         /// </summary>
         internal static readonly RateLimiter LinkPerAccountDaily = new(maxAttempts: 20, windowMinutes: 24 * 60);
 
@@ -111,19 +103,18 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// Counts an attempt before it is made, and says whether it may be made at all.
         /// <para>
-        /// A separate "is it limited" check followed by a "record the failure" step left the
-        /// whole verification in between — a PBKDF2 derivation, tens of milliseconds — for
-        /// concurrent requests to pass the check together, so a hundred parallel guesses
-        /// all got through a limit of five. Here the check and the count are one step under
-        /// one lock. Call <see cref="Reset"/> when the attempt succeeds.
+        /// A separate "is it limited" check then "record the failure" left the whole verification
+        /// between them (a PBKDF2 derivation, tens of milliseconds) for concurrent requests to pass
+        /// together, so a hundred parallel guesses got through a limit of five. Here check and count
+        /// are one step under one lock. Call <see cref="Reset"/> when the attempt succeeds.
         /// </para>
         /// </summary>
         public bool TryBegin(string key) => TryBeginWithin(key, _maxAttempts);
 
         /// <summary>
-        /// <see cref="TryBegin(string)"/> against a lower limit than the one this limiter was
-        /// made with, for a limit an administrator may make stricter. Never higher. Its own
-        /// name, not an overload: harnesses find TryBegin by name.
+        /// <see cref="TryBegin(string)"/> against a lower limit than this limiter was made with, for
+        /// a limit an administrator may make stricter, never higher. Its own name, not an overload:
+        /// harnesses find TryBegin by name.
         /// </summary>
         public bool TryBeginWithin(string key, int maxAttempts)
         {
@@ -136,8 +127,8 @@ namespace Jellyfin.Profiles.Controllers
                 var list = _attempts.GetOrAdd(key, _ => new List<DateTime>());
                 lock (list)
                 {
-                    // The sweep may have dropped this list from the dictionary between the
-                    // lookup and the lock. Counting into an orphan would lose the attempt.
+                    // The sweep may have dropped this list between the lookup and the lock. Counting into an
+                    // orphan would lose the attempt.
                     if (!_attempts.TryGetValue(key, out var current) || !ReferenceEquals(current, list))
                     {
                         continue;
@@ -154,17 +145,13 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// How long until this caller may try again — the time left before the oldest
-        /// attempt in the window expires. <see cref="TimeSpan.Zero"/> when they are not
-        /// limited.
+        /// How long until this caller may try again: the time left before the oldest attempt in the
+        /// window expires. <see cref="TimeSpan.Zero"/> when not limited.
         /// <para>
-        /// The message used to say "try again in 15 minutes", which describes a fixed
-        /// lockout. This is a sliding window: it starts from the oldest of the attempts
-        /// still counted, so somebody who mistyped a PIN five times over a quarter of an
-        /// hour is usually a minute away from another go, not fifteen. Telling them
-        /// fifteen is not a rounding error — it is the difference between waiting and
-        /// giving up, and the number was never even an upper bound they could rely on,
-        /// because a further failed attempt does not extend it.
+        /// The message used to say "try again in 15 minutes", which describes a fixed lockout. The
+        /// window slides from the oldest counted attempt, so someone who mistyped five times over a
+        /// quarter hour is usually a minute from another go. Saying fifteen is the difference between
+        /// waiting and giving up, and was never an upper bound either.
         /// </para>
         /// </summary>
         public TimeSpan RetryAfter(string ipAddress) => RetryAfterWithin(ipAddress, _maxAttempts);
@@ -183,9 +170,8 @@ namespace Jellyfin.Profiles.Controllers
                 list.RemoveAll(t => t < cutoff);
                 if (list.Count < max) return TimeSpan.Zero;
 
-                // A slot frees when enough of the oldest entries age out to bring the count
-                // under the limit: the oldest one at the full limit, a later one under a
-                // lower limit.
+                // A slot frees when enough of the oldest entries age out to bring the count under the limit:
+                // the oldest at the full limit, a later one under a lower limit.
                 var sorted = new List<DateTime>(list);
                 sorted.Sort();
                 var freeing = sorted[list.Count - max];
@@ -196,9 +182,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// "in 3 minutes" / "in 40 seconds" — the wait, rounded the way a person would
-        /// say it. Never "in 0 minutes": anything under a minute is given in seconds, and
-        /// a wait that has already elapsed is reported as a moment rather than as nothing.
+        /// "in 3 minutes" or "in 40 seconds": the wait, rounded as a person would say it. Never "in 0
+        /// minutes": under a minute is in seconds, and a wait already over reads as a moment.
         /// </summary>
         public static string DescribeWait(TimeSpan wait)
         {

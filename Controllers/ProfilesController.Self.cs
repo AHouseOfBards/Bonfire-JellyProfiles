@@ -12,10 +12,10 @@ namespace Jellyfin.Profiles.Controllers
     /// so tests/js/apidocs.js reads this route with the rest.
     /// <para>
     /// <c>update</c> is the main account's, with the main PIN, and rewrites the whole profile.
-    /// This is the other way in: the person signed in as the profile, changing how it looks,
-    /// and nothing it is allowed to do. The caller is the profile by construction. The
-    /// request has no profile id to point elsewhere, and no field for a rating, PIN, library,
-    /// limit, device or theme, so a body that carries one is read without it.
+    /// This is the other way in: the person signed in as the profile changing how it looks, and
+    /// nothing it may do. The caller is the profile by construction: the request has no profile
+    /// id to point elsewhere and no field for a rating, PIN, library, limit, device or theme, so a
+    /// body carrying one is read without it.
     /// </para>
     /// </summary>
     public partial class ProfilesController
@@ -47,8 +47,8 @@ namespace Jellyfin.Profiles.Controllers
             var mainUser = _userManager.GetUserById(mapping.MasterUserId);
             if (user == null || mainUser == null) return NotFound("Profile not found.");
 
-            // Everything that can be refused is checked before anything is written, so a
-            // refusal leaves the profile as it was (the picture used to be written first, ST-11).
+            // Everything that can be refused is checked before anything is written, so a refusal leaves
+            // the profile as it was (the picture used to be written first, ST-11).
             string? newName = null;
             string? newUsername = null;
             if (request.ProfileName != null)
@@ -59,9 +59,9 @@ namespace Jellyfin.Profiles.Controllers
                 newUsername = $"{mainUser.Username}_{newName.Replace(" ", "")}";
             }
 
-            // The row's existence and the free-name checks are read under the lock, before the
-            // rename or the picture is written: outside it, a delete or a rename by someone
-            // else between the check and the write left this call writing over their result.
+            // The row and the free-name checks are read under the lock before the rename or picture is
+            // written; outside it, a delete or rename by someone else in between left this call writing
+            // over their result.
             lock (ConfigLock)
             {
                 var current = config.Mappings.FirstOrDefault(m => m.ProfileUserId == callerId.Value);

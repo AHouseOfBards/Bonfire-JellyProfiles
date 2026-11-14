@@ -12,10 +12,9 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Profiles.Controllers
 {
     /// <summary>
-    /// Email (1.7.2): the server's outgoing mail, a main account's confirmed address, PIN
-    /// reset by email, and notices. A partial of <see cref="ProfilesController"/>, not a
-    /// controller of its own, so tests/js/apidocs.js reads these routes with the rest and
-    /// holds each one to its documented authorisation.
+    /// Email (1.7.2): the server's outgoing mail, a main account's confirmed address, PIN reset by
+    /// email, and notices. A partial of <see cref="ProfilesController"/>, so tests/js/apidocs.js
+    /// reads these routes with the rest and holds each to its documented authorization.
     /// </summary>
     public partial class ProfilesController
     {
@@ -78,8 +77,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Saves the outgoing mail settings. Only what is sent changes. Anything that changes
-        /// the connection makes it unverified until it is tested again (see
+        /// Saves the outgoing mail settings. Only what is sent changes. Anything that changes the
+        /// connection makes it unverified until tested again (see
         /// <see cref="EmailSettings.Fingerprint"/>), and with it everything that needs email.
         /// </summary>
         [HttpPost("admin/email")]
@@ -110,10 +109,8 @@ namespace Jellyfin.Profiles.Controllers
 
                 var port = request.Port ?? e.Port;
                 var security = request.Security != null ? EmailSecurity.Normalize(request.Security) : EmailSecurity.Normalize(e.Security);
-                // See SmtpMailSender: 465 is TLS from the first byte, which SmtpClient can't
-                // speak, and a test against it hangs for the whole timeout.
-                // Whatever the security setting says: 465 is TLS from the first byte, so
-                // "none" hangs for the whole timeout just the same (R-1067).
+                // 465 is TLS from the first byte, which SmtpClient can't speak (see SmtpMailSender), so
+                // whatever the security setting says, a test against it hangs for the whole timeout (R-1067).
                 if (port == 465)
                     return BadRequest("Port 465 isn't supported. Use 587 with STARTTLS; every common provider offers it.");
 
@@ -131,8 +128,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Sends a test message with the saved settings. Going through is what makes email
-        /// available: it records the settings' fingerprint as verified.
+        /// Sends a test message with the saved settings. Success records the settings' fingerprint as
+        /// verified, which is what makes email available.
         /// </summary>
         [HttpPost("admin/email/test")]
         [ProducesResponseType(typeof(AdminEmailResponse), StatusCodes.Status200OK)]
@@ -166,8 +163,8 @@ namespace Jellyfin.Profiles.Controllers
             {
                 var config = Plugin.Instance?.Configuration;
                 if (config == null) return BadRequest("Plugin configuration missing.");
-                // Only if nothing changed while the test was out: verifying settings nobody
-                // tested would be a lie the dashboard then repeats.
+                // Only if nothing changed while the test was out: verifying settings nobody tested would be
+                // a lie the dashboard repeats.
                 if (config.Email != null && config.Email.Fingerprint() == fingerprint)
                 {
                     config.Email.VerifiedFingerprint = fingerprint;
@@ -204,9 +201,9 @@ namespace Jellyfin.Profiles.Controllers
         // ── The main account's own address ──────────────────────────────────────────
 
         /// <summary>
-        /// The signed-in main account, or the refusal: 401 for nobody, an API key, or a
-        /// profile. Every route below is the main account's alone. Takes the caller's id
-        /// rather than reading it, so each route visibly asks for it (tests/js/apidocs.js).
+        /// The signed-in main account, or the refusal: 401 for nobody, an API key or a profile. Every
+        /// route below is the main account's alone. Takes the caller's id instead of reading it, so
+        /// each route visibly asks for it (tests/js/apidocs.js).
         /// </summary>
         private ActionResult? RequireMainAccount(PluginConfiguration config, Guid? id, out Guid mainId)
         {
@@ -237,8 +234,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// The main account's address and notices. Needs the main PIN, as the rest of
-        /// Settings does: the address is the parent's, and the TV may be signed in as them.
+        /// The main account's address and notices. Needs the main PIN like the rest of Settings: the
+        /// address is the parent's, and the TV may be signed in as them.
         /// </summary>
         [HttpGet("account/email")]
         [ProducesResponseType(typeof(AccountEmailResponse), StatusCodes.Status200OK)]
@@ -256,15 +253,15 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// The main account's email settings, in one call. <c>address</c> absent leaves it
-        /// alone; empty removes it (and any code waiting for one); an address sends a code to
-        /// it, and nothing is stored until the code comes back: the address waits in memory
-        /// with it (see <see cref="EmailCodes"/>). The four notice switches change only
-        /// when sent, and only for a confirmed address.
+        /// The main account's email settings in one call. <c>address</c> absent leaves it alone;
+        /// empty removes it (and any code waiting for one); an address sends a code to it, and
+        /// nothing is stored until the code comes back (the address waits in memory with it, see
+        /// <see cref="EmailCodes"/>). The four notice switches change only when sent, and only for a
+        /// confirmed address.
         /// <para>
-        /// Removal wins over the switches in the same call: with no address left there is
-        /// nothing for them to apply to. Switches sent with a new address apply to the
-        /// address already confirmed; with none, the call is refused before a code is sent.
+        /// Removal wins over the switches in the same call: with no address, nothing is left for
+        /// them. Switches sent with a new address apply to the address already confirmed; with none,
+        /// the call is refused before a code is sent.
         /// </para>
         /// </summary>
         [HttpPost("account/email")]
@@ -383,8 +380,8 @@ namespace Jellyfin.Profiles.Controllers
             if (!string.IsNullOrEmpty(replacedAddress)
                 && !string.Equals(replacedAddress, address, StringComparison.OrdinalIgnoreCase))
             {
-                // R-1060: a reset code mailed to the old address would still finish a reset
-                // for up to 15 minutes. Remove forgets it; a change has to as well.
+                // R-1060: a reset code mailed to the old address would still finish a reset for up to 15
+                // minutes. Remove forgets it; a change must too.
                 EmailCodes.Forget(EmailCodes.ResetPin, mainId);
                 // R-1061: and the old address hears about it, in case it wasn't them.
                 var name = saved.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId)?.ProfileName
@@ -417,9 +414,9 @@ namespace Jellyfin.Profiles.Controllers
         // ── Forgotten PIN ───────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Sends a reset code to the main account's confirmed address. No PIN: this is the
-        /// way in for someone who has forgotten it. The code goes only to the address the
-        /// account confirmed, so being signed in as the account is not enough on its own.
+        /// Sends a reset code to the main account's confirmed address. No PIN: this is the way in for
+        /// someone who forgot it. The code goes only to the confirmed address, so being signed in as
+        /// the account is not enough alone.
         /// </summary>
         [HttpPost("account/pin-reset/send")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -444,8 +441,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// The code from the mail and a new PIN. Sets the main account's PIN and lifts any
-        /// lock on it. The address gets a note saying so, in case it wasn't them.
+        /// The code from the mail and a new PIN. Sets the main account's PIN and lifts any lock on it.
+        /// The address gets a note, in case it wasn't them.
         /// </summary>
         [HttpPost("account/pin-reset")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -532,9 +529,9 @@ namespace Jellyfin.Profiles.Controllers
             var accountKey = purpose + ":" + mainId.ToString("N");
             if (!EmailPerAccount.TryBegin(accountKey))
                 return TooManyAttempts(EmailPerAccount, accountKey, "Too many codes sent.");
-            // R-1063: confirmation mail goes to any address a main account types, so it has its
-            // own server cap. A PIN-reset code goes only to an address already confirmed, and
-            // must not be starved by someone mailing strangers.
+            // R-1063: confirmation mail goes to any address a main account types, so it has its own
+            // server cap. A PIN-reset code goes only to an already confirmed address and must not be
+            // starved by someone mailing strangers.
             var serverLimit = purpose == EmailCodes.ResetPin ? EmailResetPerServer : EmailPerServer;
             if (!serverLimit.TryBegin("server"))
                 return TooManyAttempts(serverLimit, "server", "Too many codes sent from this server.");
