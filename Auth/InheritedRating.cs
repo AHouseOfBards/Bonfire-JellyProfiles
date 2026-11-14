@@ -7,21 +7,21 @@ namespace Jellyfin.Profiles.Auth
     /// A profile's parental rating: the stricter of its own and its main account's, where
     /// "its own" is remembered rather than read off the account (R-1045).
     ///
-    /// <para><b>What went wrong.</b> The profile's own rating used to be whatever was on its
-    /// account, and that is mostly what Bonfire wrote there the last time: the main account's,
-    /// clamped. A main account set to PG for an evening left every profile at PG for good, and
-    /// nothing in the profile form could undo it. It is the same ratchet
-    /// <see cref="InheritedLimits"/> removed for the five limits, and is resolved the same
-    /// way: Bonfire records what it last wrote (<see cref="ProfileMapping.LastAppliedRating"/>);
-    /// a rating on the account that still equals it says nothing about the profile, and one
-    /// that differs was set by somebody — the profile's editor, or an administrator in
-    /// Dashboard -> Users — and becomes the profile's own
+    /// <para><b>What went wrong.</b> The profile's own rating was whatever was on its account,
+    /// which is mostly what Bonfire wrote last time: the main account's, clamped. A main
+    /// account set to PG for an evening left every profile at PG for good, with nothing in the
+    /// profile form to undo it. This is the ratchet <see cref="InheritedLimits"/> removed for
+    /// the five limits, resolved the same way: Bonfire records what it last wrote
+    /// (<see cref="ProfileMapping.LastAppliedRating"/>). An account rating equal to it says
+    /// nothing about the profile; one that differs was set by somebody, the profile's editor
+    /// or an administrator in Dashboard -> Users, and becomes the profile's own
     /// (<see cref="ProfileMapping.OwnRating"/>).</para>
     ///
     /// <para><b>A profile from before the record</b> cannot tell Bonfire's write from a choice.
-    /// A rating equal to the main account's is taken to be inherited, so a later relaxing
-    /// reaches it; a different one is kept as its own, which never loosens anything on upgrade.
-    /// It is never wider than the main account's either way (<see cref="ProfilesBaseController.ClampRating"/>).</para>
+    /// A rating equal to the main account's is taken as inherited, so a later relaxing reaches
+    /// it; a different one is kept as its own, which never loosens anything on upgrade. Either
+    /// way it is never wider than the main account's
+    /// (<see cref="ProfilesBaseController.ClampRating"/>).</para>
     ///
     /// <para>Pure and static so tests/cs/policysync can drive every case.</para>
     /// </summary>
