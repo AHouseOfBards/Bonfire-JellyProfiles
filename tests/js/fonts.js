@@ -1,9 +1,9 @@
 /*
- * The fonts Bonfire serves: that each file is the font it says it is, that its licence
- * travels with it, and that it can draw every letter of every language Bonfire ships.
+ * The fonts Bonfire serves: each file is the font it says it is, its license travels with
+ * it, and it can draw every letter of every language Bonfire ships.
  *
  * The last one is the point. A font that lacks "ł" does not fail: the browser draws that
- * letter in the next font of the stack, and a Polish name comes out in two typefaces, with
+ * letter in the next font of the stack, so a Polish name comes out in two typefaces with
  * no error and nothing in a screenshot of an English screen. So every character of every
  * translation is checked against every served font, one at a time, in the file the browser
  * would fetch for it (the subset whose unicode-range holds it), read from that file's cmap.
@@ -37,8 +37,8 @@ const SUBSETS = list.subsets || {};
 
 console.log('\n── The served fonts are the files they claim ──────────────────');
 ok('Noto Sans is served, and first', served.length > 0 && served[0].family === 'Noto Sans');
-// The ceiling was twelve with ten served; fourteen were added on 2026-11-12, so it moved by
-// fourteen and no further. A new font raises it on purpose, in the same commit.
+// The ceiling was twelve with ten served. Fourteen fonts were added on 2026-11-12, so it
+// rose by fourteen. A new font raises it on purpose, in the same commit.
 ok('eight to twenty-six fonts are served (' + served.length + ')', served.length >= 8 && served.length <= 26);
 ok('the latin and latin-ext ranges are given', !!SUBSETS.latin && !!SUBSETS['latin-ext']);
 
@@ -52,8 +52,8 @@ served.forEach(f => {
         let r = null;
         try { r = W.read(fs.readFileSync(file)); } catch (e) { ok(name + ' reads as WOFF2', false, e.message); return; }
         read[name] = r;
-        // Subset files are named for their default instance ("Montserrat Thin"), so the
-        // family is a prefix of the name, not the whole of it.
+        // Subset files are named for their default instance ("Montserrat Thin"), so the family is
+        // a prefix of the name, not the whole of it.
         ok(name + ' is ' + f.family + ' (' + r.family + ')', !!r.family && r.family.indexOf(f.family.replace(/ Next$/, '')) === 0);
         // A single-weight family (Bebas Neue) has no wght axis: it is listed as [400, 400].
         ok(name + ' spans the weights fonts.json says (' + (r.weight ? r.weight.min + '-' + r.weight.max : 'static') + ')',
@@ -79,8 +79,7 @@ console.log('\n── Every served font draws every letter Bonfire shows ──�
 
 // The words on the screens a theme dresses: English inline in profiles.js, and every
 // translation's switcher half. The dashboard's admin.* keys are left out; it wears
-// Jellyfin's own font, not a theme's.
-// Not L.readProfiles(), which takes argv[2]; here that is the font list.
+// Jellyfin's own font. Not L.readProfiles(), which takes argv[2]; here that is the font list.
 const src = fs.readFileSync(process.argv[3] || path.join(L.ROOT, 'Web', 'profiles.js'), 'utf8');
 const en = (function () {
     const at = src.indexOf('const EN_STRINGS = {');
@@ -112,8 +111,8 @@ Object.keys(SUBSETS).forEach(sub => { ranges[sub] = W.inRange(SUBSETS[sub]); });
 const letter = c => /[\p{L}\p{N}]/u.test(String.fromCodePoint(c));
 const show = c => '"' + String.fromCodePoint(c) + '" U+' + c.toString(16).toUpperCase().padStart(4, '0');
 
-// A letter outside every range is fetched from no file at all, whatever the font: the
-// ranges themselves are wrong for this language.
+// A letter outside every range is fetched from no file at all, whatever the font, so the
+// ranges are wrong for this language.
 const outside = [...chars].filter(c => c > 0x20 && !Object.keys(ranges).some(s => ranges[s](c)));
 const lettersOutside = outside.filter(letter);
 ok('every letter and digit falls in a subset Bonfire serves' + (lettersOutside.length ? ' (not ' + lettersOutside.map(show).join(', ') + ')' : ''),
@@ -151,8 +150,8 @@ console.log('\n── The web client declares them, and uses them ────�
             && face.indexOf('font-display: swap;') !== -1);
     }));
 
-    // Under its own name, so declaring Noto Sans cannot change how jellyfin-web draws its
-    // own Noto Sans, which it declares for itself.
+    // Under its own name, so declaring Noto Sans cannot change how jellyfin-web draws the Noto
+    // Sans it declares for itself.
     ok('no face is declared under a plain family name', faces.every(x => /font-family: 'Bonfire /.test(x)));
 
     // The stack a theme gets: the served copy first when there is one.
