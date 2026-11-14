@@ -1,34 +1,33 @@
 /*
  * The writing rules, as a check.
  *
- * The owner's rule for every plugin is plain, normal wording: no taglines, no tooltips that
- * repeat their label, nothing that sounds generated (Campground-Coordination/methodology/
- * writing.md). A rule that is only written down gets forgotten the next time someone adds a
- * string, so this reads every word a person is shown and fails on the mechanical part of it.
+ * The owner's rule for every plugin is plain wording: no taglines, no tooltips that repeat
+ * their label, nothing that sounds generated (Campground-Coordination/methodology/writing.md).
+ * A rule that is only written down gets forgotten the next time someone adds a string, so
+ * this reads every word a person is shown and fails on the mechanical part of it.
  *
  * It reads the English only, from the three places English lives:
  *   - EN_STRINGS in Web/profiles.js (the households' screens),
  *   - Web/profilesDashboard.html (data-i18n markup plus ADMIN_EN),
  *   - Mail/EmailText.cs (email.* and notice.*).
- * Those are read the way Web/i18n/validate.js reads them, with the same patterns, and then
- * the harness proves it saw every string two ways: each catalogue's key lines match what
- * the pattern pulled out, and the counts equal what validate.js prints for the same tree.
- * An extractor that quietly skips a string would turn every rule below into a rule about
- * some of the strings.
+ * They are read as Web/i18n/validate.js reads them, with the same patterns. The harness then
+ * proves it saw every string two ways: each catalogue's key lines match what the pattern
+ * pulled out, and the counts equal what validate.js prints. An extractor that skips a string
+ * would turn every rule below into a rule about some of the strings.
  *
  * One named check per rule, each listing the key and the text it objects to:
  *   1. British spellings            4. old names the owner replaced
  *   2. Title Case                   5. the wording writing.md bans
  *   3. uncontracted negatives       6. a tooltip that repeats its label
  *
- * There is no list of current offenders to excuse. If a string fails, change the string.
- * The only exceptions in this file are WORDS that are not what the rule is about (a proper
- * noun is not Title Case), and each says why.
+ * There is no list of current offenders: if a string fails, change the string. The only
+ * exceptions are words the rule is not about (a proper noun is not Title Case), each with
+ * its reason.
  *
  *   node tests/js/copylint.js [profiles.js [profilesDashboard.html [EmailText.cs]]]
  *
- * Without the second and third, they are looked for beside the first, so pointing it at an
- * old checkout's Web/profiles.js reads that checkout's whole copy.
+ * The second and third are looked for beside the first, so pointing it at an old checkout's
+ * Web/profiles.js reads that checkout's copy.
  */
 'use strict';
 
@@ -198,10 +197,9 @@ console.log('\n── The extractor sees every string ────────�
 
 // ── The rules ─────────────────────────────────────────────────────────────────
 
-// Spelling is American. Stems that take -ize in American English: -ise forms are only
-// reported for these, because "advise", "exercise" and "otherwise" are the same word on
-// both sides of the Atlantic. Grown from what the tree actually had (organis-, recognis-,
-// normalis-, initialis-, authoris-) plus the usual suspects.
+// Spelling is American. Only these stems take -ize in American English; "advise", "exercise"
+// and "otherwise" are the same word on both sides of the Atlantic. Grown from what the tree
+// had (organis-, recognis-, normalis-, initialis-, authoris-) plus the usual suspects.
 const ISE_STEMS = ['organis', 'recognis', 'normalis', 'initialis', 'authoris', 'customis', 'personalis',
     'summaris', 'minimis', 'maximis', 'synchronis', 'realis', 'utilis', 'optimis', 'categoris', 'prioritis',
     'finalis', 'apologis', 'emphasis', 'visualis', 'localis', 'digitis', 'standardis', 'serialis', 'sanitis',
@@ -212,8 +210,7 @@ const BRITISH = new RegExp('\\b(?:colour|favourite|cancell(?:ed|ing|ation)|behav
     + 'programme|theatre|fibre|ageing|whilst|learnt|judgement|enrol|enrolment|practise|metre|defence|offence)\\w*\\b|'
     + '\\b\\w*(?:' + ISE_STEMS.join('|') + ')(?:e|ed|es|ing|ation|ations|able|er|ers)\\b', 'gi');
 
-// A proper noun is not Title Case. Each is here because it is a real name, and not because
-// a string needed excusing.
+// A proper noun is not Title Case. Each is here because it is a real name.
 const PROPER = [
     ['Bonfire', 'the plugin'],
     ['Jellyfin', 'the server'],
@@ -228,8 +225,8 @@ const PROPER = [
     ['Fluent UI', 'a product'],
     ['Docker', 'a product'],
 ];
-// Short upper-case words (PIN, TV, MB, OK, URL) are acronyms, not capitalised words; the
-// test below only counts a capital followed by lower-case.
+// Short upper-case words (PIN, TV, MB, OK, URL) are acronyms; the test below counts only a
+// capital followed by lower-case.
 
 function titleCaseRuns(text) {
     let s = seen(text);
@@ -250,9 +247,8 @@ function titleCaseRuns(text) {
 // The owner asked for contractions everywhere, security texts included (2026-11-10). "must
 // not" and "need not" are left out: "mustn't" and "needn't" read as stiffer, not plainer.
 const NEGATIVES = /\b(?:could not|cannot|do not|does not|did not|is not|was not|were not|will not|would not|should not|are not|has not|have not|had not)\b/gi;
-// Whether one of these is a reason to keep the long form in a legal or security text is
-// the owner's call, not this file's. They are all flagged; the report lists any that sit in
-// a terms, privacy or warning text so he can decide.
+// Whether a long form should stay in a legal or security text is the owner's call. All are
+// flagged; the report lists any in a terms, privacy or warning text so he can decide.
 
 const OLD_NAMES = [
     // "Look" named the theme screen before it was called Theme. A verb at the start of a
@@ -278,8 +274,8 @@ const OLD_NAME_KEYS = {
     },
 };
 
-// writing.md's lists, as written there. Nothing here is from memory: the "What to cut"
-// section's words, plus the two taglines and the button names it gives by name.
+// writing.md's lists as written there: the "What to cut" words, plus the two taglines and
+// the button names it gives.
 const BANNED = [
     ['"Don\'t worry"', /\bdon't worry\b/i],
     ['"Nothing is broken"', /\bnothing is broken\b/i],

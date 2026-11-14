@@ -14,26 +14,18 @@ try {
     process.exit(1);
 }
 
-// ── No inline style may be written twice ────────────────────────────────────
+// No inline style may be written twice.
 //
-// This page carried 132 inline style attributes across 55 distinct values, five of
-// them amber notice boxes and no two the same amber. P6 moved the repeated ones onto
-// classes; what is left is single-use, where a style sitting next to the element it
-// describes is clearer than a name used nowhere else.
+// This page carried 132 inline style attributes across 55 distinct values, five of them
+// amber notice boxes and no two the same amber. P6 moved the repeated ones onto classes.
+// The rule is not "no inline styles", which nobody would keep. It is "no inline style value
+// appears twice", the condition that says a class was wanted. It also catches copying a
+// notice box and tweaking one colour, which is how there came to be five ambers.
+// No element may carry the same attribute twice.
 //
-// So the rule is not "no inline styles" — that would be a rule nobody keeps, and the
-// next person would add the exception back. It is "no inline style value appears
-// twice", which is exactly the condition that says a class was wanted. It also catches
-// the real failure: someone copying a notice box and tweaking one colour, which is how
-// there came to be five ambers.
-// ── No element may carry the same attribute twice ───────────────────────────
-//
-// An element with two class attributes keeps the first and discards the second, with
-// no error in the console and nothing to see in the source unless you are looking for
-// it. The P6-10 conversion produced four of them: it swapped a style attribute for a
-// class attribute without checking whether the element already had a class, so four
-// rows silently lost their layout. Caught by a scripted audit, not by a person reading
-// the diff, which is the argument for this check existing.
+// An element with two class attributes keeps the first and drops the second, with no
+// console error. The P6-10 conversion swapped a style attribute for a class attribute
+// without checking for an existing class, and four rows silently lost their layout.
 const dupeAttrs = [];
 const tagRe = /<[a-zA-Z][\w-]*((?:\s+[\w-]+\s*=\s*"[^"]*")+)\s*\/?>/g;
 let tag;
@@ -80,25 +72,20 @@ if (repeated.length) {
     checks++; console.log('no inline style value is used twice (' + total + ' single-use)');
 }
 
-// ── No client-side code may authenticate the legacy way ─────────────────────
+// No client-side code may authenticate the legacy way.
 //
-// Jellyfin 12.0 disables legacy authorization by default, and migrates existing
-// installs to off as well. With it off, AuthorizationContext reads NONE of these:
-// the X-Emby-Token header, X-MediaBrowser-Token, the api_key query parameter, the
-// X-Emby-Authorization header, or an Authorization header using the `Emby` scheme.
-// Only `Authorization: MediaBrowser ...` is read.
+// Jellyfin 12.0 disables legacy authorization by default and migrates existing installs to
+// off. With it off, AuthorizationContext ignores the X-Emby-Token header, X-MediaBrowser-Token,
+// the api_key query parameter, X-Emby-Authorization and an Authorization header using the
+// `Emby` scheme. Only `Authorization: MediaBrowser ...` is read.
 //
-// This page had exactly one such request — the avatar folder import sent
-// X-Emby-Token, because it hand-rolls its fetch to get a Blob back. It would have
-// come back 401 on every 12.0 server, and on any 10.11 server whose administrator
-// had already turned legacy authorization off.
+// This page had one such request: the avatar folder import sent X-Emby-Token, because it
+// hand-rolls its fetch to get a Blob back. It would have returned 401 on every 12.0 server.
 //
-// Both Web files are scanned, not just this one: profiles.js is clean today and the
-// point is that it stays that way. Comments are not read (they explain why the names are
-// gone), but any mention in code is: the first version only matched `'X-Emby-Token':` as
-// an object key, so headers['x-emby-token'] = t, headers.set('X-Emby-Token', t), a
-// lower-case key or a template string all built the same request past it (R-1284).
-// Nothing in the client has a reason to name these headers at all, so naming one fails.
+// Both Web files are scanned, so profiles.js stays clean. Comments are not read, but any
+// mention in code is: the first version matched only `'X-Emby-Token':` as an object key, so
+// headers['x-emby-token'] = t, headers.set('X-Emby-Token', t), a lower-case key or a template
+// string got past it (R-1284). The client has no reason to name these headers, so naming one fails.
 const LEGACY_AUTH = [
     ['X-Emby-Token', /x-emby-token/gi],
     ['X-MediaBrowser-Token', /x-mediabrowser-token/gi],
@@ -107,10 +94,9 @@ const LEGACY_AUTH = [
     ['the Emby authorization scheme', /\bEmby\s+(?:Client|UserId|Device)\s*=/gi]
 ];
 
-// Whole-line comments out and nothing else. Stripping a trailing comment or a block would
-// need a tokenizer: a regex literal or a string holding `//` or `/*` would swallow real
-// code and hide a header from this check, which is the weakening this avoids. A mention
-// after code on the same line is therefore still reported.
+// Whole-line comments out and nothing else. Stripping a trailing comment or a block needs a
+// tokenizer: a regex literal or a string holding `//` or `/*` would swallow real code and hide
+// a header. A mention after code on the same line is still reported.
 function codeOnly(s) {
     return s.split('\n').filter(l => !/^\s*(?:\/\/|\*|\/\*|<!--)/.test(l)).join('\n');
 }

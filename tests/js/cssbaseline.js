@@ -1,24 +1,22 @@
 /*
  * P4-13: the injected stylesheet must render on the televisions people actually have.
  *
- * The floor is Chromium 53: webOS 4.x (the 2018 and 2019 LG sets) is stuck on it for good,
- * and the owner decided the stylesheet has to render there (C-1006). webOS 5 is 68 and
- * Tizen 6.0 is 76; both are above the floor, so a rule that holds on 53 holds on them. Two
- * different failure modes, and the second is the dangerous one:
+ * The floor is Chromium 53: webOS 4.x (the 2018 and 2019 LG sets) is stuck on it, and the
+ * owner decided the stylesheet has to render there (C-1006). webOS 5 is 68 and Tizen 6.0 is
+ * 76, so a rule that holds on 53 holds on them. Two failure modes, the second worse:
  *
- *   - a DECLARATION they cannot parse is dropped, and the rest of the rule survives.
- *     Recoverable, if an older declaration for the same property precedes it.
- *   - a SELECTOR they cannot parse invalidates the WHOLE RULE, and before :is() there
- *     is no forgiveness inside a comma-separated list. One :focus-visible in a list of
- *     four takes all four down.
+ *   - a DECLARATION they cannot parse is dropped and the rest of the rule survives.
+ *     Recoverable if an older declaration for the same property precedes it.
+ *   - a SELECTOR they cannot parse invalidates the WHOLE RULE, and before :is() a
+ *     comma-separated list gets no forgiveness. One :focus-visible in a list of four takes
+ *     all four down.
  *
- * So this does not ask "is the feature used". It asks, per use, "is there something
- * that carries this on Chromium 53", and it names the mitigation it will accept. A
- * check that merely counted modern features would go green the moment someone deleted
- * a fallback, because the feature count would not change.
+ * So this asks per use, "is there something that carries this on Chromium 53", and names the
+ * mitigation it accepts. A check that only counted modern features would stay green when
+ * someone deleted a fallback.
  *
- * Against 1.5.7 this fails on clamp, aspect-ratio, inset, :focus-visible and every
- * flex gap — which is the point; those were all really unguarded there.
+ * Against 1.5.7 this fails on clamp, aspect-ratio, inset, :focus-visible and every flex gap,
+ * all really unguarded there.
  *
  *   node tests/js/cssbaseline.js [path/to/profiles.js]
  */
@@ -66,8 +64,8 @@ ok('the layout choices write their rules, so they are checked here too',
     /flex-direction: column/.test(layoutCss) && /#profiles-logo \{[^}]*left:/.test(layoutCss) && /clamp\(/.test(layoutCss),
     layoutCss.length + ' characters');
 
-/* Comments blanked, newlines kept, so a feature discussed in prose is never mistaken
- * for a use. Two false findings came from not doing this. */
+/* Comments blanked, newlines kept, so a feature discussed in prose is not mistaken for a
+ * use. Two false findings came from not doing this. */
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
 const lineOf = i => bare.slice(0, i).split('\n').length;
 
@@ -102,19 +100,16 @@ for (const r of rules) for (const s of r.selector.split(',')) selectors.add(s.tr
 
 console.log();
 console.log('── the sheet parses into rules at all ─────────────────────────');
-// A floor, not a count. themetest asserted exactly 15 of something and broke when a
-// dead rule was deleted, reporting a regression where there was none. This only needs
-// to catch "the parser returned nothing useful".
+// A floor, not a count. themetest asserted exactly 15 of something and broke when a dead
+// rule was deleted. This only needs to catch "the parser returned nothing useful".
 ok('rules found', rules.length > 100, rules.length + ' rules');
-// A floor against an empty or partial sheet. It was 60,000 when the CSS lived inside a
-// template literal; de-indenting it into Web/styles.css removed ~25,000 characters of
-// leading whitespace, so the real size is ~58,700.
+// A floor against an empty or partial sheet. It was 60,000 when the CSS lived in a template
+// literal; moving it to Web/styles.css removed ~25,000 characters of indentation (~58,700 now).
 ok('stylesheet is the whole thing, not an empty splice', css.length > 40000,
     css.length + ' chars');
-// Kept, but it is now a courtesy rather than a guard. A stray backtick used to end the
-// stylesheet literal early and silently delete everything after it — that shipped twice,
-// and I reproduced it twice more while writing P4. In a .css file a backtick is just a
-// character, so this only flags one left behind by a bad merge.
+// A courtesy now, not a guard. A stray backtick used to end the stylesheet literal early and
+// delete everything after it (shipped twice). In a .css file it is just a character, so this
+// only flags one left by a bad merge.
 ok('no backtick anywhere in the stylesheet', css.indexOf('`') === -1);
 
 /* ── 1. a selector no old parser understands takes its whole rule with it ───── */
@@ -141,10 +136,9 @@ for (const f of SELECTOR_FEATURES.filter(newer)) {
             parts.length === 1,
             parts.length > 1 ? parts.length + ' selectors share the rule: ' + r.selector.replace(/\s+/g, ' ') : '');
 
-        /* A negated use -- :focus:not(:focus-visible) -- is the modern half of the
-         * pair. It only ever REMOVES a ring, on browsers new enough to understand it,
-         * so it needs no counterpart; requiring one asks for :focus:not(:focus), which
-         * matches nothing. Only a positive use has to be paired. */
+        /* A negated use (:focus:not(:focus-visible)) only REMOVES a ring on browsers that
+         * understand it, so it needs no counterpart; requiring one asks for
+         * :focus:not(:focus), which matches nothing. Only a positive use is paired. */
         const negated = /:not\([^)]*:focus-visible[^)]*\)/.test(parts[0]);
         if (f.token === ':focus-visible' && parts.length === 1 && !negated) {
             // Something has to paint the ring on the browsers that drop this rule.
@@ -212,17 +206,17 @@ const PROP_FEATURES = [
 const displayOf = new Map();
 for (const r of rules) {
     // A flex fallback under @supports not (display: grid) is for a browser older than
-    // Chromium 57, below the old 68 baseline. Read as the container's display here it made
-    // a grid container look like a flex one and demanded a margin on top of its grid gap.
-    // Section 3 checks those blocks on their own terms.
+    // Chromium 57, below the old 68 baseline. Read as the container's display it made a grid
+    // container look flex and demanded a margin on top of its grid gap. Section 3 checks
+    // those blocks separately.
     if (r.context.some(c => /^@supports\s+not\s*\(\s*display\s*:\s*(inline-)?grid/.test(c))) continue;
     const m = r.body.match(/display\s*:\s*(inline-)?(flex|grid)/);
     if (m) for (const s of r.selector.split(',')) displayOf.set(s.trim(), m[2]);
 }
 /* A gap set by ANY rule on an element some other rule makes flex: a theme's
- * `[data-jpf-theme=x] .profiles-grid { gap }` is not itself in displayOf, but its last
- * compound is the flex container's. Matched on that compound, and only when no rule makes
- * the same compound a grid. (C-1006 follow-up.) */
+ * `[data-jpf-theme=x] .profiles-grid { gap }` is not in displayOf, but its last compound is
+ * the flex container's. Matched on that compound, and only when no rule makes it a grid.
+ * (C-1006 follow-up.) */
 function flexByTarget(sel) {
     const tailOf = s => { const m = /([^\s>+~]+)$/.exec(s.trim().replace(/\s+/g, ' ')); return m ? m[1] : ''; };
     const tail = tailOf(sel);
@@ -275,10 +269,9 @@ for (const f of PROP_FEATURES.filter(newer)) {
             for (const sel of r.selector.split(',').map(s => s.trim())) {
                 if (!isFlex(sel) && !flexByTarget(sel)) continue;      // grid gap is fine at this baseline
                 seen++;
-                // A margin fallback must exist for this container under the measured
-                // class. Matched on the container selector, not merely on the class
-                // existing somewhere -- "some fallbacks exist" is an aggregate, and
-                // aggregates hide which member is missing.
+                // A margin fallback must exist for this container under the measured class,
+                // matched on the container selector. "Some fallbacks exist" is an aggregate
+                // and hides which member is missing.
                 const wanted = '.jpf-no-flex-gap ' + sel;
                 // A rule under a longer selector (a theme's) is matched on that exact selector
                 // with the class folded into its first compound and the child step removed.
@@ -296,22 +289,21 @@ for (const f of PROP_FEATURES.filter(newer)) {
 
 /* ── 3. Chromium 53, the floor (webOS 4.5) ───────────────────────────────────
  *
- * Three things that sections 1 and 2 were once blind to, when they were written against 68
- * and not 53, were broken on the floor (P2-504..507):
+ * Sections 1 and 2 were written against 68 and missed three things broken on 53
+ * (P2-504..507):
  *
  *   - :focus-within is Chrome 60. In a list with :hover and :focus it took both with it.
- *   - display: grid is Chrome 57. Declared with nothing to fall back to, it is a block.
+ *   - display: grid is Chrome 57. With nothing to fall back to, it is a block.
  *   - position: sticky is Chrome 56.
  *
- * Each detector below is a function of a parsed sheet, and runs first on small sheets that
- * must trip it. A detector that cannot go red is a restatement, the way jsbaseline.js
- * proves its own first.
+ * Each detector below runs first on small sheets that must trip it. A detector that cannot
+ * go red is a restatement, as jsbaseline.js proves its own first.
  */
 console.log();
 console.log('── Chromium 53: selectors, grid and sticky ────────────────────');
 
-// A selector this old a parser cannot read. Matched on the text of one selector, never on
-// the list: the list is what a mixed use is measured against.
+// A selector an old parser cannot read, matched on one selector's text, never on the list
+// (the list is what a mixed use is measured against).
 const OLD_UNPARSEABLE = [
     { name: ':focus-within', since: 60, re: /:focus-within/ },
     { name: ':focus-visible', since: 86, re: /:focus-visible/ },
@@ -378,15 +370,14 @@ function covers(base, sel) {
 }
 
 /**
- * Every grid container, and what a browser with no grid gets. Two nameable fallbacks:
+ * Every grid container, and what a browser with no grid gets. Two acceptable fallbacks:
  *   - an EARLIER display other than grid for the same elements, which the unparseable
  *     grid declaration leaves standing, or
  *   - a rule under @supports not (display: grid) that sets one.
- * And when that fallback is a flex row with a gap, the children's spacing must exist for
- * a browser with no grid AND no flex gap: a .jpf-no-flex-gap margin rule that is not
- * boxed into a media range, or one inside the @supports-not block. A margin rule that
- * only runs below 900px did not cover a grid that starts at 900px; "some fallback
- * exists" is an aggregate, so each container is matched on its own.
+ * When that fallback is a flex row with a gap, the children's spacing must exist for a
+ * browser with no grid AND no flex gap: a .jpf-no-flex-gap margin rule not boxed into a
+ * media range, or one inside the @supports-not block. A margin rule that only ran below
+ * 900px did not cover a grid starting at 900px. Each container is matched on its own.
  */
 function gridProblems(rs) {
     const out = [];
@@ -395,8 +386,8 @@ function gridProblems(rs) {
             if (/jpf-no-flex-gap/.test(sel) || r.context.some(c => /^@supports\s+not/.test(c))) continue;
             if (!displayDecl(r.body).some(isGridValue)) continue;
             // "Underneath" the grid rule in the cascade: earlier in the sheet, or a plainer
-            // selector (fewer classes in its last compound) wherever it sits. The second
-            // is how .jpf-create-profile-container sits after .jpf-create-profile-container.is-two-col.
+            // selector (fewer classes in its last compound) wherever it sits. That is how
+            // .jpf-create-profile-container sits after .jpf-create-profile-container.is-two-col.
             const under = (o, s) => rs.indexOf(o) < idx
                 || simpleParts(lastCompound(s)).length < simpleParts(lastCompound(sel)).length;
             const earlier = rs.filter(o =>
@@ -573,11 +564,10 @@ ok('no comment claims sticky holds on both television baselines',
 
 /* ── 4. Inline flex gap in the markup (R-1227) ───────────────────────────────
  *
- * Section 2 reads the stylesheet. A flex container whose gap is written in a style
- * attribute is invisible to it, and the class-based .jpf-no-flex-gap fallbacks cannot
- * reach a style attribute unless the element also carries a class one of them names.
- * On Chromium 53 (webOS 4.5) such a container's children touch. Enumerated per
- * element, so the failure names the site.
+ * Section 2 reads the stylesheet and cannot see a flex gap written in a style attribute,
+ * and the class-based .jpf-no-flex-gap fallbacks cannot reach one unless the element also
+ * carries a class they name. On Chromium 53 (webOS 4.5) such a container's children touch.
+ * Enumerated per element, so the failure names the site.
  */
 console.log();
 console.log('── inline flex gap in profiles.js markup ──────────────────────');
@@ -624,20 +614,18 @@ ok('every inline flex gap in the markup has a fallback (' + inlineGaps.length + 
 
 /* ── 5. The rest of what is newer than the floor (C-1006) ────────────────────
  *
- * Sections 1 to 3 name the features that were known to bite. This one is the survey that
- * asked "what else is above 53", and its answers are enumerated here so a new use of any
- * of them has to meet a check and not a reviewer's memory.
+ * Sections 1 to 3 name the features known to bite. This is the survey of what else is above
+ * 53, enumerated so a new use meets a check and not a reviewer's memory.
  *
  *   - PREFIXED: the unprefixed spelling arrived after 53, the -webkit- one is there. The
- *     rule has to carry the prefixed property too. (user-select is 54; appearance is 84.)
+ *     rule must carry the prefixed property too. (user-select is 54; appearance is 84.)
  *   - FOCUS_WITHIN: :focus-within is 60 and the rule is dropped whole. Every positive use
  *     must be twinned with the same declarations under :focus, directly beside it, so the
- *     cascade that ran when they shared a list is the cascade that runs now. "A :focus
- *     rule exists somewhere" is an aggregate; each twin is matched on its own, and nothing
- *     between the pair may set one of its properties.
+ *     cascade is the one that ran when they shared a list. Each twin is matched on its
+ *     own, and nothing between the pair may set one of its properties.
  *   - BACKDROP: backdrop-filter is 76; it has to sit under @supports (or only reset).
- *   - COSMETIC: a declaration whose loss leaves the browser's own default and nothing
- *     unusable. Each is named with its reason and is not a silent pass.
+ *   - COSMETIC: a declaration whose loss leaves the browser default and nothing unusable.
+ *     Each is named with its reason.
  */
 console.log();
 console.log('── Chromium 53: the rest of what is newer ─────────────────────');

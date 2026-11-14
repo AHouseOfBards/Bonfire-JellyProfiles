@@ -1,20 +1,19 @@
 /*
- * A household at the limit: the main account and 20 profiles, the most one account can hold, in every theme on a
- * phone, a tablet and a television at 720p and 1080p, on the picker and on Manage.
+ * A household at the limit: the main account and 20 profiles, the most one account can hold,
+ * in every theme on a phone, a tablet and a television at 720p and 1080p, on the picker and
+ * on Manage.
  *
- * With that many profiles the gate shrinks the tiles to fit a television screen (see
- * fitGateToScreen), down to 120px, but the names stayed at television size, so a long name
- * ran across the tile beside it: "JordaMaximilianPriya", "WeBartholomewIsla". The tests and
- * the screenshots only ever had four profiles, so nobody had seen it.
+ * With that many profiles the gate shrinks the tiles to fit a television (see
+ * fitGateToScreen), down to 120px, but names stayed at television size, so a long name ran
+ * across the tile beside it: "JordaMaximilianPriya", "WeBartholomewIsla". Tests and
+ * screenshots only ever had four profiles.
  *
  * Asked of each name on its own, never as a count: does it stay inside its own tile, and
- * does its text fit its own box. A name may wrap; it may not spill. On a television whose
- * tiles were shrunk, a name is one line, cut with an ellipsis rather than wrapped or broken,
- * and never smaller than the status lines under it (a first fix shrank names to 20px,
- * under a 30px "Time's up").
+ * does its text fit its own box. A name may wrap; it may not spill. On a television with
+ * shrunk tiles a name is one line cut with an ellipsis, and never smaller than the status
+ * lines under it (a first fix shrank names to 20px, under a 30px "Time's up").
  *
- * Needs Chrome and the Material Icons font, like formfactors.js, and says it was skipped,
- * exiting 0, without them.
+ * Needs Chrome and the Material Icons font, like formfactors.js; skips (exit 0) without them.
  *
  *     node tests/js/crowdedgrid.js [/path/to/old/profiles.js]
  */

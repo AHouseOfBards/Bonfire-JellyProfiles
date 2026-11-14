@@ -1,12 +1,11 @@
 // Behavioural test of the switch-in-progress feedback, against the real profiles.js.
 //
-// Reported from a phone: tapping a profile does nothing visible for a couple of seconds
-// (a round trip plus a full reload), so the tap reads as missed and gets repeated.
-// _switchLock already made the repeats harmless — it just never said so on screen.
+// Reported from a phone: tapping a profile showed nothing for a couple of seconds (a round
+// trip plus a full reload), so the tap looked missed and got repeated. _switchLock already
+// made repeats harmless; it never said so on screen.
 //
 // Same technique as session.js: evaluate the shipped file with init() swapped for an
-// export, so these are the methods that ship. The DOM here is only as real as
-// setSwitchBusy needs — classList, ids, and querySelectorAll for one class.
+// export. The DOM is only as real as setSwitchBusy needs.
 const fs = require('fs');
 const vm = require('vm');
 const L = require('./_lib');
@@ -54,8 +53,8 @@ function makeEl(attrs) {
     return el;
 }
 
-// Two profiles, written with a dashed id — the plugin stores them dashless in places, so
-// the match has to normalise rather than compare strings.
+// Two profiles with a dashed id. The plugin stores them dashless in places, so the match
+// has to normalise rather than compare strings.
 const DASHED = '3f2a1b4c-5d6e-7f80-9a1b-2c3d4e5f6071';
 const DASHLESS = DASHED.replace(/-/g, '');
 const OTHER = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
@@ -87,8 +86,7 @@ function build() {
             body: { classList: makeClassList() },
             documentElement: { style: { cssText: '', removeProperty() {} }, classList: makeClassList() }
         },
-        // A page always has these; profiles.js binds the focus trap and the reload
-        // ladder's pagehide guard on window.
+        // profiles.js binds the focus trap and the reload ladder's pagehide guard on window.
         addEventListener() {}, removeEventListener() {},
         JSON, Date, Math, Object, Array, String, Number, Boolean, RegExp, Error, Promise, Set
     };
@@ -146,16 +144,16 @@ console.log('── It is actually wired to the switch ────────�
 
 const text = fs.readFileSync(SRC_PATH, 'utf8');
 const switchAt = text.indexOf('executeProfileSwitch: function');
-// executeProfileSwitch runs to roughly 5k characters; the window has to clear it or
-// the ordering checks below silently compare against -1.
+// executeProfileSwitch is about 5k characters; the window must clear it or the ordering
+// checks below compare against -1.
 const body = text.slice(switchAt, switchAt + 8000);
 ok('the switch raises it before the request goes out',
     body.indexOf('this.setSwitchBusy(profileId, true);') > 0
     && body.indexOf('this.setSwitchBusy(profileId, true);') < body.indexOf('this._fetchTimed(url'));
 const catchAt = body.indexOf('.catch(err');
-// Enumerated, not first-found. There is more than one place the switch gives up now —
-// the request failing, and the credentials write that will not stick — and taking the
-// first occurrence reported the catch as unguarded the moment an earlier one appeared.
+// Enumerated, not first-found. The switch gives up in more than one place (the request
+// failing, the credentials write that will not stick), and the first occurrence reported
+// the catch as unguarded once an earlier one appeared.
 const releases = [];
 for (let i = body.indexOf('this.setSwitchBusy(profileId, false);'); i > 0;
      i = body.indexOf('this.setSwitchBusy(profileId, false);', i + 1)) releases.push(i);
@@ -166,14 +164,13 @@ ok('and lowers it when the request fails',
 console.log();
 console.log('── The screen is not blanked for the length of a reload ─────────');
 
-// The overlay is opaque and covers the viewport, so it alone hides the old page. Blanking
-// the document as well is what made the phone show seconds of black with no spinner.
+// The opaque overlay alone hides the old page. Blanking the document as well made the
+// phone show seconds of black with no spinner.
 const reloadRegion = body.slice(body.indexOf('updateStoredCredentials(activeProfileToken'));
-// Located by shape, not by a fixed literal. This was an indexOf for
-// "documentElement.style.cssText = 'opacity:0" and stopped matching the moment the
-// colour became a concatenation rather than a constant — reporting the blanking as
-// having moved out of the else branch when it had not moved at all. Same mistake
-// _lib.js was written to stop: match the shape, and fail loudly if it is not there.
+// Located by shape, not by a fixed literal. An indexOf for
+// "documentElement.style.cssText = 'opacity:0" stopped matching when the colour became a
+// concatenation, and reported the blanking as moved out of the else branch when it had not.
+// Match the shape and fail loudly if it is not there, as _lib.js does.
 const blankMatch = /documentElement\.style\.cssText\s*=\s*'opacity:0/.exec(reloadRegion);
 const blankAt = blankMatch ? blankMatch.index : -1;
 const elseAt = reloadRegion.indexOf('} else {');

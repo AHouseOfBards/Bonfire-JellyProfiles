@@ -5,16 +5,16 @@
  * screen's cover briefly in the Bonfire theme, empty, before it switches to that user's
  * chosen theme." The cover's fallback was Bonfire's gradient, so anything that left the
  * theme unknown for a moment (no cache for this account, someone else's cache, a theme
- * the stylesheet has no block for yet) painted Bonfire. With no theme known it is now
- * jellyfin-web's own plain page colour.
+ * with no block yet) painted Bonfire. With no theme known it is now jellyfin-web's own
+ * plain page colour.
  *
  * Asked in a real browser, so the cascade is Chrome's and not a reading of the rules:
  *   1. the head script from WebInjection.cs, run while <head> parses with a given cache,
- *      and the cover's ::before read before anything else has run — what the first frame
- *      is painted with;
+ *      and the cover's ::before read before anything else runs (what the first frame is
+ *      painted with);
  *   2. profiles.js's copy of the rule (GATE_COVER_CSS) under the real stylesheet and theme
- *      blocks, as the Tizen package and a switch use it: with no theme on, plain; with
- *      each theme on, exactly the gate's own background.
+ *      blocks, as the Tizen package and a switch use it: plain with no theme on, exactly
+ *      the gate's own background with each theme on.
  *
  *     node tests/js/coverframe.js [profiles.js] [WebInjection.cs]
  */
