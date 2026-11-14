@@ -1,35 +1,32 @@
 /*
- * The home screen must not be on view in the two moments around the gate.
+ * The home screen must not show in the two moments around the gate.
  *
- * Reported as: "when loaded on any app that loads our switcher, there's a brief flash of
- * the dashboard before our switcher pops up on screen. The same thing happens when
- * selecting a profile". Under half a second, on web, Android and the televisions.
+ * Reported as a brief flash of the dashboard before the switcher appears, and again when
+ * picking a profile. Under half a second, on web, Android and the televisions.
  *
  *  1. Cold start with "Ask on startup" on. Nothing covered the page: jellyfin-web drew home
- *     as soon as it had a user, while the gate waited for the first route check and the
- *     profile list, then faded in from opacity 0 over the top of it.
- *  2. Picking a profile from the switcher anywhere but home. executeProfileSwitch marks the
- *     new profile active before it reloads, and checkRoute's "overlay stuck off home"
- *     cleanup matched exactly that, so the next 500 ms tick took the opaque gate down and
- *     showed the old profile's page until the navigation landed.
+ *     once it had a user, while the gate waited for the first route check and the profile
+ *     list, then faded in from opacity 0 over it.
+ *  2. Picking a profile away from home. executeProfileSwitch marks the new profile active
+ *     before it reloads, and checkRoute's "overlay stuck off home" cleanup matched exactly
+ *     that, so the next 500 ms tick took the opaque gate down and showed the old profile's
+ *     page until the navigation landed.
  *
- * This runs the real thing on a clock it controls: the inline head script reassembled from
+ * Runs the real code on a controlled clock: the inline head script reassembled from
  * WebInjection.cs, then profiles.js with init() swapped for an export, against a page where
  * jellyfin-web paints home at a chosen moment and the server answers after a chosen delay.
- * "Home is visible" is asked every 10 ms of that timeline: home has been painted, and none
- * of these is on top of it:
+ * Every 10 ms it asks whether home is painted and none of these is on top of it:
  *
  *   - the startup cover (html[data-jpf-cover] with its rule in the document),
- *   - the gate, opaque: in the document, its inline opacity cleared, and its 220 ms fade
- *     finished,
+ *   - the opaque gate (in the document, inline opacity cleared, 220 ms fade finished),
  *   - the head script's switch hide (opacity 0 on <html>).
  *
- * The other half matters more: every way the cover can be left up by mistake has to bring
- * it down, because a screen that stays blank is far worse than a flash.
+ * Every way the cover can be left up by mistake must bring it down too: a blank screen is
+ * worse than a flash.
+ *
  *     node tests/js/gatecover.js [profiles.js] [WebInjection.cs]
  *
- * Both arguments point at another checkout, which is how this was shown to fail against
- * the build carrying the bug:
+ * Both arguments can point at another checkout, which is how it was shown to fail:
  *
  *     git show HEAD~1:Web/profiles.js > old.js; git show HEAD~1:Injection/WebInjection.cs > old.cs
  *     node tests/js/gatecover.js old.js old.cs
@@ -109,8 +106,8 @@ function makePage(opts) {
     const navigations = [];
 
     function schedule(fn, ms, repeat) {
-        // At least 1 ms, as a browser clamps it: a zero-delay timer that re-arms itself
-        // would otherwise never let this clock move.
+        // At least 1 ms, as a browser clamps it; a zero-delay timer that re-arms itself would
+        // stall this clock.
         const t = { id: ++seq, fn, at: now + Math.max(1, ms || 0), every: repeat ? Math.max(1, ms || 0) : 0 };
         timers.push(t);
         return t.id;
@@ -120,8 +117,7 @@ function makePage(opts) {
         if (i !== -1) timers.splice(i, 1);
     }
 
-    // Elements: just enough of the DOM for the code paths that run here, with ids that
-    // resolve, attributes that stick, and removal that actually removes.
+    // Just enough DOM for the code that runs here: ids resolve, attributes stick, removal removes.
     const byId = Object.create(null);
     function register(el) { if (el && el.id) byId[el.id] = el; }
     function makeEl(tag) {
@@ -191,8 +187,7 @@ function makePage(opts) {
         replace(url) { navigations.push({ kind: 'replace', url }); }
     };
 
-    // The server. Each route answers after the delay given for it; a missing delay
-    // means the request never comes back.
+    // Each route answers after its configured delay; no delay means it never answers.
     const server = Object.assign({ list: 300, preferences: 250, switch: 100 }, opts.server || {});
     function respond(body, status) {
         return {
@@ -310,8 +305,7 @@ function makePage(opts) {
         },
 
         covered() {
-            // The gate's fade is tracked first and on every sample, whatever else is on
-            // top: the fade runs whether or not anything can see it.
+            // The gate's fade is tracked first, on every sample, whether or not anything covers it.
             const ov = byId['profiles-gate-overlay'];
             let gateOpaque = false;
             if (ov && ov.style.opacity !== '0') {
@@ -329,8 +323,8 @@ function makePage(opts) {
         },
         homeVisible() { return page.homeAt !== null && !page.covered(); },
 
-        /// Runs the clock forward, firing each timer at its moment and draining promise
-        /// callbacks after each, and sampling every 10 ms in between.
+        /// Runs the clock forward, firing timers in order, draining promise callbacks after each
+        /// and sampling every 10 ms.
         async advance(ms, onSample) {
             const until = now + ms;
             const drain = () => new Promise(r => setImmediate(r));
@@ -357,7 +351,7 @@ function makePage(opts) {
 }
 
 /// The standard cold start: head script while <head> parses, profiles.js at defer time,
-/// DOMContentLoaded, then jellyfin-web's own boot — ApiClient, then home.
+/// DOMContentLoaded, then jellyfin-web's boot (ApiClient, then home).
 async function coldStart(opts) {
     opts = opts || {};
     const page = makePage(opts);
@@ -442,25 +436,22 @@ console.log('\n── 1. Cold start with "Ask on startup" on ──────�
         'gate=' + !!page.byId['profiles-gate-overlay'] + ', home visible at ' + span(seen.visibleAt));
 }
 {
-    // Home painted before profiles.js has even started. Seen on 10.11 web when the home
-    // chunk is cached and profiles.js is not.
+    // Home painted before profiles.js starts. Seen on 10.11 web when the home chunk is
+    // cached and profiles.js is not.
     const { page, seen } = await coldStart({ storage: baseStorage(), apiAt: 500, homeAt: 200 });
     ok('when home paints before init', !!page.byId['profiles-gate-overlay'] && seen.visibleAt.length === 0,
         'home visible at ' + span(seen.visibleAt));
 }
 {
-    // The Tizen package: no head script in its index.html, profiles.js pulled in by the
-    // loader after the app has already drawn home.
+    // The Tizen package: no head script, profiles.js loaded after the app has drawn home.
     const { page, seen } = await coldStart({ storage: baseStorage(), head: false, apiAt: 700, homeAt: 300 });
     const after = seen.visibleAt.filter(t => t > 700);
     ok('without a head script, home is covered from init until the gate',
         !!page.byId['profiles-gate-overlay'] && after.length === 0, 'home visible after init at ' + span(after));
 }
 {
-    // A per-device answer left by 1.6–1.7.1, which let a device keep its own. 1.7.2 cut
-    // that: the account's answer decides on every device, the head script included, and
-    // init throws the leftover away. Red against 1.7.1, which covered home and raised the
-    // gate on the strength of this entry.
+    // A per-device answer left by 1.6-1.7.1. 1.7.2 made the account's answer decide on every
+    // device and init discards the leftover. Red against 1.7.1.
     const dev = ask => JSON.stringify({ [MASTER.replace(/-/g, '')]: { synced: false, askOnStartup: ask } });
     const r1 = await coldStart({ storage: baseStorage({
         jellyfin_profiles_switcher_mode: JSON.stringify({ askOnStartup: false, location: 'button', masterUserId: MASTER }),
@@ -491,8 +482,8 @@ for (const where of [{ label: 'a details page', pathname: '/web/details', hash: 
     ok('the switcher is open on ' + where.label, !!before);
 
     page.plugin.executeProfileSwitch(KID, null);
-    // The navigation is in flight and has not landed. The ladder's first escalation is
-    // at 1200 ms; this watches the whole stretch before it.
+    // Navigation in flight, not landed. The ladder escalates at 1200 ms; this watches the
+    // stretch before that.
     const gone = [];
     let reloaded = false;
     await page.advance(1150, t => {
@@ -513,11 +504,10 @@ for (const where of [{ label: 'a details page', pathname: '/web/details', hash: 
         'the gate was gone at ' + span(gone));
 }
 {
-    // Reported after the startup cover shipped: the cold start was fixed, but picking a
-    // profile still flashed home before the reload. Nothing in our code takes the gate
-    // down on home during a switch, so this asks the question that does not depend on
-    // knowing what did: with the gate gone mid-switch, is home still covered until the
-    // navigation lands?
+    // Reported after the startup cover shipped: picking a profile still flashed home before
+    // the reload. Nothing in our code drops the gate on home during a switch, so this asks the
+    // question that does not depend on knowing what did: with the gate gone mid-switch, is
+    // home still covered until the navigation lands?
     const { page } = await coldStart({ storage: baseStorage() });
     page.plugin.executeProfileSwitch(KID, null);
     await page.advance(150);
@@ -602,10 +592,10 @@ console.log('\n── 4. The cover always comes down ─────────
         seen.everCovered && seen.coverMaxMs < 1000, 'up for ' + seen.coverMaxMs + ' ms');
 }
 {
-    // Reported on 1.9.0.4-beta: the cover showed Bonfire, empty, before the household's
-    // own theme. A theme an administrator made is cached by the head script, but its
-    // block arrives with themes?part=custom, and the preferences naming it answered first:
-    // applyTheme turned the name it did not know yet into Bonfire, on the cover.
+    // Reported on 1.9.0.4-beta: the cover showed an empty Bonfire before the household's own
+    // theme. The head script caches an administrator's theme, but its block arrives with
+    // themes?part=custom and the preferences naming it answered first, so applyTheme turned
+    // the unknown name into Bonfire.
     const mine = JSON.parse(fs.readFileSync(path.join(L.ROOT, 'Web', 'themes', 'harvest.json'), 'utf8'));
     mine.id = 'mine';
     mine.name = { text: 'Mine' };
@@ -620,9 +610,8 @@ console.log('\n── 4. The cover always comes down ─────────
         'the cover wore: ' + seen.coverThemes.join(' -> '));
 }
 {
-    // The same device, but the profile list comes back before the custom themes do. The
-    // gate used to fade in at once, drawn in Bonfire's own colours with the household's
-    // block not yet in the page. It now waits for that answer.
+    // The profile list comes back before the custom themes. The gate used to fade in at once
+    // in Bonfire's colours without the household's block; it now waits for that answer.
     const mine = JSON.parse(fs.readFileSync(path.join(L.ROOT, 'Web', 'themes', 'harvest.json'), 'utf8'));
     mine.id = 'mine';
     mine.name = { text: 'Mine' };
@@ -683,10 +672,10 @@ console.log('\n── 5. One rule, in the gate\'s colour ───────�
 
     const css = L.extractCss(js);
     const gate = (/#profiles-gate-overlay\s*\{[^}]*?background:\s*([^;]+);/.exec(css) || [])[1] || '';
-    // Two rules. With a theme on the page the cover is that theme's --jpf-gate-bg, which is
-    // what the gate draws, so dropping the cover under the gate shows nothing. With none it
-    // is jellyfin-web's own plain page colour: until 1.9.0.4 it fell back to Bonfire's
-    // gradient, which a household with another theme saw, empty, before its own.
+    // Two rules. With a theme on the page the cover is its --jpf-gate-bg, which is what the
+    // gate draws, so dropping the cover shows nothing. With none it is jellyfin-web's plain
+    // page colour; until 1.9.0.4 it was Bonfire's gradient, which a household with another
+    // theme saw, empty, before its own.
     const rules = headRule.split('}').filter(Boolean).map(r => {
         const at = r.indexOf('{');
         return { sel: r.slice(0, at), body: r.slice(at + 1) };
