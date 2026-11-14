@@ -348,6 +348,7 @@
     /* A switch and its label on one full-width row (the PIN prompts form). */
     #profilesConfigurationPage .jpf-sa-label.jpf-sa-switch { flex: 0 0 100%; flex-direction: row; align-items: center; gap: 8px; }
     #profilesConfigurationPage .jpf-sa-btn { padding: 6px 12px; }
+    #profilesConfigurationPage .jpf-sa-select { margin-bottom: 0; min-width: 14em; }
     /* Under a main account: the other accounts on its screen, and its two forms. */
     #profilesConfigurationPage .jpf-account-extras { padding: 0 15px 10px 15px; }
     #profilesConfigurationPage .jpf-chips,
@@ -359,6 +360,15 @@
     #profilesConfigurationPage .jpf-extras-form > .fieldDescription { flex: 0 0 100%; }
     #profilesConfigurationPage .jpf-extras-form.jpf-hidden { display: none; }
     #profilesConfigurationPage .jpf-link-select { margin-bottom: 0; min-width: 14em; }
+    /* The arrow of every select points up while its list is open and down while it is closed.
+       bindSelectArrows puts .jpf-select-open on the select's container. jellyfin-web inserts an
+       empty label before each upgraded select; where the markup has its own, that one is spare. */
+    #profilesConfigurationPage .selectArrow { display: inline-block; -webkit-transition: -webkit-transform 0.15s ease; transition: transform 0.15s ease; }
+    #profilesConfigurationPage .jpf-select-open > .selectArrowContainer .selectArrow { -webkit-transform: rotate(180deg); transform: rotate(180deg); }
+    #profilesConfigurationPage .selectLabel:empty { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+        #profilesConfigurationPage .selectArrow { -webkit-transition: none; transition: none; }
+    }
     #profilesConfigurationPage .jpf-chip {
         display: inline-flex; align-items: center; gap: 2px;
         padding: 2px 4px 2px 10px; border-radius: 999px;
@@ -576,9 +586,21 @@
        even if the class were left on after the window shrank. */
     @media (min-width: 1280px) {
         #profilesConfigurationPage .jpf-te-3col .jpf-te-body {
-            display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(21em, 25em);
-            grid-template-areas: "outline preview fields"; gap: 24px; align-items: start;
+            display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(24em, 30%);
+            grid-template-rows: minmax(0, 1fr);
+            grid-template-areas: "outline preview fields"; gap: 24px; align-items: stretch;
+            /* The editor uses the window: the body is as tall as what is left of it below the
+               bar, the preview grows into that, and the fields scroll inside their own column
+               rather than making the page long. It was a 28em strip beside a 25em column, and
+               on a 2900 px window the rest of the screen was empty. */
+            height: calc(100vh - 12em); min-height: 30em;
         }
+        #profilesConfigurationPage .jpf-te-3col .jpf-te-fields { overflow-y: auto; min-height: 0; padding-right: 4px; }
+        #profilesConfigurationPage .jpf-te-3col .jpf-te-outline { overflow-y: auto; min-height: 0; }
+        #profilesConfigurationPage .jpf-te-3col .jpf-te-side { display: flex; flex-direction: column; min-height: 0; }
+        #profilesConfigurationPage .jpf-te-3col .jpf-te-side > #tePreview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+        #profilesConfigurationPage .jpf-te-3col .jpf-te-side .jpf-theme-preview { flex: 1 1 auto; min-height: 0; }
+        #profilesConfigurationPage .jpf-te-3col .jpf-te-side > .jpf-te-expand { flex: 0 0 auto; }
     }
     #profilesConfigurationPage .jpf-te-3col .jpf-te-outline {
         display: flex; flex-direction: column; gap: 2px; grid-area: outline;
@@ -787,7 +809,13 @@
     #profilesConfigurationPage .jpf-te-lrow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 4px 0; }
     #profilesConfigurationPage .jpf-te-lname { flex: 0 0 9em; font-size: 0.9rem; }
     #profilesConfigurationPage .jpf-te-lrow .jpf-te-pair { flex: 1 1 8em; min-width: 0; }
-    #profilesConfigurationPage .jpf-te-lrow select.jpf-te-input { flex: 1 1 8em; width: auto; }
+    #profilesConfigurationPage .jpf-te-lrow .jpf-te-selbox { flex: 1 1 8em; width: auto; }
+    /* The editor's dropdowns sit in a selectContainer so jellyfin-web draws their arrow. Its
+       own arrow position counts on a label above the select, which these rows do not have,
+       so the arrow is centred on the select instead. */
+    #profilesConfigurationPage .jpf-te-selbox { margin: 0; min-width: 0; }
+    #profilesConfigurationPage .jpf-te-selbox .selectArrowContainer { top: 50%; -webkit-transform: translateY(-50%); transform: translateY(-50%); }
+    #profilesConfigurationPage .jpf-te-selbox .selectArrow { display: block; margin: 0; font-size: 1.5em; line-height: 1; }
     #profilesConfigurationPage .jpf-te-lbtn { font: inherit; font-size: 0.85rem; padding: 4px 10px; border-radius: 4px; cursor: pointer;
         border: 1px solid rgba(128, 128, 128, 0.5); background: transparent; color: inherit; }
     #profilesConfigurationPage .jpf-te-lbtn:disabled { opacity: 0.4; cursor: default; }
@@ -3448,10 +3476,10 @@
                                (canBeProfile
                                    ? '<div class="to-profile-form jpf-extras-form jpf-hidden">' +
                                      '<div class="fieldDescription">' + escapeHtml(t('admin.toProfile.note')) + '</div>' +
-                                     '<label class="jpf-sa-label">' + escapeHtml(t('admin.toProfile.household')) + '<select is="emby-select" class="to-profile-household">' + households.map(option).join('') + '</select></label>' +
+                                     '<div class="selectContainer jpf-sa-label jpf-sa-select"><label class="selectLabel">' + escapeHtml(t('admin.toProfile.household')) + '</label><select is="emby-select" class="to-profile-household">' + households.map(option).join('') + '</select></div>' +
                                      '<label class="jpf-sa-label">' + escapeHtml(t('admin.toProfile.name')) +
                                      '<input is="emby-input" type="text" class="to-profile-name" autocomplete="off" placeholder="' + escapeHtml(t('admin.toProfile.keepName')) + '" /></label>' +
-                                     '<label class="jpf-sa-label">' + escapeHtml(t('admin.toProfile.later')) + '<select is="emby-select" class="to-profile-later"><option value="keep">' + escapeHtml(t('admin.toProfile.laterKeep')) + '</option><option value="delete">' + escapeHtml(t('admin.toProfile.laterDelete')) + '</option></select></label>' +
+                                     '<div class="selectContainer jpf-sa-label jpf-sa-select"><label class="selectLabel">' + escapeHtml(t('admin.toProfile.later')) + '</label><select is="emby-select" class="to-profile-later"><option value="keep">' + escapeHtml(t('admin.toProfile.laterKeep')) + '</option><option value="delete">' + escapeHtml(t('admin.toProfile.laterDelete')) + '</option></select></div>' +
                                      '<button type="button" class="raised button-submit button-mini to-profile-go jpf-sa-btn">' + escapeHtml(t('admin.toProfile.go')) + '</button>' +
                                      '</div>'
                                    : '') +
@@ -6232,12 +6260,15 @@
                     return '<span class="jpf-te-pair"><input type="range" class="jpf-te-input jpf-te-range"' + attrs +
                         ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" /><output class="jpf-te-val" for="' + id + '"></output></span>';
                 }
-                return '<select class="emby-select emby-select-withcolor jpf-te-input"' + attrs + '>' +
+                // is="emby-select" inside a selectContainer, and without the class emby-select:
+                // jellyfin-web draws the arrow only for an upgraded select that does not carry it
+                // already. These were plain selects with the classes written in, so no arrow.
+                return '<div class="selectContainer jpf-te-selbox"><select is="emby-select" class="jpf-te-input"' + attrs + '>' +
                     // An entry is a value, or [value, label] where the value is no name for a person.
                     opt.map(function (v) {
                         const pair = Array.isArray(v) ? v : [v, v];
                         return '<option value="' + escapeHtml(pair[0]) + '">' + escapeHtml(pair[1]) + '</option>';
-                    }).join('') + '</select>';
+                    }).join('') + '</select></div>';
             }
 
             function teRow(labelKey, control, vars) {
@@ -6531,8 +6562,8 @@
                                     ' min="' + opt[0] + '" max="' + opt[1] + '" step="' + opt[2] + '" /><output class="jpf-te-val" for="' + id + '"></output></span>';
                                 hint = t('admin.themes.hint.range', { min: opt[0], max: opt[1] });
                             } else if (kind === 'choice' || kind === 'font') {
-                                control = '<select class="emby-select emby-select-withcolor jpf-te-input"' + attrs + '><option value="">—</option>' +
-                                    (opt || []).map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('') + '</select>';
+                                control = '<div class="selectContainer jpf-te-selbox"><select is="emby-select" class="jpf-te-input"' + attrs + '><option value="">—</option>' +
+                                    (opt || []).map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('') + '</select></div>';
                                 hint = kind === 'font' ? t('admin.themes.hint.font') : '';
                             } else if (kind === 'shadow') {
                                 // One box per key of ThemeValidator.Shadow, each writing its own
@@ -9588,7 +9619,111 @@
                 closeThemeMenu(this);
             });
 
+            /// The arrow on every select points up while its list is open and down while it is
+            /// closed: one set of listeners on the page, so no select needs code of its own.
+            /// A native select raises no event when its list opens or closes, so this goes by
+            /// what opens and closes it. Opens: a primary-button mousedown on the select (the
+            /// popup is then up; a click that dismisses it is swallowed by the popup and never
+            /// reaches the page), Alt+Up/Down, F4 or Space. Closes: change, blur, Escape, Tab,
+            /// Enter, a second Space, and a mousedown anywhere else on the page. Its limits:
+            /// picking the option already selected fires no change, so the arrow stays up until
+            /// the select blurs or the page is clicked; a click outside the page that dismisses
+            /// the list does the same; and where jellyfin-web shows its own action sheet instead
+            /// of the native list (TV layouts) emby-select cancels the mousedown, which is left
+            /// alone here, so the arrow does not move at all. `change` and `blur` are taken in
+            /// the capture phase because emby-select's own `change` does not bubble.
+            function bindSelectArrows(page) {
+                if (page._selectArrows) return;
+                page._selectArrows = true;
+                let open = null;
+                const mark = function (select, on) {
+                    const box = select && select.parentNode;
+                    if (box && box.classList && box.classList.contains('selectContainer')) box.classList.toggle('jpf-select-open', on);
+                    if (on) open = select; else if (open === select) open = null;
+                };
+                const shut = function () { if (open) mark(open, false); };
+                page.addEventListener('mousedown', function (e) {
+                    const el = e.target;
+                    if (el && el.tagName === 'SELECT') {
+                        if (e.button || e.defaultPrevented) return;
+                        if (open && open !== el) shut();
+                        mark(el, true);
+                    } else {
+                        shut();
+                    }
+                });
+                page.addEventListener('keydown', function (e) {
+                    const el = e.target;
+                    if (!el || el.tagName !== 'SELECT' || e.defaultPrevented) return;
+                    // Key codes, not names: the names differ between the browsers this page meets.
+                    // 27 Escape, 9 Tab, 13 Enter, 32 Space, 115 F4, 38 and 40 the up and down arrows.
+                    const k = e.keyCode;
+                    if (k === 27 || k === 9 || k === 13) mark(el, false);
+                    else if (k === 32 || k === 115 || ((k === 38 || k === 40) && e.altKey)) mark(el, open !== el);
+                });
+                const closeThis = function (e) { if (e.target === open) shut(); };
+                page.addEventListener('change', closeThis, true);
+                page.addEventListener('blur', closeThis, true);
+            }
+
+            /// A button on the same row as a select or a text box is as tall as it. The two come
+            /// from different places (jellyfin-web sizes an upgraded control in em of its own
+            /// font, the button is ours), so no pair of fixed paddings keeps them level, and a
+            /// stylesheet cannot read one element's height for another. This reads the control
+            /// and sets the button. A control is beside a button when it is within 48 px of it,
+            /// on the same line, in the same row (the button's parent, or up to two levels
+            /// above it). The colour swatch in the theme editor is square, so it takes the
+            /// width too.
+            const ROW_CONTROLS = 'select, input[type=text], input[type=number], input[type=email], input[type=password], input[type=url], input[type=search], input:not([type])';
+            function matchControlHeights(page) {
+                const writes = [];
+                Array.prototype.forEach.call(page.querySelectorAll('button'), function (b) {
+                    const br = b.getBoundingClientRect();
+                    if (!(br.width > 0 && br.height > 0)) return;
+                    for (let p = b.parentNode, depth = 0; p && p !== page && depth < 3; p = p.parentNode, depth++) {
+                        const beside = Array.prototype.filter.call(p.querySelectorAll(ROW_CONTROLS), function (c) {
+                            if (c.closest('button')) return false;
+                            const cr = c.getBoundingClientRect();
+                            if (!(cr.width > 0 && cr.height > 0)) return false;
+                            const apart = br.left >= cr.right - 1 ? br.left - cr.right : cr.left >= br.right - 1 ? cr.left - br.right : -1;
+                            return apart >= 0 && apart < 48 && br.top < cr.bottom && br.bottom > cr.top;
+                        });
+                        if (beside.length) { writes.push([b, beside[0].getBoundingClientRect().height]); break; }
+                    }
+                });
+                // Every read is done before the first write, so no write moves a later read.
+                writes.forEach(function (w) {
+                    w[0].style.boxSizing = 'border-box';
+                    w[0].style.height = w[1] + 'px';
+                    if (w[0].classList.contains('jpf-te-sw')) w[0].style.width = w[1] + 'px';
+                });
+            }
+
+            /// Runs matchControlHeights when something on the page is added, shown, hidden or
+            /// opened, and when the window is resized: the forms under a household are built
+            /// by script and shown by a click.
+            function bindControlHeights(page) {
+                if (page._controlHeights) return;
+                page._controlHeights = true;
+                let queued = false;
+                const run = function () {
+                    if (queued) return;
+                    queued = true;
+                    (window.requestAnimationFrame || window.setTimeout)(function () {
+                        queued = false;
+                        try { matchControlHeights(page); } catch (e) { /* a row left as it was is not worth a broken page */ }
+                    });
+                };
+                if (window.MutationObserver) {
+                    new MutationObserver(run).observe(page, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'open', 'disabled'] });
+                }
+                window.addEventListener('resize', run);
+                run();
+            }
+
             function showPage(page) {
+                bindSelectArrows(page);
+                bindControlHeights(page);
                 if (page._themeEditor) { bindThemePreviewStick(page); bindThemeKeys(page); }
                 loadConfiguration(page);
                 ['#enableClientPinLogin', '#enableClientProfileList', '#allowProfileThemes'].forEach(function (sel) {
