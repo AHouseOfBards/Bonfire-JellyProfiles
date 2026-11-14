@@ -39,8 +39,13 @@ namespace Campground.Shared.Security
             => IsAdministrator(principal) || UserId(principal) == userId;
 
         /// <summary>
-        /// True when the user may see the item — library access, parental rating, tags, schedules — using
-        /// Jellyfin's own check. False for unknown users or items. Never bypass this for "convenience".
+        /// True when the user may see the item: library access, plus the parental rating and tags of the item and
+        /// of every parent, using the check Jellyfin's own item routes use (<c>IsVisibleStandalone</c>). False for
+        /// unknown users or items. Never bypass this for "convenience".
+        /// <para>
+        /// Before 1.0.1 this called <c>IsVisible</c>, which checks only the item's own rating and tags. A user with
+        /// no access to a library passed for any item in it whose rating allowed it (issue #61).
+        /// </para>
         /// </summary>
         internal static bool CanSee(IUserManager users, ILibraryManager library, Guid userId, Guid itemId)
         {
@@ -51,7 +56,7 @@ namespace Campground.Shared.Security
             }
 
             var item = library.GetItemById(itemId);
-            return item != null && item.IsVisible(user);
+            return item != null && item.IsVisibleStandalone(user);
         }
     }
 

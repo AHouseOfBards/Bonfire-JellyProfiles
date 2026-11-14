@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
@@ -43,7 +44,20 @@ namespace Campground.Shared.Security
         }
 
         /// <summary>Opens (creating if needed) the shared key for a purpose, e.g. "accounts".</summary>
-        internal static SecretBox ForPurpose(string purpose) => new(LoadOrCreateKey(Path.Combine(KeysFolder, purpose + ".key")));
+        /// <remarks>
+        /// The purpose becomes a file name, so it must be letters, digits, '-' or '_' (1.0.1, issue #61). Before, a
+        /// purpose like "../x" would have put a key outside the keys folder. Every purpose in use ("accounts",
+        /// "trailhead") passes.
+        /// </remarks>
+        internal static SecretBox ForPurpose(string purpose)
+        {
+            if (string.IsNullOrEmpty(purpose) || purpose.Length > 64 || !purpose.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+            {
+                throw new ArgumentException("A SecretBox purpose is 1 to 64 letters, digits, '-' or '_'.", nameof(purpose));
+            }
+
+            return new(LoadOrCreateKey(Path.Combine(KeysFolder, purpose + ".key")));
+        }
 
         private static string KeysFolder => Path.Combine(CampgroundPaths.Root, "keys");
 

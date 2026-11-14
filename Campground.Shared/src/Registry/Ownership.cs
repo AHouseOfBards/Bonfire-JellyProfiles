@@ -7,7 +7,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Text.Json;
+using Campground.Shared.Storage;
+using MediaBrowser.Common.Plugins;
+using JfPluginStatus = MediaBrowser.Model.Plugins.PluginStatus;
 
 namespace Campground.Shared.Registry
 {
@@ -158,7 +162,168 @@ namespace Campground.Shared.Registry
             string? folderId, string? libraryName, IReadOnlyCollection<string>? locations, string? folderPath = null)
         {
             // The reserved prefix and folder marker first: they are reserved, so a registration can't turn them into
-            // a managed library.
+            // a managed library. They count only while FieldGuide is installed (1.0.1, issue #61): without it, a
+            // library an admin named "Für dich: Horror" stopped being managed by Bonfire, and a profile set to "every
+            // library but the blocked ones" could see it.
+            if (FieldGuideInstalled())
+            {
+                var reserved = ReservedOwner(libraryName, folderPath);
+                if (reserved != null)
+                {
+                    return reserved;
+                }
+            }
+
+            return RegisteredLibraryOwner(folderId, locations);
+        }
+
+        /// <summary>FieldGuide's plugin GUID, as in its manifest (FieldGuide decision F69, fixed on issue #61). Never change it.</summary>
+        internal static readonly Guid FieldGuideGuid = Guid.Parse("f7188173-3d03-4c95-8ba2-0dd8999a61ab");
+
+        private static IPluginManager? _plugins;
+
+        /// <summary>
+        /// Hands Ownership Jellyfin's plugin list, so the reserved names follow whether FieldGuide is installed.
+        /// Optional: without it, the plugins folder that <c>CampgroundPaths.Initialize(IApplicationPaths)</c> recorded is
+        /// read instead, and with neither the reserved names always count, as before 1.0.1.
+        /// </summary>
+        internal static void Initialize(IPluginManager? plugins)
+        {
+            _plugins = plugins;
+            ResetInstalledCache();
+        }
+
+        private static readonly TimeSpan InstalledCacheFor = TimeSpan.FromSeconds(30);
+        private static readonly object InstalledGate = new();
+        private static (bool Installed, long Tick)? _installed;
+
+        /// <summary>Forgets the cached answer to "is FieldGuide installed?" (tests, and after <see cref="Initialize"/>).</summary>
+        internal static void ResetInstalledCache()
+        {
+            lock (InstalledGate)
+            {
+                _installed = null;
+            }
+        }
+
+        /// <summary>
+        /// True while FieldGuide is in Jellyfin's plugin list in any state but Deleted: active, disabled, failed to
+        /// load, or not loaded yet after a restart. Bonfire's policy sync can run before FieldGuide registers, and in
+        /// that gap the reserved names are what keep FieldGuide's personal libraries away from other profiles. Unknown
+        /// (no plugin list and no plugins folder) counts as installed, which keeps that protection.
+        /// </summary>
+        internal static bool FieldGuideInstalled()
+        {
+            var now = Environment.TickCount64;
+            lock (InstalledGate)
+            {
+                if (_installed is { } c && now - c.Tick < InstalledCacheFor.TotalMilliseconds)
+                {
+                    return c.Installed;
+                }
+            }
+
+            var installed = ReadFieldGuideInstalled();
+            lock (InstalledGate)
+            {
+                _installed = (installed, now);
+            }
+
+            return installed;
+        }
+
+        private static bool ReadFieldGuideInstalled()
+        {
+            try
+            {
+                // Registered in this process: certainly installed.
+                if (Registrations().Any(r => string.Equals(r.PluginId, PluginIds.FieldGuide, StringComparison.Ordinal)))
+                {
+                    return true;
+                }
+
+                if (_plugins is { } plugins)
+                {
+                    return plugins.Plugins.Any(p => p.Id == FieldGuideGuid && p.Manifest.Status != JfPluginStatus.Deleted);
+                }
+
+                var folder = CampgroundPaths.PluginsPath;
+                if (folder == null || !Directory.Exists(folder))
+                {
+                    return true;
+                }
+
+                foreach (var dir in Directory.EnumerateDirectories(folder))
+                {
+                    var meta = Path.Combine(dir, "meta.json");
+                    if (File.Exists(meta) && MetaIsLiveFieldGuide(meta))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
+
+        // Jellyfin writes one meta.json per installed plugin version: its PluginManifest, with the GUID under "guid"
+        // and the status as a name or a number.
+        private static bool MetaIsLiveFieldGuide(string path)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object
+                    || !TryGetProperty(root, "guid", out var guid)
+                    || guid.ValueKind != JsonValueKind.String
+                    || !Guid.TryParse(guid.GetString(), out var id)
+                    || id != FieldGuideGuid)
+                {
+                    return false;
+                }
+
+                if (!TryGetProperty(root, "status", out var status))
+                {
+                    return true;
+                }
+
+                var deleted = status.ValueKind switch
+                {
+                    JsonValueKind.Number => status.TryGetInt32(out var n) && n == (int)JfPluginStatus.Deleted,
+                    JsonValueKind.String => string.Equals(status.GetString(), nameof(JfPluginStatus.Deleted), StringComparison.OrdinalIgnoreCase),
+                    _ => false,
+                };
+                return !deleted;
+            }
+            catch (Exception)
+            {
+                // A meta.json that can't be read might be FieldGuide's: keep the protection.
+                return true;
+            }
+        }
+
+        private static bool TryGetProperty(JsonElement obj, string name, out JsonElement value)
+        {
+            foreach (var p in obj.EnumerateObject())
+            {
+                if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = p.Value;
+                    return true;
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static LibraryOwner? ReservedOwner(string? libraryName, string? folderPath)
+        {
             if (!string.IsNullOrEmpty(libraryName))
             {
                 foreach (var pair in ReservedLibraryPrefixes)
@@ -182,6 +347,11 @@ namespace Campground.Shared.Registry
                 }
             }
 
+            return null;
+        }
+
+        private static LibraryOwner? RegisteredLibraryOwner(string? folderId, IReadOnlyCollection<string>? locations)
+        {
             var id = NormalizeId(folderId);
             foreach (var r in Registrations())
             {

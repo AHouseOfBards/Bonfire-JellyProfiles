@@ -54,13 +54,26 @@ namespace Campground.Shared.Network
         internal static void SetVpnRanges(IEnumerable<string> ranges)
             => CampgroundRegistry.Section(VpnSection)["ranges"] = ranges.Where(r => !string.IsNullOrWhiteSpace(r)).Select(r => r.Trim()).ToArray();
 
-        /// <summary>Classifies an HTTP request.</summary>
+        /// <summary>
+        /// Classifies an HTTP request against the proxies Jellyfin trusts now, read from the request's services.
+        /// Before 1.0.1 this used the saved Known proxies, which differ from the live list after an edit until Jellyfin
+        /// restarts, so a proxy the admin had just added read as trusted before Jellyfin trusted it (issue #61).
+        /// </summary>
         internal static Classification Classify(HttpContext context, IServerConfigurationManager serverConfig)
-            => NetworkClassifier.Classify(
-                context.Connection.RemoteIpAddress,
-                context.Request.Headers["X-Forwarded-For"].ToString(),
-                context.Request.Headers["X-Forwarded-Proto"].ToString(),
-                Read(serverConfig));
+            => Classify(context, serverConfig, LiveOptions(context));
+
+        // The live forwarded-headers options from the request's services, or null outside a real request.
+        private static IOptions<ForwardedHeadersOptions>? LiveOptions(HttpContext context)
+        {
+            try
+            {
+                return context.RequestServices?.GetService(typeof(IOptions<ForwardedHeadersOptions>)) as IOptions<ForwardedHeadersOptions>;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
 
         /// <summary>
         /// As <see cref="Read(IServerConfigurationManager)"/>, but with the proxies Jellyfin trusts <b>now</b> in

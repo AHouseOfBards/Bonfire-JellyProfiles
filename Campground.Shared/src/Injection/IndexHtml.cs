@@ -19,9 +19,13 @@ namespace Campground.Shared.Injection
     {
         internal const string RuntimeId = "campground-runtime";
 
+        // The base URL goes inside src="...". It is an admin setting, but a quote or a "<" in it would end the
+        // attribute and put markup into every page, so it is HTML-encoded (1.0.1, issue #61).
+        private static string BaseAttr(string? baseUrl) => System.Net.WebUtility.HtmlEncode(JellyfinNetworkSettings.NormalizeBaseUrl(baseUrl));
+
         /// <summary>The body tag for one registration.</summary>
         internal static string BodyTag(ScriptRegistration reg, string? baseUrl)
-            => $"<script src=\"{JellyfinNetworkSettings.NormalizeBaseUrl(baseUrl)}{reg.Path}?v={Uri.EscapeDataString(reg.Version)}\" defer></script>";
+            => $"<script src=\"{BaseAttr(baseUrl)}{reg.Path}?v={Uri.EscapeDataString(reg.Version)}\" defer></script>";
 
         /// <summary>The inline runtime tag.</summary>
         internal static string RuntimeTag(string version, string script)
@@ -130,7 +134,7 @@ namespace Campground.Shared.Injection
 
         /// <summary>The runtime as a file. No defer: it must run before the head snippets and plugin scripts.</summary>
         internal static string RuntimeFileTag(string version, string? baseUrl)
-            => $"<script id=\"{RuntimeId}\" data-v=\"{version}\" src=\"{JellyfinNetworkSettings.NormalizeBaseUrl(baseUrl)}{RuntimePath}?v={Uri.EscapeDataString(version)}\"></script>";
+            => $"<script id=\"{RuntimeId}\" data-v=\"{version}\" src=\"{BaseAttr(baseUrl)}{RuntimePath}?v={Uri.EscapeDataString(version)}\"></script>";
 
         /// <summary>
         /// The code inside a head snippet, when the snippet is exactly one plain inline
@@ -160,7 +164,7 @@ namespace Campground.Shared.Injection
             => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(body)), 0, 6).ToLowerInvariant();
 
         private static string HeadFileTag(string headId, string body, string? baseUrl)
-            => $"<script id=\"{headId}\" src=\"{JellyfinNetworkSettings.NormalizeBaseUrl(baseUrl)}{HeadPathPrefix}{Uri.EscapeDataString(headId)}.js?v={ContentVersion(body)}\"></script>";
+            => $"<script id=\"{headId}\" src=\"{BaseAttr(baseUrl)}{HeadPathPrefix}{Uri.EscapeDataString(headId)}.js?v={ContentVersion(body)}\"></script>";
 
         /// <summary>
         /// True when the document has somewhere to put fragments: a &lt;head&gt; or a &lt;/body&gt;. Tells

@@ -24,7 +24,7 @@
 (function (root) {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.0.1';
   if (root.Campground && root.Campground.version && compare(root.Campground.version, VERSION) >= 0) {
     return;
   }
@@ -232,11 +232,15 @@
           node.addEventListener(k.substring(2).toLowerCase(), v);
         } else if (k.toLowerCase().indexOf('on') === 0) {
           throw new Error('Campground.el: ' + k + ' must be a function');
-        } else if (k === 'innerHTML' || k === 'outerHTML' || k === 'srcdoc') {
+        } else if (['innerhtml', 'outerhtml', 'srcdoc'].indexOf(k.toLowerCase()) !== -1) {
+          // Lower-cased (1.0.1): attribute names aren't case-sensitive, so "srcDoc" set the same thing.
           throw new Error('Campground.el: ' + k + ' is not allowed; pass text or child nodes');
-        } else if (URL_ATTRS.indexOf(k.toLowerCase()) !== -1 && /^javascript:/i.test(String(v).replace(/[\u0000- ]/g, ''))) {
+        } else if (URL_ATTRS.indexOf(k.toLowerCase()) !== -1 && /^(javascript|vbscript):/i.test(String(v).replace(/[\u0000- ]/g, ''))) {
           // Browsers drop tabs, newlines and leading controls from a URL before reading its scheme.
           throw new Error('Campground.el: javascript: URLs are not allowed');
+        } else if (String(tag).toLowerCase() === 'script' && URL_ATTRS.indexOf(k.toLowerCase()) !== -1 && /^data:/i.test(String(v).replace(/[\u0000- ]/g, ''))) {
+          // A data: URL on a script runs whatever it holds (1.0.1).
+          throw new Error('Campground.el: data: URLs are not allowed on scripts');
         } else {
           node.setAttribute(k, v === true ? '' : String(v));
         }

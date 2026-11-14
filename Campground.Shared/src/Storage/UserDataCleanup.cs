@@ -18,11 +18,21 @@ namespace Campground.Shared.Storage
     /// cleaner; the plugin's <c>IEventConsumer&lt;UserDeletedEventArgs&gt;</c> calls <see cref="RunAsync"/>
     /// (see shared/README.md for the six-line consumer). The first call per user wins, so with several plugins
     /// installed the cleaners still run once.
+    /// <para>
+    /// A cleaner that fails, and a plugin that wasn't running when the user was deleted, used to leave that user's
+    /// data on disk for good: nothing called the cleaner again (issue #61). So since 1.0.1 a failure is written to
+    /// <c>&lt;campground&gt;/cleanup-pending.json</c>, and each plugin calls <see cref="SweepAsync"/> once at start
+    /// with the user ids it holds data for. The sweep retries what is pending for that plugin and cleans every user
+    /// Jellyfin no longer has.
+    /// </para>
     /// </summary>
     internal static class UserDataCleanup
     {
         private const string CleanersSection = "cleanup.cleaners";
         private const string DoneSection = "cleanup.done";
+        private const string PendingFileName = "cleanup-pending.json";
+
+        private sealed record PendingFile(List<string> Entries);
 
         /// <summary>Registers this plugin's cleaner.</summary>
         internal static void Register(string pluginId, Func<Guid, CancellationToken, Task> cleaner)
@@ -57,6 +67,7 @@ namespace Campground.Shared.Storage
                 {
                     done.TryRemove(claim, out _);
                     failed.Add(pair.Key);
+                    MarkPending(userId, pair.Key, pending: true);
                 }
             }
 
@@ -67,5 +78,125 @@ namespace Campground.Shared.Storage
 
             return failed;
         }
+            /// <summary>
+        /// Call once at plugin start. Cleans this plugin's data for every user in <paramref name="storedUserIds"/>
+        /// that <paramref name="userExists"/> says Jellyfin no longer has, and for any user whose clean-up failed
+        /// before. Uses the cleaner <see cref="Register"/> recorded for <paramref name="pluginId"/>, so register first.
+        /// Returns the users it couldn't clean; they stay pending for the next start.
+        /// </summary>
+        /// <param name="pluginId">This plugin.</param>
+        /// <param name="storedUserIds">Every user id this plugin keeps data for.</param>
+        /// <param name="userExists">Whether Jellyfin still has the user: <c>id =&gt; userManager.GetUserById(id) != null</c>.</param>
+        internal static async Task<IReadOnlyList<Guid>> SweepAsync(
+            string pluginId,
+            IEnumerable<Guid> storedUserIds,
+            Func<Guid, bool> userExists,
+            CancellationToken ct = default)
+        {
+            var failed = new List<Guid>();
+            if (!CampgroundRegistry.Section(CleanersSection).TryGetValue(pluginId, out var value)
+                || value is not Func<Guid, CancellationToken, Task> cleaner)
+            {
+                return failed;
+            }
+
+            var targets = new HashSet<Guid>(PendingFor(pluginId));
+            foreach (var id in storedUserIds)
+            {
+                if (id != Guid.Empty && !SafeExists(userExists, id))
+                {
+                    targets.Add(id);
+                }
+            }
+
+            foreach (var id in targets)
+            {
+                // A pending user Jellyfin has again (a restored backup, say) is live: keep their data.
+                if (SafeExists(userExists, id))
+                {
+                    MarkPending(id, pluginId, pending: false);
+                    continue;
+                }
+
+                try
+                {
+                    await cleaner(id, ct).ConfigureAwait(false);
+                    MarkPending(id, pluginId, pending: false);
+                }
+                catch (Exception) when (!ct.IsCancellationRequested)
+                {
+                    MarkPending(id, pluginId, pending: true);
+                    failed.Add(id);
+                }
+            }
+
+            return failed;
+        }
+
+        // An existence check that throws is not proof the user is gone: their data stays.
+        private static bool SafeExists(Func<Guid, bool> userExists, Guid id)
+        {
+            try
+            {
+                return userExists(id);
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
+
+        private static IEnumerable<Guid> PendingFor(string pluginId)
+        {
+            var file = PendingStore();
+            if (file == null)
+            {
+                return Array.Empty<Guid>();
+            }
+
+            try
+            {
+                return (file.Load<PendingFile>()?.Entries ?? new List<string>())
+                    .Select(e => e.Split('|'))
+                    .Where(parts => parts.Length == 2 && parts[1] == pluginId && Guid.TryParse(parts[0], out _))
+                    .Select(parts => Guid.Parse(parts[0]))
+                    .ToList();
+            }
+            catch (Exception)
+            {
+                return Array.Empty<Guid>();
+            }
+        }
+
+        private static void MarkPending(Guid userId, string pluginId, bool pending)
+        {
+            var file = PendingStore();
+            if (file == null)
+            {
+                return;
+            }
+
+            var entry = userId.ToString("N") + "|" + pluginId;
+            var gate = CampgroundRegistry.Section("cleanup.gate").GetOrAdd("gate", _ => new object());
+            lock (gate)
+            {
+                try
+                {
+                    var entries = new SortedSet<string>(file.Load<PendingFile>()?.Entries ?? new List<string>(), StringComparer.Ordinal);
+                    var changed = pending ? entries.Add(entry) : entries.Remove(entry);
+                    if (changed)
+                    {
+                        file.Save(new PendingFile(entries.ToList()));
+                    }
+                }
+                catch (Exception)
+                {
+                    // Best effort: the sweep at the next start finds users Jellyfin no longer has anyway.
+                }
+            }
+        }
+
+        private static AtomicJsonFile? PendingStore()
+            => CampgroundPaths.IsInitialized ? new AtomicJsonFile(System.IO.Path.Combine(CampgroundPaths.Root, PendingFileName)) : null;
     }
 }

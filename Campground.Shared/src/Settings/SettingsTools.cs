@@ -58,53 +58,36 @@ namespace Campground.Shared.Settings
 
         /// <summary>
         /// Applies a merge patch to a typed settings object and returns the patched copy. Secret properties set to
-        /// <see cref="Mask"/> in the patch are ignored (the client echoed the mask back).
+        /// <see cref="Mask"/> in the patch are ignored (the client echoed the mask back), at any depth.
         /// </summary>
         internal static T ApplyPatch<T>(T current, JsonObject patch)
             where T : class
         {
-            var cleaned = (JsonObject)patch.DeepClone();
-            foreach (var name in SecretJsonNames(typeof(T)))
-            {
-                if (cleaned[name] is JsonValue v && v.TryGetValue<string>(out var s) && s == Mask)
-                {
-                    cleaned.Remove(name);
-                }
-            }
-
             var node = JsonSerializer.SerializeToNode(current, CampgroundRegistry.Json);
+            var cleaned = (JsonObject)patch.DeepClone();
+            KeepSecrets(cleaned, node as JsonObject, typeof(T), always: false, depth: 0);
             var merged = MergePatch(node, cleaned);
             return merged.Deserialize<T>(CampgroundRegistry.Json)
                 ?? throw new JsonException("The patched settings deserialised to null.");
         }
 
-        /// <summary>Settings as JSON with every secret masked (non-empty) or left empty — safe to send to the browser.</summary>
+        /// <summary>
+        /// Settings as JSON with every secret masked (non-empty) or left empty, safe to send to the browser. Secrets
+        /// inside nested settings objects and lists of them are masked too (1.0.1, issue #61; before, only top-level
+        /// ones were).
+        /// </summary>
         internal static JsonObject Masked<T>(T settings)
         {
             var node = (JsonObject)JsonSerializer.SerializeToNode(settings, CampgroundRegistry.Json)!;
-            foreach (var name in SecretJsonNames(typeof(T)))
-            {
-                if (node[name] is JsonValue v && v.TryGetValue<string>(out var s) && !string.IsNullOrEmpty(s))
-                {
-                    node[name] = Mask;
-                }
-                else if (node[name] is not null and not JsonValue)
-                {
-                    node[name] = Mask;
-                }
-            }
-
+            MaskSecrets(node, typeof(T), 0);
             return node;
         }
 
-        /// <summary>An export document: plugin id, version, time, and the settings without secrets.</summary>
+        /// <summary>An export document: plugin id, version, time, and the settings without secrets, at any depth.</summary>
         internal static JsonObject Export<T>(string pluginId, string pluginVersion, T settings)
         {
             var node = (JsonObject)JsonSerializer.SerializeToNode(settings, CampgroundRegistry.Json)!;
-            foreach (var name in SecretJsonNames(typeof(T)))
-            {
-                node.Remove(name);
-            }
+            StripSecrets(node, typeof(T), 0);
 
             return new JsonObject
             {
@@ -117,8 +100,8 @@ namespace Campground.Shared.Settings
         }
 
         /// <summary>
-        /// Imports an export document over the current settings. Secrets keep their current values. Throws
-        /// <see cref="JsonException"/> when the document isn't an export for this plugin.
+        /// Imports an export document over the current settings. Secrets keep their current values, at any depth.
+        /// Throws <see cref="JsonException"/> when the document isn't an export for this plugin.
         /// </summary>
         internal static T Import<T>(string pluginId, T current, JsonObject document)
             where T : class
@@ -131,13 +114,187 @@ namespace Campground.Shared.Settings
                 throw new JsonException($"This file isn't a {pluginId} settings export.");
             }
 
+            var node = JsonSerializer.SerializeToNode(current, CampgroundRegistry.Json);
             var patch = (JsonObject)incoming.DeepClone();
-            foreach (var name in SecretJsonNames(typeof(T)))
+            KeepSecrets(patch, node as JsonObject, typeof(T), always: true, depth: 0);
+            return MergePatch(node, patch).Deserialize<T>(CampgroundRegistry.Json)
+                ?? throw new JsonException("The imported settings deserialised to null.");
+        }
+
+        // Settings types nest a few levels at most; the cap only guards against a type that refers to itself.
+        private const int MaxDepth = 8;
+
+        // The JSON names for one property, as the serializer writes it.
+        private static string JsonName(PropertyInfo p)
+            => p.GetCustomAttribute<System.Text.Json.Serialization.JsonPropertyNameAttribute>()?.Name
+               ?? CampgroundRegistry.Json.PropertyNamingPolicy?.ConvertName(p.Name)
+               ?? p.Name;
+
+        private static IEnumerable<PropertyInfo> Properties(Type type)
+            => type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(p => p.GetIndexParameters().Length == 0);
+
+        // Every key in the object that names this property. Reading is case-insensitive, so "ApiToken" in a patch
+        // sets the same property as "apiToken" and has to be treated the same.
+        private static List<string> KeysFor(JsonObject obj, string name)
+            => obj.Select(kv => kv.Key).Where(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        private static JsonNode? CurrentValue(JsonObject? current, string name)
+            => current == null ? null : KeysFor(current, name).Select(k => current[k]).FirstOrDefault(v => v != null);
+
+        // An object type whose properties are worth walking: not a string, number, date, id or enum.
+        private static bool IsSettingsObject(Type t)
+        {
+            t = Nullable.GetUnderlyingType(t) ?? t;
+            return !(t.IsPrimitive || t.IsEnum || t == typeof(string) || t == typeof(decimal) || t == typeof(DateTime)
+                     || t == typeof(DateTimeOffset) || t == typeof(TimeSpan) || t == typeof(Guid) || t == typeof(Uri)
+                     || typeof(System.Collections.IEnumerable).IsAssignableFrom(t));
+        }
+
+        // The element type of a list of settings objects, or null. Dictionaries are not walked.
+        private static Type? ListElement(Type t)
+        {
+            if (t == typeof(string) || typeof(System.Collections.IDictionary).IsAssignableFrom(t))
             {
-                patch.Remove(name);
+                return null;
             }
 
-            return ApplyPatch(current, patch);
+            var element = t.IsArray
+                ? t.GetElementType()
+                : t.GetInterfaces().Append(t)
+                    .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                    .Select(i => i.GetGenericArguments()[0])
+                    .FirstOrDefault();
+            return element != null && IsSettingsObject(element) ? element : null;
+        }
+
+        private static bool IsMask(JsonNode? value) => value is JsonValue v && v.TryGetValue<string>(out var s) && s == Mask;
+
+        private static void MaskSecrets(JsonObject node, Type type, int depth)
+        {
+            if (depth > MaxDepth)
+            {
+                return;
+            }
+
+            foreach (var p in Properties(type))
+            {
+                foreach (var key in KeysFor(node, JsonName(p)))
+                {
+                    var value = node[key];
+                    if (p.GetCustomAttribute<CampgroundSecretAttribute>() != null)
+                    {
+                        if ((value is JsonValue v && v.TryGetValue<string>(out var s) && !string.IsNullOrEmpty(s))
+                            || value is JsonObject or JsonArray)
+                        {
+                            node[key] = Mask;
+                        }
+                    }
+                    else if (value is JsonObject child && IsSettingsObject(p.PropertyType))
+                    {
+                        MaskSecrets(child, p.PropertyType, depth + 1);
+                    }
+                    else if (value is JsonArray list && ListElement(p.PropertyType) is { } element)
+                    {
+                        foreach (var item in list.OfType<JsonObject>())
+                        {
+                            MaskSecrets(item, element, depth + 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void StripSecrets(JsonObject node, Type type, int depth)
+        {
+            if (depth > MaxDepth)
+            {
+                return;
+            }
+
+            foreach (var p in Properties(type))
+            {
+                foreach (var key in KeysFor(node, JsonName(p)))
+                {
+                    var value = node[key];
+                    if (p.GetCustomAttribute<CampgroundSecretAttribute>() != null)
+                    {
+                        node.Remove(key);
+                    }
+                    else if (value is JsonObject child && IsSettingsObject(p.PropertyType))
+                    {
+                        StripSecrets(child, p.PropertyType, depth + 1);
+                    }
+                    else if (value is JsonArray list && ListElement(p.PropertyType) is { } element)
+                    {
+                        foreach (var item in list.OfType<JsonObject>())
+                        {
+                            StripSecrets(item, element, depth + 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Makes a patch leave secrets as they are: a secret the patch sets to the mask (or any secret, with
+        // always) takes its current value, or is dropped when there is none. A list in a merge patch replaces the
+        // whole list, so its items get their current secrets back by position, and only when the list is the same
+        // length; otherwise a secret could land on a different entry, so masked ones are dropped and must be
+        // entered again. A list item that leaves a secret out (an export, a client that never saw it) gets it back
+        // too, since the replaced list would otherwise lose it.
+        private static void KeepSecrets(JsonObject patch, JsonObject? current, Type type, bool always, int depth, bool inList = false)
+        {
+            if (depth > MaxDepth)
+            {
+                return;
+            }
+
+            foreach (var p in Properties(type))
+            {
+                var name = JsonName(p);
+                var keys = KeysFor(patch, name);
+                if (inList && keys.Count == 0 && p.GetCustomAttribute<CampgroundSecretAttribute>() != null
+                    && CurrentValue(current, name) is { } missing)
+                {
+                    patch[name] = missing.DeepClone();
+                    continue;
+                }
+
+                foreach (var key in keys)
+                {
+                    var value = patch[key];
+                    if (p.GetCustomAttribute<CampgroundSecretAttribute>() != null)
+                    {
+                        if (always || IsMask(value))
+                        {
+                            var kept = CurrentValue(current, name);
+                            if (kept == null)
+                            {
+                                patch.Remove(key);
+                            }
+                            else
+                            {
+                                patch[key] = kept.DeepClone();
+                            }
+                        }
+                    }
+                    else if (value is JsonObject child && IsSettingsObject(p.PropertyType))
+                    {
+                        KeepSecrets(child, CurrentValue(current, name) as JsonObject, p.PropertyType, always, depth + 1, inList);
+                    }
+                    else if (value is JsonArray list && ListElement(p.PropertyType) is { } element)
+                    {
+                        var before = CurrentValue(current, name) as JsonArray;
+                        var sameShape = before != null && before.Count == list.Count;
+                        for (var i = 0; i < list.Count; i++)
+                        {
+                            if (list[i] is JsonObject item)
+                            {
+                                KeepSecrets(item, sameShape ? before![i] as JsonObject : null, element, always, depth + 1, inList: true);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         internal static IReadOnlyList<string> SecretJsonNames(Type type)

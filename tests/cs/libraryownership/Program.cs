@@ -78,6 +78,14 @@ var apply = syncType.GetMethod("ApplyAsync", Any);
 
 var tempDir = Path.Combine(Path.GetTempPath(), "bonfire-libraryownership-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempDir);
+// The reserved names count only while FieldGuide is installed (Campground.Shared 1.0.1, #61),
+// and Ownership reads that from the plugins folder Plugin's constructor records. StubPaths
+// gives tempDir as that folder, so FieldGuide is installed here, as Jellyfin writes it: one
+// folder per version with a meta.json. The last section takes it away.
+var fieldGuideDir = Path.Combine(tempDir, "FieldGuide_1.0.0.0");
+Directory.CreateDirectory(fieldGuideDir);
+File.WriteAllText(Path.Combine(fieldGuideDir, "meta.json"),
+    "{\"guid\":\"f7188173-3d03-4c95-8ba2-0dd8999a61ab\",\"name\":\"FieldGuide\",\"status\":\"Active\"}");
 var plugin = Activator.CreateInstance(pluginType, new StubPaths(tempDir), new StubXml());
 var config = pluginType.GetProperty("Configuration").GetValue(plugin);
 // A new install starts with Bonfire off (2.0), and off every gate stands down, so a
@@ -386,6 +394,31 @@ Console.WriteLine("── The library screens and create ───────�
         copied = (List<Guid>)fromMethod.Invoke(Controller(), a);
         Ok("an account on \"all\" is every library, and \"every library\" has no owned one", (bool)a[2] && !In(copied, FY) && !In(copied, FM), Show(copied));
     }
+}
+
+// ── FieldGuide uninstalled ──────────────────────────────────────────────────
+// Before 1.0.1 a "For You:" name or a fieldguide- folder kept Bonfire's hands off a library
+// for good, so a household could name a library "For You: Sam" and Bonfire never managed it:
+// every profile kept whatever it had. Without FieldGuide they are ordinary libraries.
+Console.WriteLine();
+Console.WriteLine("── FieldGuide not installed: the reserved names are ordinary ───");
+{
+    Directory.Delete(fieldGuideDir, true);
+    // The installed answer is cached for a short while; 1.0.0 has no cache and no method.
+    ownType.GetMethod("ResetInstalledCache", Any)?.Invoke(null, null);
+    var master = Policy(u => u.EnableAllFolders = true);
+    // The account has only L1. (One it was granted in Dashboard → Users is kept, issue #30, so
+    // giving it FY here would prove nothing about ownership.)
+    var p = Sync(Household(master, Policy(u => { u.EnabledFolders = new[] { L1 }; }), new List<Guid> { L1 }, false));
+    Ok("a \"For You:\" library the profile wasn't given is blocked", In(p.BlockedMediaFolders, FY) && !In(p.EnabledFolders, FY), Lists(p));
+    Ok("and so is one in a fieldguide- folder", In(p.BlockedMediaFolders, FM) && !In(p.EnabledFolders, FM), Lists(p));
+    p = Sync(Household(master, Policy(u => { u.EnabledFolders = Array.Empty<Guid>(); }), null, true));
+    Ok("\"every library\" includes both", In(p.EnabledFolders, FY) && In(p.EnabledFolders, FM), Lists(p));
+    // A registered owner is not a reserved name: it still counts.
+    Register(true, RG);
+    p = Sync(Household(master, Policy(u => { u.EnabledFolders = Array.Empty<Guid>(); }), null, true));
+    Ok("a library a running plugin registered is still left to it", !In(p.EnabledFolders, RG) && !In(p.BlockedMediaFolders, RG), Lists(p));
+    Unregister();
 }
 
 try { Directory.Delete(tempDir, true); } catch { }

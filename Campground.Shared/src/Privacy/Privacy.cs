@@ -26,11 +26,17 @@ namespace Campground.Shared.Privacy
     {
         internal const string Redacted = "[redacted]";
 
-        private const string Keys = "api_?key|access_?token|token|x-emby-token|x-mediabrowser-token|password|pw|pin|secret|refresh_?token|authorization";
+        private const string Keys = "api_?key|access_?token|refresh_?token|x-emby-token|x-mediabrowser-token|token|passwd|passphrase|password|pw|pin_?code|pin|client_?secret|secret|private_?key|authorization";
+
+        // Where a key name may start: after a non-letter ("api_key", "password"), or at a camelCase hump
+        // ("apiToken", "adminPassword", "PinCode"). Before 1.0.1 only the first counted, so every camelCase name
+        // went out in clear (issue #61). A lower-case run like "spin" or "typing" still doesn't match, and neither
+        // does "PlaybackToken", which CleanStream reads in logs and which isn't a credential.
+        private const string KeyStart = "(?:(?<![a-z])|(?<=[a-z0-9])(?<!(?i:playback))(?-i:(?=[A-Z])))";
 
         // A quoted value, which may hold spaces and escaped quotes: "password" : "a b", password="a b".
         private static readonly Regex Quoted = new(
-            "(?i)(?<![a-z])(" + Keys + ")(\"\\s*:\\s*\"|=\")(?:[^\"\\\\]|\\\\.)*",
+            "(?i)" + KeyStart + "(" + Keys + ")(\"\\s*:\\s*\"|=\")(?:[^\"\\\\]|\\\\.)*",
             RegexOptions.Compiled);
 
         // Authorization with a scheme: the scheme stays, the credential goes.
@@ -39,7 +45,18 @@ namespace Campground.Shared.Privacy
             RegexOptions.Compiled);
 
         private static readonly Regex Tokens = new(
-            "(?i)(?<![a-z])(" + Keys + ")(=(?:\\\\u0022|\")?|\"\\s*:\\s*\"?|\\\\u0022:\\\\u0022|:\\s*)(?!(?:bearer|basic|negotiate|ntlm)\\s)[^&\"\\s\\\\]+",
+            "(?i)" + KeyStart + "(" + Keys + ")(=(?:\\\\u0022|\")?|\"\\s*:\\s*\"?|\\\\u0022:\\\\u0022|:\\s*)(?!(?:bearer|basic|negotiate|ntlm)\\s)[^&\"\\s\\\\]+",
+            RegexOptions.Compiled);
+
+        // A whole cookie header: several "name=value" pairs, any of which may be a session.
+        private static readonly Regex Cookie = new(@"(?i)(?<![a-z-])((?:set-)?cookie\s*:\s*)[^\r\n]+", RegexOptions.Compiled);
+
+        // A JSON Web Token on its own, with no key name in front: three base64url parts, the first two JSON.
+        private static readonly Regex Jwt = new(@"eyJ[A-Za-z0-9_-]{4,}\.eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*", RegexOptions.Compiled);
+
+        // A PEM private key block (a certificate's key, an ACME account key).
+        private static readonly Regex PemKey = new(
+            @"-----BEGIN ([A-Z ]*)PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
             RegexOptions.Compiled);
 
         private static readonly Regex EmbyAuth = new("(?i)(Token=\")[^\"]+(\")", RegexOptions.Compiled);
@@ -60,11 +77,14 @@ namespace Campground.Shared.Privacy
                 return text ?? string.Empty;
             }
 
-            var s = Quoted.Replace(text, m => m.Groups[1].Value + m.Groups[2].Value + Redacted);
+            var s = PemKey.Replace(text, m => "-----BEGIN " + m.Groups[1].Value + "PRIVATE KEY----- " + Redacted + " -----END " + m.Groups[1].Value + "PRIVATE KEY-----");
+            s = Cookie.Replace(s, m => m.Groups[1].Value + Redacted);
+            s = Quoted.Replace(s, m => m.Groups[1].Value + m.Groups[2].Value + Redacted);
             s = AuthScheme.Replace(s, m => m.Groups[1].Value + Redacted);
             s = Tokens.Replace(s, m => m.Groups[1].Value + m.Groups[2].Value + Redacted);
             s = EmbyAuth.Replace(s, m => m.Groups[1].Value + Redacted + m.Groups[2].Value);
             s = Bearer.Replace(s, m => m.Groups[1].Value + Redacted);
+            s = Jwt.Replace(s, Redacted);
             s = Email.Replace(s, "[email]");
             if (maskAddresses)
             {

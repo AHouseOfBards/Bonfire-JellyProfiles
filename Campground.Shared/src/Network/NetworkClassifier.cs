@@ -81,6 +81,16 @@ namespace Campground.Shared.Network
         /// <summary>
         /// Classifies a request. <paramref name="forwardedFor"/> is honoured only when the connection comes
         /// from a trusted proxy (as Jellyfin trusts them); otherwise anyone could claim to be local.
+        /// <para>
+        /// A request that carries forwarded headers from a connection that isn't a trusted proxy is
+        /// <see cref="NetworkClass.Remote"/> (1.0.1, issue #61). Behind a proxy on the LAN that isn't in Known proxies,
+        /// every internet client arrives from the proxy's local address, so before 1.0.1 they all read as home and got
+        /// home privileges (Bonfire's PIN skip, GameTent's remote-play rule, CleanStream's original-quality pick).
+        /// Reading a home client that adds the header as remote only costs it a prompt or a lower bitrate.
+        /// <see cref="Classification.ViaProxy"/> with <see cref="Classification.ProxyTrusted"/> false still says
+        /// "came through a proxy Jellyfin doesn't trust", and <see cref="Classification.JellyfinLocal"/> still says
+        /// what Jellyfin itself decides, for setup checks that offer the fix.
+        /// </para>
         /// </summary>
         internal static Classification Classify(
             IPAddress? connection,
@@ -107,6 +117,11 @@ namespace Campground.Shared.Network
             }
 
             var jellyfinLocal = IsJellyfinLocal(client, settings.LocalNetworkSubnets);
+            if (viaProxy && !trusted)
+            {
+                return new Classification(NetworkClass.Remote, client, viaProxy, trusted, https, jellyfinLocal);
+            }
+
             var vpn = ParseNetworks(settings.VpnRanges);
             if (vpn.Any(n => n.Contains(client)))
             {

@@ -20,7 +20,28 @@ namespace Campground.Shared.Storage
         private const string StateSection = "paths";
 
         /// <summary>Call once at plugin start-up.</summary>
-        internal static void Initialize(IApplicationPaths paths) => Initialize(Path.Combine(paths.DataPath, "campground"));
+        internal static void Initialize(IApplicationPaths paths)
+        {
+            // Jellyfin's plugins folder too (1.0.1), so Ownership can tell whether FieldGuide is installed in a
+            // caller that never hands it the plugin manager (issue #61).
+            try
+            {
+                if (!string.IsNullOrEmpty(paths.PluginsPath))
+                {
+                    CampgroundRegistry.Section(StateSection).TryAdd("plugins", paths.PluginsPath);
+                }
+            }
+            catch (Exception)
+            {
+                // A paths object that can't say where plugins live: Ownership falls back to counting reserved names.
+            }
+
+            Initialize(Path.Combine(paths.DataPath, "campground"));
+        }
+
+        /// <summary>Jellyfin's plugins folder, when <see cref="Initialize(IApplicationPaths)"/> was given one.</summary>
+        internal static string? PluginsPath
+            => CampgroundRegistry.Section(StateSection).TryGetValue("plugins", out var p) && p is string s ? s : null;
 
         /// <summary>Sets the root directly (tests, tools).</summary>
         internal static void Initialize(string root)
