@@ -257,7 +257,12 @@ console.log('\n── ci.yml: every shard, both C# builds, binchk and the static
     ok('ci.yml validates translations', !!ciJobs.static && /run:\s*node Web\/i18n\/validate\.js\s*$/m.test(ciJobs.static.text));
     ok('ci.yml syntax-checks the client script', !!ciJobs.static && /run:\s*node --check Web\/profiles\.js\s*$/m.test(ciJobs.static.text));
     // Every job that builds or runs a harness installs what it needs.
-    ['js', 'csharp', 'binchk', 'static'].forEach(n => ok('ci job `' + n + '` installs Node', !!ciJobs[n] && /setup-node/.test(ciJobs[n].text)));
+    ['js', 'csharp', 'binchk', 'static', 'webkit'].forEach(n => ok('ci job `' + n + '` installs Node', !!ciJobs[n] && /setup-node/.test(ciJobs[n].text)));
+    // The WebKit harnesses skip when Playwright is missing; the job that exists to run them must not.
+    const wk = ciJobs.webkit ? ciJobs.webkit.text : '';
+    ok('ci job `webkit` installs the pinned Playwright WebKit', /npm ci/.test(wk) && /playwright-core install[^\n]*webkit/.test(wk));
+    ok('and makes a missing install a failure, not a skip', /BONFIRE_WEBKIT_REQUIRED:\s*'1'/.test(wk));
+    ['webkitstartup', 'webkitlayout', 'webkitflows'].forEach(h => ok('and runs ' + h, new RegExp('js/' + h + '\\b').test(wk)));
     ['csharp', 'binchk'].forEach(n => {
         ok('ci job `' + n + '` installs the .NET 9 SDK', !!ciJobs[n] && /9\.0\.x/.test(ciJobs[n].text));
         ok('ci job `' + n + '` installs the .NET 10 SDK', !!ciJobs[n] && /10\.0\.x/.test(ciJobs[n].text));

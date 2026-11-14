@@ -1,0 +1,8 @@
+{
+  "name": "bonfire-webkit-tests",
+  "private": true,
+  "description": "Playwright, for the WebKit harnesses only. Never shipped with the plugin.",
+  "devDependencies": {
+    "playwright-core": "1.65.1"
+  }
+}
