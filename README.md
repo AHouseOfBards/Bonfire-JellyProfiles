@@ -13,22 +13,17 @@ Works with Jellyfin 10.11 and 12.0. Part of [Campground](https://github.com/AHou
 
 - **Up to 20 profiles per account.** The default is five. Administrators can change the
   limit for the whole server or for one account.
-- **Parental controls the server enforces.** Library access, rating limits and tag
-  filters are applied by Jellyfin itself, so they hold in every app, including apps that
+- **Parental controls the server enforces.** Library access, allowed devices, rating
+  limits and tag filters are applied by Jellyfin itself, so they hold in every app, including apps that
   can't show the switcher. Rating limits use your server country's ratings.
 - **PINs.** Lock any profile with a PIN. You can skip it on your home network.
-- **Device limits.** Keep a profile to the devices you choose.
 - **Shared Bonfires.** Link two accounts with a 6-character code so both households
   appear on one switcher.
 - **Avatars.** Thirty built in, plus any images you upload for the whole server.
-- **Per-profile library artwork.** A Kids profile can show its own image for a library
-  instead of a poster from a film it can't open.
 - **Themes.** Twelve looks for Bonfire's screens, including high contrast and two that match
   Jellyfin's own light and dark themes. Each profile can
   have its own, set from **Settings → Theme** on the main account. Administrators choose
   the default and can turn choosing off.
-- **Your choice of switcher.** A Bonfire button in the header or a **Switch profile**
-  entry in Jellyfin's own menu, with an optional "Who's watching?" screen on startup.
 - **Six languages.** English, Catalan, French, Polish, Spanish and Turkish, following the
   language set in Jellyfin. [Add yours](Web/i18n/README.md).
 
