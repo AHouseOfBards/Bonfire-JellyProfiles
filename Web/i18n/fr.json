@@ -998,7 +998,7 @@
   "admin.links.add": "Ajouter un compte à ce foyer",
   "admin.links.account": "Compte",
   "admin.links.go": "Ajouter",
-  "admin.links.note": "Sa vignette s'affiche sur l'écran des profils de ce foyer. Il reste son propre compte.",
+  "admin.links.note": "Le compte a une vignette sur l'écran des profils de ce foyer. Il reste un compte distinct.",
   "admin.links.none": "Aucun autre compte à afficher. Créez d'abord un autre utilisateur.",
   "admin.links.failed": "Impossible d'ajouter le compte.",
   "admin.links.removeFailed": "Impossible de le retirer.",

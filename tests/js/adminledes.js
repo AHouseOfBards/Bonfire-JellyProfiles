@@ -95,7 +95,7 @@ const SHORT = {
     'admin.status.whereBody': 'Households manage their own profiles from the Jellyfin home screen.',
     'admin.backup.lede': 'Export saves everything except the mail password and emergency code. Import replaces everything except those two. The file holds scrambled PINs, so keep it private.',
     'admin.avatars.missingHint': 'They show an initial instead. Set a new avatar to clear this.',
-    'admin.links.note': 'Its tile goes on this household\'s profile screen. It stays its own account.'
+    'admin.links.note': 'The account gets a tile on this household\'s profile screen. It stays a separate account.'
 };
 Object.keys(SHORT).forEach(function (k) {
     ok(k, en[k] === SHORT[k], 'is: ' + JSON.stringify(en[k]));
