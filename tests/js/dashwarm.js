@@ -2,13 +2,12 @@
  * The admin page wears Bonfire's ember colours, and reads on both of Jellyfin's dashboard
  * themes.
  *
- * It used to borrow the theme's --accent (Jellyfin blue) for its buttons, tabs and
- * focus rings, with green/red/orange status colours chosen for a dark page. The owner
- * chose the warm Bonfire theme (Web/themes/bonfire.json) for it, fixed. Its accent,
- * #ffb347, is built for a dark page and is 1.9:1 on white, so the light dashboard theme
- * needs a darker ember from the same family. This checks that, one pair at a time:
- * every text or control against every ground it can sit on, in each theme. Nothing is
- * averaged or totalled; a failing pair is named.
+ * It used to borrow the theme's --accent (Jellyfin blue) for buttons, tabs and focus rings,
+ * with status colours chosen for a dark page. The owner chose the warm Bonfire theme
+ * (Web/themes/bonfire.json) for it, fixed. Its accent, #ffb347, is built for a dark page and
+ * is 1.9:1 on white, so the light dashboard theme needs a darker ember from the same family.
+ * This checks one pair at a time: every text or control against every ground it can sit on,
+ * in each theme. Nothing is averaged; a failing pair is named.
  *
  * What the page sits on is read from jellyfin-web, release-10.11.z. The theme is the
  * `data-theme` attribute on <html> (src/scripts/themeManager.js setTheme), and:
@@ -268,9 +267,8 @@ uses('.jpf-note-error', 'background', '--jpf-bad-tint');
 uses('.jpf-note-ok', 'background', '--jpf-good-tint');
 
 // Secondary buttons: every is="emby-button" raised button that is not a primary
-// (.button-submit), a link, or the red badge. They wore Jellyfin's grey .raised box,
-// which the owner saw clash with the ember (1.9.0.4 eye test). One rule styles them all,
-// so no button can be left grey by being missed.
+// (.button-submit), a link, or the red badge. They wore Jellyfin's grey .raised box, which
+// clashed with the ember (1.9.0.4 eye test). One rule styles them all, so none is missed.
 const SEC = '.raised:not(.button-submit):not(.button-link):not(.jpf-badge-bad)';
 uses(SEC, 'background', '--jpf-accent-tint');
 uses(SEC, 'color', '--jpf-accent');

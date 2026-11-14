@@ -1,18 +1,17 @@
 /*
  * Nothing the server hands back may be rendered as markup.
  *
- * The admin dashboard runs with the administrator's token. Its audit log printed the
- * device and client name of every profile switch straight into innerHTML, and those two
- * values are copied from the Authorization header of whoever switched, URL-decoded on the
- * way in. Any account on the server can switch into itself, so any account could name its
- * device <img src=x onerror=…> and have that script run as the administrator the next time
- * the Bonfire settings page was opened. The audit log loads with the page, so the
- * administrator did not have to click anything. The sessions list and the orphan list had
- * the same shape.
+ * The admin dashboard runs with the administrator's token. Its audit log printed the device
+ * and client name of every profile switch straight into innerHTML, and those values are
+ * copied from the Authorization header of whoever switched, URL-decoded on the way in. Any
+ * account can switch into itself, so any account could name its device <img src=x
+ * onerror=...> and have that script run as the administrator the next time the settings page
+ * opened. The audit log loads with the page, so no click was needed. The sessions list and
+ * the orphan list had the same shape.
  *
- * This runs the real render functions against hostile values and looks at what they
- * produce. Reading the source for "escapeHtml" would pass a version that escapes one field
- * and forgets the next, which is how this happened.
+ * This runs the real render functions against hostile values and looks at what they produce.
+ * Reading the source for "escapeHtml" would pass a version that escapes one field and forgets
+ * the next, which is how this happened.
  *
  * Point it at older files to watch it fail (argv[2] is the client script, argv[3] the
  * dashboard):
@@ -138,7 +137,7 @@ console.log('\n── The orphan scan ──────────────
 }
 
 // R-1280: the household list, the avatar grid and the theme rows are built from names the
-// server hands back — a profile's name, an avatar's file name, a theme's name — and had no
+// server hands back (a profile's name, an avatar's file name, a theme's name) and had no
 // hostile-value run. The household and avatar renderers live inside a fetch callback, so the
 // real function is run against a fake ApiClient that answers with the payload.
 console.log('\n── The household list ──────────────────────────────────────────');
@@ -327,8 +326,8 @@ console.log('\n── The Bonfire panel names other people ───────
     const joined = render({ isOwner: false, isMember: true, joinedOwnerName: EVIL, joinedOwnerId: 'x' });
     ok('the owner of a Bonfire you joined is text', joined.indexOf('&lt;img src=x') !== -1 && !live(joined));
 
-    // showAlert renders its message as markup because translations carry tags. What goes
-    // into it from a server response must therefore be escaped at the call site.
+    // showAlert renders its message as markup because translations carry tags, so what goes
+    // into it from a server response must be escaped at the call site.
     //
     // R-1280: this used to look for one spelling of the mistake in the source, which a
     // different spelling walks past. The three screens that show a refusal from the time-limit

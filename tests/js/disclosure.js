@@ -1,22 +1,22 @@
 // Progressive disclosure, held by a ledger (P2-601 to P2-610).
 //
-// The household screens keep what is rarely needed under a closed "More" fold, and the
-// admin tabs keep theirs under a closed "Advanced" one. Each of those was an owner decision
-// about one control at a time, and nothing stopped the next edit putting a rare control back
-// in the default view, or leaving a fold open. This enumerates every control the first open of
-// each screen draws and says which side of the fold it is on.
+// The household screens keep what is rarely needed under a closed "More" fold, and the admin
+// tabs keep theirs under a closed "Advanced" one. Each was an owner decision about one
+// control, and nothing stopped the next edit putting a rare control back in the default view
+// or leaving a fold open. This enumerates every control the first open of each screen draws
+// and says which side of the fold it is on.
 //
 //   node tests/js/disclosure.js [path/to/profiles.js [path/to/profilesDashboard.html]]
 //
 // The LEDGER is the whole contract, written down from the markup as it stood: for each
-// screen, the controls in the default view (`basic`) and the controls under the fold
-// (`more`). It is compared pairwise and as a multiset, in both directions:
+// screen, the controls in the default view (`basic`) and under the fold (`more`). It is
+// compared pairwise and as a multiset, in both directions:
 //   - a ledgered control that is on the other side of the fold, or gone;
-//   - a control the screen draws that the ledger does not know, so a new control has to be
-//     placed on purpose, here, in review;
+//   - a control the screen draws that the ledger does not know, so a new control is placed
+//     on purpose, here, in review;
 //   - a fold that is open on first open, which puts everything under it in the default view.
-// Moving a control is a deliberate act: change the ledger in the same commit. The ledger is
-// not computed from the markup; a harness that derived its expectation from the thing it
+// Moving a control is deliberate: change the ledger in the same commit. The ledger is not
+// computed from the markup, since a harness that derived its expectation from the thing it
 // checks could not go red.
 //
 // A control is an input, select, textarea or button. One without an id is named by its
@@ -123,9 +123,9 @@ const ADMIN = {
 // ── Reading a screen ────────────────────────────────────────────────────────────────────
 /**
  * Every control in `html`, each with whether it sits inside a closed <details>. A real tag
- * walk with a stack, not a slice between two markers: the first version of this check cut
- * the markup at the first </details>, which ends a fold early whenever one is nested.
- * Anything in a <summary> is the fold's own label and always shows.
+ * walk with a stack, not a slice between two markers: the first version cut the markup at
+ * the first </details>, which ends a fold early when one is nested. Anything in a <summary>
+ * is the fold's own label and always shows.
  */
 function controlsOf(html) {
     html = html.replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
