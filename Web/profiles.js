@@ -3719,10 +3719,11 @@
                 return;
             }
             if (typeof ApiClient === 'undefined') {
-                // Wait for ApiClient, but not forever: 600 tries at 100 ms is about a minute.
+                // Wait for ApiClient: every 100 ms for about a minute, then every 5 s. Giving up
+                // after the minute (a 600-try cap) left a page slow to get one, such as
+                // select-server, without Bonfire until a reload (r3-05-01).
                 this._initTries = (this._initTries || 0) + 1;
-                if (this._initTries > 600) return;
-                setTimeout(() => this.init(), 100);
+                setTimeout(() => this.init(), this._initTries > 600 ? 5000 : 100);
                 return;
             }
             // viewshow fires when Jellyfin finishes rendering a view. _revealPage() waits for

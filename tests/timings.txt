@@ -291,3 +291,5 @@ js/viewing 1.0 parallel
 js/viewwide 55.0 serial
 js/welcomealign 11.8 serial
 js/workflows 0.1 parallel
+js/initwait 2 parallel est
+cs/usercleanup 6 serial est
