@@ -84,7 +84,7 @@ const MEASURE = `(function () {
 function over(a, b) { return a.l < b.r - 1 && a.r > b.l + 1 && a.t < b.b - 1 && a.b > b.t + 1; }
 const R = v => Math.round(v);
 
-function check(where, m, lay) {
+function check(where, m, lay, ok) {
     ok(where + ': the gate draws', m.found && m.cards.length > 0);
     if (!m.found || !m.cards.length) return;
     ok(where + ': nothing scrolls sideways', m.sideways <= 1, m.sideways + 'px');
@@ -145,66 +145,76 @@ async function main() {
     // its fade-in is still running comes out a pixel or two different from one draw to the
     // next (269 to 273px on a 1080p set, with nothing changed), so two screens can only be
     // compared to the pixel once both are fitted at rest.
-    const draw = async (q, device, refit) => {
-        const r = await c.open(base + q + '&device=' + device, device);
+    const draw = async (t, q, device, refit) => {
+        const r = await t.open(base + q + '&device=' + device, device);
         if (r.error) return { found: false, error: r.error };
-        if (refit) await c.evaluate('(function () { window.__bonfire.fitGateToScreen(document.getElementById("profiles-gate-overlay")); return true; })()');
-        return c.evaluate(MEASURE);
+        if (refit) await t.evaluate('(function () { window.__bonfire.fitGateToScreen(document.getElementById("profiles-gate-overlay")); return true; })()');
+        return t.evaluate(MEASURE);
     };
     try {
+        // One unit per theme, device and household size. What the scenes of a unit share (the
+        // plain draw the sizes are compared with, the widths of small/medium/large) stays inside
+        // the unit and its scenes run one after another, so units are measured several at a time
+        // (chrome.js checks()) and no scene reads another unit's state. The household of 21 never
+        // used the plain draw, so only the unit with no households draws it.
+        const units = [];
         for (const theme of THEMES) {
             for (const device of DEVICES) {
+                for (const count of theme === 'bonfire' ? [0, 21] : [0]) units.push({ theme, device, count });
+            }
+        }
+        const results = await c.checks(units, async (t, { theme, device, count }, ok) => {
+            let plain;
+            if (!count) {
                 // The defaults written out are the theme as it was.
                 // Both as custom copies, so the only difference is the four fields.
-                const plain = await draw('theme=' + theme + '&scene=picker&layout=profiles:-,align:-,size:-,logo:-', device, true);
-                const spelled = await draw('theme=' + theme + '&scene=picker&layout=profiles:tiles,align:center,size:medium,logo:top-right', device, true);
+                plain = await draw(t, 'theme=' + theme + '&scene=picker&layout=profiles:-,align:-,size:-,logo:-', device, true);
+                const spelled = await draw(t, 'theme=' + theme + '&scene=picker&layout=profiles:tiles,align:center,size:medium,logo:top-right', device, true);
                 ok(theme + ' ' + device + ': the defaults written out draw the same screen', plain.found && spelled.found
                     && JSON.stringify(plain) === JSON.stringify(spelled), spelled.error || '');
-
-                for (const count of theme === 'bonfire' ? [0, 21] : [0]) {
-                    const width = {};
-                    for (const profiles of PROFILES) {
-                        for (const align of ALIGN) {
-                            for (const size of SIZES) {
-                                const lay = { profiles, align, size };
-                                const where = theme + ' ' + device + (count ? ' ' + count + ' profiles' : '') + ' ' + profiles + '/' + align + '/' + size;
-                                const m = await draw('theme=' + theme + '&scene=picker' + (count ? '&count=' + count : '')
-                                    + '&layout=profiles:' + profiles + ',align:' + align + ',size:' + size, device);
-                                if (!m.found) { ok(where + ': the gate draws', false, m.error); continue; }
-                                check(where, m, lay);
-                                width[profiles + align + size] = { w: m.cards[0].pic.w, fitted: m.fitted };
-                                // A list is taller than rows of tiles: where four will not fit even
-                                // at its smallest picture (a phone on its side), it scrolls, and only
-                                // up and down (the sideways check above).
-                                if (!count && plain.fits) ok(where + ': four profiles fit the screen, as the default does'
-                                    + (profiles === 'list' ? ', or the pictures are at the smallest a list draws' : ''),
-                                    m.fits || (profiles === 'list' && m.fitted && m.cards[0].pic.w <= (/^tv/.test(device) ? 72 : 48) + 0.5),
-                                    'picture ' + R(m.cards[0].pic.w) + 'px' + (m.fitted ? ', fitted' : ''));
-                                // Fitted, the size wanders by a few pixels with when the fit ran
-                                // (see draw); the spelled-out defaults above cover that case.
-                                if (profiles === 'tiles' && size === 'medium' && align === 'center' && !count && !m.fitted && !plain.fitted) {
-                                    ok(where + ': medium tiles are today\'s size', R(m.cards[0].pic.w) === R(plain.cards[0].pic.w),
-                                        R(m.cards[0].pic.w) + ' vs ' + R(plain.cards[0].pic.w));
-                                }
-                            }
-                            const s = width[profiles + align + 'small'], md = width[profiles + align + 'medium'], lg = width[profiles + align + 'large'];
-                            const where = theme + ' ' + device + (count ? ' ' + count + ' profiles' : '') + ' ' + profiles + '/' + align;
-                            if (s && md && lg) {
-                                // A gate too full for the screen shrinks every size to what fits,
-                                // so only an unfitted pair has to differ.
-                                // Fitted, a size is the largest that fits, which is all that can be
-                                // asked of it: large tiles take more room, so they may fit a little
-                                // smaller than medium ones that never needed fitting.
-                                ok(where + ': small <= medium <= large', s.w <= md.w + 0.5 && (lg.fitted || md.w <= lg.w + 0.5),
-                                    [s, md, lg].map(x => R(x.w) + (x.fitted ? ' fitted' : '')).join(' / '));
-                                if (!s.fitted && !md.fitted) ok(where + ': small is smaller than medium', s.w < md.w - 1, R(s.w) + ' vs ' + R(md.w));
-                                if (!md.fitted && !lg.fitted) ok(where + ': large is larger than medium', lg.w > md.w + 1, R(lg.w) + ' vs ' + R(md.w));
-                            }
+            }
+            const width = {};
+            for (const profiles of PROFILES) {
+                for (const align of ALIGN) {
+                    for (const size of SIZES) {
+                        const lay = { profiles, align, size };
+                        const where = theme + ' ' + device + (count ? ' ' + count + ' profiles' : '') + ' ' + profiles + '/' + align + '/' + size;
+                        const m = await draw(t, 'theme=' + theme + '&scene=picker' + (count ? '&count=' + count : '')
+                            + '&layout=profiles:' + profiles + ',align:' + align + ',size:' + size, device);
+                        if (!m.found) { ok(where + ': the gate draws', false, m.error); continue; }
+                        check(where, m, lay, ok);
+                        width[profiles + align + size] = { w: m.cards[0].pic.w, fitted: m.fitted };
+                        // A list is taller than rows of tiles: where four will not fit even
+                        // at its smallest picture (a phone on its side), it scrolls, and only
+                        // up and down (the sideways check above).
+                        if (!count && plain.fits) ok(where + ': four profiles fit the screen, as the default does'
+                            + (profiles === 'list' ? ', or the pictures are at the smallest a list draws' : ''),
+                            m.fits || (profiles === 'list' && m.fitted && m.cards[0].pic.w <= (/^tv/.test(device) ? 72 : 48) + 0.5),
+                            'picture ' + R(m.cards[0].pic.w) + 'px' + (m.fitted ? ', fitted' : ''));
+                        // Fitted, the size wanders by a few pixels with when the fit ran
+                        // (see draw); the spelled-out defaults above cover that case.
+                        if (profiles === 'tiles' && size === 'medium' && align === 'center' && !count && !m.fitted && !plain.fitted) {
+                            ok(where + ': medium tiles are today\'s size', R(m.cards[0].pic.w) === R(plain.cards[0].pic.w),
+                                R(m.cards[0].pic.w) + ' vs ' + R(plain.cards[0].pic.w));
                         }
+                    }
+                    const s = width[profiles + align + 'small'], md = width[profiles + align + 'medium'], lg = width[profiles + align + 'large'];
+                    const where = theme + ' ' + device + (count ? ' ' + count + ' profiles' : '') + ' ' + profiles + '/' + align;
+                    if (s && md && lg) {
+                        // A gate too full for the screen shrinks every size to what fits,
+                        // so only an unfitted pair has to differ.
+                        // Fitted, a size is the largest that fits, which is all that can be
+                        // asked of it: large tiles take more room, so they may fit a little
+                        // smaller than medium ones that never needed fitting.
+                        ok(where + ': small <= medium <= large', s.w <= md.w + 0.5 && (lg.fitted || md.w <= lg.w + 0.5),
+                            [s, md, lg].map(x => R(x.w) + (x.fitted ? ' fitted' : '')).join(' / '));
+                        if (!s.fitted && !md.fitted) ok(where + ': small is smaller than medium', s.w < md.w - 1, R(s.w) + ' vs ' + R(md.w));
+                        if (!md.fitted && !lg.fitted) ok(where + ': large is larger than medium', lg.w > md.w + 1, R(lg.w) + ' vs ' + R(md.w));
                     }
                 }
             }
-        }
+        });
+        results.forEach(a => ok(a[0], a[1], a[2]));
 
         // The remote on a list: Down and Up, one profile at a time, in view, with a ring.
         const key = async (k, code) => {
