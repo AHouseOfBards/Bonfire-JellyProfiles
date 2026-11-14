@@ -185,7 +185,8 @@ const SKIP = `(function () {
   return new Promise(function (resolve) { setTimeout(function () { resolve(now); }, 700); });
 })()`;
 
-function checkLayout(where, m, seen, device) {
+// `ok` is the scene's own check() from c.checks(), which shadows the harness's.
+function checkLayout(where, m, seen, device, ok) {
     if (m.missing) { ok(where + ': the step draws', false, 'no sheet, row, cards or plugin'); return; }
     seen[device + (m.overflow ? ' overflow' : ' fit')] = true;
     if (m.overflow) {
@@ -232,34 +233,56 @@ async function main() {
     const urlOf = (theme, device) => 'http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=ob-theme&device=' + device;
     try {
         // Pass one: what each theme looks like on this step, and where the row is.
+        // Every theme and size is its own page, independent of the others (what pass two needs
+        // from pass one is the sig table, complete before it starts), so each pass is measured
+        // several at a time (chrome.js checks()), in the order a serial loop would give. `c`
+        // inside a callback is that scene's own tab.
+        const one = [];
         for (const device of DEVICES) {
             sig[device] = {};
-            const d = chrome.DEVICES[device];
-            for (const theme of all) {
+            for (const theme of all) one.push({ device, theme });
+        }
+        const passOne = await c.checks(one, async (c, { device, theme }, ok) => {
+                const d = chrome.DEVICES[device];
                 const where = theme + ' ' + device;
                 const r = await c.open(urlOf(theme, device), device);
-                if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
+                if (r.error) { ok(where + ': the screen draws', false, r.error); return; }
                 sig[device][theme] = await c.evaluate(SIGNATURE);
-                checkLayout(where, await c.evaluate(MEASURE), seen, device);
+                checkLayout(where, await c.evaluate(MEASURE), seen, device, ok);
                 // A window tall enough for all of it: the row goes back in the flow. Then
                 // the short window again: it pins again.
                 await c.page('Emulation.setDeviceMetricsOverride', { width: d.width, height: 3400, deviceScaleFactor: d.scale, mobile: d.mobile });
                 await c.evaluate(settle(400));
-                checkLayout(where + ', tall window', await c.evaluate(MEASURE), seen, device);
+                checkLayout(where + ', tall window', await c.evaluate(MEASURE), seen, device, ok);
                 await c.page('Emulation.setDeviceMetricsOverride', { width: d.width, height: d.height, deviceScaleFactor: d.scale, mobile: d.mobile });
                 await c.evaluate(settle(400));
-                checkLayout(where + ', back to the short window', await c.evaluate(MEASURE), seen, device);
-            }
-        }
+                checkLayout(where + ', back to the short window', await c.evaluate(MEASURE), seen, device, ok);
+        });
+        passOne.forEach(a => ok(a[0], a[1], a[2]));
         // Pass two: choosing a card, and Skip.
+        const two = [];
         for (const device of DEVICES) {
-            for (let i = 0; i < all.length; i++) {
-                const from = all[i], to = all[(i + 1) % all.length];
+            for (let i = 0; i < all.length; i++) two.push({ device, from: all[i], to: all[(i + 1) % all.length], reduced: false });
+            // Less motion: the same click, no veil in any frame.
+            two.push({ device, from: all[0], to: all[1], reduced: true });
+        }
+        const passTwo = await c.checks(two, async (c, { device, from, to, reduced }, ok) => {
+            if (reduced) {
+                const where = from + ' to ' + to + ' ' + device + ', reduced motion';
+                const r = await c.open(urlOf(from, device), device, { reducedMotion: true });
+                if (r.error) { ok(where + ': the screen draws', false, r.error); return; }
+                const p = await c.evaluate(preview(to));
+                ok(where + ': the new theme on the click itself', !p.missing && p.sync.attr === to);
+                ok(where + ': no veil in any frame', !p.missing && p.frames.every(f => !f.veil));
+                ok(where + ': the end state is the new theme', !p.missing && await c.evaluate(SIGNATURE) === sig[device][to]);
+                return;
+            }
+            {
                 const where = from + ' to ' + to + ' ' + device;
                 const r = await c.open(urlOf(from, device), device);
-                if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
+                if (r.error) { ok(where + ': the screen draws', false, r.error); return; }
                 const p = await c.evaluate(preview(to));
-                if (p.missing) { ok(where + ': the card is there', false, p.missing); continue; }
+                if (p.missing) { ok(where + ': the card is there', false, p.missing); return; }
                 ok(where + ': the screen is in the new theme on the click itself', p.sync.attr === to, 'data-jpf-theme is ' + p.sync.attr);
                 ok(where + ': it fades from the old look (the veil is up, at full strength)', p.sync.veil && p.sync.op !== null && p.sync.op > 0.9,
                     'veil ' + p.sync.veil + ', opacity ' + p.sync.op);
@@ -279,16 +302,8 @@ async function main() {
                 const head = x => x.split('|').slice(0, 3).join('|');
                 ok(where + ': and it is the first theme as a page that opened in it has it', head(await c.evaluate(SIGNATURE)) === head(sig[device][from]));
             }
-            // Less motion: the same click, no veil in any frame.
-            const from = all[0], to = all[1];
-            const where = from + ' to ' + to + ' ' + device + ', reduced motion';
-            const r = await c.open(urlOf(from, device), device, { reducedMotion: true });
-            if (r.error) { ok(where + ': the screen draws', false, r.error); continue; }
-            const p = await c.evaluate(preview(to));
-            ok(where + ': the new theme on the click itself', !p.missing && p.sync.attr === to);
-            ok(where + ': no veil in any frame', !p.missing && p.frames.every(f => !f.veil));
-            ok(where + ': the end state is the new theme', !p.missing && await c.evaluate(SIGNATURE) === sig[device][to]);
-        }
+        });
+        passTwo.forEach(a => ok(a[0], a[1], a[2]));
         DEVICES.forEach(d => {
             ok(d + ': at least one case overflows, so the pinned checks asked something', !!seen[d + ' overflow']);
             ok(d + ': at least one case fits, so the flow checks asked something', !!seen[d + ' fit']);
