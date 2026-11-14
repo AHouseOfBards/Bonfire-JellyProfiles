@@ -8971,11 +8971,9 @@
 
             if (window.PointerEvent) {
                 on(view, 'pointerdown', (e) => {
-                    // Stops the browser starting a text selection or image drag instead,
-                    // which on desktop swallows the rest of the gesture.
+                    // Stops the browser starting a text selection or image drag, which on desktop swallows the gesture.
                     e.preventDefault();
-                    // preventDefault also suppresses the focus that a click would give,
-                    // and focus is what the arrow-key panning below needs.
+                    // preventDefault also suppresses the click's focus, which the arrow-key panning needs.
                     view.focus();
                     try { view.setPointerCapture(e.pointerId); } catch (err) { /* best effort */ }
                     beginPointer(e.pointerId, e.clientX, e.clientY);
@@ -8984,7 +8982,7 @@
                 on(window, 'pointerup', (e) => endPointer(e.pointerId));
                 on(window, 'pointercancel', (e) => endPointer(e.pointerId));
             } else {
-                // Older TV browsers have no Pointer Events at all.
+                // Older TV browsers have no Pointer Events.
                 on(view, 'mousedown', (e) => { e.preventDefault(); beginPointer('mouse', e.clientX, e.clientY); });
                 on(window, 'mousemove', (e) => movePointer('mouse', e.clientX, e.clientY));
                 on(window, 'mouseup', () => endPointer('mouse'));
@@ -9004,8 +9002,8 @@
                 on(window, 'touchcancel', endTouch);
             }
 
-            // D-pad / keyboard. A television has no pointer at all, so this is the only way
-            // in on the clients that need the avatar library most.
+            // D-pad / keyboard. A television has no pointer, so this is the only way in on the
+            // clients that need the avatar library most.
             view.addEventListener('keydown', (e) => {
                 const step = 12;
                 let handled = true;
@@ -9016,8 +9014,7 @@
                     case 'ArrowDown':  crop = this._clampCrop(img, VIEW, { zoom: crop.zoom, x: crop.x, y: crop.y - step }); break;
                     case '+': case '=': setZoom(parseFloat(zoomInput.value) + 0.2); break;
                     case '-': case '_': setZoom(parseFloat(zoomInput.value) - 0.2); break;
-                    // The arrows are spent on panning here, so OK is the way onward. A
-                    // remote has nothing else to leave the picture with.
+                    // Arrows are spent on panning, so OK is the way onward; a remote has nothing else to leave with.
                     case 'Enter': case ' ':
                         e.preventDefault();
                         dialog.querySelector('#profiles-crop-save').focus();
@@ -9027,9 +9024,8 @@
                 if (handled) { e.preventDefault(); draw(); }
             });
 
-            // The dialog sits on the body, outside the gate, so tearing the gate down (idle
-            // lock, expiry) used to leave it up with its window listeners (R-1218).
-            // removeProfileOverlay calls this.
+            // The dialog sits on the body, outside the gate, so tearing the gate down (idle lock,
+            // expiry) left it up with its window listeners (R-1218). removeProfileOverlay calls this.
             const close = () => {
                 bound.forEach(([target, type, fn, opts]) => target.removeEventListener(type, fn, opts));
                 bound.length = 0;
@@ -9043,17 +9039,15 @@
             dialog.querySelector('#profiles-crop-cancel').addEventListener('click', close);
             dialog.querySelector('#profiles-crop-save').addEventListener('click', () => {
                 let result;
-                // A canvas tainted by a picture from another origin throws on read-back.
-                // Left uncaught it threw before close(), and the dialog stayed up with
-                // a button that did nothing.
+                // A canvas tainted by a cross-origin picture throws on read-back. Uncaught, it threw
+                // before close() and left a dialog with a dead button.
                 try {
                     const spec = this.imageSpec();
                     const thumbCanvas = this._cropCanvas(img, VIEW, crop, spec.thumbSize);
 
-                    // Read from the cropped result, not the source. Cropping into the opaque
-                    // middle of a cut-out leaves a picture with nothing transparent about it,
-                    // and the background decision has to describe what will actually be shown.
-                    // preferPng stays on the source, where being over-eager costs only bytes.
+                    // Read from the cropped result, not the source: cropping into the opaque middle of a
+                    // cut-out leaves nothing transparent, and the background decision must describe what is
+                    // shown. preferPng stays on the source, where over-eager only costs bytes.
                     const cutout = this._alphaProfile(thumbCanvas).cutout;
 
                     const image = this.renderCrop(img, VIEW, crop, spec.masterSize, preferPng);
@@ -9073,8 +9067,7 @@
             setTimeout(() => view.focus(), 50);
         },
 
-        /// Fetches the administrator's avatar library. Resolves to a safe empty shape on
-        /// failure so a picker can always render.
+        /// Fetches the administrator's avatar library. Resolves to an empty shape on failure so a picker can render.
         fetchAvatarLibrary: function (apiClient, token) {
             return this.fetchFormOptions(apiClient, token)
                 .then(options => this.readAvatarLibrary(this._field(options, 'avatars')))
@@ -9084,8 +9077,7 @@
         /// The avatars part of the form options, in the shape the pickers use.
         readAvatarLibrary: function (data) {
             data = data || {};
-            // The administrator's picture quality rides along with the avatar list,
-            // because every picker that could save a picture has already asked for it.
+            // Picture quality rides along with the avatar list; every picker that can save a picture has asked for it.
             this._imageSpec = this.parseImageSpec(data.image || data.Image);
             return {
                 allowCustomUploads: (data.allowCustomUploads !== undefined ? data.allowCustomUploads : data.AllowCustomUploads) !== false,
@@ -9098,21 +9090,14 @@
             };
         },
 
-        /// Renders the profile-picture block. Shared by the create and edit forms so the two
-        /// cannot drift — they already carried near-identical copies of the old upload UI.
+        /// Renders the profile-picture block, shared by the create and edit forms so they cannot
+        /// drift. `prefix` namespaces the element ids ('create' or 'edit').
         ///
-        /// `prefix` namespaces the element ids ('create' or 'edit').
-        /// The cut-out background choice (issue #23).
-        ///
-        /// Part of the picture picker since 1.7.2, right under the preview and its buttons.
-        /// It sat under the name field for a while, beside the colour swatches it governs;
-        /// the forms now put the swatches straight after the picker, so it is beside them
-        /// either way and it reads as what it is, a property of the picture.
-        /// initAvatarPicker owns the wiring and finds it by id.
-        ///
-        /// Hidden until a picture is set — with no picture the colour is the entire
-        /// background and there is nothing to switch off. The library-artwork dialog passes
-        /// no `transparency`, so its picker never draws this.
+        /// Includes the cut-out background choice (issue #23), right under the preview and its
+        /// buttons since 1.7.2; the forms put the colour swatches straight after the picker, so
+        /// it sits beside them. initAvatarPicker owns the wiring and finds it by id. Hidden
+        /// until a picture is set: with none, the colour is the whole background. The
+        /// library-artwork dialog passes no `transparency`, so it never draws this.
         renderTransparentToggle: function (prefix, currentImage, currentTransparent) {
             return `
                 <div id="${prefix}-transparent-row" class="jpf-form-group jpf-picture-transparent-row"
@@ -9126,10 +9111,9 @@
             `;
         },
 
-        /// `transparency` opts this picker into the cut-out background choice (issue #23):
-        /// null or omitted means the form is not offering it, which is what the
-        /// library-artwork dialog wants — it reuses this picker to choose a tile picture,
-        /// where a transparent avatar background means nothing. Otherwise { enabled: bool }.
+        /// `transparency` opts this picker into the cut-out background choice (issue #23). Null
+        /// or omitted means the form does not offer it (the library-artwork dialog reuses this
+        /// picker for a tile picture, where a transparent background means nothing). Otherwise { enabled: bool }.
         renderAvatarPicker: function (prefix, library, currentImage, currentColor, transparency) {
             const supportsTransparent = !!transparency;
             const currentTransparent = supportsTransparent && !!transparency.enabled;
@@ -9152,8 +9136,8 @@
                 </div>
             ` : '';
 
-            // The upload control disappears entirely when the administrator has locked
-            // avatars to the library — a disabled button people cannot use is just noise.
+            // The upload control disappears when the administrator has locked avatars to the
+            // library; a disabled button is noise.
             const uploadHtml = library.allowCustomUploads ? `
                 <div class="jpf-picture-source-block">
                     <div class="jpf-picture-source-title">${t('avatar.fromThisDevice')}</div>
@@ -9170,20 +9154,16 @@
                 </div>
             `;
 
-            // A pasted URL was the odd one out among the ways of setting a picture: it
-            // could not be cropped, nothing was copied onto the server, and the avatar
-            // broke the day the far end went away — with no sign here that it had. Every
-            // other path ends in a file this server owns.
+            // A pasted URL was the odd one out: it could not be cropped, nothing was copied to
+            // the server, and the avatar broke when the far end went away. Every other path ends
+            // in a file this server owns.
 
-            // Closed, always (P2-104). It was open on a new profile because choosing a
-            // picture is the task there, but on a phone that put the whole library grid
-            // between the name and the rating, the Create button a screen further down. The
-            // colour swatches are the default; the button is one tap.
+            // Closed, always (P2-104). Open on a new profile it put the whole library grid between
+            // the name and the rating on a phone. The colour swatches are the default; the button is one tap.
             const sourcesOpen = false;
 
-            // Remove is rendered here rather than by the edit form, so the two actions are
-            // the same size and sit together. It was a third-height button hanging under
-            // the row, which read as belonging to whatever came next.
+            // Remove is rendered here so the two actions are the same size and sit together; it
+            // was a third-height button that read as belonging to whatever came next.
             return `
                 <div class="jpf-form-group">
                     <label id="${prefix}-picture-label">${t('avatar.profilePicture')}</label>
@@ -9219,20 +9199,17 @@
             `;
         },
 
-        /// Wires the picker up. Returns an accessor for the chosen image so the caller can
-        /// read it at save time without tracking the state itself.
-        /// `transparency` must match what was passed to renderAvatarPicker — see there.
+        /// Wires the picker up. Returns an accessor for the chosen image so the caller reads
+        /// it at save time. `transparency` must match renderAvatarPicker.
         initAvatarPicker: function (container, prefix, library, initialImage, onPreviewChange, transparency) {
             const initialTransparent = !!transparency && !!transparency.enabled;
-            // libraryId is set instead of image/thumb when the picture comes from the
-            // library on a locked-down server: the server copies the file itself, which is
-            // the only form of the choice it can actually verify.
+            // libraryId is set instead of image/thumb when the picture comes from the library on a
+            // locked-down server: the server copies the file itself, the only form of the choice it can verify.
             const state = {
                 image: initialImage || null,
                 thumb: null,
                 libraryId: null,
-                // Only meaningful while a picture is set. With no picture the colour is
-                // the entire background, so there is nothing to make transparent.
+                // Only meaningful while a picture is set; with none the colour is the whole background.
                 transparent: !!(initialImage && initialTransparent)
             };
 
@@ -9250,25 +9227,22 @@
                 errEl.style.display = message ? 'block' : 'none';
             };
 
-            /// The colour currently chosen on the form. Read from the DOM rather than
-            /// passed in: the two forms already keep `.active` on exactly one dot, so
-            /// this cannot drift out of step with what will be saved.
+            /// The colour chosen on the form, read from the DOM: the two forms keep `.active` on
+            /// exactly one dot, so this cannot drift from what will be saved.
             const currentColor = () => {
                 const active = container.querySelector('.jpf-color-dot.active');
                 return active ? safeColor(active.getAttribute('data-color')) : DEFAULT_AVATAR_COLOR;
             };
 
-            /// Whether the colour swatches can still affect the avatar. Owned here rather
-            /// than by the two forms, because it depends on both facts this function
-            /// holds — a picture being set, and its background being switched off — and
-            /// two writers would race each other.
+            /// Whether the colour swatches can still affect the avatar. Owned here, not by the two
+            /// forms, because it depends on both a picture being set and its background being
+            /// switched off; two writers would race.
             const syncColorGroup = () => {
                 this.setColorGroupInert(prefix, !!state.image, state.transparent);
             };
 
-            /// Paints the preview to match state.transparent and keeps the checkbox in
-            /// step. Called both when detection decides and when the user overrides, so
-            /// the two can never disagree about what is stored.
+            /// Paints the preview to match state.transparent and keeps the checkbox in step. Called
+            /// on detection and on user override, so the two cannot disagree about what is stored.
             const applyTransparency = () => {
                 if (transparentInput) transparentInput.checked = state.transparent;
                 syncColorGroup();
@@ -9281,12 +9255,10 @@
                 if (!previewEl) return;
                 previewEl.style.position = 'relative';
                 previewEl.innerHTML = src ? avatarInner(src, '+', /* useThumb */ true) : '+';
-                // Removing is only an option while there is something to remove. Driven
-                // from here so it is right on the first paint too — setPreview runs once
-                // at init.
+                // Removing is only an option while there is something to remove. Driven from here so
+                // it is right on the first paint (setPreview runs once at init).
                 if (removeBtn) removeBtn.style.display = src ? 'inline-flex' : 'none';
-                // Same for the transparency choice: it describes a picture, so it has
-                // nothing to say when there is not one.
+                // Same for the transparency choice: it describes a picture.
                 if (transparentRow) transparentRow.style.display = src ? 'block' : 'none';
                 syncColorGroup();
                 if (typeof onPreviewChange === 'function') onPreviewChange(src);
@@ -9295,17 +9267,15 @@
             applyTransparency();
 
             if (transparentInput) {
-                // The user's answer always beats detection's. Detection only ever writes
-                // this value when a new picture arrives.
+                // The user's answer beats detection; detection only writes this when a new picture arrives.
                 transparentInput.addEventListener('change', () => {
                     state.transparent = transparentInput.checked;
                     applyTransparency();
                 });
             }
 
-            // The ways of choosing a picture are collapsed behind one button. Every id
-            // the handlers below bind to still exists — they have only moved inside the
-            // panel — so nothing else in this function changes.
+            // The ways of choosing a picture are collapsed behind one button. Every id the
+            // handlers bind to still exists, just inside the panel.
             const sourcesEl = container.querySelector(`#${prefix}-picture-sources`);
             const changeBtn = container.querySelector(`#${prefix}-change-picture`);
             if (sourcesEl && changeBtn) {
@@ -9320,16 +9290,15 @@
                 state.thumb = result.thumb;
                 state.libraryId = null;
                 setPreview(result.image);
-                // A new picture re-answers the question, so detection wins here even if
-                // the user had overridden it for the previous one — the override was
-                // about a picture that is no longer set.
+                // A new picture re-answers the question: detection wins even over an override, which
+                // was about the previous picture.
                 state.transparent = !!result.cutout;
                 applyTransparency();
                 showError('');
                 if (fileInput) fileInput.value = '';
             };
 
-            // Label doubles as the file trigger so it can be focused by D-pad.
+            // Label doubles as the file trigger so the D-pad can focus it.
             if (fileLabel && fileInput) {
                 fileLabel.addEventListener('keydown', (e) => {
                     if (isKey(e, 'Enter') || isKey(e, ' ')) { e.preventDefault(); fileInput.click(); }
@@ -9354,25 +9323,21 @@
                 const pick = () => {
                     showError('');
 
-                    // On a locked-down server the crop step is skipped and the id is sent
-                    // instead. Cropping would produce a data payload indistinguishable from
-                    // an upload, which is exactly what that server has chosen to refuse.
+                    // On a locked-down server the crop step is skipped and the id is sent: a crop would
+                    // produce a data payload indistinguishable from the upload that server refuses.
                     if (!library.allowCustomUploads) {
                         state.image = btn.getAttribute('data-url');
                         state.thumb = null;
                         state.libraryId = btn.getAttribute('data-id');
                         setPreview(state.image);
 
-                        // No crop step on this path, so there is no cropped canvas to read
-                        // and the source has to be fetched again to be sampled. Same
-                        // origin — it is our own avatar endpoint — so the canvas is not
-                        // tainted. Detection is best-effort: a failure just leaves the
-                        // colour painted, which is the old behaviour.
+                        // No crop step here, so no cropped canvas to read; the source is fetched again to be
+                        // sampled. Same origin (our own avatar endpoint), so the canvas is not tainted.
+                        // Detection is best-effort: failure leaves the colour painted, the old behavior.
                         const pickedUrl = state.image;
                         this.loadImageFromUrl(pickedUrl)
                             .then(img => {
-                                // The user may have picked something else while this was
-                                // in flight; a late answer must not overwrite it.
+                                // The user may have picked something else meanwhile; a late answer must not overwrite it.
                                 if (state.image !== pickedUrl) return;
                                 state.transparent = this._alphaProfile(img).cutout;
                                 applyTransparency();
@@ -9381,8 +9346,7 @@
                         return;
                     }
 
-                    // Full size, not the thumbnail — this is about to be re-cropped, and
-                    // cropping a 128px source would produce a soft avatar.
+                    // Full size, not the thumbnail: cropping a 128px source would produce a soft avatar.
                     this.loadImageFromUrl(btn.getAttribute('data-url'))
                         .then(img => this.showCropDialog(img, applyCropped))
                         .catch(err => showError(err.message));
@@ -9393,14 +9357,12 @@
                 });
             });
 
-            // Empty string, not null: the server reads that as "delete the picture",
-            // whereas null means "leave it alone".
+            // Empty string, not null: the server reads '' as "delete the picture", null as "leave it alone".
             const clearPicture = () => {
                 state.image = '';
                 state.thumb = null;
                 state.libraryId = null;
-                // With no picture the colour is the whole background. Leaving this set
-                // would save a profile whose avatar is a transparent square.
+                // With no picture the colour is the whole background; leaving this set would save a transparent square.
                 state.transparent = false;
                 setPreview(null);
                 applyTransparency();
@@ -9421,13 +9383,11 @@
             };
         },
 
-        /// The profile the person at this screen is using, when it is one of the household's
-        /// sub-profiles and the picker was opened from inside it (P2-713). Null for the main
-        /// account, a linked account, a startup gate with nobody in yet, and Manage Profiles:
-        /// the main account has /update and its PIN for all of those.
-        ///
-        /// _resumeState carries the profile that was in use when the picker was opened, which
-        /// is the one /me would change; the list alone cannot say who is signed in.
+        /// The profile the person at this screen is using, when it is a sub-profile and the
+        /// picker was opened from inside it (P2-713). Null for the main account, a linked
+        /// account, a startup gate with nobody in, and Manage Profiles (the main account has
+        /// /update and its PIN for those). _resumeState carries the profile in use when the
+        /// picker opened, which is the one /me would change; the list cannot say who is signed in.
         ownProfileOf: function (profiles) {
             const prior = this._resumeState;
             if (this.isManageMode || !prior || prior.closeOnly || !prior.token || !prior.userId) return null;
@@ -9438,12 +9398,10 @@
 
         /// A profile's own name and picture, changed without the main PIN (P2-713). Saves
         /// through POST /me, which takes the caller to be the profile and has no field for
-        /// anything else about it.
-        ///
-        /// The picture is the same picker as the main account's forms, so a server limited
-        /// to its avatar library gets the library and no upload button, and a choice from
-        /// it is sent as an id the server copies from — the route checks the same rule, so
-        /// this is presentation and that is the rule.
+        /// anything else. The picture uses the same picker as the main account's forms: a
+        /// server limited to its avatar library gets the library and no upload button, and a
+        /// choice is sent as an id the server copies from. The route checks the same rule;
+        /// this is presentation.
         showOwnProfileForm: function (profile) {
             const content = document.querySelector('.profiles-modal-content');
             const prior = this._resumeState;
@@ -9546,8 +9504,7 @@
                         if (!res.ok) throw refusalError(res, t('errors.couldNotSaveThat'));
                     })
                     .then(() => {
-                        // The header marker is rebuilt from the fresh list, which is read
-                        // below; the one remembered for the profile being resumed is stale.
+                        // The header marker is rebuilt from the fresh list read below; the remembered one for the resumed profile is stale.
                         if (this._resumeState) this._resumeState.info = null;
                         const known = this.readMasterState();
                         this.fetchAndRenderProfiles(ApiClient, known ? known.masterUserId : ApiClient.getCurrentUserId(),
@@ -9571,8 +9528,7 @@
 
             const ticket = this.beginNavigation();
 
-            // Everything this form needs is account-wide, so it is usually already
-            // cached from the prefetch that ran when the overlay opened.
+            // Everything here is account-wide, so it is usually cached from the prefetch when the overlay opened.
             this.fetchSharedFormData(apiClient, masterState)
             .then(shared => [shared.libraries, shared.devices, shared.libraryTags, shared.avatarLibrary, shared.ratings])
             .then(([libraries, devices, libraryTags, avatarLibrary, ratings]) => {
@@ -9582,12 +9538,11 @@
                     name: lib.name || lib.Name,
                     collectionType: lib.collectionType || lib.CollectionType
                 }));
-                // Re-rendering the modal orphans any listeners the previous form owned.
+                // Re-rendering the modal orphans the previous form's listeners.
                 this.clearManagedDocumentListeners();
                 const content = document.querySelector('.profiles-modal-content');
-                // Basics, then a closed "More settings" (1.7.2). Basics is what nearly every
-                // profile is made of: who it is, its PIN, what it may watch. The rest is
-                // there when wanted and out of the way when not.
+                // Basics, then a closed "More settings" (1.7.2). Basics is what nearly every profile
+                // is made of: who it is, its PIN, what it may watch.
 
                 // ── Basics: who this profile is ─────────────────────────────────
                 const startColor = this.nextAvatarColor();
@@ -9629,8 +9584,7 @@
                 `;
 
                 // ── Basics: what this profile can watch ─────────────────────────
-                // The Kids preset only fills in the rating; it is not a kind of profile,
-                // and nothing remembers that it was ticked.
+                // The Kids preset only fills in the rating; it is not a kind of profile and nothing remembers it was ticked.
                 const createLibraries = `
                     <div class="jpf-form-group">
                         <label class="jpf-library-check-label" style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
