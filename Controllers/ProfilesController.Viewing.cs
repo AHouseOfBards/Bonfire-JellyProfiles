@@ -13,10 +13,9 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Profiles.Controllers
 {
     /// <summary>
-    /// Viewing hours and daily limits (1.7.2): the rules, more time, and asking for it. A
-    /// partial of <see cref="ProfilesController"/>, so tests/js/apidocs.js reads these routes
-    /// with the rest. Enforcement is not here: see <see cref="ViewingGate"/> and
-    /// <see cref="ViewingTimer"/>.
+    /// Viewing hours and daily limits (1.7.2): the rules, more time, and asking for it. A partial
+    /// of <see cref="ProfilesController"/>, so tests/js/apidocs.js reads these routes with the
+    /// rest. Enforcement is in <see cref="ViewingGate"/> and <see cref="ViewingTimer"/>.
     /// </summary>
     public partial class ProfilesController
     {
@@ -24,21 +23,20 @@ namespace Jellyfin.Profiles.Controllers
         internal const string LimitsForProfilesMessage = "Limits are for profiles, not main accounts.";
         internal const string AlreadyAskedMessage = "You already asked. Try again in a few minutes.";
 
-        // With a message, so it goes out as 403 not_your_profile. A bare 401 here would tell
-        // the client its token was rejected, and some clients sign out on that.
+        // With a message, so it goes out as 403 not_your_profile. A bare 401 would tell the client
+        // its token was rejected, and some clients sign out on that.
         internal const string OtherHouseholdMessage = "That profile does not belong to this account.";
 
         internal const string DailyGrantCapMessage = "That's past the 4 hours of extra time allowed in a day.";
 
-        /// <summary>The longest single grant: four hours. The daily cap is the same number, and is the one that decides.</summary>
+        /// <summary>The longest single grant: four hours, the same as the daily cap, which is the one that decides.</summary>
         internal const int MaxGrantMinutes = 240;
 
         /// <summary>The main account a user belongs to: its own id for a main account.</summary>
         private static Guid HouseholdOf(PluginConfiguration config, Guid userId)
         {
-            // Through MappingIn: the account-link routes hand this the live configuration, and
-            // a profile being created or deleted meanwhile is "Collection was modified" on an
-            // unlocked walk (r2-11-02c).
+            // Through MappingIn: the account-link routes pass the live configuration, and a profile
+            // created or deleted meanwhile is "Collection was modified" on an unlocked walk (r2-11-02c).
             var row = MappingIn(config, userId);
             return row != null && row.MasterUserId != Guid.Empty ? row.MasterUserId : userId;
         }
@@ -69,8 +67,8 @@ namespace Jellyfin.Profiles.Controllers
             }
             if (rules == null || !rules.IsLimited) return view;
 
-            // The tracker's own index can be up to 30 seconds behind a save; the configuration
-            // in hand is not, so the state is worked out from it.
+            // The tracker's index can be up to 30 seconds behind a save; the configuration in hand is
+            // not, so the state comes from it.
             var now = ViewingTracker.Now();
             var limited = new ViewingTracker.Limited
             {
@@ -127,9 +125,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// Sets a profile's rules. Its main account, with the main PIN, or an administrator.
-        /// Switching limits on needs a main PIN to exist: without one the child could open the
-        /// form and switch them off again.
+        /// Sets a profile's rules. Its main account with the main PIN, or an administrator. Turning
+        /// limits on needs a main PIN to exist, or the child could open the form and turn them off.
         /// </summary>
         [HttpPost("limits/{profileId}")]
         [ProducesResponseType(typeof(ViewingResponse), StatusCodes.Status200OK)]
@@ -157,9 +154,8 @@ namespace Jellyfin.Profiles.Controllers
                 if (!ManagementAllowed(mainId, config, request.MasterPin, out var refusal)) return refusal!;
             }
 
-            // What is stored now, for every field the request leaves out (R-1326). These were
-            // replaced whole, and the request's plain bool and int read a left-out field as
-            // off and 0.
+            // What is stored now, for every field the request leaves out (R-1326). These were replaced
+            // whole, and the request's plain bool and int read a missing field as off and 0.
             var current = profile.Viewing ?? new ViewingRules();
 
             var windows = request.Windows ?? current.Windows ?? new List<ViewingWindow>();
@@ -200,10 +196,10 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// More time, now: playback is allowed for the next <c>minutes</c> whatever the hours
-        /// or the limit say, added to any time already given. 0 answers a request with no. Any
-        /// device in the household can do it with the main PIN, which is how a parent gives
-        /// time on the child's television; or the main account, or an administrator.
+        /// More time, now: playback is allowed for the next <c>minutes</c> whatever the hours or limit
+        /// say, added to any time already given. 0 answers a request with no. Any device in the
+        /// household can do it with the main PIN, which is how a parent gives time on the child's
+        /// television; or the main account, or an administrator.
         /// </summary>
         [HttpPost("limits/{profileId}/grant")]
         [ProducesResponseType(typeof(ViewingResponse), StatusCodes.Status200OK)]
@@ -226,8 +222,7 @@ namespace Jellyfin.Profiles.Controllers
             if (!CallerIsAdministrator(caller))
             {
                 if (caller == null || HouseholdOf(snapshot, caller.Value) != mainId) return Unauthorized(OtherHouseholdMessage);
-                // From the child's own device the main PIN is the whole of the permission, so
-                // there has to be one.
+                // From the child's own device the main PIN is the whole permission, so one must exist.
                 if (caller.Value != mainId && !MainHasPin(mainId, snapshot)) return BadRequest(MainPinRequiredMessage);
                 if (!ManagementAllowed(mainId, config, request.MasterPin, out var refusal)) return refusal!;
             }
@@ -242,8 +237,8 @@ namespace Jellyfin.Profiles.Controllers
             }
             else
             {
-                // The daily cap is checked and counted in one step, so it holds for an
-                // administrator and for two grants at once. It is the household's day.
+                // The daily cap is checked and counted in one step, so it holds for an administrator and for
+                // two grants at once. It is the household's day.
                 var main = snapshot.Mappings.FirstOrDefault(m => m.ProfileUserId == mainId);
                 var zone = HouseholdTime.Resolve(main?.TimeZone, snapshot.DefaultTimeZone);
                 if (!ViewingTracker.TryGrant(profileId, request.Minutes, ViewingTracker.Now(), zone))
@@ -255,8 +250,8 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// The profile asks for more time. Its main account's open apps get a message, and an
-        /// email if it asked for those. Once every ten minutes.
+        /// The profile asks for more time. Its main account's open apps get a message, and an email
+        /// if it asked for those. Once every ten minutes.
         /// </summary>
         [HttpPost("limits/{profileId}/ask")]
         [ProducesResponseType(typeof(ViewingResponse), StatusCodes.Status200OK)]
@@ -274,8 +269,8 @@ namespace Jellyfin.Profiles.Controllers
             if (profile == null) return NotFound("Profile not found.");
             var mainId = profile.MasterUserId;
             if (HouseholdOf(config, caller.Value) != mainId) return Unauthorized(OtherHouseholdMessage);
-            // One ask per profile every ten minutes, sent to the parent in the profile's name:
-            // a sibling must not spend it. The profile itself or its main account.
+            // One ask per profile every ten minutes, sent to the parent in the profile's name; a sibling
+            // must not spend it. The profile itself or its main account.
             if (caller.Value != profileId && caller.Value != mainId) return Unauthorized(OtherHouseholdMessage);
             if (profile.Viewing == null || !profile.Viewing.IsLimited) return BadRequest(NotLimitedMessage);
 
@@ -298,11 +293,11 @@ namespace Jellyfin.Profiles.Controllers
         }
 
         /// <summary>
-        /// The profiles in the caller's household that have asked for more time and are still
-        /// waiting, oldest first. For the row above the tiles on the picker. Anyone in the
-        /// household may read it, as with the limits themselves; the answer, with the main PIN,
-        /// is <c>limits/{profileId}/grant</c>. Never another household's: the household is the
-        /// caller's own, not a parameter. An API key has no household and is refused.
+        /// The profiles in the caller's household that asked for more time and still wait, oldest
+        /// first, for the row above the tiles on the picker. Anyone in the household may read it, as
+        /// with the limits; answering, with the main PIN, is <c>limits/{profileId}/grant</c>. Never
+        /// another household's: the household is the caller's, not a parameter. An API key has no
+        /// household and is refused.
         /// </summary>
         [HttpGet("time-requests")]
         [ProducesResponseType(typeof(TimeRequestsResponse), StatusCodes.Status200OK)]
