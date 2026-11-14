@@ -21,7 +21,7 @@
   "es": "Límite de clasificación",
   "fr": "Limite de classification",
   "pl": "Limit klasyfikacji wiekowej",
-  "tr": "Yaş derecelendirme sınırı"
+  "tr": "Derecelendirme sınırı"
  },
  "profileForm.noRestrictions": {
   "en": "No limit",
@@ -93,7 +93,7 @@
   "es": "En el menú de usuario de Jellyfin",
   "fr": "Dans le menu utilisateur de Jellyfin",
   "pl": "W menu użytkownika Jellyfin",
-  "tr": "Jellyfin kullanıcı menüsünde"
+  "tr": "Jellyfin'in kullanıcı menüsünde"
  },
  "bonfire.moreSummary": {
   "en": "Switching on the server's network",
