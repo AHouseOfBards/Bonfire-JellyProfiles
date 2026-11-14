@@ -269,6 +269,44 @@ console.log('\n── ci.yml: every shard, both C# builds, binchk and the static
     });
 }
 
+console.log('\n── ci.yml: the live job starts a real Jellyfin, pinned ─────────');
+{
+    const live = ciJobs.live ? ciJobs.live.text : '';
+    ok('ci.yml has a `live` job', !!ciJobs.live);
+    // The matrix, entry by entry: a total would let one unpinned entry hide behind the rest.
+    const entries = live.split(/^\s+- name: /m).slice(1).filter(e => /^\s+os:/m.test(e)).map(e => 'name: ' + e);
+    const docker = entries.filter(e => /^\s+image:/m.test(e));
+    const windows = entries.filter(e => /^\s+zip:/m.test(e));
+    ok('every matrix entry is a Docker image or a Windows zip, not neither', entries.length >= 1 && docker.length + windows.length === entries.length, entries.length + ' entries');
+    docker.forEach(e => {
+        const nm = /name:\s*(.*)/.exec(e)[1].trim();
+        ok(nm + ': the image is jellyfin/jellyfin pinned by sha256 digest',
+           /^\s+image:\s*jellyfin\/jellyfin@sha256:[0-9a-f]{64}\s*$/m.test(e));
+        ok(nm + ': runs on a Linux runner', /^\s+os:\s*ubuntu-/m.test(e));
+    });
+    windows.forEach(e => {
+        const nm = /name:\s*(.*)/.exec(e)[1].trim();
+        const zip = /^\s+zip:\s*(\S+)\s*$/m.exec(e);
+        const v = zip && /\/stable\/v([\d.]+)\/amd64\/jellyfin_([\d.]+)-amd64\.zip$/.exec(zip[1]);
+        ok(nm + ': the zip is an exact version on repo.jellyfin.org (the folder and file agree)',
+           !!zip && /^https:\/\/repo\.jellyfin\.org\/files\/server\/windows\/stable\//.test(zip[1]) && !!v && v[1] === v[2], zip && zip[1]);
+        ok(nm + ': carries the SHA-256 it is verified against', /^\s+sha256:\s*[0-9a-f]{64}\s*$/m.test(e));
+        ok(nm + ': runs on a Windows runner', /^\s+os:\s*windows-/m.test(e));
+        ok(nm + ': is named for the version it downloads', !!v && nm.indexOf(v[1]) !== -1, nm);
+    });
+    ok('both server lines are covered on both platforms (10.11.x and 12.x, Docker and Windows)',
+       [docker, windows].every(list => list.some(e => /10\.11\./.test(e)) && list.some(e => /\b12\./.test(e))));
+    // The checksum is checked, not just recorded.
+    ok('the Windows leg verifies the zip with sha256sum -c before unpacking it',
+       /sha256sum -c/.test(live) && live.indexOf('sha256sum -c') < live.indexOf('unzip'));
+    ok('the job installs the plugin build that ships and runs tests/live/smoke.sh with it',
+       /tests\/live\/smoke\.sh --plugin bin\/Release\/net9\.0 --image/.test(live) && /tests\/live\/smoke\.sh --plugin bin\/Release\/net9\.0 --server/.test(live));
+    ok('the job installs Node and both SDKs, because it builds both frameworks and runs inject.test.js',
+       /setup-node/.test(live) && /9\.0\.x/.test(live) && /10\.0\.x/.test(live));
+    ok('a red leg does not cancel the others', /fail-fast:\s*false/.test(live));
+    ok('the script exists', fs.existsSync(path.join(L.ROOT, 'tests', 'live', 'smoke.sh')));
+}
+
 console.log('\n── ci.yml ──────────────────────────────────────────────────────');
 ok('ci.yml sets top-level permissions: contents: read', /^permissions:\s*\n\s+contents:\s*read\s*$/m.test(ci));
 ok('ci.yml gives every job a timeout', Object.keys(ciJobs).length > 0 && Object.keys(ciJobs).every(n => ciJobs[n].timeout));

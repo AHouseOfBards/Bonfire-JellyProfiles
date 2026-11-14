@@ -35,3 +35,7 @@ CLAUDE.md
 
 # The screenshot tools fetch the icon font jellyfin-web ships; not ours to commit.
 tests/screens/.cache/
+
+# live smoke
+tests/live/.work/
+.live-dl/

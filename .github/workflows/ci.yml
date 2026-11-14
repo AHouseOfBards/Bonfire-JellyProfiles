@@ -162,6 +162,86 @@ jobs:
       - name: Validate translations
         run: node Web/i18n/validate.js
 
+  # Every other job loads our assembly into a harness, or runs the client script against a
+  # fixture page. None starts a server. This one does: the net9.0 build that ships, installed
+  # into a real Jellyfin, which has to load it, serve index.html with Bonfire's tags, serve a
+  # client script that starts, answer an anonymous route and refuse a signed-out one
+  # (tests/live/smoke.sh; Docker legs also restart the container and check again).
+  #
+  # The matrix is the servers the plugin supports: 10.11.x (.NET 9) and 12.x (.NET 10), on
+  # Docker (which is Debian, so it stands for Linux) and on Windows. A Docker image is pinned
+  # by digest and a Windows zip by SHA-256, because a tag or a URL is a pointer its owner can
+  # move and a "pass" against a different server proves nothing. Jellyfin publishes no
+  # checksum for the Windows zip; the value is of the file as first downloaded from
+  # repo.jellyfin.org and is checked on every run.
+  #
+  # To move a pin: pull the new image and copy its digest (docker buildx imagetools inspect),
+  # or download the new zip and run sha256sum on it, and change the name in the same edit.
+  # tests/js/workflows.js fails if a digest, a checksum or a version is missing or disagrees.
+  live:
+    name: Live ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Docker 10.11.11
+            os: ubuntu-latest
+            image: jellyfin/jellyfin@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db
+          - name: Docker 12.4
+            os: ubuntu-latest
+            image: jellyfin/jellyfin@sha256:fea863d0cd9ec445985d9c75fc6ed64e38a1d2766cf0c250a33d553f4fc1b771
+          - name: Windows 10.11.11
+            os: windows-latest
+            zip: https://repo.jellyfin.org/files/server/windows/stable/v10.11.11/amd64/jellyfin_10.11.11-amd64.zip
+            sha256: 3b5d3e904415ac6bd2c0ee9fe93235b4145d41c4c85ae782d244ac9767f77374
+          - name: Windows 12.4
+            os: windows-latest
+            zip: https://repo.jellyfin.org/files/server/windows/stable/v12.4/amd64/jellyfin_12.4-amd64.zip
+            sha256: d62b5b30390213680fd1fae5484082ae27b2a778cfd40a473ad7b1e4147d75a6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET 9 and 10
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      # Both frameworks, like every other build here; only net9.0 is installed below.
+      - name: Build the plugin
+        shell: bash
+        run: dotnet build Jellyfin.Profiles.csproj -c Release -warnaserror
+
+      # One step for every leg, so no step is conditional: an image leg has no zip and a zip
+      # leg has no image, and the script below picks by which is set.
+      - name: Start Jellyfin with the plugin and check it
+        shell: bash
+        env:
+          IMAGE: ${{ matrix.image }}
+          ZIP: ${{ matrix.zip }}
+          ZIP_SHA256: ${{ matrix.sha256 }}
+        run: |
+          set -euo pipefail
+          if [ -n "$IMAGE" ]; then
+            docker pull "$IMAGE"
+            bash tests/live/smoke.sh --plugin bin/Release/net9.0 --image "$IMAGE"
+          else
+            mkdir -p .live-dl/server
+            curl -fsSL -o .live-dl/jellyfin.zip "$ZIP"
+            echo "$ZIP_SHA256  .live-dl/jellyfin.zip" | sha256sum -c -
+            unzip -q .live-dl/jellyfin.zip -d .live-dl/server
+            bash tests/live/smoke.sh --plugin bin/Release/net9.0 --server .live-dl/server/jellyfin
+          fi
+
   # The client script in WebKit, the engine of Safari and of the iPhone and iPad app. Every
   # other browser harness drives Chrome, so nothing else here has ever run it in WebKit.
   # Playwright is pinned in tests/webkit/package.json (a devDependency for this alone). The
@@ -199,7 +279,7 @@ jobs:
     name: CI passed
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [js, csharp, binchk, static, webkit]
+    needs: [js, csharp, binchk, static, live, webkit]
     if: ${{ always() }}
     steps:
       - name: Every job succeeded
@@ -208,10 +288,11 @@ jobs:
           CSHARP: ${{ needs.csharp.result }}
           BINCHK: ${{ needs.binchk.result }}
           STATIC: ${{ needs.static.result }}
+          LIVE: ${{ needs.live.result }}
           WEBKIT: ${{ needs.webkit.result }}
         run: |
           bad=0
-          for pair in "js=$JS" "csharp=$CSHARP" "binchk=$BINCHK" "static=$STATIC" "webkit=$WEBKIT"; do
+          for pair in "js=$JS" "csharp=$CSHARP" "binchk=$BINCHK" "static=$STATIC" "live=$LIVE" "webkit=$WEBKIT"; do
             echo "$pair"
             [ "${pair#*=}" = "success" ] || bad=1
           done
