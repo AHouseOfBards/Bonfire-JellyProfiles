@@ -1,16 +1,15 @@
 // How many PIN guesses typing a PIN costs (R-1203).
 //
 // The server counts every PIN check against one allowance per account: five a quarter
-// hour, twenty a day, shared by web, apps and the picker. It has to count a "silent"
-// check too, or that check would be a free way to try PINs. Both PIN boxes — a
-// profile's and the main account's — used to POST verify-pin on every keystroke from the
-// fourth digit, so an eight-digit PIN typed correctly spent four wrong prefixes before
-// the right one, and a single typo then locked it: the activity line, the PinLocked
-// email, and a fifth of the day's guesses, for somebody who knew their PIN.
+// hour, twenty a day, shared by web, apps and the picker. A "silent" check counts too,
+// or it would be a free way to try PINs. Both PIN boxes (a profile's and the main
+// account's) used to POST verify-pin on every keystroke from the fourth digit, so a
+// correct eight-digit PIN spent four wrong prefixes first, and one typo then locked it:
+// the activity line, the PinLocked email, and a fifth of the day's guesses.
 //
-// Runs the real promptPinEntry and promptMasterPinEntry against a stub DOM, types into
-// the box one digit at a time, and counts what was sent. Timers are held, and only run
-// when this file says the typing has paused.
+// Runs the real promptPinEntry and promptMasterPinEntry against a stub DOM, types one
+// digit at a time and counts what was sent. Timers are held until this file says the
+// typing has paused.
 //
 //   node tests/js/pinprefix.js [path/to/profiles.js]
 
@@ -86,7 +85,7 @@ const RIGHT = '24681357';
         ok('and it is the whole PIN, not a prefix',
            sent.length >= 1 && sent.every(p => p.body.pin === RIGHT), sent.map(p => p.body.pin).join(','));
 
-        // 2. Six digits, then a pause: one check. Wrong, and Enter then sends nothing more.
+        // 2. Six digits, then a pause: one check. If wrong, Enter sends nothing more.
         env = setup();
         env.setRespond(() => ({ status: 400, body: 'Incorrect PIN.' }));
         box.open(env.PP);
@@ -109,7 +108,7 @@ const RIGHT = '24681357';
         // 3. A 429 stops the box from checking by itself.
         env = setup();
         // The server's sentence is English. The client builds the wait from Retry-After
-        // through t(), so it is not the server's words that are shown.
+        // through t(), so the server's words are not shown.
         env.setRespond(() => ({ status: 429, headers: { 'Retry-After': '90' }, body: 'Too many tries. Try again in 2 minutes.' }));
         box.open(env.PP);
         input = env.content.querySelector('#' + box.input);

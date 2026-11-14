@@ -1,8 +1,8 @@
 // The PIN boxes say what to type instead of showing four dots (P2-203).
 //
 // A placeholder of "••••" looks like a PIN already typed, and on a television nothing told
-// the person to use the number keys. Draws the three screens that ask for a PIN and reads
-// each box's placeholder and label.
+// the person to use the number keys. Draws the three PIN screens and reads each box's
+// placeholder and label.
 //
 //   node tests/js/pinhint.js [path/to/profiles.js]
 
@@ -43,10 +43,10 @@ function boxOf(id) {
         const box = boxOf(s[1]);
         ok(s[0] + ': the box is drawn', box !== '');
         ok(s[0] + ': no row of dots posing as a typed PIN', box.indexOf('••') === -1, box);
-        // A placeholder was tried first: the box is 180px wide with 0.6rem letter-spacing, so
-        // on a television it read "Use the number" and sat at the bottom of the box.
-        // A single space is allowed and is not words: it is what lets :placeholder-shown
-        // draw the empty box's four dots (pinbox.js), and it draws nothing itself.
+        // A placeholder was tried first: the box is 180px wide with 0.6rem letter-spacing,
+        // so on a television it read "Use the number" at the bottom of the box.
+        // A single space is allowed and is not words: it lets :placeholder-shown draw the
+        // empty box's four dots (pinbox.js) and draws nothing itself.
         ok(s[0] + ': no placeholder in a box too narrow for one', !/placeholder="[^"]*[^"\s][^"]*"/.test(box), box);
         ok(s[0] + ': the hint is its own line', /class="jpf-pin-keys-hint">Use the number keys</.test(content.innerHTML));
         ok(s[0] + ': the box is named after what it asks for', /aria-label="(?!Use the number)[^"]+"/.test(box), box);

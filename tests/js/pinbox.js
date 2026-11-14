@@ -1,14 +1,14 @@
 /*
  * The PIN box, measured in a real browser. Two defects:
  *
- *   1. The empty box was blank (or carried words). It shows four dim dots until something
- *      is typed, like a phone's lock screen, drawn as background gradients so there is no
- *      text to translate and nothing for a screen reader to say: the field is still named
- *      by its aria-label, never "bullet bullet". The dots are tied to :placeholder-shown
- *      (Chromium 47), because ::placeholder is Chromium 57 and a television would drop it.
- *   2. Focus drew two rings: the accent border and glow of the field's own rule, plus the
- *      2px outline that keyboard focus gets everywhere. Each of the three is measured on
- *      its own and every pair is asserted not to occur together.
+ *   1. The empty box was blank (or carried words). It now shows four dim dots until
+ *      something is typed, like a phone's lock screen, drawn as background gradients so
+ *      there is no text to translate or for a screen reader to say (the field is named by
+ *      its aria-label, never "bullet bullet"). The dots hang on :placeholder-shown
+ *      (Chromium 47); ::placeholder is Chromium 57 and a television would drop it.
+ *   2. Focus drew two rings: the accent border and glow of the field's rule, plus the 2px
+ *      outline keyboard focus gets everywhere. Each is measured alone and every pair is
+ *      asserted not to occur together.
  *
  * Needs Chrome and the Material Icons font; skips (exit 0) without them.
  *
@@ -47,11 +47,11 @@ function fetchIcons() {
 const THEMES = fs.readdirSync(path.join(ROOT, 'Web', 'themes'))
     .filter(f => /\.json$/.test(f) && f !== 'fonts.json').map(f => f.replace(/\.json$/, '')).sort();
 const SCENES = ['pin', 'mainpin', 'ob-mainpin', 'pinreset'];
-// Not #jpf-pin-reset-code: the code from the email is six visible digits, not a PIN, and four
-// PIN dots over it said the wrong thing. It is asked about on its own below.
+// Not #jpf-pin-reset-code: the emailed code is six visible digits, not a PIN, and four
+// PIN dots over it said the wrong thing. It is asked about separately below.
 const BOXES = '#jpf-profile-pin-input, #jpf-master-pin-input, #jpf-main-pin-new, #jpf-pin-reset-new';
 
-// Runs in the page. Reports numbers; every check names its own member.
+// Runs in the page. Reports numbers; each check names its own member.
 const MEASURE = `(function () {
   var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   var boxes = [].slice.call(document.querySelectorAll(${JSON.stringify(BOXES)})).filter(function (b) { return b.offsetWidth; });

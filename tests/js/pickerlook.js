@@ -1,21 +1,20 @@
 /*
  * The picker as seen from a sofa: the focus frame, the line under a name, the lock badge.
  *
- * Three things were wrong with it on a television, and each is a number or a colour rather
- * than a missing rule, so each is asked as one:
+ * Three things were wrong on a television, each a number or a colour rather than a
+ * missing rule, so each is asked as one:
  *
- *   - Focus. The focused tile's ring was the same width as the "signed in" ring, so the one
- *     tile the remote is on looked like the one already signed in. Focus now draws a thicker
- *     ring (the card has no outline: tvfocusring.js holds that).
+ *   - Focus. The focused tile's ring was as wide as the "signed in" ring, so the tile the
+ *     remote is on looked signed in. Focus now draws a thicker ring (the card has no
+ *     outline: tvfocusring.js holds that).
  *   - "45 min left" / "Time's up" / "Signed in" were 0.75rem and 0.7rem: 20px at 1080p and
- *     15px at 720p, on a screen watched from three metres. And "Time's up" was the theme's
- *     warning colour, which on Jellyfin Light is mustard on grey at about 3:1.
- *   - The lock badge was 32px with a 14px padlock whatever the tile, which on a 280px
- *     television tile is a dot.
+ *     15px at 720p, watched from three metres. "Time's up" was also the theme's warning
+ *     colour, mustard on grey at about 3:1 on Jellyfin Light.
+ *   - The lock badge was 32px with a 14px padlock whatever the tile, a dot on a 280px
+ *     television tile.
  *
- * The contrast is computed per theme, against each theme's own background, with the colour
- * the stylesheet actually resolves to; a rule that names a token the theme sets is read
- * through the theme file, not through a literal.
+ * Contrast is computed per theme, against its own background, with the colour the
+ * stylesheet resolves to; a token the theme sets is read through the theme file.
  *
  *   node tests/js/pickerlook.js
  */
@@ -57,7 +56,7 @@ function decl(sel, prop) {
 const px = v => { const m = /^(-?[\d.]+)px$/.exec(v || ''); return m ? parseFloat(m[1]) : null; };
 const rem = v => { const m = /^(-?[\d.]+)rem$/.exec(v || ''); return m ? parseFloat(m[1]) : null; };
 
-// ── Colour arithmetic, WCAG 2 (the same as themes.js) ───────────────────────────
+// -- Colour arithmetic, WCAG 2 (same as themes.js) -----------------------------
 function parseColour(v) {
     v = String(v || '').trim().toLowerCase();
     let m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/.exec(v);
@@ -84,7 +83,7 @@ console.log('\n── "Time\'s up" and "45 min left" can be read on every theme 
     for (const sel of ['.jpf-profile-viewing.is-out', '.jpf-profile-viewing']) {
         const value = decl(sel, 'color');
         const op = decl(sel, 'opacity');
-        // .jpf-profile-viewing sets no colour: it inherits the name's, which is a theme token.
+        // .jpf-profile-viewing sets no colour: it inherits the name's, a theme token.
         const token = value ? (/^var\((--[\w-]+)\)$/.exec(value) || [])[1] : '--jpf-name-color';
         const key = TOKENS[token];
         ok(sel + ' takes a colour the theme sets (' + (value || 'inherited') + ')', !!key);
@@ -118,7 +117,7 @@ for (const sel of ['.jpf-tv .jpf-profile-viewing', '.jpf-tv .jpf-profile-current
 // ── 3. The focus frame ──────────────────────────────────────────────────────────
 console.log('\n── Focus reads as focus, not as "signed in" ─────────────────────');
 {
-    // The signed-in ring is the base border. Focus on a television must be thicker.
+    // The signed-in ring is the base border; focus on a television must be thicker.
     const base = decl('.jpf-profile-avatar', 'border');
     const focus = decl('.jpf-tv .jpf-profile-card:focus .jpf-profile-avatar', 'border-width');
     ok('the signed-in ring is the theme\'s ring width (' + base + ')', /var\(--jpf-ring-w\)/.test(base || ''));

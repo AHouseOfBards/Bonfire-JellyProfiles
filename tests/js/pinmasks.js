@@ -1,12 +1,12 @@
 /*
  * Every PIN field is masked. A PIN box is <input type="text"> masked by
- * -webkit-text-security, so a new one is in the clear until its id is added to the
- * stylesheet's list: #jpf-account-pin-input (the main PIN on Your account) was left out and
- * showed the digits as they were typed (R-1226).
+ * -webkit-text-security, so a new one shows in the clear until its id is added to the
+ * stylesheet's list. #jpf-account-pin-input (main PIN on Your account) was left out and
+ * showed digits as typed (R-1226).
  *
- * Enumerates every text input whose id has "pin" in it and resolves, per id, the last rule
- * in Web/styles.css that names it alone and sets -webkit-text-security (all are one id
- * selector, so source order decides). #jpf-pin-reset-code is the one deliberate exception:
+ * Takes every text input whose id has "pin" and resolves, per id, the last rule in
+ * Web/styles.css that names it alone and sets -webkit-text-security (all are one id
+ * selector, so source order decides). #jpf-pin-reset-code is the deliberate exception:
  * it is read off a phone and typed, so it must resolve to "none".
  *
  *     node tests/js/pinmasks.js [/path/to/profiles.js]
