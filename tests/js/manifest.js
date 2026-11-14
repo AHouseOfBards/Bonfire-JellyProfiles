@@ -1,17 +1,16 @@
 /*
  * The manifest on this branch.
  *
- * Jellyfin polls it, reads the checksum, downloads the artefact and refuses to install if
+ * Jellyfin polls it, reads the checksum, downloads the artifact and refuses to install if
  * the two disagree. Everything here has cost a release:
  *
  *  - two releases shipped with the "0" placeholder still in place and could not be
  *    installed at all;
- *  - 1.1.2, 1.1.4 and 1.1.6 all carry 0b6481f7f56de24f3c9757d67a73f181 — three tags,
- *    three sets of release notes, one binary. Nothing noticed, and nothing could have:
- *    every check in the release workflow asked whether a checksum had been written, never
- *    whether it was new. The workflow now refuses a checksum that already belongs to
- *    another version in the same manifest; this is the standing check that the manifest
- *    in the tree is clean.
+ *  - 1.1.2, 1.1.4 and 1.1.6 all carry 0b6481f7f56de24f3c9757d67a73f181: three tags, three
+ *    sets of release notes, one binary. Every release-workflow check asked whether a
+ *    checksum had been written, never whether it was new. The workflow now refuses a
+ *    checksum that already belongs to another version in the same manifest; this is the
+ *    standing check that the manifest in the tree is clean.
  *
  * Run against the file on whichever branch is checked out, so it covers whichever channel
  * is about to be released.
@@ -51,13 +50,13 @@ ok('it is a list of one plugin', Array.isArray(doc) && doc.length === 1);
 const versions = (doc && doc[0] && doc[0].versions) || [];
 ok('with versions (' + versions.length + ')', versions.length > 0);
 
-// Three releases sharing one artefact went unnoticed for months. This is the only place
+// Three releases sharing one artifact went unnoticed for months. This is the only place
 // that would have said so before it shipped.
 console.log('\n── No two versions ship the same artefact ──────────────────────');
 
-// The three below already shipped and cannot be unshipped. They are listed by name so
-// that this check reports every *other* collision loudly rather than being switched off,
-// and so that removing one of them from the manifest also removes it from here.
+// The three below already shipped and cannot be unshipped. They are named so the check
+// still reports every other collision loudly, and so removing one from the manifest also
+// removes it here.
 const KNOWN_HISTORICAL = {
     '0b6481f7f56de24f3c9757d67a73f181': ['1.1.2.0', '1.1.4.0', '1.1.6.0']
 };
@@ -93,11 +92,11 @@ if (collisions === 0) ok('every version has its own artefact', true);
 
 console.log('\n── Every entry is installable ──────────────────────────────────');
 
-// No entry may carry the "0" placeholder. The workflow used to need one, written by hand
-// before the tag and stamped afterwards; for that whole run every server on the channel was
-// offered a version whose install failed. It now writes the entry whole, after the release,
-// so a placeholder in the tree means someone wrote an entry by hand and the workflow will
-// refuse the tag (the version is already in the manifest).
+// No entry may carry the "0" placeholder. The workflow used to need one, written before the
+// tag and stamped afterwards, so every server on the channel was offered a version whose
+// install failed. It now writes the entry whole after the release, so a placeholder in the
+// tree means a hand-written entry, and the workflow will refuse the tag (the version is
+// already in the manifest).
 const csproj = fs.readFileSync(path.join(L.ROOT, 'Jellyfin.Profiles.csproj'), 'utf8');
 const inFlight = (/<Version>([^<]+)<\/Version>/.exec(csproj) || [])[1];
 ok('the csproj names a version to release (' + (inFlight || 'none found') + ')', !!inFlight);
@@ -110,14 +109,13 @@ versions.forEach(function (v) {
     ok(v.version + ' has a real checksum, not the placeholder', real);
 });
 
-// One historical tag does not follow the convention: 1.1.0.0 was released as `v1.1`,
-// before the three-part tag name settled. The URL is right — it serves, and `gh release
-// view v1.1` lists the asset — so the check's premise is what is wrong for that one
-// entry, not the entry. Named explicitly rather than loosening the pattern for all of
-// them, so the next release still has to match exactly.
+// One historical tag does not follow the convention: 1.1.0.0 was released as `v1.1`, before
+// the three-part tag name settled. Its URL is right (it serves, and `gh release view v1.1`
+// lists the asset), so the check's premise is wrong for that entry, not the entry. Named
+// explicitly rather than loosening the pattern, so the next release still has to match.
 //
-// This only surfaced when the harness first ran against main's manifest during the 1.6.0
-// cut; until then it had only ever seen beta's.
+// This surfaced when the harness first ran against main's manifest in the 1.6.0 cut; it had
+// only seen beta's before.
 const TAG_EXCEPTIONS = { '1.1.0.0': 'v1.1' };
 
 versions.forEach(function (v) {
@@ -128,9 +126,8 @@ versions.forEach(function (v) {
 
 console.log('\n── The workflow refuses what this file must never contain ──────');
 
-// The manifest being clean today does not stop the next release dirtying it, so the
-// guard in the workflow is what keeps it clean. Checked here because a green manifest
-// with the guard deleted looks exactly like a green manifest with it.
+// The manifest being clean today does not stop the next release dirtying it; the workflow
+// guard does. Checked here because a green manifest looks the same with the guard deleted.
 const wf = fs.readFileSync(WF, 'utf8');
 ok('the release workflow rejects a checksum that already belongs to another version',
    /select\(\.checksum == \$c and \.version != \$v\)/.test(wf));
@@ -140,9 +137,8 @@ ok('and says so as an error rather than a warning',
 console.log('\n── The release notes are in the file the workflow reads ─────────');
 
 // CHANGELOG.md stays a manual step, done in the same commit as the notes file: a workflow
-// that edited it would need a second push to a branch (main) that the beta channel does
-// not run from, and the changelog is read by people, who want it reviewed. What the
-// harness holds is that the two agree.
+// edit would need a second push to a branch (main) the beta channel does not run from, and
+// people read the changelog and want it reviewed. This holds that the two agree.
 const NOTES_DIR = path.join(L.ROOT, 'release-notes');
 const changelog = fs.readFileSync(path.join(L.ROOT, 'CHANGELOG.md'), 'utf8').replace(/\r\n/g, '\n');
 const noteFiles = fs.existsSync(NOTES_DIR) ? fs.readdirSync(NOTES_DIR).filter(n => !/^\./.test(n)) : [];

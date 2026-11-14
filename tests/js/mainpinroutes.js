@@ -1,15 +1,14 @@
 /*
  * Every route that asks for the main PIN has a client that sends it.
  *
- * mainpin.js checks nine fetch sites it was told about. The controller guards 30
- * routes with ManagementAllowed, so a route could be added (or its client call moved)
- * without any check noticing, and the first sign was a household's save failing as a
- * missing PIN. Here the list comes from the controller, the way apidocs.js reads the
- * routes:
+ * mainpin.js checks nine fetch sites it was told about. The controller guards 30 routes
+ * with ManagementAllowed, so a route could be added (or its client call moved) unnoticed,
+ * and the first sign was a household's save failing as a missing PIN. Here the list comes
+ * from the controller, as apidocs.js reads the routes:
  *
  *   - Each route that calls ManagementAllowed must have at least one client call, or an
- *     exemption below that gives the reason. An exemption nothing uses fails, so the
- *     list cannot go stale.
+ *     exemption below with the reason. An exemption nothing uses fails, so the list
+ *     cannot go stale.
  *   - Every client call to such a route must send the PIN: in the body (masterPin) where
  *     the route reads one, otherwise in the header (manageHeaders). A route that reads
  *     only the header is not satisfied by a body field.

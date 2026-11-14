@@ -1,8 +1,8 @@
 /*
  * The custom logo, top right of the picker (scenes "logo" and "logotext"): it was a bare
  * picture 48px tall with square corners, and the text form was small grey type. It now has
- * rounded corners and a little padding, is half as big again, and the text is in the
- * theme's title colour. Still top right, and it must not sit on the title or a tile.
+ * rounded corners and padding, is half as big again, and the text uses the theme's title
+ * color. Still top right, and it must not sit on the title or a tile.
  *
  * Measured in a real browser, each element on its own, in every theme and device.
  *
@@ -40,9 +40,9 @@ function fetchIcons() {
 
 const DEVICES = ['phone', 'phone-land', 'tablet', 'desktop', 'tv720', 'tv'];
 const SCENES = ['logo', 'logotext'];
-// How far in from the screen's edge the logo sits, on a phone, tablet or desktop: 2rem (32px at a 16px root), up
-// from 1rem. The owner found it too close. A TV stays at 5% of the screen (the overscan safe
-// area), which is already further in.
+// How far in from the screen's edge the logo sits on a phone, tablet or desktop: 2rem (32px
+// at a 16px root), up from 1rem, which was too close. A TV stays at 5% of the screen (the
+// overscan safe area), which is already further in.
 const EDGE_REM = 2;
 
 const MEASURE = `(function () {
@@ -101,9 +101,8 @@ async function main() {
     const server = await fixture.start(0, { materialIcons: ICONS, source: given ? fs.readFileSync(given, 'utf8') : undefined });
     const c = await chrome.launch();
     try {
-        // Every combination below is its own page and independent of the others, so they are
-        // measured several at a time (chrome.js checks()). The checks come back in the order a
-        // serial loop would have made them.
+        // Every combination is its own page, so they are measured several at a time
+        // (chrome.js checks()), in the order a serial loop would have made them.
         const feed = list => list.forEach(a => ok(a[0], a[1], a[2]));
         const base = 'http://127.0.0.1:' + server.port + '/';
 
@@ -118,10 +117,10 @@ async function main() {
             const tv = /^tv/.test(device);
             ok(where + ': top right', m.box.r > m.vw * 0.5 && m.box.t < 120, 'box ' + Math.round(m.box.l) + ',' + Math.round(m.box.t) + ' in ' + m.vw);
             ok(where + ': has some padding', m.pad >= 8, 'padding ' + m.pad);
-            // The picture's own corners only: a transparent logo shows no corner, and
-            // nothing round the picture may clip it or sit behind it as a plate.
-            // In the theme's own medium corner (Crimson's are 3px, Bloom's 16px), so the
-            // logo matches the tiles and buttons beside it; never square.
+            // The picture's own corners only: a transparent logo shows no corner, and nothing
+            // round the picture may clip it or sit behind it as a plate. In the theme's own
+            // medium corner (Crimson's are 3px, Bloom's 16px), so the logo matches the tiles
+            // and buttons beside it; never square.
             if (!m.text) ok(where + ': the picture has the theme\'s rounded corners', m.imgRadius > 0 && m.imgRadius === RADIUS[theme], 'radius ' + m.imgRadius + ', theme medium ' + RADIUS[theme]);
             ok(where + ': no plate behind it and nothing clips it', m.radius === 0 && m.plate === 'rgba(0, 0, 0, 0)', 'radius ' + m.radius + ', background ' + m.plate);
             if (m.text) {
@@ -169,9 +168,9 @@ async function main() {
         const BOX = `(function () { var b = document.getElementById('profiles-logo'); var root = document.getElementById('profiles-gate-overlay');
           var last = 0; [].slice.call(root.querySelectorAll('.profiles-btn, .jpf-profile-card')).forEach(function (e) { last = Math.max(last, e.getBoundingClientRect().bottom); });
           return { last: last, scrolls: root.scrollHeight > root.clientHeight + 1, below: root.scrollHeight - (b.getBoundingClientRect().bottom + root.scrollTop) }; })()`;
-        // Scrolled right to the top, the first thing in the content is on the screen. A flex
-        // column centred with justify-content spills an overflowing gate above scroll 0, where
-        // no scrolling can reach the title or the first rows (the bottom corners, 2.0).
+        // Scrolled to the top, the first thing in the content is on the screen. A flex column
+        // centered with justify-content spills an overflowing gate above scroll 0, where no
+        // scrolling can reach the title or the first rows (the bottom corners, 2.0).
         const REACH = `(function () { var root = document.getElementById('profiles-gate-overlay');
           var c = root.querySelector('.profiles-modal-content'); var f = c && c.firstElementChild;
           if (!f) return { found: false }; root.scrollTop = 0;

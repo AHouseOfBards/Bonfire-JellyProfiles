@@ -2,11 +2,11 @@
  * A see-through logo on every theme. One logo serves all twelve, and it sat straight on the
  * gate: a white one vanished on Jellyfin Light and a near-black one on every dark theme.
  *
- * Judged from the pixels on screen, not from the code's own sums: the logo is one of three
+ * Judged from the pixels on screen, not the code's own sums. The logo is one of three
  * pictures fixture.js draws (white, near-black and orange bars on a clear ground), so the
- * harness knows which of its pixels are painted and which are clear. From a screenshot it
- * reads the colour of the bars, of the clear gaps between them (whatever shows through:
- * the theme's background, or a backing), and of the background just outside the logo.
+ * harness knows which pixels are painted and which are clear. From a screenshot it reads
+ * the color of the bars, of the gaps between them (the theme's background or a backing),
+ * and of the background just outside the logo.
  *
  *   - The logo can be seen: the bars contrast 3:1 (WCAG's floor for graphics) with the gaps.
  *   - A backing only where one is needed: there is one exactly when the bars contrast under
@@ -144,9 +144,9 @@ async function main() {
     const c = await chrome.launch();
     const url = (theme, scene, device) => 'http://127.0.0.1:' + server.port + '/?theme=' + theme + '&scene=' + scene + '&device=' + device;
     try {
-        // Every theme, logo and size is its own page, independent of the others, so they are
-        // measured several at a time (chrome.js checks()), in the order a serial loop would give.
-        // `c` inside each callback is that scene's own tab.
+        // Every theme, logo and size is its own page, so they are measured several at a time
+        // (chrome.js checks()), in the order a serial loop would give. `c` in each callback
+        // is that scene's own tab.
         const share = {};
         const grid = [];
         for (const theme of themes()) {
@@ -164,7 +164,7 @@ async function main() {
                     const d = 'bars ' + s.bar + ', gaps ' + s.gap + ', outside ' + s.out + '; ' + s.seen.toFixed(2) + ':1 seen, ' + s.bare.toFixed(2) + ':1 bare, backed ' + s.m.backed;
                     ok(where + ': the logo can be seen (3:1 against what shows through it)', s.seen >= 3, d);
                     // Within a hair of 3:1 either answer is right: the client decides from the
-                    // theme's colours (Glass's top-right glow is #2f4d6e, 2.97:1 to the orange),
+                    // theme's colors (Glass's top-right glow is #2f4d6e, 2.97:1 to the orange),
                     // and the screen shows that glow already fading (3.14:1). Outside the band
                     // the answer must match the screen; and the first check holds everywhere.
                     if (s.bare < 2.8 || s.bare > 3.3) ok(where + ': ' + (s.bare < 3 ? 'it needs a backing and has one' : 'it reads on the background and has no backing'), s.m.backed === (s.bare < 3), d);

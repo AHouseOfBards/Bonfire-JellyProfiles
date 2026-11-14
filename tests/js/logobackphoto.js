@@ -2,14 +2,14 @@
  * The logo's backing on a theme with a background picture (2.0).
  *
  * fitLogoBacking decides whether a see-through logo needs a backing by holding its pixels
- * against the gate's solid colours (gateBackground). A custom theme's picture is drawn
- * over those and under the theme's fill at its dim, so at a low dim what is really behind
- * the logo can be close to the picture: a white logo over a white photograph on a dark
- * theme, or a near-black one over a dark photograph on a light theme, read as fine and got
- * no backing. The server's contrast check treats a picture as its worst case, the fill at
- * the dim over white and over black; the backing is now judged against those too.
+ * against the gate's solid colors (gateBackground). A custom theme's picture is drawn over
+ * those and under the theme's fill at its dim, so at a low dim what is behind the logo can
+ * be close to the picture: a white logo over a white photograph on a dark theme, or a
+ * near-black one over a dark photograph on a light theme, read as fine and got no backing.
+ * The server's contrast check treats a picture as its worst case (the fill at the dim over
+ * white and over black); the backing is now judged against those too.
  *
- * Runs the real fitLogoBacking and the colour functions out of profiles.js, with the theme
+ * Runs the real fitLogoBacking and the color functions out of profiles.js, with the theme
  * and the logo's pixels stubbed. logobacking.js is the on-screen check, and needs Chrome.
  *
  *   node tests/js/logobackphoto.js [path/to/profiles.js]
