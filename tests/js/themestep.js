@@ -161,13 +161,19 @@ function preview(to) {
   };
   card.focus(); card.click(); sample();
   var sync = frames[0];
+  // The transition the browser started on the veil, read on the click itself. Sampled frames
+  // alone can miss a 0.3s fade: a CI runner once took longer than that to draw the next one.
+  var veil = document.querySelector('.jpf-theme-veil');
+  var fade = (veil && veil.getAnimations ? veil.getAnimations() : []).filter(function (a) {
+    return a.transitionProperty === 'opacity' && a.playState === 'running';
+  }).map(function (a) { var t = a.effect.getComputedTiming(); return { duration: t.duration, progress: t.progress }; });
   return new Promise(function (resolve) {
     (function tick() {
       sample();
       if (performance.now() - t0 < 700) return requestAnimationFrame(tick);
       var others = [].slice.call(document.querySelectorAll('.jpf-theme-option')).filter(function (o) { return o !== card; });
       resolve({
-        sync: sync, frames: frames,
+        sync: sync, frames: frames, fade: fade,
         focused: document.activeElement === card,
         checked: card.getAttribute('aria-checked') === 'true' && others.every(function (o) { return o.getAttribute('aria-checked') === 'false'; })
       });
@@ -286,9 +292,11 @@ async function main() {
                 ok(where + ': the screen is in the new theme on the click itself', p.sync.attr === to, 'data-jpf-theme is ' + p.sync.attr);
                 ok(where + ': it fades from the old look (the veil is up, at full strength)', p.sync.veil && p.sync.op !== null && p.sync.op > 0.9,
                     'veil ' + p.sync.veil + ', opacity ' + p.sync.op);
+                // A cut has no running opacity transition on the veil; a fade has one of about
+                // THEME_FADE_MS, started on the click. Frames in between are reported, not required.
                 const mid = p.frames.filter(f => f.veil && f.op !== null && f.op > 0.02 && f.op < 0.98);
-                ok(where + ': a frame between the two proves it is a fade, not a cut', mid.length > 0,
-                    'veil opacities: ' + p.frames.filter(f => f.veil).map(f => f.op).join(', '));
+                ok(where + ': the veil starts a fade on the click, not a cut', p.fade.length === 1 && p.fade[0].duration >= 250 && p.fade[0].progress < 0.5,
+                    'transitions: ' + JSON.stringify(p.fade) + '; veil opacities: ' + p.frames.filter(f => f.veil).map(f => f.op).join(', ') + ' (' + mid.length + ' between)');
                 const ops = p.frames.filter(f => f.veil).map(f => f.op);
                 ok(where + ': the veil only gets fainter, and is gone at the end',
                     ops.every((o, k) => k === 0 || o <= ops[k - 1] + 0.001) && !p.frames[p.frames.length - 1].veil,
