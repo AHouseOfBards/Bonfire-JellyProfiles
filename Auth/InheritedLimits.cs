@@ -9,25 +9,24 @@ namespace Jellyfin.Profiles.Auth
     /// Bitrate, session count, forced transcoding, SyncPlay and blocked unrated items: the
     /// limits a profile takes as the stricter of its own and its master's.
     ///
-    /// <para><b>What went wrong.</b> "Its own" used to mean "whatever is on the profile's
-    /// account now" — and what is on the account now is mostly what Bonfire wrote there the
-    /// last time, the master's value included. So tightening a master tightened its profiles,
-    /// and loosening it again never reached them: each switch took the stricter of the new
-    /// master value and the old one it had itself written. A master set to one stream for an
-    /// evening left every profile on one stream for good, with nothing in the profile form to
-    /// undo it.</para>
+    /// <para><b>What went wrong.</b> "Its own" meant whatever was on the profile's account,
+    /// which is mostly what Bonfire wrote last time, the master's value included. Tightening a
+    /// master tightened its profiles, and loosening it never reached them: each switch took
+    /// the stricter of the new master value and the old one Bonfire had written. A master set
+    /// to one stream for an evening left every profile on one stream for good, with nothing in
+    /// the profile form to undo it.</para>
     ///
     /// <para><b>The fix</b> is to remember which part is the profile's. Bonfire records what it
-    /// last wrote (<see cref="ProfileMapping.LastAppliedLimits"/>). A field on the account that
-    /// still equals that record is Bonfire's own write and says nothing about the profile; a
-    /// field that differs was changed by somebody else — an administrator in Dashboard -> Users
-    /// — and that value becomes the profile's own (<see cref="ProfileMapping.OwnLimits"/>).</para>
+    /// last wrote (<see cref="ProfileMapping.LastAppliedLimits"/>). An account field that still
+    /// equals the record is Bonfire's own write and says nothing about the profile. A field
+    /// that differs was changed by somebody else, such as an administrator in Dashboard ->
+    /// Users, and becomes the profile's own (<see cref="ProfileMapping.OwnLimits"/>).</para>
     ///
-    /// <para><b>Profiles from before this existed</b> have no record, so Bonfire's writes cannot
-    /// be told from an administrator's. A field that equals the master's is taken to be
-    /// inherited — the result today is identical either way, and it lets a later loosening flow
-    /// through. A field stricter than the master's is kept as the profile's own, because that
-    /// is the reading that never loosens anything on upgrade.</para>
+    /// <para><b>Profiles from before this</b> have no record, so Bonfire's writes cannot be
+    /// told from an administrator's. A field equal to the master's is taken as inherited: the
+    /// result is the same today, and a later loosening flows through. A field stricter than
+    /// the master's is kept as the profile's own, the reading that never loosens anything on
+    /// upgrade.</para>
     ///
     /// <para>Pure and static so tests/cs/switchpolicy can drive every case.</para>
     /// </summary>
@@ -77,10 +76,10 @@ namespace Jellyfin.Profiles.Auth
                     ? account.ForceRemoteSourceTranscoding : before.ForceRemoteSourceTranscoding;
                 own.SyncPlayAccess = account.SyncPlayAccess != lastApplied.SyncPlayAccess
                     ? account.SyncPlayAccess : before.SyncPlayAccess;
-                // A set, so the change is read as a diff: what somebody added to the account
-                // since Bonfire's write joins the profile's own, and what they removed leaves
-                // it. Taking the whole account set would adopt the master's old items as the
-                // profile's and bring the ratchet back.
+                // A set, read as a diff: what somebody added since Bonfire's write joins the
+                // profile's own, and what they removed leaves it. Taking the whole account set
+                // would adopt the master's old items as the profile's and bring the ratchet
+                // back.
                 var now = Set(account.BlockUnratedItems);
                 var wrote = Set(lastApplied.BlockUnratedItems);
                 var ownSet = Set(before.BlockUnratedItems);
