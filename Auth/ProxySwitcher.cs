@@ -27,47 +27,42 @@ using Microsoft.Net.Http.Headers;
 namespace Jellyfin.Profiles.Auth
 {
     /// <summary>
-    /// The profile picker for apps that cannot run the switcher, served as the app's own
-    /// home screen. A stopgap until each app has its own; Moonfin first.
+    /// The profile picker for apps that cannot run the switcher, served as the app's own home screen.
+    /// A stopgap until each app has its own; Moonfin first.
     ///
-    /// <para><b>How it looks from the couch.</b> The household signs into its main account
-    /// as normal. The app's home shows one library, "Profiles", with a folder per profile.
-    /// Opening a folder opens that profile. A profile with a PIN opens a keypad made of
-    /// folders instead (1–9, 0, Delete, OK). From then on the app shows that profile's
-    /// libraries, plus a "Switch profile" folder that goes back to the picker.</para>
+    /// <para><b>From the couch.</b> The household signs into its main account as normal. The app's
+    /// home shows one library, "Profiles", with a folder per profile. Opening a folder opens that
+    /// profile. A profile with a PIN opens a keypad made of folders instead (1-9, 0, Delete, OK).
+    /// After that the app shows that profile's libraries plus a "Switch profile" folder that goes back
+    /// to the picker.</para>
     ///
-    /// <para><b>How it works.</b> No lobby account and no extra password. The main account's
-    /// own token is the key: Bonfire remembers, in memory, which profile that token is
-    /// acting as. Picking one mints the profile's session server-side, exactly as the web
-    /// switcher does, and keeps its token here; the app never sees it. Every later request
-    /// on the main token has the token and the main account's id swapped for the profile's
-    /// before Jellyfin sees it, so Jellyfin enforces the profile's libraries, ratings and
-    /// watched state with its own code. The app is always told the main account's id, so
-    /// nothing it stored goes stale; the server always sees the profile's.</para>
+    /// <para><b>How it works.</b> No lobby account and no extra password. The main account's own
+    /// token is the key: Bonfire remembers in memory which profile that token is acting as. Picking
+    /// one mints the profile's session server-side, as the web switcher does, and keeps its token
+    /// here; the app never sees it. Every later request on the main token has the token and the main
+    /// account's id swapped for the profile's before Jellyfin sees it, so Jellyfin enforces the
+    /// profile's libraries, ratings and watched state with its own code. The app is always told the
+    /// main account's id, so nothing it stored goes stale.</para>
     ///
-    /// <para><b>Why opening a folder is the trigger.</b> It is the one action every app has
-    /// and does on purpose. Moonfin loads a folder's children only when it is opened, never
-    /// while scrolling past (it prefetches images on focus, nothing else). It does load
-    /// them twice per open, which is why every tile id encodes its whole state — a keypad
-    /// tile is "profile P, with 12 typed, key 3" — so the second load is a repeat, not a
-    /// second key press.</para>
+    /// <para><b>Why opening a folder is the trigger.</b> It is the one action every app has and does
+    /// on purpose. Moonfin loads a folder's children only when it is opened, not while scrolling past.
+    /// It loads them twice per open, so every tile id encodes its whole state (a keypad tile is
+    /// "profile P, with 12 typed, key 3") and the second load is a repeat, not a second key press.</para>
     ///
-    /// <para><b>The live connection.</b> Moonfin drops watched-state messages whose UserId
-    /// is not the signed-in user's (<c>user_data_sync.dart</c>). The server writes the
-    /// profile's id; the app knows the main account's. So the socket is accepted here (see
-    /// <see cref="ProxyWebSocketFeature"/>) and the profile's id rewritten in every text
-    /// message. On every switch the sockets are closed; the app reconnects within a second
-    /// or two and gets the new profile's.</para>
+    /// <para><b>The live connection.</b> Moonfin drops watched-state messages whose UserId is not the
+    /// signed-in user's (<c>user_data_sync.dart</c>). The server writes the profile's id and the app
+    /// knows the main account's. So the socket is accepted here (see
+    /// <see cref="ProxyWebSocketFeature"/>) and the profile's id rewritten in every text message. Every
+    /// switch closes the sockets; the app reconnects within a second or two.</para>
     ///
-    /// <para><b>A restart</b> forgets every pick, and the app is back at the picker on its
-    /// next request. Jellyfin tokens do not expire, so the profile sessions minted before it
-    /// would stay valid for good: they are kept on disk (<see cref="PickerMarks"/>) and ended
-    /// at the next start. A profile session is also ended the next time the same profile is
-    /// picked on that device.</para>
+    /// <para><b>A restart</b> forgets every pick, and the app is back at the picker on its next
+    /// request. Jellyfin tokens do not expire, so the profile sessions minted before it would stay
+    /// valid for good. They are kept on disk (<see cref="PickerMarks"/>) and ended at the next start. A
+    /// profile session is also ended the next time the same profile is picked on that device.</para>
     ///
-    /// <para><b>What this is not.</b> A security boundary for the main account: whoever holds
-    /// its token could sign into it anywhere. The PIN keypad, its throttle, the device list
-    /// and a disabled account are what guard a profile, the same as on every other path.</para>
+    /// <para><b>Not a security boundary</b> for the main account: whoever holds its token could sign
+    /// into it anywhere. The PIN keypad, its throttle, the device list and a disabled account are what
+    /// guard a profile, as on every other path.</para>
     /// </summary>
     public static class ProxySwitcher
     {
@@ -94,15 +89,14 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         public static async Task<bool> TryHandleAsync(HttpContext context, RequestDelegate next, ILogger logger)
         {
-            // Off: the emergency code, or no app ticked. Until a TV has been put in a child's
-            // profile that is all there is to it, and this stays what it always was: a flag
-            // and a list count. While one is in a child's profile its token is not the
-            // child's to use, so a request on it is answered here instead of passed on as the
-            // main account, which is where the app would otherwise land (see SignOutChildAsync).
+            // Off: the emergency code, or no app ticked. Until a TV has been put in a child's profile
+            // that is all there is to it: a flag and a list count. While one is in a child's profile its
+            // token is not the child's to use, so a request on it is answered here instead of passed on as the
+            // main account (see SignOutChildAsync).
             if (Plugin.IsOff || !ProxyClients.AnyEnabled(Plugin.Instance?.Configuration))
             {
-                // PickerMarks.Any: a TV that was in a child's profile before a restart is no
-                // longer in ChildTokens, and is exactly the one this must not let through.
+                // PickerMarks.Any: a TV that was in a child's profile before a restart is no longer in
+                // ChildTokens, and is exactly the one this must not let through.
                 if (ChildTokens.IsEmpty && !PickerMarks.Any) return false;
                 return await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
             }
@@ -120,10 +114,9 @@ namespace Jellyfin.Profiles.Auth
             }
             catch (Exception ex) when (!forwarded && ex is not OperationCanceledException && !context.Response.HasStarted)
             {
-                // Our own logic failed before Jellyfin saw the request. The app gets what it
-                // would have got without us, rather than an error, except where that is the
-                // main account: a request from a child's profile, or from the picker, carries
-                // the main account's token, and passing it on would hand that over.
+                // Our own logic failed before Jellyfin saw the request. The app gets what it would have got
+                // without us, except for the main account: a request from a child's profile or from the picker
+                // carries the main token, and passing it on would hand that over.
                 if (MustNotFallThrough(context.Request))
                 {
                     logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; refusing it.", context.Request.Path);
@@ -131,18 +124,17 @@ namespace Jellyfin.Profiles.Auth
                     return true;
                 }
 
-                // Fails OPEN here, on purpose (r2-17-02): only requests that cannot hand over the main account reach this line (see above).
+                // Fails open on purpose (r2-17-02): only requests that cannot hand over the main account reach this line.
                 logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; passing it on.", context.Request.Path);
                 return false;
             }
         }
 
         /// <summary>
-        /// Sessions a request on the main account's token must never fall back to, by that
-        /// token and by the profile's: it is in a child's profile. Written when a profile
-        /// is entered, cleared when the session goes back to the picker. Kept in a set of its
-        /// own so the off paths above can ask "is any TV in a child's profile?" without a
-        /// lookup, a header read or the configuration.
+        /// Sessions a request on the main account's token must never fall back to, by that token and by
+        /// the profile's: it is in a child's profile. Written when a profile is entered, cleared when the
+        /// session goes back to the picker. A set of its own so the off paths above can ask "is any TV in
+        /// a child's profile?" without a lookup, a header read or the configuration.
         /// </summary>
         private static readonly ConcurrentDictionary<string, ProxySession> ChildTokens = new(StringComparer.Ordinal);
 
@@ -150,8 +142,8 @@ namespace Jellyfin.Profiles.Auth
             => session.Acting is { } a && a.Token != session.MasterToken && a.ProfileId != session.MasterId;
 
         /// <summary>
-        /// True for a request that came from a child's profile or from the picker. Only used
-        /// after something has gone wrong, so it is allowed to read the token.
+        /// True for a request that came from a child's profile or from the picker. Only used after
+        /// something has gone wrong, so it may read the token.
         /// </summary>
         private static bool MustNotFallThrough(HttpRequest request)
         {
@@ -180,8 +172,8 @@ namespace Jellyfin.Profiles.Auth
 
             if (!ChildTokens.TryGetValue(token, out var session))
             {
-                // Not in memory: either not a child's, or one from before a restart, which is
-                // on disk and is signed out the same way.
+                // Not in memory: either not a child's, or one from before a restart, which is on disk and
+                // is signed out the same way.
                 var mark = PickerMarks.Find(token);
                 if (mark == null) return false;
                 session = RestoredSession(context.Request, token, mark);
@@ -191,9 +183,9 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// A TV that was in a child's profile before a restart is back and the picker has taken
-        /// it: it starts at the picker, so only the profile's old session is left to end. The
-        /// record is kept if that could not be done, so the next start tries again.
+        /// A TV that was in a child's profile before a restart is back and the picker has taken it. It
+        /// starts at the picker, so only the profile's old session is left to end. The record is kept if
+        /// that fails, so the next start tries again.
         /// </summary>
         private static async Task EndRestoredAsync(PickerMarks.Mark mark, string masterToken, Services services, ILogger logger)
         {
@@ -214,9 +206,8 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// A session for a TV that was in a child's profile before a restart, built from what was
-        /// kept on disk and what the request says: enough to sign the profile and the main
-        /// token out.
+        /// A session for a TV that was in a child's profile before a restart, built from what was kept on
+        /// disk and what the request says: enough to sign the profile and the main token out.
         /// </summary>
         private static ProxySession RestoredSession(HttpRequest request, string token, PickerMarks.Mark mark)
         {
@@ -234,21 +225,20 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// A TV in a child's profile can no longer be kept there (the emergency code, the
-        /// app unticked, the profiles deleted). The profile's session ends and so does the main
-        /// account's token, which the app answers by asking for the main password again.
-        /// Passing the request on instead would have left the child on the main account, with
-        /// no parental controls and no way back to the picker.
+        /// A TV in a child's profile can no longer be kept there (the emergency code, the app unticked,
+        /// the profiles deleted). The profile's session ends and so does the main account's token, which
+        /// the app answers by asking for the main password again. Passing the request on would have left
+        /// the child on the main account, with no parental controls and no way back to the picker.
         ///
-        /// <para>The mark is kept until Jellyfin has confirmed the sign-out, so a failure to
-        /// reach it leaves every later request refused, not open. Always answers 401, which is
-        /// the answer the main token would get once it is gone.</para>
+        /// <para>The mark is kept until Jellyfin confirms the sign-out, so a failure to reach it leaves
+        /// every later request refused, not open. Always answers 401, which is what the main token would
+        /// get once it is gone.</para>
         /// </summary>
         private static async Task<bool> SignOutChildAsync(HttpContext context, ProxySession session, Services services, ILogger logger)
         {
-            // Marked first and kept through the wait below: an app sends several requests at
-            // once, and one arriving while the profile's sign-out was in flight found no mark
-            // and went through as the main account.
+            // Marked first and kept through the wait below: an app sends several requests at once, and
+            // one arriving while the profile's sign-out was in flight found no mark and went through as the
+            // main account.
             ChildTokens[session.MasterToken] = session;
             await LeaveAsync(session, services, logger, keepMark: true).ConfigureAwait(false);
 
@@ -293,8 +283,8 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// For harnesses: what a restart does. Everything held in memory is lost; what was kept on
-        /// disk (<see cref="PickerMarks"/>) is read back the next time it is asked for.
+        /// For harnesses: what a restart does. Everything held in memory is lost; what was kept on disk
+        /// (<see cref="PickerMarks"/>) is read back the next time it is asked for.
         /// </summary>
         internal static void SimulateRestart()
         {
@@ -308,26 +298,26 @@ namespace Jellyfin.Profiles.Auth
         {
             var request = context.Request;
 
-            // This runs on every request on the server once any app is ticked, video
-            // segments included. Everything before a session is found has to be cheap: a
-            // substring test on a header, then one dictionary lookup. No configuration copy
-            // (that takes the global lock), no header scan, no database.
+            // This runs on every request on the server once any app is ticked, video segments included,
+            // so everything before a session is found must be cheap: a substring test on a header, then one
+            // dictionary lookup. No configuration copy (it takes the global lock), no header scan, no
+            // database.
             var auth = request.Headers[HeaderNames.Authorization].ToString();
             var emby = request.Headers["X-Emby-Authorization"].ToString();
             var named = auth.Length > 0 || emby.Length > 0;
             var live = Plugin.Instance?.Configuration;
             if (named && !ProxyClients.MayBe(live, auth, emby))
             {
-                // Not an app that is ticked, as far as the headers say. A child's TV whose
-                // app has been unticked since says exactly that, and is still a child's.
+                // Not an app that is ticked, as far as the headers say. A child's TV whose app has been
+                // unticked since says exactly that, and is still a child's.
                 return (!ChildTokens.IsEmpty || PickerMarks.Any) && await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
             }
 
-            // Our own reading, not Jellyfin's (RequestAuth), on purpose: the token here only
-            // finds the picker's session, and whoever sends it signed in with the main
-            // account's password. A shape this misreads skips the picker and leaves them the
-            // main account they already hold. Asking Jellyfin would cost a database lookup on
-            // every request on the server. The gates, which refuse a child, ask Jellyfin (R-1295).
+            // Our own reading, not Jellyfin's (RequestAuth), on purpose: the token only finds the
+            // picker's session, and whoever sends it signed in with the main account's password. A shape this
+            // misreads skips the picker and leaves them the main account they already hold. Asking Jellyfin
+            // would cost a database lookup on every request on the server. The gates, which refuse a child,
+            // ask Jellyfin (R-1295).
             var token = ReadToken(request);
             if (string.IsNullOrEmpty(token)) return false;
 
@@ -337,9 +327,9 @@ namespace Jellyfin.Profiles.Auth
             // session already known. Only a request naming a ticked app can start one.
             if (!Sessions.TryGetValue(token, out var session))
             {
-                // Nothing in memory about this token, but it may be a TV that was in a child's
-                // profile before a restart (on disk). It is never served as the main account:
-                // at the picker, if the picker takes it; signed out, if nothing of ours does.
+                // Nothing in memory about this token, but it may be a TV that was in a child's profile
+                // before a restart (on disk). It is never served as the main account: at the picker if the picker
+                // takes it, signed out if nothing of ours does.
                 var restored = PickerMarks.Find(token);
                 if (!named) return restored != null && await RefuseIfChildAsync(context, logger).ConfigureAwait(false);
                 session = FindOrRegister(token, request, Controllers.ProfilesBaseController.ReadConfigSnapshot(), services, logger);
@@ -348,11 +338,10 @@ namespace Jellyfin.Profiles.Auth
             }
             else if (!await StillSignedInAsync(session, services, logger).ConfigureAwait(false))
             {
-                // Signed out by an administrator, or its password changed: Jellyfin has
-                // revoked the token, but a session known here was never asked again, so the
-                // app kept listing profiles, opening the PIN-less ones and streaming as them
-                // until the server restarted (R-1030). Dropped, the next request is the
-                // app's own, and Jellyfin refuses it as it should.
+                // Signed out by an administrator, or its password changed: Jellyfin has revoked the token,
+                // but a session known here was never asked again, so the app kept listing profiles, opening the
+                // PIN-less ones and streaming as them until a restart (R-1030). Dropped, so the next request is
+                // the app's own and Jellyfin refuses it.
                 await LeaveAsync(session, services, logger).ConfigureAwait(false);
                 Sessions.TryRemove(token, out _);
                 return false;
@@ -364,8 +353,8 @@ namespace Jellyfin.Profiles.Auth
                 return await SignOutChildAsync(context, session, services, logger).ConfigureAwait(false);
             }
 
-            // Unticked since: behave as today. The list is replaced, never edited, when the
-            // settings are saved, so reading it here without the lock is safe.
+            // Unticked since: behave as before. The list is replaced, never edited, when settings are
+            // saved, so reading it here without the lock is safe.
             if (!ProxyClients.IsEnabled(live, session.Client))
             {
                 // In a child's profile it cannot be let go to the main account.
@@ -452,12 +441,11 @@ namespace Jellyfin.Profiles.Auth
                 return await AnswerPickerAsync(context, session, route, config, services, forward).ConfigureAwait(false);
             }
 
-            // Closed for maintenance. The gate in front of us saw the main account's token,
-            // which got this far, so it is an administrator's; the profile it is acting as is
-            // judged here, on the gate's own rules. Refused, the app goes back to the picker
-            // rather than being handed 503s it has no way out of: the picker is how it would
-            // switch, and the picker will not open the profile again while closed. A segment
-            // of something already playing is let through as the gate would.
+            // Closed for maintenance. The gate in front of us saw the main account's token, so it is an
+            // administrator's; the profile it is acting as is judged here on the gate's own rules. Refused,
+            // the app goes back to the picker instead of getting 503s it cannot escape: the picker is how it
+            // would switch, and it will not open the profile again while closed. A segment of something
+            // already playing is let through, as the gate would.
             var closed = MaintenanceGate.Active();
             if (closed != null
                 && acting.ProfileId != session.MasterId
@@ -474,9 +462,9 @@ namespace Jellyfin.Profiles.Auth
                 return await AnswerPickerAsync(context, session, route, config, services, forward).ConfigureAwait(false);
             }
 
-            // Viewing hours and daily limits, judged on the profile, as the gate in front of us
-            // would have if it had seen the profile's token. Refused with the same 403: the
-            // profile may still browse, so it stays where it is.
+            // Viewing hours and daily limits, judged on the profile as the gate in front of us would
+            // have with the profile's token. Refused with the same 403; the profile may still browse, so it
+            // stays where it is.
             if (acting.ProfileId != session.MasterId)
             {
                 var refusal = ViewingGate.Check(request.Path.Value ?? string.Empty, acting.ProfileId, services.Sessions, services.Libraries, ViewingTracker.Now());
@@ -490,9 +478,8 @@ namespace Jellyfin.Profiles.Auth
 
                 ViewingGate.NoteAllowed(request.Path.Value ?? string.Empty, acting.ProfileId);
 
-                // A Quick Connect authorize is a sign-in of the device that asked for the code,
-                // as this profile. The gate in front of us saw the main account's token and
-                // judged nobody (R-1335).
+                // A Quick Connect authorize is a sign-in of the device that asked for the code, as this
+                // profile. The gate in front of us saw the main account's token and judged nobody (R-1335).
                 if (QuickConnectAuthorize.IsAuthorizePath(request.Method, request.Path.Value))
                 {
                     var qcRefusal = QuickConnectAuthorize.Refusal(config ?? Controllers.ProfilesBaseController.ReadConfigSnapshot(), acting.ProfileId, request.Query["code"].ToString());
@@ -511,8 +498,8 @@ namespace Jellyfin.Profiles.Auth
             switch (route.Kind)
             {
                 case RouteKind.Views:
-                    // The tile goes on the first page only: a client paging through the folders
-                    // would otherwise be handed one on every page (r2-05-06).
+                    // The tile goes on the first page only: a client paging through the folders would get one on
+                    // every page (r2-05-06).
                     var firstPage = !int.TryParse(context.Request.Query["StartIndex"].ToString(), out var startIndex) || startIndex <= 0;
                     await ForwardAndEditAsync(context, forward, body => firstPage ? AppendSwitchView(body, session, services, config) : null).ConfigureAwait(false);
                     return true;
@@ -535,19 +522,19 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The profile's token was refused: an administrator signed it out, or the profile was
-        /// deleted. The app has had one 401 and may sign out, which we cannot take back; the
-        /// next request at least finds the picker instead of a dead profile.
+        /// The profile's token was refused: an administrator signed it out, or the profile was deleted.
+        /// The app has had one 401 and may sign out, which we cannot take back; the next request at least
+        /// finds the picker instead of a dead profile.
         /// </summary>
         private static async Task DropIfRevokedAsync(HttpContext context, ProxySession session, ActingAs acting, Services services, ILogger logger)
         {
             if (context.Response.StatusCode != StatusCodes.Status401Unauthorized) return;
             if (!ReferenceEquals(session.Acting, acting) || acting.Token == session.MasterToken) return;
 
-            // Any route can answer 401 (a plugin's own refusal, say) without the token being
-            // at fault. Ask Jellyfin whether it still has the profile's token, and leave only
-            // if it does not. Cannot tell (no device manager, or the lookup threw) is the old
-            // answer: leave, since back at the picker is the safe side of a doubt.
+            // Any route can answer 401 (a plugin's own refusal, say) without the token being at fault.
+            // Ask Jellyfin whether it still has the profile's token and leave only if it does not. If we
+            // cannot tell (no device manager, or the lookup threw), leave: back at the picker is the safe
+            // side of a doubt.
             try
             {
                 var row = services.Devices?.GetDevices(new DeviceQuery { AccessToken = acting.Token })?.Items?.FirstOrDefault();
@@ -600,10 +587,10 @@ namespace Jellyfin.Profiles.Auth
         internal static Func<DateTime> Clock = () => DateTime.UtcNow;
 
         /// <summary>
-        /// Whether the main account's token is still one Jellyfin knows, asked at most once
-        /// per <see cref="RecheckEvery"/>: this runs on every request, video segments
-        /// included, and a device lookup is a database query. Cannot tell (no device
-        /// manager) counts as yes, so a failure of ours never signs a household out.
+        /// Whether the main account's token is still one Jellyfin knows, asked at most once per
+        /// <see cref="RecheckEvery"/>: this runs on every request, video segments included, and a device
+        /// lookup is a database query. If we cannot tell (no device manager) it counts as yes, so a
+        /// failure of ours never signs a household out.
         /// </summary>
         private static Task<bool> StillSignedInAsync(ProxySession session, Services services, ILogger logger)
         {
@@ -643,11 +630,11 @@ namespace Jellyfin.Profiles.Auth
         internal static readonly TimeSpan IdleFor = TimeSpan.FromDays(30);
 
         /// <summary>
-        /// Forgets picker sessions nothing has used for <see cref="IdleFor"/>. Only a session
-        /// on the picker with no live connection: one in a profile holds a token that has to
-        /// be ended properly, and is never dropped here. A TV that returns after being
-        /// forgotten is registered afresh on its next request. The last check of the main
-        /// token (<c>CheckedTicks</c>) is the last use, to within <see cref="RecheckEvery"/>.
+        /// Forgets picker sessions nothing has used for <see cref="IdleFor"/>. Only a session on the
+        /// picker with no live connection: one in a profile holds a token that has to be ended properly
+        /// and is never dropped here. A TV that returns after being forgotten is registered afresh on its
+        /// next request. The last check of the main token (<c>CheckedTicks</c>) is the last use, to within
+        /// <see cref="RecheckEvery"/>.
         /// </summary>
         internal static int SweepIdle()
         {
@@ -656,10 +643,9 @@ namespace Jellyfin.Profiles.Auth
             foreach (var pair in Sessions)
             {
                 var s = pair.Value;
-                // ChildTokens is keyed by the main token as well as the profile's, so this is
-                // not covered by Acting: SignOutChildAsync clears Acting and keeps the main
-                // token's mark until Jellyfin confirms the sign-out. A session in that state
-                // is still being refused and is kept.
+                // ChildTokens is keyed by the main token as well as the profile's, so this is not covered by
+                // Acting: SignOutChildAsync clears Acting and keeps the main token's mark until Jellyfin confirms
+                // the sign-out. A session in that state is still being refused and is kept.
                 if (s.Acting != null || !s.Sockets.IsEmpty || ChildTokens.ContainsKey(pair.Key)) continue;
                 if (Interlocked.Read(ref s.CheckedTicks) >= cutoff) continue;
                 if (Sessions.TryRemove(pair.Key, out _)) removed++;
@@ -674,8 +660,8 @@ namespace Jellyfin.Profiles.Auth
             if (Sessions.TryGetValue(token, out var known)) return known;
 
             var now = DateTime.UtcNow;
-            // Not trusted once the number of profiles has changed: an account that had none and
-            // has just made its first would otherwise wait out the five minutes without a picker.
+            // Not trusted once the number of profiles has changed: an account that had none and has
+            // just made its first would otherwise wait out the five minutes without a picker.
             var mappingCount = config?.Mappings?.Count ?? 0;
             if (NotOurs.TryGetValue(token, out var notOurs) && notOurs.Until > now && notOurs.Mappings == mappingCount) return null;
 
@@ -708,9 +694,9 @@ namespace Jellyfin.Profiles.Auth
                 Language = PickerLanguage(request, config, device.UserId),
             };
 
-            // A TV that never comes back kept its session for the life of the process. Bounded
-            // the way NotOurs is, by size, but by dropping only what is idle: a clear would
-            // send every household back to the picker.
+            // A TV that never comes back kept its session for the life of the process. Bounded by size
+            // as NotOurs is, but by dropping only what is idle: a clear would send every household back to
+            // the picker.
             if (Sessions.Count >= SweepAbove) SweepIdle();
 
             session = Sessions.GetOrAdd(token, session);
@@ -721,9 +707,9 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The language for the picker's tiles: the app's own (Accept-Language, first tag),
-        /// else the one stored with the main account's email address, else English. Fixed for
-        /// the session, because a tile's name is part of its id (<see cref="MakeTile"/>).
+        /// The language for the picker's tiles: the app's own (Accept-Language, first tag), else the one
+        /// stored with the main account's email address, else English. Fixed for the session, because a
+        /// tile's name is part of its id (<see cref="MakeTile"/>).
         /// </summary>
         private static string PickerLanguage(HttpRequest request, PluginConfiguration? config, Guid masterId)
         {
@@ -773,10 +759,10 @@ namespace Jellyfin.Profiles.Auth
                 Stamp = Interlocked.Increment(ref session.TileCount),
             };
 
-            // Past 5,000 let go of the oldest keypad and notice tiles, never the folders and
-            // profiles: clearing everything dropped what the app still had on screen or on its
-            // back stack, and its next open of one read as an unknown parent and came back empty.
-            // A keypad press mints about 13 tiles, so only hundreds of presses get here.
+            // Past 5,000, let go of the oldest keypad and notice tiles, never the folders and profiles.
+            // Clearing everything dropped what the app still had on screen or on its back stack, and its
+            // next open of one read as an unknown parent and came back empty. A keypad press mints about 13
+            // tiles, so only hundreds of presses get here.
             if (session.Tiles.Count > 5_000)
             {
                 var keep = tile.Stamp - 1_000;
@@ -837,11 +823,10 @@ namespace Jellyfin.Profiles.Auth
                     return true;
 
                 default:
-                    // Refused unless it is on the list. The main account's token is on this
-                    // request, and the person holding the app may be a child who has just
-                    // pressed Switch profile with a detail page still on the app's back
-                    // stack. Passing the unknown through gave them the main account's
-                    // libraries, playback and Quick Connect authorize.
+                    // Refused unless it is on the list. The main account's token is on this request, and the
+                    // person holding the app may be a child who just pressed Switch profile with a detail page still
+                    // on the app's back stack. Passing the unknown through gave them the main account's libraries,
+                    // playback and Quick Connect authorize.
                     if (PickerAllows(route, context.Request.Method, session.MasterId)) return false;
 
                     await RefuseOnPickerAsync(context, route).ConfigureAwait(false);
@@ -853,14 +838,14 @@ namespace Jellyfin.Profiles.Auth
             => s.Length > i && string.Equals(s[i], text, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
-        /// What an app may ask on the picker and have Jellyfin answer as the main account.
-        /// Everything else is refused (see <see cref="RefuseOnPickerAsync"/>). Built from
-        /// Moonfin-Core's own source (Moonfin-Client/Moonfin-Core at 330eb31; paths below are
-        /// in it), by following what the app asks between signing in and drawing its home
-        /// screen. A new entry needs a line saying what asks for it.
+        /// What an app may ask on the picker and have Jellyfin answer as the main account. Everything
+        /// else is refused (see <see cref="RefuseOnPickerAsync"/>). Built from Moonfin-Core's own source
+        /// (Moonfin-Client/Moonfin-Core at 330eb31; paths below are in it) by following what the app asks
+        /// between signing in and drawing its home screen. A new entry needs a line saying what asks for
+        /// it.
         ///
-        /// <para>Tiles, the picker's own folders and pictures, Views, Resume and the other
-        /// list shapes never get here: they are answered before this.</para>
+        /// <para>Tiles, the picker's own folders and pictures, Views, Resume and the other list shapes
+        /// are answered before this and never get here.</para>
         /// </summary>
         internal static bool PickerAllows(Route route, string method, Guid masterId)
         {
@@ -951,11 +936,10 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The answer to something the picker does not allow. A 404: the app reads it as "no
-        /// such thing" and carries on. A 401 would sign it out (session_repository.dart),
-        /// and a 403 starts its access-schedule probe (media_server_client_factory.dart).
-        /// The list shapes the app asks for next to a detail page come back empty instead,
-        /// so a page on the back stack draws blank rather than broken.
+        /// The answer to something the picker does not allow. A 404: the app reads it as "no such thing"
+        /// and carries on. A 401 would sign it out (session_repository.dart) and a 403 starts its
+        /// access-schedule probe (media_server_client_factory.dart). The list shapes the app asks for next
+        /// to a detail page come back empty, so a page on the back stack draws blank, not broken.
         /// </summary>
         private static async Task RefuseOnPickerAsync(HttpContext context, Route route)
         {
@@ -985,8 +969,8 @@ namespace Jellyfin.Profiles.Auth
         private static async Task OpenAsync(
             HttpContext context, ProxySession session, Tile tile, PluginConfiguration? config, Services services, ILogger logger, Func<Task> forward)
         {
-            // One at a time per session: the app loads each folder twice, at once, and the
-            // second must see what the first did rather than mint a second session.
+            // One at a time per session: the app loads each folder twice, at once, and the second must
+            // see what the first did rather than mint a second session.
             await session.Gate.WaitAsync(context.RequestAborted).ConfigureAwait(false);
             IReadOnlyList<Tile>? children;
             try
@@ -1072,15 +1056,14 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Whether opening this tile asks for its PIN: the same rule as the web switcher's,
-        /// through the same function.
+        /// Whether opening this tile asks for its PIN: the same rule as the web switcher's, through the
+        /// same function.
         /// <para>
-        /// The main account's tile used to open without one, on the grounds that its password
-        /// had been typed to sign the app in. But the app stays signed in as the main account
-        /// for good, so a child could pick Switch profile, then the main account, and be in
-        /// the unrestricted account. The web switcher asked for the PIN in the same place.
-        /// Now the main account opens freely only where its owner chose that: no PIN set,
-        /// "Ask for the PIN to open this account" off, or the home network with the bypass on.
+        /// The main account's tile used to open without one, since its password had been typed to sign the
+        /// app in. But the app stays signed in as the main account for good, so a child could pick Switch
+        /// profile, then the main account, and be in the unrestricted account. The web switcher asked for
+        /// the PIN in the same place. Now the main account opens freely only where its owner chose that:
+        /// no PIN set, "Ask for the PIN to open this account" off, or the home network with the bypass on.
         /// </para>
         /// </summary>
         private static bool NeedsPin(HttpContext context, ProxySession session, Guid profileId, PluginConfiguration? config, Services services)
@@ -1148,16 +1131,16 @@ namespace Jellyfin.Profiles.Auth
                     return Keypad(session, key.ProfileId, entered, key.Id);
             }
 
-            // OK before four digits cannot be a PIN, and it used to spend one of the five tries
-            // like a wrong one, so five presses on an empty keypad locked the profile on every
-            // app (R-1034). Show the keypad again, with what was typed, and count nothing.
+            // OK before four digits cannot be a PIN. It used to spend one of the five tries like a wrong
+            // one, so five presses on an empty keypad locked the profile on every app (R-1034). Show the
+            // keypad again with what was typed and count nothing.
             if (key.Entered.Length < MinPinLength)
             {
                 return Keypad(session, key.ProfileId, key.Entered, key.Id);
             }
 
-            // The app's second load of the same OK tile. Counting it would spend two of the
-            // five tries on one press.
+            // The app's second load of the same OK tile. Counting it would spend two of the five tries
+            // on one press.
             if (session.LastWrongOk == key.Id && DateTime.UtcNow - session.LastWrongOkAt < RepeatWindow)
             {
                 return Keypad(session, key.ProfileId, string.Empty, key.Id, Say(session, "notice.picker.wrongPin"));
@@ -1166,8 +1149,8 @@ namespace Jellyfin.Profiles.Auth
             var mapping = config?.Mappings?.FirstOrDefault(m => m.ProfileUserId == key.ProfileId && m.MasterUserId == session.MasterId);
             if (mapping == null) return ProfileTiles(session, ProfilesView(session).Id, config, services);
 
-            // The same allowance as typing the PIN into the app's own sign-in form: one
-            // account, five tries per quarter hour and twenty a day, wherever they come from.
+            // The same allowance as typing the PIN into the app's own sign-in form: one account, five
+            // tries per quarter hour and twenty a day, from anywhere.
             if (!BonfirePinAuthenticationProvider.BeginPinAttempt(key.ProfileId))
             {
                 logger.LogWarning("ProfilesPlugin: too many wrong PINs for profile {ProfileId} on the picker.", key.ProfileId);
@@ -1217,9 +1200,8 @@ namespace Jellyfin.Profiles.Auth
             var closed = MaintenanceGate.Active();
             if (closed != null && !MaintenanceGate.IsAdmin(services.Users, profileId))
             {
-                // The administrator's own words, as everywhere else the server turns someone
-                // away, or the default in the app's language when none were written. A tile's
-                // name, so it is text and nothing more.
+                // The administrator's own words, as everywhere else the server turns someone away, or the
+                // default in the app's language. A tile's name, so text and nothing more.
                 return string.IsNullOrWhiteSpace(closed.Message)
                     ? Say(session, "notice.picker.maintenance")
                     : closed.ShownMessage();
@@ -1237,8 +1219,8 @@ namespace Jellyfin.Profiles.Auth
             var user = services.Users.GetUserById(profileId);
             if (user == null) return Say(session, "notice.picker.cantOpen");
 
-            // The main account too: turning it off in Dashboard -> Users never touched its
-            // profiles' accounts, so they stayed open from the picker (R-1135).
+            // The main account too: turning it off in Dashboard -> Users never touched its profiles'
+            // accounts, so they stayed open from the picker (R-1135).
             if (services.Users.GetUserDto(user, string.Empty).Policy?.IsDisabled == true
                 || Controllers.ProfilesBaseController.MainAccountDisabled(services.Users, mapping))
             {
@@ -1253,8 +1235,8 @@ namespace Jellyfin.Profiles.Auth
 
             var deviceId = string.IsNullOrEmpty(session.DeviceId) ? "bonfire-picker-" + user.Id.ToString("N")[..8] : session.DeviceId;
 
-            // The profile's earlier sessions on this device go first: Jellyfin counts them
-            // against MaxActiveSessions before it replaces any (issue #41). Best effort, as in /switch.
+            // The profile's earlier sessions on this device go first: Jellyfin counts them against
+            // MaxActiveSessions before it replaces any (issue #41). Best effort, as in /switch.
             try
             {
                 await SameDeviceSessions.EndAsync(services.Sessions, services.Devices, config, user.Id, deviceId, logger).ConfigureAwait(false);
@@ -1264,8 +1246,8 @@ namespace Jellyfin.Profiles.Auth
                 logger.LogWarning(ex, "ProfilesPlugin: could not end {User}'s earlier sessions on this device.", user.Username);
             }
 
-            // Opening a profile from the picker is a switch, not a password sign-in: its
-            // session may refresh this device's record, never make one.
+            // Opening a profile from the picker is a switch, not a password sign-in: its session may
+            // refresh this device's record, never make one.
             RequestDevice.BeginSignIn(byPin: true);
 
             MediaBrowser.Controller.Authentication.AuthenticationResult result;
@@ -1298,9 +1280,9 @@ namespace Jellyfin.Profiles.Auth
             }
 
             await LeaveAsync(session, services, logger).ConfigureAwait(false);
-            // LeaveAsync awaits the sign-out with Acting null, and a handshake that finished in
-            // that gap was listed for "no profile". Close it here, with no await before Acting is
-            // set: a handshake after this sees the new Acting, and one begun for another is aborted.
+            // LeaveAsync awaits the sign-out with Acting null, and a handshake that finished in that
+            // gap was listed for "no profile". Close it here, with no await before Acting is set: a handshake
+            // after this sees the new Acting, and one begun for another is aborted.
             CloseSockets(session);
             session.Acting = new ActingAs(profileId, result.AccessToken);
             ChildTokens[session.MasterToken] = session;
@@ -1321,9 +1303,8 @@ namespace Jellyfin.Profiles.Auth
             session.Acting = null;
             CloseSockets(session);
 
-            // Back on the picker, which refuses what it does not draw, so no longer a child's
-            // to guard. Not when SignOutChildAsync is ending it: that clears the mark itself,
-            // once Jellyfin has confirmed the sign-out.
+            // Back on the picker, which refuses what it does not draw, so no longer a child's to guard.
+            // Not when SignOutChildAsync is ending it: that clears the mark itself once Jellyfin confirms.
             if (!keepMark)
             {
                 ChildTokens.TryRemove(session.MasterToken, out _);
@@ -1442,9 +1423,9 @@ namespace Jellyfin.Profiles.Auth
             {
                 var socket = new RewritingWebSocket(inner, rewrite, s => session.Sockets.TryRemove(s, out _));
                 session.Sockets[socket] = 0;
-                // The handshake finishes after the request began. If the app went back to the
-                // picker in between, CloseSockets ran before this socket was listed and would
-                // never see it, so it would keep rewriting for a profile that is no longer open.
+                // The handshake finishes after the request began. If the app went back to the picker in
+                // between, CloseSockets ran before this socket was listed and never saw it, so it would keep
+                // rewriting for a profile that is no longer open.
                 if (!ReferenceEquals(session.Acting, acting))
                 {
                     try { socket.Abort(); } catch (Exception) { }
@@ -1521,10 +1502,9 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// The theme and glyph for a tile Bonfire draws, or null for one it does not: a
-        /// profile with no picture of its own takes a person in its own theme; the two folders
-        /// take theirs in the main account's. Keys and notices stay plain: their label is the
-        /// whole of what they say.
+        /// The theme and glyph for a tile Bonfire draws, or null for one it does not. A profile with no
+        /// picture of its own takes a person in its own theme; the two folders take theirs in the main
+        /// account's. Keys and notices stay plain: their label is all they say.
         /// </summary>
         private static (JsonObject Theme, TileGlyph Glyph)? DrawnTile(ProxySession session, Tile tile, PluginConfiguration? config)
         {
@@ -1539,10 +1519,9 @@ namespace Jellyfin.Profiles.Auth
                 default: return null;
             }
 
-            // No lock: every caller hands in ReadConfigSnapshot's copy, whose mappings and
-            // theme lists are copied (SnapshotForReading), so nothing here is replaced under
-            // it. Taking ConfigLock on a copy protected nothing and contended once per tile
-            // and per picture.
+            // No lock: every caller passes ReadConfigSnapshot's copy, whose mappings and theme lists are
+            // copied (SnapshotForReading), so nothing here is replaced under it. Taking ConfigLock on a copy
+            // protected nothing and contended once per tile and per picture.
             var row = config.Mappings?.FirstOrDefault(m => m.ProfileUserId == whose);
             return (ThemeCatalog.ThemeFor(Themes.Resolve(row, config), config), glyph);
         }
@@ -1608,9 +1587,8 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
-        /// Passes the request on, then hands the body to <paramref name="edit"/>. Jellyfin's
-        /// own bytes go back whenever the edit returns null or anything about the answer is
-        /// not a plain JSON 200.
+        /// Passes the request on, then hands the body to <paramref name="edit"/>. Jellyfin's own bytes go
+        /// back whenever the edit returns null or the answer is not a plain JSON 200.
         /// </summary>
         private static async Task ForwardAndEditAsync(HttpContext context, Func<Task> forward, Func<byte[], byte[]?> edit)
         {
