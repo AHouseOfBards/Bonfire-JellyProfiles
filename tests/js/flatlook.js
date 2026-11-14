@@ -2,12 +2,11 @@
  * The flat look: the same features on every television, with the blur and the moving
  * decoration swapped for flat equivalents where the browser cannot afford them.
  *
- * "Cannot afford" is found by capability, not by a user-agent list: a television browser
- * that does not know backdrop-filter is Chromium 75 or older (webOS 4.5 is 53, webOS 5 is
- * 68), and its software compositor chokes on a blurred drop-shadow across a screen of
- * profile tiles. A television that parses it, and anything that is not a television, is
- * unchanged. html gets `jpf-flat` and the stylesheet's `.jpf-flat` block does the rest.
- * `.jpf-flat` block does the rest.
+ * "Cannot afford" is found by capability, not a user-agent list: a television browser that
+ * does not know backdrop-filter is Chromium 75 or older (webOS 4.5 is 53, webOS 5 is 68),
+ * and its software compositor chokes on a blurred drop-shadow across a screen of profile
+ * tiles. A television that parses it, and anything that is not a television, is unchanged.
+ * html gets `jpf-flat` and the stylesheet's `.jpf-flat` block does the rest.
  *
  * Two halves, because either alone is a restatement:
  *
@@ -53,7 +52,7 @@ function makeClassList(initial) {
     };
 }
 
-// css: what CSS.supports answers for backdrop-filter — true, false, or 'absent' (no CSS object).
+// css: what CSS.supports answers for backdrop-filter: true, false, or 'absent' (no CSS object).
 function build(opts) {
     const store = Object.assign({}, opts.storage || {});
     const counts = { supports: 0 };
@@ -136,14 +135,14 @@ ok('checkRoute does not mention it', tick.length > 0 && !/jpf-flat|supports\(/.t
 
 /* ── 2. the stylesheet ────────────────────────────────────────────────────── */
 
-// The sheet alone. L.extractCss(raw) is the sheet followed by what the theme generator
-// writes, which is read separately below, so that what the generator emits is held to the
-// generator's own rules and not to the sheet's.
+// The sheet alone. L.extractCss(raw) is the sheet plus what the theme generator writes.
+// The generator's output is read separately below, so it is held to the generator's own
+// rules and not the sheet's.
 const css = fs.readFileSync(L.stylesPath(), 'utf8');
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
 
-// Every declaration, with the at-rules it sits in. A block is "@name prelude { … }" or
-// "selector { … }"; the scanner keeps a stack so a rule inside @media knows it.
+// Every declaration, with the at-rules it sits in. The scanner keeps a stack so a rule
+// inside @media knows it.
 function declarations(text) {
     const out = [];
     const stack = [];
@@ -186,13 +185,13 @@ function splitTop(value) {
     out.push(cur);
     return out.map(s => s.trim()).filter(Boolean);
 }
-// A shadow costs a blur when its blur radius is not a literal zero. A var() is unknown, and
-// a theme fills it with a blur, so it counts.
+// A shadow costs a blur unless its blur radius is a literal zero. A var() is unknown and a
+// theme fills it with a blur, so it counts.
 function shadowCosts(value) {
     if (/^none$/i.test(value)) return false;
     return splitTop(value).some(s => {
         // A shadow that is only a variable is unknown. A variable after literal offsets is a
-        // colour ("0 0 0 2px var(--jpf-accent)"), and the numbers decide.
+        // colour ("0 0 0 2px var(--jpf-accent)"), so the numbers decide.
         if (/^var\([^)]*\)$/.test(s)) return true;
         s = s.replace(/var\([^)]*\)/g, ' ');
         const nums = (s.replace(/rgba?\([^)]*\)|hsla?\([^)]*\)|#[0-9a-f]+/gi, ' ').match(/-?[\d.]+(?:px|rem|em)?/g) || []);
@@ -213,8 +212,8 @@ function costOf(p, context) {
     if (/^(-webkit-)?backdrop-filter$/.test(p.prop)) return /^none$/.test(p.value) || gated ? null : 'backdrop-filter';
     if (/^(-webkit-)?animation(-name)?$/.test(p.prop)) {
         if (/^none$/.test(p.value)) return null;
-        // The spinner is the only sign that a tap registered, on a device where nothing else
-        // moves; it stays on purpose (see the reduced-motion block's own comment).
+        // The spinner is the only sign a tap registered on a device where nothing else moves, so
+        // it stays (see the reduced-motion block's own comment).
         if (/jpfSpin/.test(p.value)) return null;
         return 'animation';
     }
@@ -268,8 +267,8 @@ const missing = [];
 const outranked = [];
 const notFlat = [];
 costly.forEach(c => {
-    // The replacement is the same selector with .jpf-flat in front: the same element in the
-    // same state, one class heavier, later in the sheet.
+    // The replacement is the same selector with .jpf-flat in front: same element and state,
+    // one class heavier, later in the sheet.
     const want = '.jpf-flat ' + c.sel;
     const hit = flatRules.filter(f => f.selector === want
         && props(f.body).some(p => p.prop === c.prop));
@@ -292,8 +291,8 @@ flatRules.forEach(f => {
         if (!costly.some(c => c.sel === base && c.prop === p.prop)) {
             // transition: none is the one flat rule that has no blur to answer to.
             if (p.prop === 'transition') return;
-            // A rule that puts back what a broader flat rule took (a hard ring that would
-            // otherwise lose a tie to it) answers to an original that is not costly.
+            // A rule that restores what a broader flat rule took (a hard ring that would otherwise
+            // lose a tie to it) answers to an original that is not costly.
             if (flatValue(p) && all.some(r => !/\.jpf-flat/.test(r.selector) && selectors(r).indexOf(base) !== -1
                 && props(r.body).some(q => q.prop === p.prop))) return;
             strays.push(f.selector + ' { ' + p.prop + ' }');
@@ -322,9 +321,8 @@ declarations(themeBare).forEach(r => {
 const blur = themeCostly.filter(c => /backdrop-filter/.test(c.why) || c.why === 'blurred filter');
 ok('the generator writes some effects, so the next two checks have something to read (' + themeCostly.length + ')',
     themeCostly.length > 0);
-// Frost: costOf already passes a backdrop-filter inside @supports for it, which is the
-// capability test itself (a browser that cannot blur never sees it). What is left here
-// must be none.
+// Frost: costOf already passes a backdrop-filter inside @supports, which is the capability
+// test itself (a browser that cannot blur never sees it). Nothing may be left here.
 ok('every backdrop-filter is behind @supports backdrop-filter, so a browser that cannot blur never gets one',
     blur.filter(c => /backdrop-filter/.test(c.why)).length === 0);
 const drift = themeCostly.filter(c => c.why === 'animation');
